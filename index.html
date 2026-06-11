@@ -195,10 +195,22 @@
   };
 
   // ================= GIAO TIẾP API =================
-  async function fetchDataFromServer() {
+async function fetchDataFromServer() {
+    // 1. Cảnh báo nếu quên dán link API
+    if (!API_URL || API_URL.includes("YOUR_NEW_WEB_APP_URL")) {
+      alert("LỖI: Bạn chưa dán Link API Google Apps Script vào biến API_URL!");
+      return;
+    }
+
     try {
-      let res = await fetch(API_URL);
+      // 2. Bắt buộc phải có { redirect: "follow" } để đi theo luồng bảo mật của Google
+      let res = await fetch(API_URL, {
+        method: "GET",
+        redirect: "follow" 
+      });
+      
       let json = await res.json();
+      
       if(json.success) {
         // Hợp nhất dữ liệu (Bảo vệ bộ lọc local)
         let localFilters = sysData.filters;
@@ -207,9 +219,16 @@
         
         localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
         if(!activeTab) activeTab = sysData.tabOrder[0];
-        renderTabs(); renderGrid();
+        
+        renderTabs(); 
+        renderGrid();
+      } else {
+        alert("SERVER GOOGLE BÁO LỖI: " + json.error);
       }
-    } catch(e) { console.log("Offline mode active."); }
+    } catch(e) { 
+      console.error("Fetch Error:", e);
+      alert("Không thể tải dữ liệu từ Google Sheet!\n1. Hãy chắc chắn link API đã đúng.\n2. Đảm bảo 'Who has access' đã đặt là 'Anyone'.\n(Xem chi tiết lỗi ấn F12 -> Console)");
+    }
   }
 
   async function processQueueAndSync() {
