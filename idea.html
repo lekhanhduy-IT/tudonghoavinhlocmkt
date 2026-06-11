@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - TĐH Vĩnh Lộc</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { display: flex; height: 100vh; overflow: hidden; background: #f0f2f5; }
+        
+        /* Sidebar dạng ép (Flex Layout) đẩy main content */
+        .sidebar { width: 250px; background: #1a252f; color: white; transition: width 0.3s ease; overflow: hidden; display: flex; flex-direction: column; white-space: nowrap; }
+        .sidebar.collapsed { width: 60px; }
+        .sidebar-header { padding: 20px; background: #111a22; display: flex; align-items: center; justify-content: space-between; }
+        .sidebar-header h3 { font-size: 18px; transition: opacity 0.3s; }
+        .sidebar.collapsed .sidebar-header h3 { opacity: 0; pointer-events: none; }
+        .toggle-btn { cursor: pointer; font-size: 20px; font-weight: bold; background: none; border: none; color: white; padding: 0 10px; }
+        
+        .menu-item { padding: 15px 20px; cursor: pointer; border-bottom: 1px solid #2c3e50; transition: background 0.3s; display: flex; align-items: center; }
+        .menu-item:hover, .menu-item.active { background: #2c3e50; border-left: 4px solid #3498db; }
+        .icon { min-width: 30px; font-weight: bold; font-size: 18px; }
+
+        /* Vùng Main tự động co giãn ép layout */
+        .main-content { flex-grow: 1; padding: 30px; overflow-y: auto; transition: width 0.3s; }
+        .header-bar { display: flex; justify-content: space-between; margin-bottom: 25px; border-bottom: 2px solid #ddd; padding-bottom: 10px; align-items: center; }
+        .logout-btn { padding: 8px 15px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+
+        /* Khung hiển thị dữ liệu Tab Ý tưởng */
+        .sheet-container { display: flex; flex-direction: column; gap: 25px; }
+        .sheet-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .sheet-card h4 { color: #2980b9; margin-bottom: 15px; border-bottom: 2px solid #3498db; padding-bottom: 8px; display: inline-block; font-size: 16px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e1e8ed; font-size: 14px; }
+        th { background: #f4f7f9; font-weight: 600; color: #2c3e50; }
+        tr:hover { background: #fcfdfe; }
+
+        #syncStatus { font-size: 13px; color: #7f8c8d; font-weight: 500; }
+    </style>
+
+    <script>
+        if (localStorage.getItem('admin_session') !== 'verified_admin' || localStorage.getItem('admin_email') !== 'admin@tudonghoavinhloc.com') {
+            // Cố tình truy cập lậu -> Xóa sạch dữ liệu và đá về trang chủ
+            localStorage.clear();
+            window.location.href = 'index.html';
+        }
+    </script>
+</head>
+<body>
+
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h3 id="adminTitle">Admin Panel</h3>
+            <button class="toggle-btn" onclick="toggleSidebar()">☰</button>
+        </div>
+        <div class="menu-item active"><span class="icon">💡</span> <span class="text">Ý TƯỞNG</span></div>
+        <div class="menu-item"><span class="icon">📅</span> <span class="text">KẾ HOẠCH</span></div>
+        <div class="menu-item"><span class="icon">📝</span> <span class="text">BÀI VIẾT</span></div>
+        <div class="menu-item"><span class="icon">⚙️</span> <span class="text">CÀI ĐẶT</span></div>
+    </div>
+
+    <div class="main-content">
+        <div class="header-bar">
+            <div>
+                <h2>Quản Lý Ý Tưởng</h2>
+                <small id="welcomeUser" style="color: #27ae60; font-weight: bold;"></small>
+            </div>
+            <div style="display:flex; align-items:center; gap: 15px;">
+                <span id="syncStatus">🔄 Đang nạp hàng đợi...</span>
+                <button class="logout-btn" onclick="logout()">Đăng Xuất</button>
+            </div>
+        </div>
+
+        <div class="sheet-container" id="ideaContainer">
+            </div>
+    </div>
+
+    <script>
+        // Hiển thị tên Admin lấy từ Profile Google ngầm
+        document.getElementById('welcomeUser').innerText = "Xin chào, " + (localStorage.getItem('admin_name') || 'Admin');
+
+        function logout() {
+            // Xóa sạch dấu vết phiên đăng nhập an toàn
+            localStorage.clear();
+            window.location.href = 'index.html';
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('collapsed');
+        }
+
+        // --- CƠ CHẾ ĐỒNG BỘ NÃO NHỆN (SPIDER BRAIN QUEUE) ---
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxtHtWZEjnc83DTIc0PhfdxdJZk9e5Ylw0ReegdtsCDZ-b_P8CVlOQZYUfF2yBDcXI/exec';
+
+        class SpiderBrainSync {
+            constructor() {
+                this.cacheKey = 'spiderBrain_IdeaData';
+                this.syncInterval = 10000; // Ngầm đồng bộ 10s một lần
+            }
+
+            init() {
+                // 1. Nạp giao diện ngay lập tức từ bộ nhớ đệm (Không đợi màn hình tải)
+                const cachedData = localStorage.getItem(this.cacheKey);
+                if(cachedData) {
+                    this.renderIdeas(JSON.parse(cachedData));
+                    document.getElementById('syncStatus').innerText = '⚡ Sẵn sàng (Dữ liệu cục bộ).';
+                }
+
+                // 2. Kích hoạt lấy dữ liệu ngầm từ Server/Sheet
+                this.fetchBackground();
+
+                // 3. Chạy vòng lặp đồng bộ ngầm liên tục
+                setInterval(() => this.fetchBackground(), this.syncInterval);
+            }
+
+            async fetchBackground() {
+                try {
+                    const response = await fetch(`${APPS_SCRIPT_URL}?action=getIdeas`);
+                    const data = await response.json();
+                    
+                    // Cập nhật dữ liệu vào não nhện thiết bị
+                    localStorage.setItem(this.cacheKey, JSON.stringify(data));
+                    
+                    // Vẽ lại giao diện ngầm
+                    this.renderIdeas(data);
+                    document.getElementById('syncStatus').innerText = `✅ Đã đồng bộ lúc ${new Date().toLocaleTimeString()}`;
+                } catch (error) {
+                    console.error("Lỗi đồng bộ não nhện:", error);
+                    document.getElementById('syncStatus').innerText = '⚠️ Ngoại tuyến. Đang chạy trên bộ nhớ đệm.';
+                }
+            }
+
+            renderIdeas(allTabsData) {
+                const container = document.getElementById('ideaContainer');
+                container.innerHTML = ''; // Xóa dữ liệu cũ
+
+                // Quét qua cấu trúc các Tab trả về từ Sheet
+                for (const [sheetName, rows] of Object.entries(allTabsData)) {
+                    if(!rows || rows.length === 0) continue;
+
+                    const card = document.createElement('div');
+                    card.className = 'sheet-card';
+                    
+                    const title = document.createElement('h4');
+                    title.innerText = `Bảng dữ liệu: ${sheetName}`;
+                    card.appendChild(title);
+
+                    const table = document.createElement('table');
+                    
+                    // Lấy dòng đầu tiên làm Header
+                    const headers = rows[0];
+                    const thead = document.createElement('thead');
+                    const trHead = document.createElement('tr');
+                    headers.forEach(h => {
+                        const th = document.createElement('th');
+                        th.innerText = h;
+                        trHead.appendChild(th);
+                    });
+                    thead.appendChild(trHead);
+                    table.appendChild(thead);
+
+                    // Lấy các dòng còn lại làm Body
+                    const tbody = document.createElement('tbody');
+                    for (let i = 1; i < rows.length; i++) {
+                        const trData = document.createElement('tr');
+                        rows[i].forEach(cell => {
+                            const td = document.createElement('td');
+                            td.innerText = cell;
+                            trData.appendChild(td);
+                        });
+                        tbody.appendChild(trData);
+                    }
+                    table.appendChild(tbody);
+
+                    card.appendChild(table);
+                    container.appendChild(card);
+                }
+            }
+
+            // Hàm xử lý đẩy dữ liệu hàng đợi chiều ngược lại từ Vercel -> Sheet
+            async pushData(sheetName, rowData) {
+                try {
+                    await fetch(APPS_SCRIPT_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ sheet: sheetName, data: rowData })
+                    });
+                    // Kích hoạt fetch ngay để cập nhật giao diện
+                    this.fetchBackground();
+                } catch (e) {
+                    console.log("Đẩy dữ liệu vào hàng đợi cục bộ, đợi đồng bộ...");
+                }
+            }
+        }
+
+        // Khởi động hệ thống Não Nhện
+        document.addEventListener('DOMContentLoaded', () => {
+            const spiderBrain = new SpiderBrainSync();
+            spiderBrain.init();
+        });
+    </script>
+</body>
+</html>
