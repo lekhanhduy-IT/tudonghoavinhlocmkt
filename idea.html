@@ -2,480 +2,464 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - TĐH Vĩnh Lộc (Spider Brain Grid)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Quản Lý Ý Tưởng - TĐH Vĩnh Lộc</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        :root {
-            --primary: #1893f8;
-            --bg-color: #f0f2f5;
-            --border-color: #c0c0c0;
-            --cell-bg: #fff;
-            --header-bg: #f8f9fa;
-            --cell-height: 21px;
-            --selected-border: solid 2px var(--primary);
-        }
+        /* BẢNG MÀU CHUẨN 2D */
+        :root { --white: #ffffff; --blue: #01adee; --red: #db1010; --gray-light: #f1f3f4; --gray-border: #e0e0e0; --text-main: #333333; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { display: flex; height: 100vh; overflow: hidden; background: #f0f2f5; color: var(--text-main); }
         
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 13px; }
-        body { display: flex; height: 100vh; overflow: hidden; background: var(--bg-color); user-select: none; } /* Chặn select text mặc định */
+        /* SIDEBAR ADMIN */
+        .sidebar { width: 250px; background: #1a252f; color: white; transition: width 0.3s ease; overflow: hidden; display: flex; flex-direction: column; white-space: nowrap; flex-shrink: 0; }
+        .sidebar.collapsed { width: 60px; }
+        .sidebar-header { padding: 20px; background: #111a22; display: flex; align-items: center; justify-content: space-between; }
+        .sidebar-header h3 { font-size: 18px; transition: opacity 0.3s; color: var(--blue); }
+        .sidebar.collapsed .sidebar-header h3 { opacity: 0; pointer-events: none; }
+        .toggle-btn { cursor: pointer; font-size: 20px; font-weight: bold; background: none; border: none; color: white; padding: 0 10px; }
+        
+        .menu-item-side { padding: 15px 20px; cursor: pointer; border-bottom: 1px solid #2c3e50; transition: background 0.3s; display: flex; align-items: center; }
+        .menu-item-side:hover, .menu-item-side.active { background: #2c3e50; border-left: 4px solid var(--blue); }
+        .icon { min-width: 30px; font-weight: bold; font-size: 18px; }
 
-        /* Layout cơ bản */
-        .sidebar { width: 220px; background: #1a252f; color: white; transition: width 0.3s ease; display: flex; flex-direction: column; white-space: nowrap; flex-shrink: 0;}
-        .sidebar.collapsed { width: 50px; }
-        .sidebar-header { padding: 15px; background: #111a22; display: flex; justify-content: space-between; }
-        .toggle-btn { cursor: pointer; background: none; border: none; color: white; font-size: 18px; }
-        .menu-item { padding: 12px 15px; cursor: pointer; border-bottom: 1px solid #2c3e50; display: flex; align-items: center; gap: 10px; }
-        
-        .main-content { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; background: white;}
-        
-        /* Toolbar (Màu, Chữ, Tìm kiếm) */
-        .toolbar { display: flex; padding: 8px 15px; background: white; border-bottom: 1px solid var(--border-color); align-items: center; gap: 15px; flex-wrap: wrap; }
-        .tool-group { display: flex; border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden; }
-        .tool-btn { padding: 5px 12px; background: white; border: none; border-right: 1px solid var(--border-color); cursor: pointer; display: flex; align-items: center; gap: 5px; }
-        .tool-btn:last-child { border-right: none; }
-        .tool-btn:hover { background: #e9ecef; }
-        
-        /* Trình chọn màu theo yêu cầu */
-        .color-picker-wrapper { display: flex; align-items: center; gap: 5px; padding: 0 5px; border-right: 1px solid var(--border-color); }
-        .color-hex-input { width: 70px; padding: 3px; border: 1px solid #ccc; font-family: monospace; }
-        .color-preview { width: 20px; height: 20px; border: 1px solid #000; border-radius: 2px; }
-        .eye-dropper-btn { background: none; border: none; cursor: pointer; font-size: 14px; color: #555; }
+        /* VÙNG MAIN CONTENT TỰ CO GIÃN */
+        .main-content { flex-grow: 1; padding: 15px; display: flex; flex-direction: column; overflow: hidden; transition: width 0.3s; }
+        .header-bar { display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 2px solid #ddd; padding-bottom: 10px; align-items: center; flex-shrink: 0; }
+        .logout-btn { padding: 8px 15px; background: var(--red); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        #syncStatus { font-size: 13px; color: #7f8c8d; font-weight: bold; }
 
-        .search-bar { padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 15px; outline: none; width: 250px; }
-
-        /* Spreadsheet Grid System */
-        .grid-container { flex-grow: 1; overflow: auto; position: relative; }
-        table.spreadsheet { border-collapse: separate; border-spacing: 0; min-width: 100%; table-layout: fixed; }
+        /* BẢNG TÍNH NÂNG CAO (GRID CONTAINER) */
+        .grid-container { flex: 1; position: relative; overflow: hidden; display: flex; flex-direction: column; background: var(--white); border: 1px solid var(--gray-border); border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .toolbar { height: 40px; background: var(--gray-light); border-bottom: 1px solid var(--gray-border); display: flex; align-items: center; padding: 0 10px; flex-shrink: 0; overflow-x: auto; white-space: nowrap; }
+        .tool-btn { background: var(--white); border: 1px solid var(--blue); color: var(--blue); padding: 4px 10px; margin-right: 5px; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 3px; }
+        .tool-btn:hover { background: var(--blue); color: var(--white); }
         
-        /* Header A, B, C và 1, 2, 3 */
-        th, td { border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color); padding: 0; position: relative; height: var(--cell-height); min-width: 80px; }
-        th { background: var(--header-bg); text-align: center; cursor: pointer; position: sticky; top: 0; z-index: 2; font-weight: normal; color: #555; }
-        th.row-header { position: sticky; left: 0; width: 40px; min-width: 40px; z-index: 3; background: var(--header-bg); }
-        th.corner-header { z-index: 4; left: 0; top: 0; cursor: se-resize; }
+        .scroll-area { flex: 1; overflow: auto; position: relative; }
+        table { border-collapse: collapse; table-layout: fixed; width: max-content; background: var(--white); }
+        th { background: var(--gray-light); border: 1px solid var(--gray-border); position: sticky; top: 0; z-index: 10; font-size: 12px; user-select: none; }
+        th .col-header-content { display: flex; justify-content: space-between; align-items: center; padding: 4px; }
+        th.col-index { width: 40px; left: 0; z-index: 20; background: #e0e0e0; cursor: pointer; }
         
-        /* Cố định cột/hàng */
-        .frozen-col { position: sticky; left: 40px; z-index: 1; background: var(--cell-bg); border-right: 2px solid #555; }
-        .frozen-row { position: sticky; top: var(--cell-height); z-index: 1; background: var(--cell-bg); border-bottom: 2px solid #555; }
-
-        /* Cells */
-        td { background: var(--cell-bg); }
-        .cell-content { width: 100%; height: 100%; min-height: var(--cell-height); padding: 2px 5px; outline: none; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: flex; align-items: center; }
-        .cell-content.editing { overflow: visible; white-space: normal; position: absolute; top: 0; left: 0; z-index: 10; background: white; box-shadow: 0 4px 10px rgba(0,0,0,0.2); min-width: 100%; height: auto; min-height: 100%; border: 1px solid var(--primary); resize: both;}
+        /* Cấu trúc Ô chuẩn 21px */
+        td { border: 1px solid var(--gray-border); padding: 0; font-size: 13px; position: relative; height: 21px; vertical-align: top; }
+        td.row-index { background: var(--gray-light); text-align: center; position: sticky; left: 0; z-index: 5; font-weight: bold; color: #666; cursor: pointer; user-select: none; }
+        .cell-selected { outline: 2px solid var(--blue) !important; outline-offset: -2px; }
         
-        /* Render HTML trực tiếp */
-        .cell-html-rendered { width: 100%; height: 100%; overflow: hidden; }
+        /* Editor & Expand */
+        .cell-editor { width: 100%; height: 21px; padding: 2px 4px; outline: none; border: none; background: transparent; overflow: hidden; white-space: pre-wrap; line-height: 17px; cursor: text; display: block; resize: both; }
+        .cell-expanded { position: absolute; z-index: 100; height: auto !important; min-height: 60px; width: max-content; min-width: 100%; background: var(--white); border: 2px solid var(--blue); box-shadow: 0 4px 12px rgba(1,173,238,0.3); padding: 5px !important; overflow: visible; }
 
         /* Dropdown UI */
-        .dropdown-cell { display: flex; justify-content: space-between; align-items: center; background: #f1f3f4; border-radius: 12px; padding: 0 8px; margin: 1px; font-size: 11px; height: calc(100% - 2px); }
-        .dropdown-cell .edit-pencil { cursor: pointer; color: #5f6368; display: none; }
-        td:hover .dropdown-cell .edit-pencil { display: block; }
-        
-        /* Dấu mũi tên lọc */
-        .filter-icon { float: right; font-size: 10px; color: #888; margin-top: 4px; margin-right: 2px; }
+        .dropdown-ui { display: flex; justify-content: space-between; align-items: center; background: #f1f3f4; border-radius: 12px; padding: 1px 8px; margin: 1px; cursor: pointer; font-size: 11px; height: 17px; }
+        .dropdown-ui:hover { background: #e8eaed; }
+        .dropdown-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 
-        /* Selection */
-        td.selected { border: 1px solid var(--primary); background-color: rgba(24, 147, 248, 0.1); }
-        td.selected-range { background-color: rgba(24, 147, 248, 0.1); }
-        
-        /* Custom Context Menu */
-        .context-menu { position: absolute; background: white; border: 1px solid #ccc; box-shadow: 2px 2px 8px rgba(0,0,0,0.1); z-index: 1000; display: none; flex-direction: column; min-width: 180px; border-radius: 4px; padding: 5px 0; }
-        .context-menu-item { padding: 8px 15px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 13px; }
-        .context-menu-item:hover { background: #f0f2f5; color: var(--primary); }
+        /* POPUPS & MENUS */
+        .popup-box { position: absolute; background: var(--white); border: 2px solid var(--blue); box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 9999; display: none; padding: 5px 0; border-radius: 4px; }
+        .menu-item { padding: 8px 15px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+        .menu-item:hover { background: var(--blue); color: var(--white); }
+        .divider { border-bottom: 1px solid var(--gray-border); margin: 4px 0; }
+        .popup-input { width: 100%; padding: 6px; border: 1px solid var(--blue); outline: none; margin-bottom: 8px; font-size: 13px; }
 
-        /* Tabs Sheet dưới cùng */
-        .tabs-container { display: flex; background: var(--header-bg); border-top: 1px solid var(--border-color); overflow-x: auto; padding-left: 10px; align-items: flex-end; height: 35px; flex-shrink: 0; }
-        .tab { padding: 8px 20px; background: #e0e0e0; margin-right: 2px; border-radius: 6px 6px 0 0; cursor: pointer; font-weight: 500; border: 1px solid var(--border-color); border-bottom: none; }
-        .tab.active { background: white; color: var(--primary); border-top: 3px solid var(--primary); }
-        .add-tab-btn { padding: 8px 15px; cursor: pointer; color: var(--primary); font-weight: bold; }
+        /* KÉO GIÃN & NÚT CỘNG */
+        .resizer-col { position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 15; }
+        .resizer-row { position: absolute; bottom: 0; left: 0; right: 0; height: 5px; cursor: row-resize; z-index: 15; }
+        .resizer-col:hover, .resizer-row:hover { background: rgba(1, 173, 238, 0.4); }
+        .quick-add-btn { position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); width: 20px; height: 20px; background: var(--blue); color: var(--white); border-radius: 50%; font-size: 12px; line-height: 20px; text-align: center; cursor: pointer; z-index: 60; display: none; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        td.row-index:hover .quick-add-btn { display: block; }
+
+        /* TABS FOOTER & FILTER */
+        .footer-tabs { height: 40px; background: var(--gray-light); display: flex; align-items: center; padding: 0 10px; border-top: 2px solid var(--blue); overflow-x: auto; flex-shrink: 0; }
+        .tab-item { padding: 8px 20px; background: #e0e0e0; cursor: pointer; font-size: 13px; font-weight: bold; margin-right: 5px; }
+        .tab-item.active { background: var(--blue); color: var(--white); }
+        .filter-icon { color: #999; cursor: pointer; padding: 2px 4px; border-radius: 3px; font-size: 11px; }
+        .filter-icon.active { color: var(--blue); }
+        .filter-icon:hover { background: #e0e0e0; color: #333; }
+
+        /* MODAL */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 10000; display: none; justify-content: center; align-items: center; }
+        .modal-box { background: var(--white); border: 3px solid var(--blue); padding: 20px; width: 90%; max-width: 400px; }
+
+        @media (max-width: 768px) { .sidebar { display: none; } }
     </style>
+
+    <script>
+        // XÁC THỰC ADMIN
+        if (localStorage.getItem('admin_session') !== 'verified_admin' || localStorage.getItem('admin_email') !== 'admin@tudonghoavinhloc.com') {
+            localStorage.clear(); window.location.href = 'index.html';
+        }
+    </script>
 </head>
 <body>
 
-    <div id="customContextMenu" class="context-menu">
-        <div class="context-menu-item" onclick="gridAction('insertRowAbove')"><i class="fas fa-arrow-up"></i> Thêm hàng bên trên</div>
-        <div class="context-menu-item" onclick="gridAction('insertRowBelow')"><i class="fas fa-arrow-down"></i> Thêm hàng bên dưới</div>
-        <div class="context-menu-item" onclick="gridAction('deleteRow')"><i class="fas fa-trash"></i> Xóa hàng đã chọn</div>
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 4px 0;">
-        <div class="context-menu-item" onclick="gridAction('insertColLeft')"><i class="fas fa-arrow-left"></i> Thêm cột bên trái</div>
-        <div class="context-menu-item" onclick="gridAction('insertColRight')"><i class="fas fa-arrow-right"></i> Thêm cột bên phải</div>
-        <div class="context-menu-item" onclick="gridAction('deleteCol')"><i class="fas fa-trash-alt"></i> Xóa cột đã chọn</div>
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 4px 0;">
-        <div class="context-menu-item" onclick="gridAction('freezeRow')"><i class="fas fa-snowflake"></i> Cố định tới hàng này</div>
-        <div class="context-menu-item" onclick="gridAction('freezeCol')"><i class="fas fa-snowflake"></i> Cố định tới cột này</div>
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 4px 0;">
-        <div class="context-menu-item" onclick="gridAction('setColType', 'text')"><i class="fas fa-font"></i> Đặt kiểu: Rich Text</div>
-        <div class="context-menu-item" onclick="gridAction('setColType', 'dropdown')"><i class="fas fa-list"></i> Đặt kiểu: Dropdown</div>
-        <div class="context-menu-item" onclick="gridAction('setColType', 'checkbox')"><i class="fas fa-check-square"></i> Đặt kiểu: Checkbox</div>
-        <div class="context-menu-item" onclick="gridAction('setColType', 'link')"><i class="fas fa-link"></i> Đặt kiểu: Link</div>
-    </div>
-
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h3>Admin Panel</h3>
-            <button class="toggle-btn" onclick="document.getElementById('sidebar').classList.toggle('collapsed')">☰</button>
+            <h3 id="adminTitle">WEB MKT</h3>
+            <button class="toggle-btn" onclick="toggleSidebar()">☰</button>
         </div>
-        <div class="menu-item active"><i class="fas fa-lightbulb"></i> <span class="text">Ý TƯỞNG</span></div>
-        <div class="menu-item"><i class="fas fa-calendar-alt"></i> <span class="text">KẾ HOẠCH</span></div>
-        <div class="menu-item"><i class="fas fa-newspaper"></i> <span class="text">BÀI VIẾT</span></div>
-        <div class="menu-item"><i class="fas fa-cog"></i> <span class="text">CÀI ĐẶT</span></div>
+        <div class="menu-item-side active"><span class="icon"><i class="fas fa-lightbulb"></i></span> <span class="text">Ý TƯỞNG</span></div>
+        <div class="menu-item-side"><span class="icon"><i class="fas fa-calendar-alt"></i></span> <span class="text">KẾ HOẠCH</span></div>
+        <div class="menu-item-side"><span class="icon"><i class="fas fa-file-alt"></i></span> <span class="text">BÀI VIẾT</span></div>
+        <div class="menu-item-side"><span class="icon"><i class="fas fa-images"></i></span> <span class="text">HÌNH ẢNH</span></div>
+        <div class="menu-item-side"><span class="icon"><i class="fas fa-cogs"></i></span> <span class="text" style="color:var(--red);">CÀI ĐẶT</span></div>
     </div>
 
     <div class="main-content">
-        <div class="toolbar">
-            <div class="tool-group">
-                <button class="tool-btn" onclick="execFormat('bold')"><b>B</b></button>
-                <button class="tool-btn" onclick="execFormat('italic')"><i>I</i></button>
-                <button class="tool-btn" onclick="execFormat('underline')"><u>U</u></button>
+        <div class="header-bar">
+            <div>
+                <h2 style="color: var(--blue);">Module Ý Tưởng</h2>
+                <small id="welcomeUser" style="color: #27ae60; font-weight: bold;"></small>
             </div>
-            
-            <div class="tool-group">
-                <button class="tool-btn" onclick="execAlign('left')"><i class="fas fa-align-left"></i></button>
-                <button class="tool-btn" onclick="execAlign('center')"><i class="fas fa-align-center"></i></button>
-                <button class="tool-btn" onclick="execAlign('right')"><i class="fas fa-align-right"></i></button>
+            <div style="display:flex; align-items:center; gap: 15px;">
+                <span id="syncStatus">🔄 Đang khởi tạo...</span>
+                <button class="logout-btn" onclick="logout()">Đăng Xuất</button>
             </div>
-
-            <div class="color-picker-wrapper">
-                <span style="font-size: 12px; color:#555;">Chữ:</span>
-                <input type="text" class="color-hex-input" id="textColorHex" placeholder="#000000" oninput="updateColorPreview('text')">
-                <div class="color-preview" id="textColorPreview" style="background: #000;"></div>
-                <button class="eye-dropper-btn" onclick="pickColor('text')"><i class="fas fa-eye-dropper"></i></button>
-            </div>
-            
-            <div class="color-picker-wrapper">
-                <span style="font-size: 12px; color:#555;">Nền:</span>
-                <input type="text" class="color-hex-input" id="bgColorHex" placeholder="#FFFFFF" oninput="updateColorPreview('bg')">
-                <div class="color-preview" id="bgColorPreview" style="background: #fff;"></div>
-                <button class="eye-dropper-btn" onclick="pickColor('bg')"><i class="fas fa-eye-dropper"></i></button>
-            </div>
-
-            <div style="flex-grow: 1;"></div>
-            <span id="syncStatus" style="font-size: 12px; color: #27ae60;"><i class="fas fa-cloud-check"></i> Đang tải...</span>
-            <input type="text" class="search-bar" placeholder="🔍 Tìm kiếm toàn hệ thống...">
         </div>
 
-        <div class="grid-container" id="gridContainer">
-            <table class="spreadsheet" id="activeSheet">
+        <div class="grid-container">
+            <div class="toolbar">
+                <button class="tool-btn" onclick="applyFormat('bold')"><i class="fas fa-bold"></i></button>
+                <button class="tool-btn" onclick="applyFormat('italic')"><i class="fas fa-italic"></i></button>
+                <button class="tool-btn" onclick="applyFormat('underline')"><i class="fas fa-underline"></i></button>
+                <button class="tool-btn" onclick="applyFormat('align-left')"><i class="fas fa-align-left"></i></button>
+                <button class="tool-btn" onclick="applyFormat('align-center')"><i class="fas fa-align-center"></i></button>
+                <button class="tool-btn" onclick="applyFormat('align-right')"><i class="fas fa-align-right"></i></button>
+                <button class="tool-btn" onclick="applyFormat('align-justify')"><i class="fas fa-align-justify"></i></button>
+                <button class="tool-btn" onclick="openColorPicker(event, 'text')"><i class="fas fa-font"></i> Màu Chữ</button>
+                <button class="tool-btn" onclick="openColorPicker(event, 'bg')"><i class="fas fa-fill-drip"></i> Màu Nền</button>
+                
+                <div style="margin-left:auto; position:relative; width:200px;">
+                    <input type="text" id="searchInput" placeholder="Tìm kiếm nhanh..." onkeyup="executeSearch()" style="width:100%; padding:4px 8px; border:1px solid var(--blue); outline:none;">
+                </div>
+            </div>
+
+            <div class="scroll-area" id="gridScrollArea">
+                <table id="dataTable">
+                    <thead id="dataHead"></thead>
+                    <tbody id="dataBody"></tbody>
                 </table>
-        </div>
+            </div>
 
-        <div class="tabs-container" id="tabsContainer">
-            <div class="add-tab-btn" onclick="addNewSheet()">+ Thêm Tab</div>
+            <div class="footer-tabs">
+                <div id="tabsWrapper" style="display:flex;"></div>
+                <div class="tab-item" style="color:var(--blue); background:transparent;" onclick="promptNewTab()"><i class="fas fa-plus"></i> Thêm Tab</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="colorPickerBox" class="popup-box" style="padding:15px; width:250px;">
+        <div style="font-size:11px; font-weight:bold; margin-bottom:10px; color:#666;">BẢNG MÀU CHUẨN</div>
+        <div id="standardColorGrid" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-bottom: 15px;"></div>
+        <div style="font-size:11px; font-weight:bold; margin-bottom:10px; color:#666;">MÀU TÙY CHỈNH (HEX)</div>
+        <div style="display:flex; align-items:center; gap:5px; margin-bottom:10px;">
+            <input type="text" id="hexInput" style="flex:1; padding:6px; border:1px solid #ccc; outline:none; font-size:12px;" placeholder="#ffffff" oninput="previewColor()">
+            <div id="colorPreview" style="width:26px; height:26px; border:1px solid var(--gray-border); border-radius:4px; background:#fff;"></div>
+            <button class="tool-btn" style="margin:0; padding:6px 8px;" onclick="pickColorFromScreen()" title="Hút màu"><i class="fas fa-eye-dropper"></i></button>
+        </div>
+        <button class="tool-btn" style="width:100%; margin:0;" onclick="applyChosenColor()">ÁP DỤNG MÀU</button>
+    </div>
+
+    <div id="dropdownPopup" class="popup-box" style="padding:5px; min-width:180px;">
+        <div id="dropdownListArea" style="max-height:200px; overflow-y:auto;"></div>
+        <div class="divider"></div>
+        <div class="menu-item" style="justify-content:center; color:var(--blue); font-weight:bold;" onclick="openDropdownEditor()"><i class="fas fa-pencil-alt"></i> Sửa danh sách</div>
+    </div>
+
+    <div id="filterPopup" class="popup-box" style="padding:0; min-width:200px;">
+        <div id="filterHeader" style="padding:8px; font-weight:bold; font-size:13px; color:var(--blue); border-bottom:1px solid #eee;"><i class="fas fa-filter"></i> Lọc dữ liệu</div>
+        <div id="filterListArea" style="max-height:200px; overflow-y:auto; padding:5px;"></div>
+        <div style="display:flex; gap:5px; padding:8px; border-top:1px solid #eee;">
+            <button class="tool-btn" style="flex:1; margin:0;" onclick="applyFilter()">Lọc</button>
+            <button class="tool-btn" style="flex:1; margin:0; background:var(--white); color:#333; border-color:#ccc;" onclick="clearFilter()">Xóa Lọc</button>
+        </div>
+    </div>
+
+    <div id="contextMenu" class="popup-box"></div>
+    <div id="tabContextMenu" class="popup-box"></div>
+    
+    <div id="systemModal" class="modal-overlay">
+        <div class="modal-box">
+            <h3 id="modalTitle" style="color:var(--blue); margin-bottom:15px; border-bottom:2px solid var(--blue); padding-bottom:5px;">Tiêu đề</h3>
+            <div id="modalBody"></div>
+            <div id="modalFooter" style="text-align:right; margin-top:15px;"></div>
         </div>
     </div>
 
     <script>
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxtHtWZEjnc83DTIc0PhfdxdJZk9e5Ylw0ReegdtsCDZ-b_P8CVlOQZYUfF2yBDcXI/exec';
+        document.getElementById('welcomeUser').innerText = "Tài khoản: " + (localStorage.getItem('admin_name') || 'Admin');
+        function logout() { localStorage.clear(); window.location.href = 'index.html'; }
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
+
+        // 1. CẤU HÌNH API BACKEND
+        const API_URL = "https://script.google.com/macros/s/AKfycbxtHtWZEjnc83DTIc0PhfdxdJZk9e5Ylw0ReegdtsCDZ-b_P8CVlOQZYUfF2yBDcXI/exec";
+
+        // 2. STATE & CACHE
+        let sysData = { sheets: {}, attributes: {}, tabOrder: [], filters: {} };
+        let activeTab = "";
+        let actionQueue = [];
+        let isProcessingQueue = false;
         
-        // --- DATA STATE ---
-        let workbookData = {}; 
-        let workbookAttributes = {}; // Lưu thuộc tính (màu, kiểu cột, fixed...) { "Sheet1": { colTypes: {1: 'dropdown'}, colors: {'1_1': '#f00'} } }
-        let currentSheet = "";
-        let selectedCells = new Set(); // Chứa ID của các ô đang chọn
-        let isSelecting = false;
-        let startCell = null;
+        let selStart = null, selEnd = null;
+        let isFullRow = false, isFullCol = false;
+        let colorTarget = 'bg', activeColPopup = -1, activeFilterCol = -1;
+        let isResizing = false, resizeData = { type: '', index: -1, startDim: 0, startMouse: 0 };
 
-        // --- INIT HỆ THỐNG ---
-        document.addEventListener('DOMContentLoaded', () => {
-            initSpiderBrain();
-            setupGlobalEvents();
-        });
+        const stdColors = ["#000000", "#434343", "#666666", "#999999", "#b7b7b7", "#cccccc", "#d9d9d9", "#efefef", "#f3f3f3", "#ffffff", "#980000", "#ff0000", "#ff9900", "#ffff00", "#00ff00", "#00ffff", "#4a86e8", "#0000ff", "#9900ff", "#ff00ff", "#db1010", "#01adee", "#4caf50", "#ffeb3b", "#ff9800", "#795548", "#e91e63", "#9c27b0", "#3f51b5", "#009688"];
 
-        async function initSpiderBrain() {
-            // Nạp dữ liệu mồi
-            document.getElementById('syncStatus').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang nạp Não Nhện...';
-            
-            // Giả lập dữ liệu fetch về nếu Server chưa cấu hình (Xóa đoạn setTimeout và thay bằng fetch thật)
-            setTimeout(() => {
-                workbookData = {
-                    "Ý Tưởng": [
-                        ["ID", "Lĩnh vực", "Nhóm", "Thiết bị", "Hãng"],
-                        ["WEB_01", "Sửa chữa", "Thiết bị", "Cảm biến", "Siemens"],
-                        ["WEB_02", "Sửa chữa", "Thiết bị", "Cảm biến", "ABB"],
-                        ["<button>Nút HTML</button>", "Bảo trì", "Hệ thống", "Motor", "Teco"]
-                    ]
-                };
-                workbookAttributes = {
-                    "Ý Tưởng": { colTypes: {4: 'dropdown'} } // Cột 4 (Hãng) là dropdown
-                };
-                
-                renderTabs();
-                switchSheet("Ý Tưởng");
-                document.getElementById('syncStatus').innerHTML = '<i class="fas fa-check-circle"></i> Đã đồng bộ';
-            }, 500);
-
-            // Vòng lặp ngầm (Spider Sync)
-            // setInterval(() => backgroundSync(), 10000); 
-        }
-
-        // --- RENDER ENGINE ---
-        function renderTabs() {
-            const container = document.getElementById('tabsContainer');
-            // Giữ lại nút Add Tab
-            const addBtn = container.querySelector('.add-tab-btn');
-            container.innerHTML = '';
-            
-            Object.keys(workbookData).forEach(sheetName => {
-                const tab = document.createElement('div');
-                tab.className = `tab ${sheetName === currentSheet ? 'active' : ''}`;
-                tab.innerText = sheetName;
-                // Chuột trái chuyển tab (không cần load lại dữ liệu từ server)
-                tab.onclick = () => switchSheet(sheetName);
-                // Chuột phải menu tab
-                tab.oncontextmenu = (e) => { e.preventDefault(); alert("Menu tab: Đổi tên, Nhân bản, Ẩn"); };
-                container.appendChild(tab);
-            });
-            container.appendChild(addBtn);
-        }
-
-        function switchSheet(sheetName) {
-            currentSheet = sheetName;
-            renderTabs();
-            renderGrid(sheetName);
-        }
-
-        function getColLetter(index) {
-            let letter = '';
-            while (index >= 0) {
-                letter = String.fromCharCode(index % 26 + 65) + letter;
-                index = Math.floor(index / 26) - 1;
-            }
-            return letter;
-        }
-
-        function renderGrid(sheetName) {
-            const data = workbookData[sheetName] || [["", "", ""], ["", "", ""]];
-            const attrs = workbookAttributes[sheetName] || { colTypes: {} };
-            const table = document.getElementById('activeSheet');
-            table.innerHTML = '';
-
-            const rowCount = Math.max(data.length + 10, 50); // Mặc định render dư ra
-            const colCount = Math.max((data[0] || []).length + 5, 15);
-
-            // 1. Render Header Row (A, B, C...)
-            const thead = document.createElement('thead');
-            const trHead = document.createElement('tr');
-            
-            const thCorner = document.createElement('th');
-            thCorner.className = 'corner-header';
-            thCorner.innerText = '#';
-            thCorner.onclick = () => alert("Chọn toàn bộ bảng");
-            trHead.appendChild(thCorner);
-
-            for (let c = 0; c < colCount; c++) {
-                const th = document.createElement('th');
-                th.innerHTML = `${getColLetter(c)} <i class="fas fa-filter filter-icon"></i>`;
-                th.dataset.col = c;
-                // Click nguyên cột
-                th.onclick = (e) => selectCol(c, e.shiftKey);
-                trHead.appendChild(th);
-            }
-            thead.appendChild(trHead);
-            table.appendChild(thead);
-
-            // 2. Render Body Rows
-            const tbody = document.createElement('tbody');
-            for (let r = 0; r < rowCount; r++) {
-                const tr = document.createElement('tr');
-                
-                // Row Header (1, 2, 3...)
-                const thRow = document.createElement('th');
-                thRow.className = 'row-header';
-                thRow.innerText = r + 1;
-                thRow.dataset.row = r;
-                thRow.onclick = (e) => selectRow(r, e.shiftKey);
-                tr.appendChild(thRow);
-
-                // Cells
-                for (let c = 0; c < colCount; c++) {
-                    const td = document.createElement('td');
-                    td.dataset.row = r;
-                    td.dataset.col = c;
-                    td.dataset.id = `${r}_${c}`;
-
-                    let cellVal = data[r] ? (data[r][c] || "") : "";
-                    let colType = attrs.colTypes[c] || 'text';
-
-                    // Khung chứa nội dung
-                    const contentDiv = document.createElement('div');
-                    contentDiv.className = 'cell-content';
-                    
-                    // Render HTML tự động nếu có < >
-                    if (typeof cellVal === 'string' && cellVal.includes('<') && cellVal.includes('>')) {
-                        contentDiv.innerHTML = cellVal;
-                    } else if (colType === 'dropdown' && r > 0 && cellVal) {
-                        // Giao diện Dropdown
-                        contentDiv.innerHTML = `
-                            <div class="dropdown-cell">
-                                <span>${cellVal}</span>
-                                <i class="fas fa-pencil-alt edit-pencil" onclick="alert('Mở popup sửa Dropdown')"></i>
-                            </div>`;
-                    } else if (colType === 'checkbox' && r > 0) {
-                        contentDiv.innerHTML = `<input type="checkbox" ${cellVal === 'TRUE' ? 'checked' : ''} onchange="updateCell(${r}, ${c}, this.checked)">`;
-                        contentDiv.style.justifyContent = 'center';
-                    } else {
-                        contentDiv.innerText = cellVal; // Rich Text mặc định
-                    }
-
-                    // Sự kiện tương tác
-                    td.onmousedown = (e) => handleCellMouseDown(e, r, c);
-                    td.onmouseenter = (e) => handleCellMouseEnter(e, r, c);
-                    td.ondblclick = (e) => editCell(r, c, contentDiv);
-                    
-                    td.appendChild(contentDiv);
-                    tr.appendChild(td);
-                }
-                tbody.appendChild(tr);
-            }
-            table.appendChild(tbody);
-        }
-
-        // --- TƯƠNG TÁC CHUỘT & BÔI ĐEN DÃY (SHIFT + CLICK) ---
-        function handleCellMouseDown(e, r, c) {
-            if (e.button !== 0) return; // Bỏ qua chuột phải
-            
-            if (e.shiftKey && startCell) {
-                // Chọn một dãy
-                selectRange(startCell.r, startCell.c, r, c);
-            } else {
-                // Click đơn lẻ
-                document.querySelectorAll('td.selected').forEach(el => el.classList.remove('selected'));
-                selectedCells.clear();
-                
-                const td = document.querySelector(`td[data-id="${r}_${c}"]`);
-                td.classList.add('selected');
-                selectedCells.add(`${r}_${c}`);
-                startCell = {r, c};
-                isSelecting = true;
-            }
-        }
-
-        function handleCellMouseEnter(e, r, c) {
-            if (isSelecting) {
-                selectRange(startCell.r, startCell.c, r, c);
-            }
-        }
-
-        document.addEventListener('mouseup', () => { isSelecting = false; });
-
-        function selectRange(r1, c1, r2, c2) {
-            document.querySelectorAll('td.selected').forEach(el => el.classList.remove('selected'));
-            selectedCells.clear();
-            
-            const minR = Math.min(r1, r2), maxR = Math.max(r1, r2);
-            const minC = Math.min(c1, c2), maxC = Math.max(c1, c2);
-
-            for (let r = minR; r <= maxR; r++) {
-                for (let c = minC; c <= maxC; c++) {
-                    const td = document.querySelector(`td[data-id="${r}_${c}"]`);
-                    if (td) {
-                        td.classList.add('selected');
-                        selectedCells.add(`${r}_${c}`);
-                    }
-                }
-            }
-        }
-
-        function selectRow(r, shift) { alert("Sẽ bôi đen toàn bộ hàng " + r); }
-        function selectCol(c, shift) { alert("Sẽ bôi đen toàn bộ cột " + getColLetter(c)); }
-
-        // --- CHỈNH SỬA Ô (DOUBLE CLICK) ---
-        function editCell(r, c, divEl) {
-            divEl.classList.add('editing');
-            divEl.contentEditable = "true";
-            divEl.focus();
-
-            // Nếu là mã HTML, hiển thị text thô để sửa
-            if(workbookData[currentSheet][r] && workbookData[currentSheet][r][c].includes('<')) {
-                divEl.innerText = workbookData[currentSheet][r][c]; // Trả về mã html thô
-            }
-
-            // Lưu khi click ra ngoài
-            const blurHandler = () => {
-                divEl.contentEditable = "false";
-                divEl.classList.remove('editing');
-                
-                // Optimistic UI Update (Cập nhật ngay vào biến và gọi render lại nếu cần)
-                updateCellData(r, c, divEl.innerText);
-                
-                divEl.removeEventListener('blur', blurHandler);
-            };
-            divEl.addEventListener('blur', blurHandler);
-        }
-
-        function updateCellData(r, c, val) {
-            if (!workbookData[currentSheet][r]) workbookData[currentSheet][r] = [];
-            workbookData[currentSheet][r][c] = val;
-            
-            // Re-render ô đó ngay lập tức
-            renderGrid(currentSheet);
-            
-            // Kích hoạt Spider Sync ngầm đẩy data lên Apps Script
-            triggerSpiderPush(r, c, val);
-        }
-
-        // --- CONTEXT MENU CHUỘT PHẢI TOÀN CỤC ---
-        function setupGlobalEvents() {
-            const menu = document.getElementById('customContextMenu');
-            
-            document.addEventListener('contextmenu', (e) => {
-                e.preventDefault(); // Chặn menu mặc định của trình duyệt
-                
-                // Kiểm tra xem có đang click vào lưới không
-                if (e.target.closest('table.spreadsheet')) {
-                    menu.style.display = 'flex';
-                    menu.style.left = `${e.pageX}px`;
-                    menu.style.top = `${e.pageY}px`;
-                }
+        // 3. KHỞI TẠO
+        window.onload = () => {
+            let grid = document.getElementById("standardColorGrid");
+            stdColors.forEach(c => {
+                let div = document.createElement("div"); div.style.background = c; div.style.width = "20px"; div.style.height = "20px"; div.style.borderRadius = "50%"; div.style.cursor = "pointer"; div.style.border = "1px solid #ccc";
+                div.onclick = () => { document.getElementById("hexInput").value = c; previewColor(); applyChosenColor(); };
+                grid.appendChild(div);
             });
 
-            document.addEventListener('click', () => {
-                menu.style.display = 'none';
-            });
+            let cached = localStorage.getItem("MKT_DATA");
+            if (cached) { sysData = JSON.parse(cached); activeTab = sysData.tabOrder[0]; renderTabs(); renderGrid(); }
+            
+            fetchDataFromServer();
+            setInterval(processQueueAndSync, 3000);
+            
+            document.addEventListener('paste', handlePasteEvent);
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            document.addEventListener('click', () => { document.querySelectorAll('.popup-box').forEach(el => el.style.display = 'none'); });
+        };
+
+        function setSyncStatus(msg, color) {
+            let s = document.getElementById('syncStatus');
+            s.innerText = msg; s.style.color = color;
         }
 
-        function gridAction(action, param) {
-            console.log(`Thực hiện: ${action} với tham số ${param}. Lập tức gọi Optimistic Render và đẩy background queue.`);
-            // Thực hiện thay đổi Array cục bộ và gọi renderGrid(currentSheet)
-            // Ví dụ xóa hàng, chèn cột... 
-            // Lưu hành động vào `workbookAttributes[currentSheet]` nếu là setColType
-        }
-
-        // --- CÔNG CỤ CHỌN MÀU THEO YÊU CẦU ---
-        function updateColorPreview(type) {
-            const hex = document.getElementById(`${type}ColorHex`).value;
-            document.getElementById(`${type}ColorPreview`).style.background = hex;
-            // Áp dụng ngay cho các ô đang chọn
-            applyStyleToSelected(type === 'text' ? 'color' : 'backgroundColor', hex);
-        }
-
-        async function pickColor(type) {
-            if (!window.EyeDropper) {
-                alert("Trình duyệt không hỗ trợ công cụ hút màu.");
-                return;
-            }
-            const eyeDropper = new EyeDropper();
+        // 4. API GIAO TIẾP
+        async function fetchDataFromServer() {
             try {
-                const result = await eyeDropper.open();
-                document.getElementById(`${type}ColorHex`).value = result.sRGBHex;
-                updateColorPreview(type);
-            } catch (e) { console.log("Hủy hút màu"); }
+                setSyncStatus("🔄 Đang tải...", "#f39c12");
+                let url = API_URL + "?t=" + new Date().getTime();
+                let res = await fetch(url, { method: "GET", redirect: "follow", cache: "no-store" });
+                let json = await res.json();
+                if(json.success) {
+                    let localFilters = sysData.filters;
+                    sysData = json.data; sysData.filters = localFilters || {};
+                    localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+                    if(!activeTab || !sysData.tabOrder.includes(activeTab)) activeTab = sysData.tabOrder[0];
+                    renderTabs(); renderGrid();
+                    setSyncStatus("✅ Đã cập nhật", "#27ae60");
+                }
+            } catch(e) { setSyncStatus("⚠️ Offline", "#e74c3c"); }
         }
 
-        function applyStyleToSelected(styleProp, value) {
-            selectedCells.forEach(id => {
-                const td = document.querySelector(`td[data-id="${id}"] .cell-content`);
-                if(td) {
-                    td.style[styleProp] = value;
-                    // TODO: Ghi vào `workbookAttributes` và báo Spider Brain Sync
-                }
+        async function processQueueAndSync() {
+            if(actionQueue.length === 0 || isProcessingQueue) return;
+            isProcessingQueue = true;
+            let batch = [...actionQueue]; actionQueue = []; 
+            try {
+                setSyncStatus("⏳ Đang đồng bộ...", "#f39c12");
+                let res = await fetch(API_URL, { method: "POST", body: JSON.stringify(batch), headers: { "Content-Type": "text/plain;charset=utf-8" } });
+                let json = await res.json();
+                if (!json.success) { actionQueue = batch.concat(actionQueue); }
+                else setSyncStatus("✅ Đã lưu", "#27ae60");
+            } catch(e) { actionQueue = batch.concat(actionQueue); setSyncStatus("⚠️ Đợi mạng...", "#e74c3c"); }
+            isProcessingQueue = false;
+        }
+
+        function dispatchAction(action) {
+            action.tab = activeTab; actionQueue.push(action);
+            localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+        }
+
+        // 5. RENDER BẢNG TÍNH LÕI
+        function renderTabs() {
+            let wrap = document.getElementById("tabsWrapper"); wrap.innerHTML = "";
+            sysData.tabOrder.forEach(tab => {
+                let attrs = sysData.attributes[tab] || {}; if(attrs.hidden) return;
+                let div = document.createElement("div"); div.className = "tab-item" + (tab === activeTab ? " active" : "");
+                div.innerText = tab; div.onclick = () => { activeTab = tab; renderGrid(); };
+                div.oncontextmenu = (e) => showTabMenu(e, tab); wrap.appendChild(div);
             });
         }
 
-        // --- SPIDER BRAIN SYNC (LÕI ĐỒNG BỘ ĐẨY DỮ LIỆU) ---
-        function triggerSpiderPush(r, c, value) {
-            console.log(`Spider Brain: Ghi nhận thay đổi tại [${r}, ${c}] = ${value}. Đưa vào hàng đợi đẩy lên Server...`);
-            // fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify({ sheet: currentSheet, row: r, col: c, val: value, attributes: workbookAttributes[currentSheet] }) });
+        function renderGrid() {
+            let mat = sysData.sheets[activeTab] || [[""]]; let attrs = sysData.attributes[activeTab] || {}; let types = attrs.columnTypes || {};
+            let frzRow = attrs.frozenRows || 0; let frzCol = attrs.frozenCols || 0;
+            let head = document.getElementById("dataHead"); let body = document.getElementById("dataBody");
+            head.innerHTML = ""; body.innerHTML = ""; if(mat.length === 0) return;
+            let cols = mat[0].length;
+            
+            let colLefts = []; let currL = 40;
+            for(let c=0; c<cols; c++) { let w = (attrs.colWidths && attrs.colWidths[c]) ? parseInt(attrs.colWidths[c]) : 150; colLefts.push({w: w, l: currL}); currL += w; }
+            let rowTops = []; let currT = 21;
+            for(let r=0; r<mat.length; r++) { let h = (attrs.rowHeights && attrs.rowHeights[r]) ? parseInt(attrs.rowHeights[r]) : 21; rowTops.push({h: h, t: currT}); currT += h; }
+
+            // HEADER A B C
+            let trH = document.createElement("tr");
+            let th0 = document.createElement("th"); th0.className = "col-index"; th0.innerText = "#";
+            th0.style.position = 'sticky'; th0.style.left = '0'; th0.style.top = '0'; th0.style.zIndex = 20;
+            th0.onclick = () => selectRange(0, 0, mat.length-1, cols-1, true, true);
+            trH.appendChild(th0);
+
+            for(let c=0; c<cols; c++) {
+                let th = document.createElement("th"); th.style.width = colLefts[c].w + "px"; th.style.position = 'sticky'; th.style.top = '0'; th.style.zIndex = 10;
+                let hasFilter = sysData.filters[activeTab] && sysData.filters[activeTab][c];
+                th.innerHTML = `<div class="col-header-content"><span>${getColLetter(c)}</span> <i class="fas fa-filter filter-icon ${hasFilter ? 'active':''}"></i></div><div class="resizer-col"></div>`;
+                if(c < frzCol) { th.style.left = colLefts[c].l + "px"; th.style.zIndex = 15; }
+                if(c === frzCol - 1) th.style.borderRight = "3px solid var(--blue)";
+
+                th.onclick = (e) => { if(e.target.classList.contains("resizer-col") || e.target.classList.contains("filter-icon")) return; selectRange(0, c, mat.length-1, c, false, true, e.shiftKey); };
+                th.oncontextmenu = (e) => { if(!isFullCol || !isInRange(0, c)) selectRange(0, c, mat.length-1, c, false, true); showGridMenu(e, 0, c); };
+                th.querySelector(".filter-icon").onclick = ((idx) => (e) => openFilterMenu(e, idx))(c);
+                th.querySelector(".resizer-col").onmousedown = ((idx, w) => (e) => initResize(e, 'col', idx, w))(c, colLefts[c].w);
+                
+                th.draggable = true;
+                th.ondragstart = (e) => e.dataTransfer.setData("text/plain", JSON.stringify({t: 'col', s: selStart.c, e: selEnd.c}));
+                th.ondragover = (e) => { e.preventDefault(); th.style.borderLeft = "3px solid var(--blue)"; };
+                th.ondragleave = (e) => { th.style.borderLeft = ""; };
+                th.ondrop = (e) => { th.style.borderLeft = ""; let d = JSON.parse(e.dataTransfer.getData("text")); if(d.t === 'col') moveStruct(d.s, d.e, c, 'col'); };
+                trH.appendChild(th);
+            }
+            head.appendChild(trH);
+
+            // BODY DỮ LIỆU
+            mat.forEach((row, r) => {
+                if(r > 0 && isRowFilteredOut(r, mat)) return;
+                let tr = document.createElement("tr"); tr.style.height = rowTops[r].h + "px";
+                let td0 = document.createElement("td"); td0.className = "row-index"; td0.innerText = r + 1;
+                td0.style.position = 'sticky'; td0.style.left = '0'; td0.style.zIndex = 5;
+                td0.innerHTML += `<div class="resizer-row"></div> <div class="quick-add-btn"><i class="fas fa-plus"></i></div>`;
+                
+                if(r < frzRow) { td0.style.top = rowTops[r].t + "px"; td0.style.zIndex = 15; }
+                if(r === frzRow - 1) td0.style.borderBottom = "3px solid var(--blue)";
+
+                td0.onclick = (e) => { if(e.target.closest('.resizer-row, .quick-add-btn')) return; selectRange(r, 0, r, cols-1, true, false, e.shiftKey); };
+                td0.oncontextmenu = (e) => { if(!isFullRow || !isInRange(r, 0)) selectRange(r, 0, r, cols-1, true, false); showGridMenu(e, r, 0); };
+                td0.querySelector(".quick-add-btn").onclick = (e) => { e.stopPropagation(); promptQuickAddRow(r); };
+                td0.querySelector(".resizer-row").onmousedown = (e) => initResize(e, 'row', r, rowTops[r].h);
+                
+                td0.draggable = true;
+                td0.ondragstart = (e) => e.dataTransfer.setData("text/plain", JSON.stringify({t: 'row', s: selStart.r, e: selEnd.r}));
+                td0.ondragover = (e) => { e.preventDefault(); tr.style.borderTop = "3px solid var(--blue)"; };
+                td0.ondragleave = (e) => { tr.style.borderTop = ""; };
+                td0.ondrop = (e) => { tr.style.borderTop = ""; let d = JSON.parse(e.dataTransfer.getData("text")); if(d.t === 'row') moveStruct(d.s, d.e, r, 'row'); };
+                tr.appendChild(td0);
+
+                row.forEach((val, c) => {
+                    let td = document.createElement("td"); td.id = `cell_${r}_${c}`; applyStyle(td, r, c, attrs);
+                    let isFrzR = r < frzRow; let isFrzC = c < frzCol;
+                    if(isFrzR || isFrzC) { td.style.position = 'sticky'; if(isFrzR) td.style.top = rowTops[r].t + "px"; if(isFrzC) td.style.left = colLefts[c].l + "px"; td.style.zIndex = (isFrzR && isFrzC) ? 8 : 4; }
+                    if(r === frzRow - 1) td.style.borderBottom = "3px solid var(--blue)"; if(c === frzCol - 1) td.style.borderRight = "3px solid var(--blue)";
+
+                    let type = r === 0 ? "text" : (types[c] || "text");
+                    if (type === "dropdown") {
+                        let opts = (attrs.dropdownChoices && attrs.dropdownChoices[c]) ? attrs.dropdownChoices[c] : ["Mục 1"];
+                        let arr = val ? String(val).split(",").map(s=>s.trim()).filter(Boolean) : [];
+                        let ui = document.createElement("div"); ui.className = "dropdown-ui";
+                        ui.innerHTML = `<div class="dropdown-text">${arr.length ? arr.join(", ") : "<span style='color:#999; font-style:italic;'>Trống...</span>"}</div> <i class="fas fa-caret-down"></i>`;
+                        ui.onclick = (e) => { e.stopPropagation(); selectRange(r, c, r, c); openDropdownMenu(e, r, c, arr, opts); };
+                        td.appendChild(ui);
+                    } else if (type === "checkbox") {
+                        let chk = document.createElement("input"); chk.type = "checkbox"; chk.checked = (val === "true" || val === true); chk.style.margin = "4px";
+                        chk.onchange = () => updateCell(r, c, chk.checked); td.appendChild(chk);
+                    } else if (type === "link") {
+                        let str = String(val); if (str.startsWith("http")) td.innerHTML = `<a href="${str}" target="_blank" style="color:var(--blue); padding:4px;">Link</a>`; else td.appendChild(createEditor(r, c, val));
+                    } else {
+                        let str = String(val);
+                        if (r !== 0 && str.startsWith("<") && str.indexOf(">") !== -1) { let div = document.createElement("div"); div.style.padding = "2px"; div.innerHTML = str; td.appendChild(div); td.ondblclick = (e) => { td.innerHTML = ""; let ed = createEditor(r, c, str); td.appendChild(ed); ed.classList.add("cell-expanded"); ed.focus(); }; } 
+                        else td.appendChild(createEditor(r, c, val));
+                    }
+                    td.onclick = (e) => { if(e.target.tagName !== 'A' && e.target.tagName !== 'INPUT') selectRange(r, c, r, c, false, false, e.shiftKey); };
+                    td.oncontextmenu = (e) => { if(!isInRange(r, c)) selectRange(r, c, r, c); showGridMenu(e, r, c); };
+                    tr.appendChild(td);
+                });
+                body.appendChild(tr);
+            });
+            highlightSelection();
         }
+
+        function createEditor(r, c, val) {
+            let ed = document.createElement("div"); ed.className = "cell-editor"; ed.contentEditable = "true"; ed.innerHTML = val;
+            ed.ondblclick = function(e) { e.stopPropagation(); document.querySelectorAll(".cell-expanded").forEach(x=>x.classList.remove("cell-expanded")); this.classList.add("cell-expanded"); };
+            ed.onblur = function() { this.classList.remove("cell-expanded"); updateCell(r, c, this.innerHTML); };
+            return ed;
+        }
+
+        // 6. XỬ LÝ LÕI NGHIỆP VỤ
+        function updateCell(r, c, val) { sysData.sheets[activeTab][r][c] = val; dispatchAction({type: 'SYNC_CELL', row: r+1, col: c+1, val: val}); }
+
+        function handlePasteEvent(e) {
+            if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return; 
+            if(!selStart) return; e.preventDefault();
+            let text = (e.clipboardData || window.clipboardData).getData('text');
+            let rows = text.split("\n"); let mat = sysData.sheets[activeTab];
+            rows.forEach((rowStr, i) => {
+                if(!rowStr && i === rows.length-1) return;
+                let cols = rowStr.split("\t"); let tr = selStart.r + i;
+                if(tr >= mat.length) { mat.push(Array(mat[0].length).fill("")); dispatchAction({type: 'STRUCTURAL', action: 'insertRow', index: tr+1, count: 1}); }
+                cols.forEach((val, j) => {
+                    let tc = selStart.c + j; if(tc < mat[0].length) { mat[tr][tc] = val.trim(); dispatchAction({type: 'SYNC_CELL', row: tr+1, col: tc+1, val: val.trim()}); }
+                });
+            });
+            renderGrid();
+        }
+
+        function moveStruct(s, e, target, type) {
+            if(target >= s && target <= e) return;
+            let mat = sysData.sheets[activeTab]; let count = e - s + 1; let insPos = target > e ? target - count : target;
+            if (type === 'row') { let ext = mat.splice(s, count); mat.splice.apply(mat, [insPos, 0].concat(ext)); shiftProps(['rowHeights', 'rowStyles'], s, count, insPos, mat.length); } 
+            else { mat.forEach(row => { let ext = row.splice(s, count); row.splice.apply(row, [insPos, 0].concat(ext)); }); shiftProps(['colWidths', 'colStyles', 'columnTypes', 'dropdownChoices'], s, count, insPos, mat[0].length); }
+            dispatchAction({type: 'MOVE', start: s+1, end: e+1, target: target+1, dim: type}); dispatchAction({type: 'SAVE_ATTRS', attributes: sysData.attributes[activeTab]}); renderGrid();
+        }
+        function shiftProps(propsArr, start, count, insertPos, maxLen) {
+            let attrs = sysData.attributes[activeTab] || {};
+            propsArr.forEach(p => { if(attrs[p]) { let arr = []; for(let i=0; i<maxLen+count; i++) arr.push(attrs[p][i]); let ext = arr.splice(start, count); arr.splice.apply(arr, [insertPos, 0].concat(ext)); let newObj = {}; arr.forEach((v, i) => { if(v !== undefined) newObj[i] = v; }); attrs[p] = newObj; }});
+        }
+
+        // 7. TIỆN ÍCH & FORMAT
+        function getColLetter(c) { let l = ""; while(c >= 0) { l = String.fromCharCode((c % 26) + 65) + l; c = Math.floor(c / 26) - 1; } return l; }
+        function selectRange(r1, c1, r2, c2, isR=false, isC=false, shift=false) { if(shift && selStart) { selEnd = {r: r2, c: c2}; } else { selStart = {r: r1, c: c1}; selEnd = {r: r2, c: c2}; } isFullRow = isR; isFullCol = isC; highlightSelection(); }
+        function highlightSelection() { document.querySelectorAll(".cell-selected").forEach(c => c.classList.remove("cell-selected")); if(!selStart) return; let minR = Math.min(selStart.r, selEnd.r), maxR = Math.max(selStart.r, selEnd.r); let minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c); for(let i=minR; i<=maxR; i++) { for(let j=minC; j<=maxC; j++) { let td = document.getElementById(`cell_${i}_${j}`); if(td) td.classList.add("cell-selected"); } } }
+        function isInRange(r, c) { if(!selStart) return false; let minR = Math.min(selStart.r, selEnd.r), maxR = Math.max(selStart.r, selEnd.r), minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c); return r >= minR && r <= maxR && c >= minC && c <= maxC; }
+        function applyStyle(td, r, c, attrs) { let s = (attrs.cellStyles && attrs.cellStyles[`${r}_${c}`]) || {}; let rs = (attrs.rowStyles && attrs.rowStyles[r]) || {}; let cs = (attrs.colStyles && attrs.colStyles[c]) || {}; td.style.backgroundColor = s.bg || rs.bg || cs.bg || "#ffffff"; td.style.color = s.color || rs.color || cs.color || "#333"; td.style.fontWeight = (s.bold || rs.bold || cs.bold) ? "bold" : "normal"; td.style.fontStyle = (s.italic || rs.italic || cs.italic) ? "italic" : "normal"; td.style.textDecoration = (s.underline || rs.underline || cs.underline) ? "underline" : "none"; td.style.textAlign = s.align || rs.align || cs.align || "left"; }
+        function applyFormat(cmd) { if(!selStart) return; let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; attrs.cellStyles = attrs.cellStyles || {}; let minR = Math.min(selStart.r, selEnd.r), maxR = Math.max(selStart.r, selEnd.r), minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c); for(let r=minR; r<=maxR; r++) { for(let c=minC; c<=maxC; c++) { let st = attrs.cellStyles[`${r}_${c}`] = attrs.cellStyles[`${r}_${c}`] || {}; if(cmd==='bold') st.bold = !st.bold; if(cmd==='italic') st.italic = !st.italic; if(cmd==='underline') st.underline = !st.underline; if(cmd.startsWith('align-')) st.align = cmd.replace('align-', ''); }} dispatchAction({type:'SAVE_ATTRS', attributes: attrs}); renderGrid(); }
+
+        // 8. TẠO ID & KÉO GIÃN
+        function generateID(existing) { let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'; let id = ''; do { let str = ''; for(let i=0; i<3; i++) str += chars.charAt(Math.floor(Math.random() * chars.length)); let num = Math.floor(Math.random() * 100000).toString().padStart(5, '0'); id = 'WEB_' + str + num; } while (existing.has(id)); existing.add(id); return id; }
+        function promptQuickAddRow(r) { showModal("Thêm hàng tự động", `<input type="number" id="numAdd" class="popup-input" value="1" placeholder="Số lượng">`, [ { text: "Tạo ngay", class: "btn-blue", onclick: () => { let cnt = parseInt(document.getElementById("numAdd").value); if(cnt > 0) { let mat = sysData.sheets[activeTab]; let existing = new Set(); for(let i=1; i<mat.length; i++) existing.add(String(mat[i][0]).trim()); let newRows = []; for(let i=0; i<cnt; i++) { let nr = Array(mat[0].length).fill(""); nr[0] = generateID(existing); newRows.push(nr); } mat.splice.apply(mat, [r+1, 0].concat(newRows)); dispatchAction({type: 'STRUCTURAL', action: 'insertRow', index: r+2, count: cnt}); for(let i=0; i<cnt; i++) dispatchAction({type: 'SYNC_CELL', row: r+2+i, col: 1, val: newRows[i][0]}); renderGrid(); closeModal(); } } }, { text: "Hủy", class: "btn-cancel", onclick: closeModal } ]); }
+        function initResize(e, type, index, dim) { e.stopPropagation(); e.preventDefault(); isResizing = true; resizeData = { type: type, index: index, startDim: dim, startMouse: type==='col'?e.clientX:e.clientY }; document.body.style.cursor = type==='col' ? 'col-resize' : 'row-resize'; }
+        function handleMouseMove(e) { if(!isResizing) return; let delta = (resizeData.type==='col'?e.clientX:e.clientY) - resizeData.startMouse; let newDim = Math.max(21, resizeData.startDim + delta); if(resizeData.type==='col') document.querySelectorAll("#dataHead th")[resizeData.index+1].style.width = newDim+"px"; else document.querySelectorAll("#dataBody tr")[resizeData.index].style.height = newDim+"px"; }
+        function handleMouseUp(e) { if(!isResizing) return; isResizing = false; document.body.style.cursor = 'default'; let delta = (resizeData.type==='col'?e.clientX:e.clientY) - resizeData.startMouse; let newDim = Math.max(21, resizeData.startDim + delta); let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; if(resizeData.type==='col') { attrs.colWidths = attrs.colWidths || {}; attrs.colWidths[resizeData.index] = newDim; } else { attrs.rowHeights = attrs.rowHeights || {}; attrs.rowHeights[resizeData.index] = newDim; } dispatchAction({type:'SAVE_ATTRS', attributes: attrs}); renderGrid(); }
+
+        // 9. POPUPS & TÍNH NĂNG CON
+        function showPopupSafe(menu, e) { menu.style.display = "block"; let x = e.clientX, y = e.clientY + 15; if(x + menu.offsetWidth > window.innerWidth) x = window.innerWidth - menu.offsetWidth - 5; if(y + menu.offsetHeight > window.innerHeight) y = window.innerHeight - menu.offsetHeight - 5; menu.style.left = x + "px"; menu.style.top = y + "px"; }
+        function openColorPicker(e, mode) { e.stopPropagation(); colorTarget = mode; showPopupSafe(document.getElementById("colorPickerBox"), e); }
+        function previewColor() { document.getElementById("colorPreview").style.background = document.getElementById("hexInput").value; }
+        async function pickColorFromScreen() { if(!window.EyeDropper) return alert("Trình duyệt không hỗ trợ"); try { let res = await new EyeDropper().open(); document.getElementById("hexInput").value = res.sRGBHex; previewColor(); } catch(err){} }
+        function applyChosenColor() { let hex = document.getElementById("hexInput").value.trim(); if(!hex || !selStart) return; let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; attrs.cellStyles = attrs.cellStyles || {}; let minR = Math.min(selStart.r, selEnd.r), maxR = Math.max(selStart.r, selEnd.r), minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c); if(isFullRow) { attrs.rowStyles = attrs.rowStyles || {}; for(let r=minR; r<=maxR; r++) { attrs.rowStyles[r] = attrs.rowStyles[r] || {}; attrs.rowStyles[r][colorTarget] = hex; } } else if (isFullCol) { attrs.colStyles = attrs.colStyles || {}; for(let c=minC; c<=maxC; c++) { attrs.colStyles[c] = attrs.colStyles[c] || {}; attrs.colStyles[c][colorTarget] = hex; } } else { for(let r=minR; r<=maxR; r++) { for(let c=minC; c<=maxC; c++) { attrs.cellStyles[`${r}_${c}`] = attrs.cellStyles[`${r}_${c}`] || {}; attrs.cellStyles[`${r}_${c}`][colorTarget] = hex; } } } document.getElementById("colorPickerBox").style.display = "none"; dispatchAction({type: 'SAVE_ATTRS', attributes: attrs}); renderGrid(); }
+
+        function openDropdownMenu(e, r, c, current, opts) { let box = document.getElementById("dropdownListArea"); box.innerHTML = ""; activeColPopup = c; opts.forEach(opt => { let div = document.createElement("div"); div.className = "menu-item"; let isChk = current.includes(opt); div.innerHTML = `<input type="checkbox" ${isChk?'checked':''} style="pointer-events:none;"> <span>${opt}</span>`; div.onclick = (ev) => { ev.stopPropagation(); if(isChk) current = current.filter(x => x !== opt); else current.push(opt); updateCell(r, c, current.join(", ")); openDropdownMenu(e, r, c, current, opts); renderGrid(); }; box.appendChild(div); }); showPopupSafe(document.getElementById("dropdownPopup"), e); }
+        function openDropdownEditor() { let c = activeColPopup; let attrs = sysData.attributes[activeTab] || {}; let opts = (attrs.dropdownChoices && attrs.dropdownChoices[c]) ? attrs.dropdownChoices[c] : []; showModal("Sửa danh sách", `<textarea id="dropEdit" class="popup-input" style="height:100px;">${opts.join("\n")}</textarea>`, [ { text: "Lưu", class: "btn-blue", onclick: () => { attrs.dropdownChoices = attrs.dropdownChoices || {}; attrs.dropdownChoices[c] = document.getElementById("dropEdit").value.split("\n").map(x=>x.trim()).filter(Boolean); dispatchAction({type: 'SAVE_ATTRS', attributes: attrs}); renderGrid(); closeModal(); } }, { text: "Đóng", class: "btn-cancel", onclick: closeModal } ]); document.getElementById("dropdownPopup").style.display = 'none'; }
+
+        function openFilterMenu(e, c) { e.stopPropagation(); activeFilterCol = c; let box = document.getElementById("filterListArea"); box.innerHTML = ""; document.getElementById("filterHeader").innerHTML = `<i class="fas fa-filter"></i> Lọc cột ${getColLetter(c)}`; let mat = sysData.sheets[activeTab]; let unique = new Set(); for(let r=1; r<mat.length; r++) unique.add(String(mat[r][c] || "").trim()); let vals = Array.from(unique).sort(); let flt = (sysData.filters[activeTab] || {})[c] || null; let html = `<div class="menu-item" onclick="toggleAllFlt(this)"><input type="checkbox" id="fltAll" style="pointer-events:none;" ${flt===null?'checked':''}> <b>(Chọn tất cả)</b></div>`; vals.forEach(v => { let isChk = flt === null || flt.includes(v); html += `<div class="menu-item" onclick="toggleSingleFlt(this)"><input type="checkbox" class="flt-cb" value="${v}" style="pointer-events:none;" ${isChk?'checked':''}> <span>${v===""?"(Trống)":v}</span></div>`; }); box.innerHTML = html; showPopupSafe(document.getElementById("filterPopup"), e); }
+        function toggleAllFlt(el) { let cb = el.querySelector('input'); cb.checked = !cb.checked; document.querySelectorAll(".flt-cb").forEach(x=>x.checked = cb.checked); }
+        function toggleSingleFlt(el) { let cb = el.querySelector('input'); cb.checked = !cb.checked; }
+        function applyFilter() { let cbs = document.querySelectorAll(".flt-cb"); let sel = []; let all = true; cbs.forEach(cb => { if(cb.checked) sel.push(cb.value); else all = false; }); sysData.filters[activeTab] = sysData.filters[activeTab] || {}; if(all) delete sysData.filters[activeTab][activeFilterCol]; else sysData.filters[activeTab][activeFilterCol] = sel; document.getElementById("filterPopup").style.display = "none"; renderGrid(); }
+        function clearFilter() { if(sysData.filters[activeTab]) delete sysData.filters[activeTab][activeFilterCol]; document.getElementById("filterPopup").style.display = "none"; renderGrid(); }
+        function isRowFilteredOut(r, matrix) { let flts = sysData.filters[activeTab]; if(!flts) return false; for(let c in flts) { if(flts[c].indexOf(String(matrix[r][c] || "").trim()) === -1) return true; } return false; }
+
+        function showGridMenu(e, r, c) { e.preventDefault(); e.stopPropagation(); let menu = document.getElementById("contextMenu"); menu.innerHTML = ` <div class="menu-item" onclick="execCmd('insertRow')"><i class="fas fa-arrow-up"></i> Thêm hàng</div> <div class="menu-item" onclick="execCmd('insertCol')"><i class="fas fa-arrow-left"></i> Thêm cột</div> <div class="divider"></div> <div class="menu-item" style="color:var(--red);" onclick="execCmd('delRow')"><i class="fas fa-trash"></i> Xóa hàng chọn</div> <div class="menu-item" style="color:var(--red);" onclick="execCmd('delCol')"><i class="fas fa-trash"></i> Xóa cột chọn</div> <div class="divider"></div> <div class="menu-item" onclick="setType('dropdown')"><i class="fas fa-list"></i> Loại: Dropdown</div> <div class="menu-item" onclick="setType('checkbox')"><i class="fas fa-check-square"></i> Loại: Checkbox</div> <div class="menu-item" onclick="setType('link')"><i class="fas fa-link"></i> Loại: Link</div> <div class="menu-item" onclick="setType('text')"><i class="fas fa-font"></i> Loại: Văn bản</div> <div class="divider"></div> <div class="menu-item" style="color:var(--blue);" onclick="execCmd('freeze')"><i class="fas fa-snowflake"></i> Cố định tới đây</div> <div class="menu-item" onclick="execCmd('unfreeze')"><i class="fas fa-ban"></i> Bỏ cố định</div> `; showPopupSafe(menu, e); }
+        function execCmd(cmd) { document.getElementById("contextMenu").style.display = "none"; let minR = Math.min(selStart.r, selEnd.r), countR = Math.abs(selStart.r - selEnd.r) + 1; let minC = Math.min(selStart.c, selEnd.c), countC = Math.abs(selStart.c - selEnd.c) + 1; let mat = sysData.sheets[activeTab]; if(cmd === 'insertRow') { for(let i=0;i<countR;i++) mat.splice(minR, 0, Array(mat[0].length).fill("")); dispatchAction({type:'STRUCTURAL', action:'insertRow', index:minR+1, count:countR}); } if(cmd === 'insertCol') { mat.forEach(row => { for(let i=0;i<countC;i++) row.splice(minC, 0, ""); }); dispatchAction({type:'STRUCTURAL', action:'insertCol', index:minC+1, count:countC}); } if(cmd === 'delRow') { mat.splice(minR, countR); if(mat.length===0) mat.push([""]); dispatchAction({type:'STRUCTURAL', action:'deleteRow', index:minR+1, count:countR}); } if(cmd === 'delCol') { mat.forEach(row => row.splice(minC, countC)); dispatchAction({type:'STRUCTURAL', action:'deleteCol', index:minC+1, count:countC}); } if(cmd === 'freeze' || cmd === 'unfreeze') { let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; attrs.frozenRows = cmd === 'freeze' ? minR + 1 : 0; attrs.frozenCols = cmd === 'freeze' ? minC + 1 : 0; dispatchAction({type:'FREEZE', rows: attrs.frozenRows, cols: attrs.frozenCols}); dispatchAction({type:'SAVE_ATTRS', attributes: attrs}); } renderGrid(); }
+        function setType(type) { document.getElementById("contextMenu").style.display = "none"; let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; attrs.columnTypes = attrs.columnTypes || {}; let minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c); for(let c=minC; c<=maxC; c++) attrs.columnTypes[c] = type; dispatchAction({type:'SAVE_ATTRS', attributes: attrs}); renderGrid(); }
+
+        function showTabMenu(e, tab) { e.preventDefault(); e.stopPropagation(); let menu = document.getElementById("tabContextMenu"); menu.innerHTML = ` <div class="menu-item" onclick="promptRenameTab('${tab}')"><i class="fas fa-edit"></i> Đổi tên</div> <div class="menu-item" onclick="duplicateTab('${tab}')"><i class="fas fa-clone"></i> Nhân bản</div> <div class="menu-item" style="color:var(--red);" onclick="hideTab('${tab}')"><i class="fas fa-eye-slash"></i> Ẩn</div> <div class="divider"></div> <div class="menu-item" style="color:var(--red);" onclick="deleteTab('${tab}')"><i class="fas fa-trash"></i> Xóa Tab</div> `; showPopupSafe(menu, e); }
+        function promptNewTab() { let name = prompt("Nhập tên tab mới:"); if(name && !sysData.tabOrder.includes(name)) { sysData.tabOrder.push(name); sysData.sheets[name] = [["A","B","C"]]; activeTab = name; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'create', tab: name}); } }
+        function promptRenameTab(old) { document.getElementById("tabContextMenu").style.display = 'none'; let n = prompt("Tên mới:", old); if(n && n !== old) { let idx = sysData.tabOrder.indexOf(old); sysData.tabOrder[idx] = n; sysData.sheets[n] = sysData.sheets[old]; delete sysData.sheets[old]; sysData.attributes[n] = sysData.attributes[old]; delete sysData.attributes[old]; activeTab = n; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'rename', oldName: old, newName: n}); } }
+        function duplicateTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let n = tab+"_copy"; sysData.tabOrder.push(n); sysData.sheets[n] = JSON.parse(JSON.stringify(sysData.sheets[tab])); sysData.attributes[n] = JSON.parse(JSON.stringify(sysData.attributes[tab] || {})); activeTab=n; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'duplicate', oldName: tab, newName: n}); }
+        function hideTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let attrs = sysData.attributes[tab] = sysData.attributes[tab] || {}; attrs.hidden = true; activeTab = sysData.tabOrder.find(t => !(sysData.attributes[t]||{}).hidden); renderTabs(); renderGrid(); dispatchAction({type:'SAVE_ATTRS', attributes: attrs}); }
+        function deleteTab(tab) { document.getElementById("tabContextMenu").style.display='none'; if(confirm("Xóa tab?")) { sysData.tabOrder = sysData.tabOrder.filter(t=>t!==tab); delete sysData.sheets[tab]; activeTab = sysData.tabOrder[0]; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'delete', tab: tab}); } }
+
+        function showModal(title, bodyHtml, btns) { document.getElementById("modalTitle").innerText = title; document.getElementById("modalBody").innerHTML = bodyHtml; let ft = document.getElementById("modalFooter"); ft.innerHTML = ""; btns.forEach(b => { let btn = document.createElement("button"); btn.innerText = b.text; btn.className = "tool-btn"; if(b.class === "btn-blue") { btn.style.background = "var(--blue)"; btn.style.color = "var(--white)"; } else { btn.style.background = "var(--white)"; btn.style.color = "#333"; btn.style.borderColor = "#ccc"; } btn.onclick = b.onclick; ft.appendChild(btn); }); document.getElementById("systemModal").style.display = "flex"; }
+        function closeModal() { document.getElementById("systemModal").style.display = "none"; }
     </script>
 </body>
 </html>
