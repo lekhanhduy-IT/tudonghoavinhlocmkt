@@ -1,667 +1,105 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>HỆ THỐNG MARKETING • Web MKT</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <style>
-    /* BẢNG MÀU CHUẨN 2D */
-    :root { --white: #ffffff; --blue: #01adee; --red: #db1010; --gray-light: #f1f3f4; --gray-border: #e0e0e0; --text-main: #333333; }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    body, html { width: 100%; height: 100%; background: var(--white); color: var(--text-main); overflow: hidden; }
-
-    /* LAYOUT */
-    .app-wrapper { display: flex; flex-direction: column; height: 100vh; }
-    .main-header { height: 60px; display: flex; align-items: center; padding: 0 15px; border-bottom: 2px solid var(--blue); z-index: 100; flex-shrink: 0; }
-    .brand-logo { height: 35px; margin-right: 10px; }
-    .search-box-wrapper { position: relative; width: 300px; margin-left: 20px; }
-    .search-box-wrapper input { width: 100%; padding: 8px 30px 8px 12px; border: 2px solid var(--blue); outline: none; border-radius: 4px; }
-    .search-box-wrapper i { position: absolute; right: 10px; top: 10px; color: var(--blue); }
-    .nav-tabs { margin-left: auto; display: flex; align-items: center; }
-    .nav-btn { padding: 10px 15px; cursor: pointer; font-weight: bold; border-bottom: 3px solid transparent; }
-    .nav-btn:hover, .nav-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
-    
-    /* VÙNG LÀM VIỆC & TOOLBAR */
-    .grid-container { flex: 1; position: relative; overflow: hidden; display: flex; flex-direction: column; }
-    .toolbar { height: 40px; background: var(--gray-light); border-bottom: 1px solid var(--gray-border); display: flex; align-items: center; padding: 0 10px; flex-shrink: 0; overflow-x: auto; }
-    .tool-btn { background: var(--white); border: 1px solid var(--blue); color: var(--blue); padding: 4px 10px; margin-right: 5px; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 3px; }
-    .tool-btn:hover { background: var(--blue); color: var(--white); }
-    
-    /* BẢNG LƯỚI (GRID) */
-    .scroll-area { flex: 1; overflow: auto; position: relative; }
-    table { border-collapse: collapse; table-layout: fixed; width: max-content; background: var(--white); }
-    th { background: var(--gray-light); border: 1px solid var(--gray-border); position: sticky; top: 0; z-index: 10; font-size: 12px; user-select: none; }
-    th .col-header-content { display: flex; justify-content: space-between; align-items: center; padding: 4px; }
-    th.col-index { width: 40px; left: 0; z-index: 20; background: #e0e0e0; cursor: pointer; }
-    
-    /* Ép chiều cao mặc định 21px */
-    td { border: 1px solid var(--gray-border); padding: 0; font-size: 13px; position: relative; height: 21px; vertical-align: top; }
-    td.row-index { background: var(--gray-light); text-align: center; position: sticky; left: 0; z-index: 5; font-weight: bold; color: #666; cursor: pointer; user-select: none; }
-    .cell-selected { outline: 2px solid var(--blue) !important; outline-offset: -2px; }
-    
-    /* EDITOR & MỞ RỘNG (DOUBLE CLICK) */
-    .cell-editor { width: 100%; height: 21px; padding: 2px 4px; outline: none; border: none; background: transparent; overflow: hidden; white-space: pre-wrap; line-height: 17px; cursor: text; display: block; resize: both; }
-    .cell-expanded { position: absolute; z-index: 100; height: auto !important; min-height: 60px; width: max-content; min-width: 100%; background: var(--white); border: 2px solid var(--blue); box-shadow: 0 4px 12px rgba(1,173,238,0.3); padding: 5px !important; overflow: visible; }
-
-    /* DROPDOWN UI (Chuẩn Google) */
-    .dropdown-ui { display: flex; justify-content: space-between; align-items: center; background: #f1f3f4; border-radius: 12px; padding: 1px 8px; margin: 1px; cursor: pointer; font-size: 11px; height: 17px; }
-    .dropdown-ui:hover { background: #e8eaed; }
-    .dropdown-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-
-    /* POPUPS, MENUS, MODALS */
-    .popup-box { position: absolute; background: var(--white); border: 2px solid var(--blue); box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 9999; display: none; padding: 5px 0; border-radius: 4px; }
-    .menu-item { padding: 8px 15px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; }
-    .menu-item:hover { background: var(--blue); color: var(--white); }
-    .divider { border-bottom: 1px solid var(--gray-border); margin: 4px 0; }
-    .popup-input { width: 100%; padding: 6px; border: 1px solid var(--blue); outline: none; margin-bottom: 8px; font-size: 13px; }
-    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 10000; display: none; justify-content: center; align-items: center; }
-    .modal-box { background: var(--white); border: 3px solid var(--blue); padding: 20px; width: 90%; max-width: 400px; }
-
-    /* KÉO GIÃN & THÊM HÀNG (+) */
-    .resizer-col { position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 15; }
-    .resizer-row { position: absolute; bottom: 0; left: 0; right: 0; height: 5px; cursor: row-resize; z-index: 15; }
-    .resizer-col:hover, .resizer-row:hover { background: rgba(1, 173, 238, 0.4); }
-    .quick-add-btn { position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); width: 20px; height: 20px; background: var(--blue); color: var(--white); border-radius: 50%; font-size: 12px; line-height: 20px; text-align: center; cursor: pointer; z-index: 60; display: none; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
-    td.row-index:hover .quick-add-btn { display: block; }
-
-    /* FOOTER TABS & LỌC (FILTER) */
-    .footer-tabs { height: 40px; background: var(--gray-light); display: flex; align-items: center; padding: 0 10px; border-top: 2px solid var(--blue); overflow-x: auto; flex-shrink: 0; }
-    .tab-item { padding: 8px 20px; background: #e0e0e0; cursor: pointer; font-size: 13px; font-weight: bold; margin-right: 5px; }
-    .tab-item.active { background: var(--blue); color: var(--white); }
-    .filter-icon { color: #999; cursor: pointer; padding: 2px 4px; border-radius: 3px; font-size: 11px; }
-    .filter-icon.active { color: var(--blue); }
-    .filter-icon:hover { background: #e0e0e0; color: #333; }
-
-    @media (max-width: 768px) { .main-header { flex-direction: column; height: auto; padding: 10px; } .search-box-wrapper { width: 100%; margin: 10px 0; } .nav-tabs { width: 100%; justify-content: space-around; margin: 0; } }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng Nhập - Tự Động Hóa Vĩnh Lộc</title>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f4f7f6; color: #333; display: flex; flex-direction: column; height: 100vh; }
+        nav { background: #004d99; color: white; display: flex; padding: 15px 30px; justify-content: space-between; align-items: center; }
+        nav ul { list-style: none; display: flex; gap: 20px; }
+        nav ul li a { color: white; text-decoration: none; font-weight: bold; }
+        
+        .login-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 450px; width: 100%; text-align: center; }
+        .login-box h2 { color: #004d99; margin-bottom: 10px; }
+        .login-box p { font-size: 14px; color: #666; margin-bottom: 30px; }
+        
+        /* Căn giữa nút Google chuẩn */
+        .google-btn-wrapper { display: flex; justify-content: center; margin-top: 20px; }
+        
+        #loginError { color: #e74c3c; margin-top: 20px; display: none; font-size: 14px; font-weight: 500; background: #fdf2f2; padding: 10px; border-radius: 6px; }
+    </style>
 </head>
 <body>
 
-<div class="app-wrapper">
-  <header class="main-header">
-    <img src="https://i.postimg.cc/xCjmFrb4/Untitled-design.png" class="brand-logo" alt="Logo">
-    <span style="font-weight:900; color:var(--blue); font-size:18px;">WEB MKT</span>
-    <div class="search-box-wrapper">
-      <input type="text" id="searchInput" placeholder="Tìm kiếm hệ thống..." onkeyup="executeSearch()">
-      <i class="fas fa-search"></i>
+    <nav>
+        <div class="logo" style="font-weight: bold; font-size: 18px;">TĐH Vĩnh Lộc</div>
+        <ul>
+            <li><a href="#">TRANG CHỦ</a></li>
+            <li><a href="#">GIỚI THIỆU</a></li>
+            <li><a href="#">BLOG</a></li>
+        </ul>
+    </nav>
+
+    <div class="login-container">
+        <div class="login-box">
+            <h2>Hệ Thống Quản Trị</h2>
+            <p>Vui lòng đăng nhập bằng tài khoản Google để tiếp tục</p>
+            
+            <div id="g_id_onload"
+                 data-client_id="5715002556-9hc14dlk471aq9nnk8e6cet8se84n9h8.apps.googleusercontent.com"
+                 data-context="signin"
+                 data-ux_mode="popup"
+                 data-callback="handleCredentialResponse"
+                 data-auto_select="false">
+            </div>
+
+            <div class="google-btn-wrapper">
+                <div class="g_id_signin"
+                     data-type="standard"
+                     data-shape="pill"
+                     data-theme="outline"
+                     data-text="signin_with"
+                     data-size="large"
+                     data-logo_alignment="left">
+                </div>
+            </div>
+
+            <p id="loginError">Quyền truy cập bị từ chối. Tài khoản của bạn không phải là Admin.</p>
+        </div>
     </div>
-    <div class="nav-tabs">
-      <div class="nav-btn active">Ý TƯỞNG</div>
-      <div class="nav-btn">KẾ HOẠCH</div>
-      <div class="nav-btn">BÀI VIẾT</div>
-      <div class="nav-btn" style="color:var(--red);">CÀI ĐẶT</div>
-    </div>
-  </header>
 
-  <div class="grid-container">
-    <div class="toolbar">
-      <button class="tool-btn" onclick="applyFormat('bold')"><i class="fas fa-bold"></i></button>
-      <button class="tool-btn" onclick="applyFormat('italic')"><i class="fas fa-italic"></i></button>
-      <button class="tool-btn" onclick="applyFormat('underline')"><i class="fas fa-underline"></i></button>
-      <button class="tool-btn" onclick="applyFormat('align-left')"><i class="fas fa-align-left"></i></button>
-      <button class="tool-btn" onclick="applyFormat('align-center')"><i class="fas fa-align-center"></i></button>
-      <button class="tool-btn" onclick="applyFormat('align-right')"><i class="fas fa-align-right"></i></button>
-      <button class="tool-btn" onclick="applyFormat('align-justify')"><i class="fas fa-align-justify"></i></button>
-      
-      <button class="tool-btn" onclick="openColorPicker(event, 'text')"><i class="fas fa-font"></i> Màu Chữ</button>
-      <button class="tool-btn" onclick="openColorPicker(event, 'bg')"><i class="fas fa-fill-drip"></i> Màu Nền</button>
-    </div>
-
-    <div class="scroll-area" id="gridScrollArea">
-      <table id="dataTable">
-        <thead id="dataHead"></thead>
-        <tbody id="dataBody"></tbody>
-      </table>
-    </div>
-
-    <div class="footer-tabs">
-      <div id="tabsWrapper" style="display:flex;"></div>
-      <div class="tab-item" style="color:var(--blue); background:transparent;" onclick="promptNewTab()"><i class="fas fa-plus"></i> Thêm Tab</div>
-    </div>
-  </div>
-</div>
-
-<div id="colorPickerBox" class="popup-box" style="padding:15px; width:250px;">
-  <div style="font-size:11px; font-weight:bold; margin-bottom:10px; color:#666;">BẢNG MÀU CHUẨN</div>
-  <div id="standardColorGrid" style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-bottom: 15px;"></div>
-  <div style="font-size:11px; font-weight:bold; margin-bottom:10px; color:#666;">MÀU TÙY CHỈNH (HEX)</div>
-  <div style="display:flex; align-items:center; gap:5px; margin-bottom:10px;">
-    <input type="text" id="hexInput" style="flex:1; padding:6px; border:1px solid #ccc; outline:none; font-size:12px;" placeholder="#ffffff" oninput="previewColor()">
-    <div id="colorPreview" style="width:26px; height:26px; border:1px solid var(--gray-border); border-radius:4px; background:#fff;"></div>
-    <button class="tool-btn" style="margin:0; padding:6px 8px;" onclick="pickColorFromScreen()" title="Hút màu"><i class="fas fa-eye-dropper"></i></button>
-  </div>
-  <button class="tool-btn" style="width:100%; margin:0;" onclick="applyChosenColor()">ÁP DỤNG MÀU</button>
-</div>
-
-<div id="dropdownPopup" class="popup-box" style="padding:5px; min-width:180px;">
-  <div id="dropdownListArea" style="max-height:200px; overflow-y:auto;"></div>
-  <div class="divider"></div>
-  <div class="menu-item" style="justify-content:center; color:var(--blue); font-weight:bold;" onclick="openDropdownEditor()"><i class="fas fa-pencil-alt"></i> Sửa danh sách</div>
-</div>
-
-<div id="filterPopup" class="popup-box" style="padding:0; min-width:200px;">
-  <div id="filterHeader" style="padding:8px; font-weight:bold; font-size:13px; color:var(--blue); border-bottom:1px solid #eee;"><i class="fas fa-filter"></i> Lọc dữ liệu</div>
-  <div id="filterListArea" style="max-height:200px; overflow-y:auto; padding:5px;"></div>
-  <div style="display:flex; gap:5px; padding:8px; border-top:1px solid #eee;">
-    <button class="tool-btn" style="flex:1; margin:0;" onclick="applyFilter()">Lọc</button>
-    <button class="tool-btn" style="flex:1; margin:0; background:var(--white); color:#333; border-color:#ccc;" onclick="clearFilter()">Xóa Lọc</button>
-  </div>
-</div>
-
-<div id="contextMenu" class="popup-box"></div>
-<div id="tabContextMenu" class="popup-box"></div>
-<div id="systemModal" class="modal-overlay">
-  <div class="modal-box">
-    <h3 id="modalTitle" style="color:var(--blue); margin-bottom:15px; border-bottom:2px solid var(--blue); padding-bottom:5px;">Tiêu đề</h3>
-    <div id="modalBody"></div>
-    <div id="modalFooter" style="text-align:right; margin-top:15px;"></div>
-  </div>
-</div>
-
-<script>
-  // ================= 1. CẤU HÌNH API =================
-  // !!! THAY BẰNG LINK WEB APP MỚI CỦA BẠN SAU KHI DEPLOY CODE.GS LÊN GOOGLE APPS SCRIPT !!!
-  const API_URL = "https://script.google.com/macros/s/AKfycbwL3qg_JmXl2om-0dT0-jUcWrbuYJgzoVIHhPhjBEpf2O7cLC30TrB4CAWCbVmbqkE/exec";
-
-  // ================= 2. QUẢN LÝ TRẠNG THÁI (STATE) =================
-  let sysData = { sheets: {}, attributes: {}, tabOrder: [], filters: {} };
-  let activeTab = "";
-  let actionQueue = [];
-  let isProcessingQueue = false;
-  
-  let selStart = null, selEnd = null;
-  let isFullRow = false, isFullCol = false;
-  
-  let colorTarget = 'bg';
-  let activeColPopup = -1, activeFilterCol = -1;
-  let isResizing = false, resizeData = { type: '', index: -1, startDim: 0, startMouse: 0 };
-
-  const stdColors = ["#000000", "#434343", "#666666", "#999999", "#b7b7b7", "#cccccc", "#d9d9d9", "#efefef", "#f3f3f3", "#ffffff",
-                     "#980000", "#ff0000", "#ff9900", "#ffff00", "#00ff00", "#00ffff", "#4a86e8", "#0000ff", "#9900ff", "#ff00ff",
-                     "#db1010", "#01adee", "#4caf50", "#ffeb3b", "#ff9800", "#795548", "#e91e63", "#9c27b0", "#3f51b5", "#009688"];
-
-  // ================= 3. KHỞI TẠO =================
-  window.onload = () => {
-    // Render Palette Màu
-    let grid = document.getElementById("standardColorGrid");
-    stdColors.forEach(c => {
-      let div = document.createElement("div");
-      div.style.background = c; div.style.width = "20px"; div.style.height = "20px";
-      div.style.borderRadius = "50%"; div.style.cursor = "pointer"; div.style.border = "1px solid #ccc";
-      div.onclick = () => { document.getElementById("hexInput").value = c; previewColor(); applyChosenColor(); };
-      grid.appendChild(div);
-    });
-
-    // 1. Tải Cache Local để hiện ngay (0 giây)
-    let cached = localStorage.getItem("MKT_DATA");
-    if (cached) { sysData = JSON.parse(cached); activeTab = sysData.tabOrder[0]; renderTabs(); renderGrid(); }
-    
-    // 2. Tải Data thật từ Server
-    fetchDataFromServer();
-    
-    // 3. Kích hoạt Đồng bộ Ngầm (Não nhện)
-    setInterval(processQueueAndSync, 3000);
-    
-    // 4. Lắng nghe Sự kiện toàn cục
-    document.addEventListener('paste', handlePasteEvent);
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('click', () => { document.querySelectorAll('.popup-box').forEach(el => el.style.display = 'none'); });
-  };
-
-  // ================= 4. GIAO TIẾP MẠNG (CORS BYPASS & ANTI-CACHE) =================
-  async function fetchDataFromServer() {
-    try {
-      let url = API_URL + "?t=" + new Date().getTime(); // Ép bỏ cache
-      let res = await fetch(url, { method: "GET", redirect: "follow", cache: "no-store" });
-      let json = await res.json();
-      if(json.success) {
-        let localFilters = sysData.filters;
-        sysData = json.data;
-        sysData.filters = localFilters || {};
-        localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
-        if(!activeTab || !sysData.tabOrder.includes(activeTab)) activeTab = sysData.tabOrder[0];
-        renderTabs(); renderGrid();
-      }
-    } catch(e) { console.warn("Lỗi tải dữ liệu. Đang chạy chế độ Offline."); }
-  }
-
-  async function processQueueAndSync() {
-    if(actionQueue.length === 0 || isProcessingQueue) return;
-    isProcessingQueue = true;
-    let batch = [...actionQueue];
-    actionQueue = []; 
-    try {
-      let res = await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify(batch),
-        headers: { "Content-Type": "text/plain;charset=utf-8" } // Mấu chốt lách CORS
-      });
-      let json = await res.json();
-      if (!json.success) { console.error("Lỗi Server:", json.error); actionQueue = batch.concat(actionQueue); }
-    } catch(e) { actionQueue = batch.concat(actionQueue); } // Mất mạng thì nhét lại vào hàng đợi
-    isProcessingQueue = false;
-  }
-
-  function dispatchAction(action) {
-    action.tab = activeTab; actionQueue.push(action);
-    localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
-  }
-
-  // ================= 5. RENDER BẢNG TÍNH LÕI =================
-  function renderTabs() {
-    let wrap = document.getElementById("tabsWrapper"); wrap.innerHTML = "";
-    sysData.tabOrder.forEach(tab => {
-      let attrs = sysData.attributes[tab] || {}; if(attrs.hidden) return;
-      let div = document.createElement("div");
-      div.className = "tab-item" + (tab === activeTab ? " active" : "");
-      div.innerText = tab;
-      div.onclick = () => { activeTab = tab; renderGrid(); };
-      div.oncontextmenu = (e) => showTabMenu(e, tab);
-      wrap.appendChild(div);
-    });
-  }
-
-  function renderGrid() {
-    let mat = sysData.sheets[activeTab] || [[""]];
-    let attrs = sysData.attributes[activeTab] || {};
-    let types = attrs.columnTypes || {};
-    let frzRow = attrs.frozenRows || 0; let frzCol = attrs.frozenCols || 0;
-    
-    let head = document.getElementById("dataHead"); let body = document.getElementById("dataBody");
-    head.innerHTML = ""; body.innerHTML = ""; if(mat.length === 0) return;
-    let cols = mat[0].length;
-    
-    // Tính toán Tọa độ Cố định
-    let colLefts = []; let currL = 40;
-    for(let c=0; c<cols; c++) { let w = (attrs.colWidths && attrs.colWidths[c]) ? parseInt(attrs.colWidths[c]) : 150; colLefts.push({w: w, l: currL}); currL += w; }
-    let rowTops = []; let currT = 21;
-    for(let r=0; r<mat.length; r++) { let h = (attrs.rowHeights && attrs.rowHeights[r]) ? parseInt(attrs.rowHeights[r]) : 21; rowTops.push({h: h, t: currT}); currT += h; }
-
-    // --- RENDER HEADER (A,B,C) ---
-    let trH = document.createElement("tr");
-    let th0 = document.createElement("th");
-    th0.className = "col-index"; th0.innerText = "#";
-    th0.style.position = 'sticky'; th0.style.left = '0'; th0.style.top = '0'; th0.style.zIndex = 20;
-    th0.onclick = () => selectRange(0, 0, mat.length-1, cols-1, true, true);
-    trH.appendChild(th0);
-
-    for(let c=0; c<cols; c++) {
-      let th = document.createElement("th"); th.style.width = colLefts[c].w + "px"; th.style.position = 'sticky'; th.style.top = '0'; th.style.zIndex = 10;
-      let hasFilter = sysData.filters[activeTab] && sysData.filters[activeTab][c];
-      
-      th.innerHTML = `
-        <div class="col-header-content"><span>${getColLetter(c)}</span> <i class="fas fa-filter filter-icon ${hasFilter ? 'active':''}"></i></div>
-        <div class="resizer-col"></div>
-      `;
-      if(c < frzCol) { th.style.left = colLefts[c].l + "px"; th.style.zIndex = 15; }
-      if(c === frzCol - 1) th.style.borderRight = "3px solid var(--blue)";
-
-      // Sự kiện: Shift Click an toàn + Filter Closure
-      th.onclick = (e) => { if(e.target.classList.contains("resizer-col") || e.target.classList.contains("filter-icon")) return; selectRange(0, c, mat.length-1, c, false, true, e.shiftKey); };
-      th.oncontextmenu = (e) => { if(!isFullCol || !isInRange(0, c)) selectRange(0, c, mat.length-1, c, false, true); showGridMenu(e, 0, c); };
-      th.querySelector(".filter-icon").onclick = ((idx) => (e) => openFilterMenu(e, idx))(c);
-      th.querySelector(".resizer-col").onmousedown = ((idx, w) => (e) => initResize(e, 'col', idx, w))(c, colLefts[c].w);
-      
-      th.draggable = true;
-      th.ondragstart = (e) => e.dataTransfer.setData("text/plain", JSON.stringify({t: 'col', s: selStart.c, e: selEnd.c}));
-      th.ondragover = (e) => { e.preventDefault(); th.style.borderLeft = "3px solid var(--blue)"; };
-      th.ondragleave = (e) => { th.style.borderLeft = ""; };
-      th.ondrop = (e) => { th.style.borderLeft = ""; let d = JSON.parse(e.dataTransfer.getData("text")); if(d.t === 'col') moveStruct(d.s, d.e, c, 'col'); };
-      trH.appendChild(th);
-    }
-    head.appendChild(trH);
-
-    // --- RENDER BODY (Dữ liệu) ---
-    mat.forEach((row, r) => {
-      if(r > 0 && isRowFilteredOut(r, mat)) return; // Ẩn hàng bị Lọc
-
-      let tr = document.createElement("tr"); tr.style.height = rowTops[r].h + "px";
-      let td0 = document.createElement("td"); td0.className = "row-index"; td0.innerText = r + 1;
-      td0.style.position = 'sticky'; td0.style.left = '0'; td0.style.zIndex = 5;
-      td0.innerHTML += `<div class="resizer-row"></div> <div class="quick-add-btn" title="Thêm hàng dưới"><i class="fas fa-plus"></i></div>`;
-      
-      if(r < frzRow) { td0.style.top = rowTops[r].t + "px"; td0.style.zIndex = 15; }
-      if(r === frzRow - 1) td0.style.borderBottom = "3px solid var(--blue)";
-
-      td0.onclick = (e) => { if(e.target.closest('.resizer-row, .quick-add-btn')) return; selectRange(r, 0, r, cols-1, true, false, e.shiftKey); };
-      td0.oncontextmenu = (e) => { if(!isFullRow || !isInRange(r, 0)) selectRange(r, 0, r, cols-1, true, false); showGridMenu(e, r, 0); };
-      td0.querySelector(".quick-add-btn").onclick = (e) => { e.stopPropagation(); promptQuickAddRow(r); };
-      td0.querySelector(".resizer-row").onmousedown = (e) => initResize(e, 'row', r, rowTops[r].h);
-      
-      td0.draggable = true;
-      td0.ondragstart = (e) => e.dataTransfer.setData("text/plain", JSON.stringify({t: 'row', s: selStart.r, e: selEnd.r}));
-      td0.ondragover = (e) => { e.preventDefault(); tr.style.borderTop = "3px solid var(--blue)"; };
-      td0.ondragleave = (e) => { tr.style.borderTop = ""; };
-      td0.ondrop = (e) => { tr.style.borderTop = ""; let d = JSON.parse(e.dataTransfer.getData("text")); if(d.t === 'row') moveStruct(d.s, d.e, r, 'row'); };
-      tr.appendChild(td0);
-
-      row.forEach((val, c) => {
-        let td = document.createElement("td"); td.id = `cell_${r}_${c}`; applyStyle(td, r, c, attrs);
-        
-        let isFrzR = r < frzRow; let isFrzC = c < frzCol;
-        if(isFrzR || isFrzC) { td.style.position = 'sticky'; if(isFrzR) td.style.top = rowTops[r].t + "px"; if(isFrzC) td.style.left = colLefts[c].l + "px"; td.style.zIndex = (isFrzR && isFrzC) ? 8 : 4; }
-        if(r === frzRow - 1) td.style.borderBottom = "3px solid var(--blue)";
-        if(c === frzCol - 1) td.style.borderRight = "3px solid var(--blue)";
-
-        let type = r === 0 ? "text" : (types[c] || "text");
-        if (type === "dropdown") {
-          let opts = (attrs.dropdownChoices && attrs.dropdownChoices[c]) ? attrs.dropdownChoices[c] : ["Mục 1", "Mục 2"];
-          let arr = val ? String(val).split(",").map(s=>s.trim()).filter(Boolean) : [];
-          let ui = document.createElement("div"); ui.className = "dropdown-ui";
-          ui.innerHTML = `<div class="dropdown-text">${arr.length ? arr.join(", ") : "<span style='color:#999; font-style:italic;'>Trống...</span>"}</div> <i class="fas fa-caret-down"></i>`;
-          ui.onclick = (e) => { e.stopPropagation(); selectRange(r, c, r, c); openDropdownMenu(e, r, c, arr, opts); };
-          td.appendChild(ui);
-        } else if (type === "checkbox") {
-          let chk = document.createElement("input"); chk.type = "checkbox"; chk.checked = (val === "true" || val === true); chk.style.margin = "4px";
-          chk.onchange = () => updateCell(r, c, chk.checked); td.appendChild(chk);
-        } else if (type === "link") {
-          let str = String(val); if (str.startsWith("http")) td.innerHTML = `<a href="${str}" target="_blank" style="color:var(--blue); padding:4px; display:inline-block;">Link</a>`; else td.appendChild(createEditor(r, c, val));
-        } else {
-          let str = String(val);
-          if (r !== 0 && str.startsWith("<") && str.indexOf(">") !== -1) { let div = document.createElement("div"); div.style.padding = "2px"; div.innerHTML = str; td.appendChild(div); td.ondblclick = (e) => { td.innerHTML = ""; let ed = createEditor(r, c, str); td.appendChild(ed); ed.classList.add("cell-expanded"); ed.focus(); }; } 
-          else td.appendChild(createEditor(r, c, val));
+    <script>
+        // Nếu đã xác thực trước đó và đúng admin, chuyển hướng thẳng
+        if (localStorage.getItem('admin_session') === 'verified_admin') {
+            window.location.href = 'idea.html';
         }
 
-        td.onclick = (e) => { if(e.target.tagName !== 'A' && e.target.tagName !== 'INPUT') selectRange(r, c, r, c, false, false, e.shiftKey); };
-        td.oncontextmenu = (e) => { if(!isInRange(r, c)) selectRange(r, c, r, c); showGridMenu(e, r, c); };
-        tr.appendChild(td);
-      });
-      body.appendChild(tr);
-    });
-    highlightSelection();
-  }
+        // Hàm xử lý sau khi người dùng chọn tài khoản Google thành công
+        function handleCredentialResponse(response) {
+            try {
+                // Giải mã JWT Token từ Google trả về để đọc thông tin Profile ngầm
+                const base64Url = response.credential.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
 
-  function createEditor(r, c, val) {
-    let ed = document.createElement("div"); ed.className = "cell-editor"; ed.contentEditable = "true"; ed.innerHTML = val;
-    ed.ondblclick = function(e) { e.stopPropagation(); document.querySelectorAll(".cell-expanded").forEach(x=>x.classList.remove("cell-expanded")); this.classList.add("cell-expanded"); };
-    ed.onblur = function() { this.classList.remove("cell-expanded"); updateCell(r, c, this.innerHTML); };
-    return ed;
-  }
+                const profile = JSON.parse(jsonPayload);
+                const email = profile.email ? profile.email.toLowerCase().trim() : "";
 
-  // ================= 6. XỬ LÝ LÕI NGHIỆP VỤ =================
-  function updateCell(r, c, val) {
-    sysData.sheets[activeTab][r][c] = val;
-    dispatchAction({type: 'SYNC_CELL', row: r+1, col: c+1, val: val});
-  }
-
-  function handlePasteEvent(e) {
-    if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return; 
-    if(!selStart) return;
-    e.preventDefault();
-    let text = (e.clipboardData || window.clipboardData).getData('text');
-    let rows = text.split("\n"); let mat = sysData.sheets[activeTab];
-    
-    rows.forEach((rowStr, i) => {
-      if(!rowStr && i === rows.length-1) return;
-      let cols = rowStr.split("\t"); let tr = selStart.r + i;
-      if(tr >= mat.length) { mat.push(Array(mat[0].length).fill("")); dispatchAction({type: 'STRUCTURAL', action: 'insertRow', index: tr+1, count: 1}); }
-      cols.forEach((val, j) => {
-        let tc = selStart.c + j;
-        if(tc < mat[0].length) { mat[tr][tc] = val.trim(); dispatchAction({type: 'SYNC_CELL', row: tr+1, col: tc+1, val: val.trim()}); }
-      });
-    });
-    renderGrid();
-  }
-
-  function moveStruct(s, e, target, type) {
-    if(target >= s && target <= e) return;
-    let mat = sysData.sheets[activeTab]; let count = e - s + 1; let insPos = target > e ? target - count : target;
-    if (type === 'row') {
-      let ext = mat.splice(s, count); mat.splice.apply(mat, [insPos, 0].concat(ext));
-      shiftProps(['rowHeights', 'rowStyles'], s, count, insPos, mat.length);
-    } else {
-      mat.forEach(row => { let ext = row.splice(s, count); row.splice.apply(row, [insPos, 0].concat(ext)); });
-      shiftProps(['colWidths', 'colStyles', 'columnTypes', 'dropdownChoices'], s, count, insPos, mat[0].length);
-    }
-    dispatchAction({type: 'MOVE', start: s+1, end: e+1, target: target+1, dim: type});
-    dispatchAction({type: 'SAVE_ATTRS', attributes: sysData.attributes[activeTab]});
-    renderGrid();
-  }
-  function shiftProps(propsArr, start, count, insertPos, maxLen) {
-    let attrs = sysData.attributes[activeTab] || {};
-    propsArr.forEach(p => { if(attrs[p]) {
-        let arr = []; for(let i=0; i<maxLen+count; i++) arr.push(attrs[p][i]);
-        let ext = arr.splice(start, count); arr.splice.apply(arr, [insertPos, 0].concat(ext));
-        let newObj = {}; arr.forEach((v, i) => { if(v !== undefined) newObj[i] = v; }); attrs[p] = newObj;
-    }});
-  }
-
-  // ================= 7. TIỆN ÍCH & LỰA CHỌN =================
-  function getColLetter(c) { let l = ""; while(c >= 0) { l = String.fromCharCode((c % 26) + 65) + l; c = Math.floor(c / 26) - 1; } return l; }
-  
-  function selectRange(r1, c1, r2, c2, isR=false, isC=false, shift=false) {
-    if(shift && selStart) { selEnd = {r: r2, c: c2}; } else { selStart = {r: r1, c: c1}; selEnd = {r: r2, c: c2}; }
-    isFullRow = isR; isFullCol = isC; highlightSelection();
-  }
-  function highlightSelection() {
-    document.querySelectorAll(".cell-selected").forEach(c => c.classList.remove("cell-selected"));
-    if(!selStart) return;
-    let minR = Math.min(selStart.r, selEnd.r), maxR = Math.max(selStart.r, selEnd.r);
-    let minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c);
-    for(let i=minR; i<=maxR; i++) { for(let j=minC; j<=maxC; j++) { let td = document.getElementById(`cell_${i}_${j}`); if(td) td.classList.add("cell-selected"); } }
-  }
-  function isInRange(r, c) {
-    if(!selStart) return false;
-    let minR = Math.min(selStart.r, selEnd.r), maxR = Math.max(selStart.r, selEnd.r);
-    let minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c);
-    return r >= minR && r <= maxR && c >= minC && c <= maxC;
-  }
-  function applyStyle(td, r, c, attrs) {
-    let s = (attrs.cellStyles && attrs.cellStyles[`${r}_${c}`]) || {}; let rs = (attrs.rowStyles && attrs.rowStyles[r]) || {}; let cs = (attrs.colStyles && attrs.colStyles[c]) || {};
-    td.style.backgroundColor = s.bg || rs.bg || cs.bg || "#ffffff"; td.style.color = s.color || rs.color || cs.color || "#333";
-    td.style.fontWeight = (s.bold || rs.bold || cs.bold) ? "bold" : "normal"; td.style.fontStyle = (s.italic || rs.italic || cs.italic) ? "italic" : "normal";
-    td.style.textDecoration = (s.underline || rs.underline || cs.underline) ? "underline" : "none"; td.style.textAlign = s.align || rs.align || cs.align || "left";
-  }
-  function applyFormat(cmd) {
-    if(!selStart) return;
-    let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; attrs.cellStyles = attrs.cellStyles || {};
-    let minR = Math.min(selStart.r, selEnd.r), maxR = Math.max(selStart.r, selEnd.r);
-    let minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c);
-    for(let r=minR; r<=maxR; r++) { for(let c=minC; c<=maxC; c++) {
-        let st = attrs.cellStyles[`${r}_${c}`] = attrs.cellStyles[`${r}_${c}`] || {};
-        if(cmd==='bold') st.bold = !st.bold; if(cmd==='italic') st.italic = !st.italic; if(cmd==='underline') st.underline = !st.underline;
-        if(cmd.startsWith('align-')) st.align = cmd.replace('align-', '');
-    }}
-    dispatchAction({type:'SAVE_ATTRS', attributes: attrs}); renderGrid();
-  }
-
-  // ================= 8. TẠO ID & KÉO GIÃN =================
-  function generateID(existing) {
-    let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'; let id = '';
-    do {
-      let str = ''; for(let i=0; i<3; i++) str += chars.charAt(Math.floor(Math.random() * chars.length));
-      let num = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
-      id = 'WEB_' + str + num;
-    } while (existing.has(id)); existing.add(id); return id;
-  }
-  function promptQuickAddRow(r) {
-    showModal("Thêm hàng tự động", `<input type="number" id="numAdd" class="popup-input" value="1" placeholder="Số lượng">`, [
-      { text: "Tạo ngay", class: "btn-blue", onclick: () => {
-         let cnt = parseInt(document.getElementById("numAdd").value);
-         if(cnt > 0) {
-           let mat = sysData.sheets[activeTab];
-           let existing = new Set(); for(let i=1; i<mat.length; i++) existing.add(String(mat[i][0]).trim());
-           let newRows = [];
-           for(let i=0; i<cnt; i++) { let nr = Array(mat[0].length).fill(""); nr[0] = generateID(existing); newRows.push(nr); }
-           mat.splice.apply(mat, [r+1, 0].concat(newRows));
-           dispatchAction({type: 'STRUCTURAL', action: 'insertRow', index: r+2, count: cnt});
-           for(let i=0; i<cnt; i++) dispatchAction({type: 'SYNC_CELL', row: r+2+i, col: 1, val: newRows[i][0]});
-           renderGrid(); closeModal();
-         }
-      }}, { text: "Hủy", class: "btn-cancel", onclick: closeModal }
-    ]);
-  }
-
-  function initResize(e, type, index, dim) { e.stopPropagation(); e.preventDefault(); isResizing = true; resizeData = { type: type, index: index, startDim: dim, startMouse: type==='col'?e.clientX:e.clientY }; document.body.style.cursor = type==='col' ? 'col-resize' : 'row-resize'; }
-  function handleMouseMove(e) {
-    if(!isResizing) return;
-    let delta = (resizeData.type==='col'?e.clientX:e.clientY) - resizeData.startMouse; let newDim = Math.max(21, resizeData.startDim + delta);
-    if(resizeData.type==='col') document.querySelectorAll("#dataHead th")[resizeData.index+1].style.width = newDim+"px";
-    else document.querySelectorAll("#dataBody tr")[resizeData.index].style.height = newDim+"px";
-  }
-  function handleMouseUp(e) {
-    if(!isResizing) return; isResizing = false; document.body.style.cursor = 'default';
-    let delta = (resizeData.type==='col'?e.clientX:e.clientY) - resizeData.startMouse; let newDim = Math.max(21, resizeData.startDim + delta);
-    let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {};
-    if(resizeData.type==='col') { attrs.colWidths = attrs.colWidths || {}; attrs.colWidths[resizeData.index] = newDim; }
-    else { attrs.rowHeights = attrs.rowHeights || {}; attrs.rowHeights[resizeData.index] = newDim; }
-    dispatchAction({type:'SAVE_ATTRS', attributes: attrs}); renderGrid();
-  }
-
-  // ================= 9. UI POPUPS =================
-  function showPopupSafe(menu, e) {
-    menu.style.display = "block"; let x = e.clientX, y = e.clientY + 15;
-    if(x + menu.offsetWidth > window.innerWidth) x = window.innerWidth - menu.offsetWidth - 5;
-    if(y + menu.offsetHeight > window.innerHeight) y = window.innerHeight - menu.offsetHeight - 5;
-    menu.style.left = x + "px"; menu.style.top = y + "px";
-  }
-
-  // MÀU SẮC
-  function openColorPicker(e, mode) { e.stopPropagation(); colorTarget = mode; showPopupSafe(document.getElementById("colorPickerBox"), e); }
-  function previewColor() { document.getElementById("colorPreview").style.background = document.getElementById("hexInput").value; }
-  async function pickColorFromScreen() { if(!window.EyeDropper) return alert("Trình duyệt không hỗ trợ"); try { let res = await new EyeDropper().open(); document.getElementById("hexInput").value = res.sRGBHex; previewColor(); } catch(err){} }
-  function applyChosenColor() {
-    let hex = document.getElementById("hexInput").value.trim(); if(!hex || !selStart) return;
-    let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; attrs.cellStyles = attrs.cellStyles || {};
-    let minR = Math.min(selStart.r, selEnd.r), maxR = Math.max(selStart.r, selEnd.r), minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c);
-    
-    if(isFullRow) { attrs.rowStyles = attrs.rowStyles || {}; for(let r=minR; r<=maxR; r++) { attrs.rowStyles[r] = attrs.rowStyles[r] || {}; attrs.rowStyles[r][colorTarget] = hex; } } 
-    else if (isFullCol) { attrs.colStyles = attrs.colStyles || {}; for(let c=minC; c<=maxC; c++) { attrs.colStyles[c] = attrs.colStyles[c] || {}; attrs.colStyles[c][colorTarget] = hex; } } 
-    else { for(let r=minR; r<=maxR; r++) { for(let c=minC; c<=maxC; c++) { attrs.cellStyles[`${r}_${c}`] = attrs.cellStyles[`${r}_${c}`] || {}; attrs.cellStyles[`${r}_${c}`][colorTarget] = hex; } } }
-    
-    document.getElementById("colorPickerBox").style.display = "none"; dispatchAction({type: 'SAVE_ATTRS', attributes: attrs}); renderGrid();
-  }
-
-  // DROPDOWN
-  function openDropdownMenu(e, r, c, current, opts) {
-    let box = document.getElementById("dropdownListArea"); box.innerHTML = ""; activeColPopup = c;
-    opts.forEach(opt => {
-      let div = document.createElement("div"); div.className = "menu-item"; let isChk = current.includes(opt);
-      div.innerHTML = `<input type="checkbox" ${isChk?'checked':''} style="pointer-events:none;"> <span>${opt}</span>`;
-      div.onclick = (ev) => { ev.stopPropagation(); if(isChk) current = current.filter(x => x !== opt); else current.push(opt); updateCell(r, c, current.join(", ")); openDropdownMenu(e, r, c, current, opts); renderGrid(); };
-      box.appendChild(div);
-    });
-    showPopupSafe(document.getElementById("dropdownPopup"), e);
-  }
-  function openDropdownEditor() {
-    let c = activeColPopup; let attrs = sysData.attributes[activeTab] || {}; let opts = (attrs.dropdownChoices && attrs.dropdownChoices[c]) ? attrs.dropdownChoices[c] : [];
-    showModal("Sửa danh sách thả xuống", `<textarea id="dropEdit" class="popup-input" style="height:100px;">${opts.join("\n")}</textarea>`, [
-      { text: "Lưu", class: "btn-blue", onclick: () => { attrs.dropdownChoices = attrs.dropdownChoices || {}; attrs.dropdownChoices[c] = document.getElementById("dropEdit").value.split("\n").map(x=>x.trim()).filter(Boolean); dispatchAction({type: 'SAVE_ATTRS', attributes: attrs}); renderGrid(); closeModal(); }},
-      { text: "Đóng", class: "btn-cancel", onclick: closeModal }
-    ]); document.getElementById("dropdownPopup").style.display = 'none';
-  }
-
-  // FILTER (LỌC MULTI-COLUMN)
-  function openFilterMenu(e, c) {
-    e.stopPropagation(); activeFilterCol = c;
-    let box = document.getElementById("filterListArea"); box.innerHTML = "";
-    document.getElementById("filterHeader").innerHTML = `<i class="fas fa-filter"></i> Lọc cột ${getColLetter(c)}`;
-    let mat = sysData.sheets[activeTab]; let unique = new Set(); for(let r=1; r<mat.length; r++) unique.add(String(mat[r][c] || "").trim());
-    let vals = Array.from(unique).sort();
-    
-    let flt = (sysData.filters[activeTab] || {})[c] || null;
-    let html = `<div class="menu-item" onclick="toggleAllFlt(this)"><input type="checkbox" id="fltAll" style="pointer-events:none;" ${flt===null?'checked':''}> <b>(Chọn tất cả)</b></div>`;
-    vals.forEach(v => {
-      let isChk = flt === null || flt.includes(v);
-      html += `<div class="menu-item" onclick="toggleSingleFlt(this)"><input type="checkbox" class="flt-cb" value="${v}" style="pointer-events:none;" ${isChk?'checked':''}> <span>${v===""?"(Trống)":v}</span></div>`;
-    });
-    box.innerHTML = html; showPopupSafe(document.getElementById("filterPopup"), e);
-  }
-  function toggleAllFlt(el) { let cb = el.querySelector('input'); cb.checked = !cb.checked; document.querySelectorAll(".flt-cb").forEach(x=>x.checked = cb.checked); }
-  function toggleSingleFlt(el) { let cb = el.querySelector('input'); cb.checked = !cb.checked; }
-  function applyFilter() {
-    let cbs = document.querySelectorAll(".flt-cb"); let sel = []; let all = true;
-    cbs.forEach(cb => { if(cb.checked) sel.push(cb.value); else all = false; });
-    sysData.filters[activeTab] = sysData.filters[activeTab] || {};
-    if(all) delete sysData.filters[activeTab][activeFilterCol]; else sysData.filters[activeTab][activeFilterCol] = sel;
-    document.getElementById("filterPopup").style.display = "none"; renderGrid();
-  }
-  function clearFilter() { if(sysData.filters[activeTab]) delete sysData.filters[activeTab][activeFilterCol]; document.getElementById("filterPopup").style.display = "none"; renderGrid(); }
-  function isRowFilteredOut(r, matrix) {
-    let flts = sysData.filters[activeTab]; if(!flts) return false;
-    for(let c in flts) { if(flts[c].indexOf(String(matrix[r][c] || "").trim()) === -1) return true; } return false;
-  }
-
-  // ================= 10. MENUS & MODALS =================
-  function showGridMenu(e, r, c) {
-    e.preventDefault(); e.stopPropagation();
-    let menu = document.getElementById("contextMenu");
-    menu.innerHTML = `
-      <div class="menu-item" onclick="execCmd('insertRow')"><i class="fas fa-arrow-up"></i> Thêm hàng</div>
-      <div class="menu-item" onclick="execCmd('insertCol')"><i class="fas fa-arrow-left"></i> Thêm cột</div>
-      <div class="divider"></div>
-      <div class="menu-item" style="color:var(--red);" onclick="execCmd('delRow')"><i class="fas fa-trash"></i> Xóa hàng chọn</div>
-      <div class="menu-item" style="color:var(--red);" onclick="execCmd('delCol')"><i class="fas fa-trash"></i> Xóa cột chọn</div>
-      <div class="divider"></div>
-      <div class="menu-item" onclick="setType('dropdown')"><i class="fas fa-list"></i> Loại: Dropdown</div>
-      <div class="menu-item" onclick="setType('checkbox')"><i class="fas fa-check-square"></i> Loại: Checkbox</div>
-      <div class="menu-item" onclick="setType('link')"><i class="fas fa-link"></i> Loại: Link</div>
-      <div class="menu-item" onclick="setType('text')"><i class="fas fa-font"></i> Loại: Văn bản</div>
-      <div class="divider"></div>
-      <div class="menu-item" style="color:var(--blue);" onclick="execCmd('freeze')"><i class="fas fa-snowflake"></i> Cố định tới đây</div>
-      <div class="menu-item" onclick="execCmd('unfreeze')"><i class="fas fa-ban"></i> Bỏ cố định</div>
-    `;
-    showPopupSafe(menu, e);
-  }
-
-  function execCmd(cmd) {
-    document.getElementById("contextMenu").style.display = "none";
-    let minR = Math.min(selStart.r, selEnd.r), countR = Math.abs(selStart.r - selEnd.r) + 1;
-    let minC = Math.min(selStart.c, selEnd.c), countC = Math.abs(selStart.c - selEnd.c) + 1;
-    let mat = sysData.sheets[activeTab];
-
-    if(cmd === 'insertRow') { for(let i=0;i<countR;i++) mat.splice(minR, 0, Array(mat[0].length).fill("")); dispatchAction({type:'STRUCTURAL', action:'insertRow', index:minR+1, count:countR}); }
-    if(cmd === 'insertCol') { mat.forEach(row => { for(let i=0;i<countC;i++) row.splice(minC, 0, ""); }); dispatchAction({type:'STRUCTURAL', action:'insertCol', index:minC+1, count:countC}); }
-    if(cmd === 'delRow') { mat.splice(minR, countR); if(mat.length===0) mat.push([""]); dispatchAction({type:'STRUCTURAL', action:'deleteRow', index:minR+1, count:countR}); }
-    if(cmd === 'delCol') { mat.forEach(row => row.splice(minC, countC)); dispatchAction({type:'STRUCTURAL', action:'deleteCol', index:minC+1, count:countC}); }
-    if(cmd === 'freeze' || cmd === 'unfreeze') { 
-      let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {};
-      attrs.frozenRows = cmd === 'freeze' ? minR + 1 : 0; attrs.frozenCols = cmd === 'freeze' ? minC + 1 : 0;
-      dispatchAction({type:'FREEZE', rows: attrs.frozenRows, cols: attrs.frozenCols}); dispatchAction({type:'SAVE_ATTRS', attributes: attrs});
-    }
-    renderGrid();
-  }
-
-  function setType(type) {
-    document.getElementById("contextMenu").style.display = "none";
-    let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; attrs.columnTypes = attrs.columnTypes || {};
-    let minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c);
-    for(let c=minC; c<=maxC; c++) attrs.columnTypes[c] = type;
-    dispatchAction({type:'SAVE_ATTRS', attributes: attrs}); renderGrid();
-  }
-
-  function showTabMenu(e, tab) {
-    e.preventDefault(); e.stopPropagation();
-    let menu = document.getElementById("tabContextMenu");
-    menu.innerHTML = `
-      <div class="menu-item" onclick="promptRenameTab('${tab}')"><i class="fas fa-edit"></i> Đổi tên</div>
-      <div class="menu-item" onclick="duplicateTab('${tab}')"><i class="fas fa-clone"></i> Nhân bản</div>
-      <div class="menu-item" style="color:var(--red);" onclick="hideTab('${tab}')"><i class="fas fa-eye-slash"></i> Ẩn</div>
-      <div class="divider"></div>
-      <div class="menu-item" style="color:var(--red);" onclick="deleteTab('${tab}')"><i class="fas fa-trash"></i> Xóa Tab</div>
-    `;
-    showPopupSafe(menu, e);
-  }
-  function promptNewTab() { let name = prompt("Nhập tên tab mới:"); if(name && !sysData.tabOrder.includes(name)) { sysData.tabOrder.push(name); sysData.sheets[name] = [["A","B","C"]]; activeTab = name; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'create', tab: name}); } }
-  function promptRenameTab(old) { document.getElementById("tabContextMenu").style.display = 'none'; let n = prompt("Tên mới:", old); if(n && n !== old) { let idx = sysData.tabOrder.indexOf(old); sysData.tabOrder[idx] = n; sysData.sheets[n] = sysData.sheets[old]; delete sysData.sheets[old]; sysData.attributes[n] = sysData.attributes[old]; delete sysData.attributes[old]; activeTab = n; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'rename', oldName: old, newName: n}); } }
-  function duplicateTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let n = tab+"_copy"; sysData.tabOrder.push(n); sysData.sheets[n] = JSON.parse(JSON.stringify(sysData.sheets[tab])); sysData.attributes[n] = JSON.parse(JSON.stringify(sysData.attributes[tab] || {})); activeTab=n; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'duplicate', oldName: tab, newName: n}); }
-  function hideTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let attrs = sysData.attributes[tab] = sysData.attributes[tab] || {}; attrs.hidden = true; activeTab = sysData.tabOrder.find(t => !(sysData.attributes[t]||{}).hidden); renderTabs(); renderGrid(); dispatchAction({type:'SAVE_ATTRS', attributes: attrs}); }
-  function deleteTab(tab) { document.getElementById("tabContextMenu").style.display='none'; if(confirm("Xóa tab?")) { sysData.tabOrder = sysData.tabOrder.filter(t=>t!==tab); delete sysData.sheets[tab]; activeTab = sysData.tabOrder[0]; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'delete', tab: tab}); } }
-
-  function showModal(title, bodyHtml, btns) {
-    document.getElementById("modalTitle").innerText = title; document.getElementById("modalBody").innerHTML = bodyHtml;
-    let ft = document.getElementById("modalFooter"); ft.innerHTML = "";
-    btns.forEach(b => {
-      let btn = document.createElement("button"); btn.innerText = b.text; btn.className = "tool-btn";
-      if(b.class === "btn-blue") { btn.style.background = "var(--blue)"; btn.style.color = "var(--white)"; }
-      else { btn.style.background = "var(--white)"; btn.style.color = "#333"; btn.style.borderColor = "#ccc"; }
-      btn.onclick = b.onclick; ft.appendChild(btn);
-    });
-    document.getElementById("systemModal").style.display = "flex";
-  }
-  function closeModal() { document.getElementById("systemModal").style.display = "none"; }
-</script>
+                // KIỂM TRA QUYỀN ADMIN TUYỆT ĐỐI
+                if (email === 'admin@tudonghoavinhloc.com') {
+                    // Lưu trạng thái phiên làm việc an toàn
+                    localStorage.setItem('admin_session', 'verified_admin');
+                    localStorage.setItem('admin_email', email);
+                    localStorage.setItem('admin_name', profile.name || 'Admin');
+                    
+                    // Chuyển sang giao diện ý tưởng
+                    window.location.href = 'idea.html';
+                } else {
+                    // Nếu là tài khoản khác, giữ nguyên tại trang index và báo lỗi
+                    localStorage.removeItem('admin_session');
+                    document.getElementById('loginError').style.display = 'block';
+                }
+            } catch (error) {
+                console.error("Lỗi xử lý token Google:", error);
+                alert("Đăng nhập thất bại, vui lòng thử lại.");
+            }
+        }
+    </script>
 </body>
 </html>
