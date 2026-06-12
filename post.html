@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viết Bài</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --white: #ffffff; --blue: #01adee; --red: #db1010; --gray-light: #f9f9f9; --gray-border: #e0e0e0; --text-main: #333333; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background: var(--gray-light); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* Toolbar Header */
+        .toolbar { height: 45px; background: var(--white); border-bottom: 0.5px solid var(--gray-border); display: flex; align-items: center; padding: 0 15px; justify-content: space-between; z-index: 100; flex-shrink: 0; }
+        .tool-btn { background: var(--white); border: 0.5px solid var(--gray-border); color: var(--blue); padding: 5px 12px; cursor: pointer; font-size: 13px; font-weight: bold; border-radius: 3px; display: inline-flex; align-items: center; gap: 5px; transition: 0.2s;}
+        .tool-btn:hover { background: var(--blue); color: var(--white); border-color: var(--blue); }
+        .save-btn { background: var(--blue); color: var(--white); border-color: var(--blue); }
+        .save-btn:hover { background: #0199d3; }
+
+        /* Vùng làm việc chính */
+        .workspace { flex: 1; position: relative; overflow-y: auto; overflow-x: hidden; display: flex; justify-content: center; padding: 30px 0 100px 0; }
+
+        /* Khung Trình soạn thảo ở giữa */
+        .editor-container { width: 100%; max-width: 800px; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 5px 20px rgba(0,0,0,0.05); border-radius: 4px; position: relative; }
+        
+        /* Thước đo */
+        .ruler-h { position: absolute; top: -15px; left: 0; right: 0; height: 15px; background: repeating-linear-gradient(90deg, #ccc 0, #ccc 1px, transparent 1px, transparent 10px), var(--white); border: 0.5px solid var(--gray-border); display: none; }
+        .ruler-v { position: absolute; top: 0; left: -15px; bottom: 0; width: 15px; background: repeating-linear-gradient(180deg, #ccc 0, #ccc 1px, transparent 1px, transparent 10px), var(--white); border: 0.5px solid var(--gray-border); display: none; }
+
+        /* Các ô nhập Rich Text */
+        .rich-input { padding: 15px 20px; outline: none; border-bottom: 0.5px dashed var(--gray-border); width: 100%; display: block; line-height: 1.6; }
+        .rich-input:empty:before { content: attr(data-placeholder); color: #999; pointer-events: none; display: block; }
+        
+        #postTitle { font-size: 24px; font-weight: bold; color: var(--blue); }
+        #postSapo { font-size: 16px; font-style: italic; color: #555; }
+        #postContent { font-size: 15px; min-height: 400px; border-bottom: none; padding-bottom: 50px; }
+        
+        /* Ảnh bìa */
+        .cover-area { padding: 15px 20px; border-bottom: 0.5px dashed var(--gray-border); background: #fcfcfc; }
+        .cover-input { width: 100%; padding: 8px 10px; border: 0.5px solid var(--gray-border); outline: none; font-size: 13px; border-radius: 3px; margin-bottom: 10px; }
+        .cover-preview { width: 100%; max-height: 400px; object-fit: contain; border-radius: 4px; display: none; border: 0.5px solid var(--gray-border); }
+
+        /* Floating Panels (Trái & Phải) */
+        .floating-panel { position: absolute; width: 300px; background: var(--white); border: 0.5px solid var(--gray-border); border-radius: 4px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; max-height: 85vh; z-index: 50; }
+        .panel-header { padding: 10px; background: var(--gray-light); border-bottom: 0.5px solid var(--gray-border); font-weight: bold; font-size: 13px; cursor: move; user-select: none; display: flex; justify-content: space-between; align-items: center; color: var(--blue); }
+        .panel-content { flex: 1; overflow-y: auto; padding: 10px; font-size: 13px; }
+
+        /* Panel Trái: Cấu trúc Dữ liệu */
+        .data-row { margin-bottom: 10px; border: 0.5px solid var(--gray-border); border-radius: 3px; overflow: hidden; }
+        .data-label { background: var(--gray-light); padding: 5px 8px; font-weight: bold; border-bottom: 0.5px solid var(--gray-border); font-size: 11px; color: var(--red); }
+        .data-val { padding: 8px; background: var(--white); word-wrap: break-word; }
+        
+        /* Cột Target để lưu */
+        .target-col-select { width: 100%; padding: 6px; border: 0.5px solid var(--blue); outline: none; border-radius: 3px; font-weight: bold; margin-bottom: 15px; }
+
+        /* Panel Phải: Tabs */
+        .panel-tabs { display: flex; border-bottom: 0.5px solid var(--gray-border); }
+        .ptab-btn { flex: 1; text-align: center; padding: 8px; cursor: pointer; font-size: 12px; font-weight: bold; border-bottom: 2px solid transparent; color: #777; transition: 0.2s; }
+        .ptab-btn.active { color: var(--blue); border-bottom: 2px solid var(--blue); background: rgba(1, 173, 238, 0.05); }
+        .ptab-content { display: none; }
+        .ptab-content.active { display: block; }
+
+        /* Tools Định dạng */
+        .tool-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 15px; }
+        .fmt-btn { background: var(--white); border: 0.5px solid var(--gray-border); padding: 6px 0; text-align: center; cursor: pointer; border-radius: 3px; color: var(--text-main); font-size: 14px; transition: 0.2s; }
+        .fmt-btn:hover { background: var(--gray-light); color: var(--blue); border-color: var(--blue); }
+        
+        .tool-row { display: flex; gap: 5px; margin-bottom: 10px; align-items: center; }
+        .tool-input { flex: 1; border: 0.5px solid var(--gray-border); padding: 5px; font-size: 12px; outline: none; border-radius: 3px; }
+        .tool-label { font-size: 11px; color: #777; min-width: 60px; }
+
+        /* Modal HTML */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: none; justify-content: center; align-items: center; }
+        .modal-box { background: var(--white); width: 600px; max-width: 90%; border: 0.5px solid var(--gray-border); border-radius: 4px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: flex; flex-direction: column; }
+        .modal-header { padding: 10px 15px; background: var(--gray-light); border-bottom: 0.5px solid var(--gray-border); font-weight: bold; display: flex; justify-content: space-between; }
+        .html-textarea { width: 100%; height: 300px; border: none; outline: none; padding: 15px; font-family: monospace; font-size: 13px; background: #282c34; color: #abb2bf; resize: none; }
+        
+        hr { border: none; border-bottom: 0.5px dashed var(--gray-border); margin: 15px 0; }
+    </style>
+</head>
+<body>
+
+    <div class="toolbar">
+        <div>
+            <span style="font-weight: bold; color: var(--blue);"><i class="fas fa-edit"></i> Trình Soạn Thảo Blog</span>
+        </div>
+        <div>
+            <span id="syncStatus" style="font-size: 12px; font-weight: bold; margin-right: 15px; color: #27ae60;">✅ Hệ thống sẵn sàng</span>
+            <button class="tool-btn save-btn" onclick="savePostToSheet()"><i class="fas fa-cloud-upload-alt"></i> Lưu bài về Sheet</button>
+        </div>
+    </div>
+
+    <div class="workspace" id="workspaceArea">
+        
+        <div class="floating-panel" id="panelLeft" style="left: 20px; top: 20px;">
+            <div class="panel-header" onmousedown="dragElement(event, 'panelLeft')">
+                <span><i class="fas fa-database"></i> Dữ Liệu Nguồn</span>
+                <i class="fas fa-arrows-alt"></i>
+            </div>
+            <div class="panel-content">
+                <div style="font-size: 11px; color: var(--red); margin-bottom: 5px; font-weight: bold;">CHỌN CỘT LƯU BÀI VIẾT:</div>
+                <select id="targetColumnSelect" class="target-col-select">
+                    <option value="">-- Đang tải cấu hình cột --</option>
+                </select>
+                <hr style="margin-top: 5px;">
+                <div id="sourceDataContainer">
+                    <div style="color: #999; text-align: center; margin-top: 20px;">Không có dữ liệu nguồn. Hãy quay lại Tab Kế Hoạch và click vào một dòng.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="floating-panel" id="panelRight" style="right: 20px; top: 20px;">
+            <div class="panel-header" onmousedown="dragElement(event, 'panelRight')">
+                <span><i class="fas fa-toolbox"></i> Bộ Công Cụ</span>
+                <i class="fas fa-arrows-alt"></i>
+            </div>
+            <div class="panel-tabs">
+                <div class="ptab-btn active" onclick="switchRightTab('tabFormat', this)">Định Dạng</div>
+                <div class="ptab-btn" onclick="switchRightTab('tabBlocks', this)">Khối</div>
+            </div>
+            <div class="panel-content">
+                
+                <div id="tabFormat" class="ptab-content active">
+                    <select class="tool-input" style="width: 100%; margin-bottom: 10px; font-weight: bold;" onchange="formatDoc('formatBlock', this.value); this.selectedIndex=0;">
+                        <option value="">-- Chọn Tiêu Đề (Heading) --</option>
+                        <option value="H1">Heading 1</option>
+                        <option value="H2">Heading 2</option>
+                        <option value="H3">Heading 3</option>
+                        <option value="H4">Heading 4</option>
+                        <option value="P">Đoạn văn (Paragraph)</option>
+                    </select>
+
+                    <div class="tool-grid">
+                        <button class="fmt-btn" onclick="formatDoc('bold')" title="In đậm (Ctrl+B)"><b>B</b></button>
+                        <button class="fmt-btn" onclick="formatDoc('italic')" title="In nghiêng (Ctrl+I)"><i>I</i></button>
+                        <button class="fmt-btn" onclick="formatDoc('underline')" title="Gạch chân (Ctrl+U)"><u>U</u></button>
+                        <button class="fmt-btn" onclick="formatDoc('strikeThrough')" title="Gạch ngang"><strike>S</strike></button>
+                        
+                        <button class="fmt-btn" onclick="formatDoc('justifyLeft')" title="Căn trái"><i class="fas fa-align-left"></i></button>
+                        <button class="fmt-btn" onclick="formatDoc('justifyCenter')" title="Căn giữa"><i class="fas fa-align-center"></i></button>
+                        <button class="fmt-btn" onclick="formatDoc('justifyRight')" title="Căn phải"><i class="fas fa-align-right"></i></button>
+                        <button class="fmt-btn" onclick="formatDoc('justifyFull')" title="Căn đều"><i class="fas fa-align-justify"></i></button>
+
+                        <button class="fmt-btn" onclick="formatDoc('insertUnorderedList')" title="Bullet list"><i class="fas fa-list-ul"></i></button>
+                        <button class="fmt-btn" onclick="formatDoc('insertOrderedList')" title="Number list"><i class="fas fa-list-ol"></i></button>
+                        <button class="fmt-btn" onclick="insertLink()" title="Chèn Link"><i class="fas fa-link"></i></button>
+                        <button class="fmt-btn" onclick="insertComment()" title="Chèn Ghi chú"><i class="fas fa-comment"></i></button>
+                    </div>
+
+                    <div class="tool-row">
+                        <span class="tool-label">Cỡ chữ:</span>
+                        <input type="number" id="inpFontSize" class="tool-input" placeholder="Ví dụ: 16" onchange="applyCustomStyle('font-size', this.value + 'px')">
+                        <span style="font-size: 11px;">px</span>
+                    </div>
+                    <div class="tool-row">
+                        <span class="tool-label">Dãn dòng:</span>
+                        <input type="number" id="inpLineHeight" class="tool-input" placeholder="Ví dụ: 24" onchange="applyCustomStyle('line-height', this.value + 'px')">
+                        <span style="font-size: 11px;">px</span>
+                    </div>
+                    <div class="tool-row">
+                        <span class="tool-label">Màu chữ:</span>
+                        <input type="color" class="tool-input" style="padding: 0; height: 26px;" onchange="formatDoc('foreColor', this.value)">
+                    </div>
+                    <div class="tool-row">
+                        <span class="tool-label">Nền chữ:</span>
+                        <input type="color" class="tool-input" style="padding: 0; height: 26px;" onchange="formatDoc('hiliteColor', this.value)">
+                    </div>
+
+                    <hr>
+                    <div style="font-weight: bold; margin-bottom: 5px;">Google Fonts:</div>
+                    <div class="tool-row">
+                        <input type="text" id="fontLink" class="tool-input" placeholder="Dán thẻ <link> của Google Font...">
+                        <button class="tool-btn" style="margin: 0; padding: 4px 8px;" onclick="addGoogleFont()"><i class="fas fa-plus"></i></button>
+                    </div>
+                    <select id="fontSelect" class="tool-input" style="width: 100%;" onchange="applyCustomStyle('font-family', this.value)">
+                        <option value="Segoe UI, sans-serif">Mặc định (Segoe UI)</option>
+                        <option value="Arial, sans-serif">Arial</option>
+                        <option value="Times New Roman, serif">Times New Roman</option>
+                        <option value="Courier New, serif">Courier New</option>
+                    </select>
+
+                    <hr>
+                    <button class="tool-btn" style="width: 100%; justify-content: center;" onclick="toggleRulers()">
+                        <i class="fas fa-ruler-combined"></i> Bật / Tắt Thước Đo
+                    </button>
+                </div>
+
+                <div id="tabBlocks" class="ptab-content">
+                    <button class="tool-btn" style="width: 100%; justify-content: center; background: var(--blue); color: var(--white); margin-bottom: 15px;" onclick="openHtmlModal()">
+                        <i class="fas fa-code"></i> Chèn Mã HTML Tùy Chỉnh
+                    </button>
+                    
+                    <div style="font-weight: bold; margin-bottom: 10px; color: var(--red);">Mẫu Khối Có Sẵn:</div>
+                    <select class="tool-input" style="width: 100%; margin-bottom: 10px;">
+                        <option>Loại khối 1 (Ví dụ)</option>
+                        <option>Loại khối 2 (Ví dụ)</option>
+                    </select>
+                    <div style="font-size: 11px; color: #999; font-style: italic;">Tính năng lưu và tải mẫu HTML từ Sheet sẽ được cập nhật đồng bộ ở phiên bản tiếp theo. Hiện tại hãy dùng nút "Chèn mã HTML tùy chỉnh".</div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="editor-container">
+            <div class="ruler-h" id="rulerH"></div>
+            <div class="ruler-v" id="rulerV"></div>
+
+            <div class="rich-input" contenteditable="true" id="postTitle" data-placeholder="Nhập Tiêu đề bài viết tại đây..."></div>
+            <div class="rich-input" contenteditable="true" id="postSapo" data-placeholder="Nhập Sapo (Đoạn tóm tắt) tại đây..."></div>
+            
+            <div class="cover-area">
+                <input type="text" id="coverUrlInput" class="cover-input" placeholder="Dán URL ảnh bìa vào đây..." oninput="updateCoverPreview()">
+                <img id="coverPreview" class="cover-preview">
+            </div>
+
+            <div class="rich-input" contenteditable="true" id="postContent" data-placeholder="Soạn thảo nội dung chi tiết bài viết..."></div>
+        </div>
+
+    </div>
+
+    <div class="modal-overlay" id="htmlModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <span style="color: var(--blue);"><i class="fas fa-code"></i> Mã HTML của Khối</span>
+                <i class="fas fa-times" style="cursor: pointer; color: var(--red);" onclick="closeHtmlModal()"></i>
+            </div>
+            <textarea id="htmlEditorTextarea" class="html-textarea" placeholder="Nhập hoặc dán mã HTML vào đây..."></textarea>
+            <div style="padding: 10px 15px; text-align: right; background: var(--gray-light); border-top: 0.5px solid var(--gray-border);">
+                <button class="tool-btn save-btn" onclick="insertHtmlBlock()">Chèn vào bài viết</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+        let sysData = {};
+        let draftData = null;
+
+        window.onload = () => {
+            loadDraftData();
+            
+            // Xóa rác định dạng khi paste vào content
+            document.getElementById('postContent').addEventListener('paste', function(e) {
+                // Tắt dòng dưới nếu muốn giữ nguyên style gốc khi copy từ web khác
+                // e.preventDefault();
+                // let text = (e.originalEvent || e).clipboardData.getData('text/plain');
+                // document.execCommand('insertText', false, text);
+            });
+        };
+
+        // ==========================================
+        // 1. TẢI DỮ LIỆU TỪ KẾ HOẠCH
+        // ==========================================
+        function loadDraftData() {
+            let cachedData = localStorage.getItem("MKT_DATA");
+            if (cachedData) sysData = JSON.parse(cachedData);
+
+            let draftStr = localStorage.getItem("DRAFT_POST_DATA");
+            if (!draftStr) return;
+            
+            draftData = JSON.parse(draftStr);
+            let container = document.getElementById("sourceDataContainer");
+            let targetSelect = document.getElementById("targetColumnSelect");
+            
+            container.innerHTML = "";
+            targetSelect.innerHTML = "<option value=''>-- Lựa chọn cột để lưu bài --</option>";
+
+            // Render dữ liệu dọc
+            draftData.headers.forEach((h, i) => {
+                let val = draftData.data[i] || "";
+                
+                // Tránh lỗi hiển thị object object nếu val là html
+                if(typeof val === 'string') val = val.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+                container.innerHTML += `
+                    <div class="data-row">
+                        <div class="data-label">${h}</div>
+                        <div class="data-val">${val || "<i style='color:#ccc'>Trống</i>"}</div>
+                    </div>
+                `;
+
+                // Đưa vào option lưu (Chỉ cho lưu vào các cột)
+                targetSelect.innerHTML += `<option value="${i}">Lưu vào cột: ${h}</option>`;
+            });
+            
+            // Chọn mặc định cột cuối cùng để lưu bài
+            if(draftData.headers.length > 0) {
+                targetSelect.selectedIndex = draftData.headers.length; 
+            }
+        }
+
+        // ==========================================
+        // 2. KÉO THẢ PANEL (DRAG & DROP)
+        // ==========================================
+        function dragElement(e, panelId) {
+            e.preventDefault();
+            let panel = document.getElementById(panelId);
+            let pos1 = 0, pos2 = 0, pos3 = e.clientX, pos4 = e.clientY;
+            
+            document.onmouseup = closeDragElement;
+            document.onmousemove = elementDrag;
+
+            function elementDrag(ev) {
+                ev.preventDefault();
+                pos1 = pos3 - ev.clientX;
+                pos2 = pos4 - ev.clientY;
+                pos3 = ev.clientX;
+                pos4 = ev.clientY;
+                
+                let newTop = panel.offsetTop - pos2;
+                let newLeft = panel.offsetLeft - pos1;
+                
+                // Giới hạn màn hình
+                if(newTop < 45) newTop = 45; // Dưới thanh công cụ
+                if(newLeft < 0) newLeft = 0;
+                
+                panel.style.top = newTop + "px";
+                panel.style.left = newLeft + "px";
+                panel.style.right = "auto"; // Xóa right để drag theo left cho chuẩn
+            }
+
+            function closeDragElement() {
+                document.onmouseup = null;
+                document.onmousemove = null;
+            }
+        }
+
+        // ==========================================
+        // 3. TÍNH NĂNG RICH TEXT & CÔNG CỤ
+        // ==========================================
+        function switchRightTab(tabId, btn) {
+            document.querySelectorAll('.ptab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.ptab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        function formatDoc(cmd, value=null) {
+            if(value) {
+                document.execCommand(cmd, false, value);
+            } else {
+                document.execCommand(cmd);
+            }
+            document.getElementById('postContent').focus();
+        }
+
+        function applyCustomStyle(property, value) {
+            if(!value || value === 'px') return;
+            // Dùng trick: Bọc span
+            let sel = window.getSelection();
+            if(sel.rangeCount) {
+                let range = sel.getRangeAt(0);
+                let span = document.createElement("span");
+                span.style[property] = value;
+                span.appendChild(range.extractContents());
+                range.insertNode(span);
+                
+                // Merge text để tránh lỗi lồng span nhiều lớp (cơ bản)
+            }
+        }
+
+        function insertLink() {
+            let url = prompt("Nhập đường dẫn (URL):", "https://");
+            if (url) formatDoc('createLink', url);
+        }
+
+        function insertComment() {
+            let note = prompt("Nhập ghi chú cho đoạn bôi đen:");
+            if(note) {
+                let sel = window.getSelection();
+                if(sel.rangeCount) {
+                    let range = sel.getRangeAt(0);
+                    let span = document.createElement("span");
+                    span.style.backgroundColor = "rgba(255, 235, 59, 0.4)";
+                    span.title = note; // Ghi chú dạng tooltip
+                    span.style.borderBottom = "1px dashed var(--red)";
+                    span.appendChild(range.extractContents());
+                    range.insertNode(span);
+                }
+            }
+        }
+
+        function toggleRulers() {
+            let h = document.getElementById('rulerH');
+            let v = document.getElementById('rulerV');
+            if(h.style.display === 'block') {
+                h.style.display = 'none'; v.style.display = 'none';
+            } else {
+                h.style.display = 'block'; v.style.display = 'block';
+            }
+        }
+
+        function updateCoverPreview() {
+            let url = document.getElementById('coverUrlInput').value.trim();
+            let img = document.getElementById('coverPreview');
+            if(url) {
+                img.src = url;
+                img.style.display = 'block';
+            } else {
+                img.style.display = 'none';
+            }
+        }
+
+        function addGoogleFont() {
+            let link = document.getElementById('fontLink').value.trim();
+            if(!link.includes('<link')) return alert("Vui lòng dán nguyên thẻ <link> lấy từ Google Fonts.");
+            
+            // Bóc tách href
+            let temp = document.createElement('div'); temp.innerHTML = link;
+            let lTags = temp.querySelectorAll('link');
+            lTags.forEach(t => {
+                let newLink = document.createElement('link');
+                newLink.rel = "stylesheet";
+                newLink.href = t.href;
+                document.head.appendChild(newLink);
+            });
+            
+            // Lấy tên family thô (Ví dụ font Roboto)
+            let match = link.match(/family=([^:&]+)/);
+            if(match && match[1]) {
+                let fontName = match[1].replace(/\+/g, ' ');
+                let select = document.getElementById('fontSelect');
+                let opt = document.createElement('option');
+                opt.value = `'${fontName}', sans-serif`;
+                opt.innerText = fontName + " (Mới thêm)";
+                select.appendChild(opt);
+                select.value = opt.value;
+                applyCustomStyle('font-family', opt.value);
+            }
+            
+            document.getElementById('fontLink').value = "";
+            alert("Đã tải Font chữ thành công!");
+        }
+
+        // ==========================================
+        // 4. KHỐI HTML TÙY CHỈNH
+        // ==========================================
+        function openHtmlModal() {
+            document.getElementById('htmlEditorTextarea').value = "";
+            document.getElementById('htmlModal').style.display = 'flex';
+        }
+        
+        function closeHtmlModal() {
+            document.getElementById('htmlModal').style.display = 'none';
+        }
+
+        function insertHtmlBlock() {
+            let html = document.getElementById('htmlEditorTextarea').value;
+            if(!html) return;
+            
+            let block = document.createElement("div");
+            block.className = "custom-html-block";
+            block.innerHTML = html;
+            block.style.border = "1px dashed var(--gray-border)"; // Border nhận dạng khi edit
+            block.style.padding = "5px";
+            block.style.margin = "10px 0";
+            
+            // Chèn vào vị trí con trỏ trong postContent
+            let sel = window.getSelection();
+            if(sel.rangeCount && document.getElementById('postContent').contains(sel.anchorNode)) {
+                let range = sel.getRangeAt(0);
+                range.insertNode(block);
+                range.collapse(false);
+            } else {
+                document.getElementById('postContent').appendChild(block);
+            }
+            closeHtmlModal();
+        }
+
+        // ==========================================
+        // 5. LƯU BÀI VIẾT VỀ SHEET GỐC
+        // ==========================================
+        async function savePostToSheet() {
+            if(!draftData) return alert("Không tìm thấy dữ liệu nguồn để lưu!");
+            
+            let targetColIdx = document.getElementById("targetColumnSelect").value;
+            if(targetColIdx === "") return alert("Vui lòng chọn cột để lưu bài viết ở Menu bên trái!");
+            targetColIdx = parseInt(targetColIdx);
+
+            // Gom HTML
+            let title = document.getElementById("postTitle").innerHTML;
+            let sapo = document.getElementById("postSapo").innerHTML;
+            let coverUrl = document.getElementById("coverUrlInput").value.trim();
+            let content = document.getElementById("postContent").innerHTML;
+            
+            // Xóa các khung đứt đoạn của custom-html-block trước khi xuất mã
+            let tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            tempDiv.querySelectorAll('.custom-html-block').forEach(el => {
+                el.style.border = "";
+                el.style.padding = "";
+                el.style.margin = "";
+            });
+            content = tempDiv.innerHTML;
+
+            // Đóng gói thành chuẩn HTML 
+            let finalHtml = `
+                <div class="post-wrapper">
+                    ${title ? `<h1 class="post-title">${title}</h1>` : ""}
+                    ${sapo ? `<div class="post-sapo">${sapo}</div>` : ""}
+                    ${coverUrl ? `<img class="post-cover" src="${coverUrl}" alt="Cover Image">` : ""}
+                    <div class="post-body">${content}</div>
+                </div>
+            `;
+
+            let tabName = draftData.tab;
+            let planRowIdx = draftData.planRowIndex;
+            let planSheet = sysData.sheets["_PLAN_DATA_"];
+
+            if(!planSheet || !planSheet[planRowIdx]) return alert("Lỗi: Không tìm thấy dòng Kế Hoạch tương ứng trong CSDL nội bộ.");
+
+            // 1. Cập nhật dữ liệu vào chuỗi JSON của _PLAN_DATA_
+            let rowDataJson = planSheet[planRowIdx][2];
+            let parsedRow = [];
+            try { parsedRow = JSON.parse(rowDataJson); } catch(e){}
+            
+            parsedRow[targetColIdx] = finalHtml.trim();
+            let newJson = JSON.stringify(parsedRow);
+            planSheet[planRowIdx][2] = newJson;
+            
+            localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+
+            // 2. Bắn lệnh API Sync
+            let statusEl = document.getElementById('syncStatus');
+            statusEl.innerText = "⏳ Đang đồng bộ lên Sheet...";
+            statusEl.style.color = "var(--blue)";
+
+            let action = {
+                type: 'SYNC_CELL', 
+                row: planRowIdx + 1, 
+                col: 3, // Cột C của tab _PLAN_DATA_
+                val: newJson, 
+                tab: '_PLAN_DATA_'
+            };
+
+            try {
+                let res = await fetch(API_URL, { 
+                    method: "POST", 
+                    body: JSON.stringify([action]), 
+                    headers: { "Content-Type": "text/plain;charset=utf-8" } 
+                });
+                let json = await res.json();
+                
+                if (json.success) {
+                    statusEl.innerText = "✅ Lưu thành công!";
+                    statusEl.style.color = "#27ae60";
+                    setTimeout(() => { statusEl.innerText = "✅ Hệ thống sẵn sàng"; }, 3000);
+                } else {
+                    statusEl.innerText = "⚠️ Lỗi lưu dữ liệu";
+                    statusEl.style.color = "var(--red)";
+                    alert("Có lỗi từ máy chủ khi lưu.");
+                }
+            } catch(e) {
+                statusEl.innerText = "⚠️ Lỗi mạng";
+                statusEl.style.color = "var(--red)";
+            }
+        }
+    </script>
+</body>
+</html>
