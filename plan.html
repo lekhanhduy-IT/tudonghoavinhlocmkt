@@ -3,29 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mô-đun Grid</title>
+    <title>Mô-đun Kế Hoạch</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        :root { --white: #ffffff; --blue: #01adee; --red: #db1010; --gray-light: #f1f3f4; --gray-border: #e0e0e0; --text-main: #333333; }
+        /* ĐÃ ĐỔI TÔNG MÀU SANG CAM ĐẶC TRƯNG CỦA MODULE KẾ HOẠCH */
+        :root { --white: #ffffff; --theme-color: #e67e22; --red: #db1010; --gray-light: #f1f3f4; --gray-border: #e0e0e0; --text-main: #333333; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
         body { background: var(--white); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
         .toolbar { height: 40px; background: var(--white); border-bottom: 0.5px solid var(--gray-border); display: flex; align-items: center; padding: 0 10px; flex-shrink: 0; overflow-x: auto; white-space: nowrap; }
-        .tool-btn { background: var(--white); border: 0.5px solid var(--gray-border); color: var(--blue); padding: 4px 10px; margin-right: 5px; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 3px; display: inline-flex; align-items: center; gap: 4px;}
-        .tool-btn:hover { background: var(--blue); color: var(--white) !important; border: 0.5px solid var(--blue); }
+        .tool-btn { background: var(--white); border: 0.5px solid var(--gray-border); color: var(--theme-color); padding: 4px 10px; margin-right: 5px; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 3px; display: inline-flex; align-items: center; gap: 4px;}
+        .tool-btn:hover { background: var(--theme-color); color: var(--white) !important; border: 0.5px solid var(--theme-color); }
         
         .scroll-area { flex: 1; overflow: auto; position: relative; background: #f9f9f9; }
         table { border-collapse: collapse; table-layout: fixed; width: max-content; background: var(--white); }
-        th { background: var(--gray-light); border: 0.5px solid var(--gray-border); position: sticky; top: 0; z-index: 10; font-size: 12px; user-select: none; height: 35px; /* Ép cứng 35px chống hở */ }
+        
+        /* ĐỊNH DẠNG MEGA-ROW (NHÓM THEO NGÀY) */
+        .mega-row-date { position: sticky; top: 0; z-index: 30; background: var(--theme-color); color: var(--white); height: 35px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .mega-row-date td { padding: 0 15px; font-weight: bold; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; border: none; }
+        
+        th { background: var(--gray-light); border: 0.5px solid var(--gray-border); position: sticky; top: 35px; z-index: 20; font-size: 12px; user-select: none; height: 35px; }
         th .col-header-content { display: flex; justify-content: space-between; align-items: center; padding: 4px; }
-        th.col-index { width: 40px; left: 0; z-index: 20; background: #e0e0e0; cursor: pointer; }
+        th.col-index { width: 40px; left: 0; z-index: 25; background: #e0e0e0; cursor: pointer; }
         
         td { border: 0.5px solid var(--gray-border); padding: 0; font-size: 13px; position: relative; height: 35px; vertical-align: middle; }
-        td.row-index { background: var(--gray-light); text-align: center; position: sticky; left: 0; z-index: 5; font-weight: bold; color: #7f8c8d; /* Dùng màu xám thay vì opacity */ cursor: pointer; user-select: none; }
-        .cell-selected { outline: 1px solid var(--blue) !important; outline-offset: -1px; }
+        td.row-index { background: var(--gray-light); text-align: center; position: sticky; left: 0; z-index: 5; font-weight: bold; color: #7f8c8d; cursor: pointer; user-select: none; }
+        .cell-selected { outline: 1px solid var(--theme-color) !important; outline-offset: -1px; }
         
         .cell-editor { width: 100%; height: 35px; max-height: 35px; padding: 8px 4px; outline: none; border: none; background: transparent; overflow: hidden; white-space: pre-wrap; word-wrap: break-word; line-height: 19px; cursor: text; display: block; resize: none; }
-        .cell-expanded { position: absolute; top: -1px; left: -1px; z-index: 100; height: auto !important; max-height: none; min-height: 60px; width: max-content; min-width: calc(100% + 2px); background: var(--white); border: 1.5px solid var(--blue); box-shadow: 0 4px 15px rgba(0,0,0,0.15); padding: 8px 4px !important; white-space: pre-wrap; overflow: visible; }
+        .cell-expanded { position: absolute; top: -1px; left: -1px; z-index: 100; height: auto !important; max-height: none; min-height: 60px; width: max-content; min-width: calc(100% + 2px); background: var(--white); border: 1.5px solid var(--theme-color); box-shadow: 0 4px 15px rgba(0,0,0,0.15); padding: 8px 4px !important; white-space: pre-wrap; overflow: visible; }
 
         .dropdown-ui { display: flex; justify-content: space-between; align-items: center; background: #f1f3f4; border-radius: 12px; padding: 1px 8px; margin: 4px; cursor: pointer; font-size: 11px; height: 27px; }
         .dropdown-ui:hover { background: #e8eaed; }
@@ -33,21 +39,21 @@
 
         .popup-box { position: absolute; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 9999; display: none; padding: 5px 0; border-radius: 4px; }
         .menu-item { padding: 8px 15px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; color: var(--text-main); font-weight: 500;}
-        .menu-item:hover { background: var(--blue); color: var(--white) !important; }
+        .menu-item:hover { background: var(--theme-color); color: var(--white) !important; }
         .divider { border-bottom: 0.5px solid var(--gray-border); margin: 4px 0; }
         .popup-input { width: 100%; padding: 6px; border: 0.5px solid var(--gray-border); outline: none; margin-bottom: 8px; font-size: 13px; }
 
         .resizer-col { position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 15; }
         .resizer-row { position: absolute; bottom: 0; left: 0; right: 0; height: 5px; cursor: row-resize; z-index: 15; }
-        .quick-add-btn { position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); width: 20px; height: 20px; background: var(--blue); color: var(--white); border-radius: 50%; font-size: 12px; line-height: 20px; text-align: center; cursor: pointer; z-index: 60; display: none; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .quick-add-btn { position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); width: 20px; height: 20px; background: var(--theme-color); color: var(--white); border-radius: 50%; font-size: 12px; line-height: 20px; text-align: center; cursor: pointer; z-index: 60; display: none; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         td.row-index:hover .quick-add-btn { display: block; }
 
         .footer-tabs { height: 40px; background: var(--white); display: flex; align-items: center; padding: 0 10px; border-top: 0.5px solid var(--gray-border); overflow-x: auto; flex-shrink: 0; }
         .tab-item { padding: 8px 20px; background: var(--white); border: 0.5px solid var(--gray-border); color: var(--text-main); opacity: 0.8; cursor: pointer; font-size: 13px; font-weight: bold; margin-right: 5px; border-radius: 4px;}
-        .tab-item.active { background: var(--blue); color: var(--white); opacity: 1; border: 0.5px solid var(--blue); }
+        .tab-item.active { background: var(--theme-color); color: var(--white); opacity: 1; border: 0.5px solid var(--theme-color); }
         .filter-icon { color: #999; cursor: pointer; padding: 2px 4px; border-radius: 3px; font-size: 11px; }
-        .filter-icon.active { color: var(--blue); }
-        .filter-icon:hover { background: #e0e0e0; color: var(--blue); }
+        .filter-icon.active { color: var(--theme-color); }
+        .filter-icon:hover { background: #e0e0e0; color: var(--theme-color); }
 
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 10000; display: none; justify-content: center; align-items: center; }
         .modal-box { background: var(--white); border: 0.5px solid var(--gray-border); padding: 20px; width: 90%; max-width: 400px; border-radius: 6px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
@@ -55,8 +61,8 @@
         #syncStatus:hover { background: var(--gray-light); }
 
         .btn-modal { padding: 8px 16px; border-radius: 4px; font-weight: bold; cursor: pointer; border: none; transition: 0.2s; font-size: 13px; margin-left: 10px; outline: none; }
-        .btn-blue { background: var(--blue); color: var(--white); border: 0.5px solid var(--blue); }
-        .btn-blue:hover { background: #0199d3; color: var(--white); box-shadow: 0 2px 5px rgba(1,173,238,0.3); }
+        .btn-blue { background: var(--theme-color); color: var(--white); border: 0.5px solid var(--theme-color); }
+        .btn-blue:hover { opacity: 0.8; box-shadow: 0 2px 5px rgba(230,126,34,0.3); }
         .btn-cancel { background: var(--white); color: var(--text-main); border: 0.5px solid var(--gray-border); }
         .btn-cancel:hover { background: #f1f3f4; color: var(--red); border-color: var(--red); }
     </style>
@@ -78,14 +84,13 @@
 
     <div class="scroll-area" id="gridScrollArea">
         <table id="dataTable">
-            <thead id="dataHead"></thead>
             <tbody id="dataBody"></tbody>
         </table>
     </div>
 
     <div class="footer-tabs">
         <div id="tabsWrapper" style="display:flex;"></div>
-        <div class="tab-item" style="border:none; color:var(--blue); background:transparent; opacity:1;" onclick="promptNewTab()"><i class="fas fa-plus"></i> Thêm Tab</div>
+        <div class="tab-item" style="border:none; color:var(--theme-color); background:transparent; opacity:1;" onclick="promptNewTab()"><i class="fas fa-plus"></i> Thêm Tab</div>
     </div>
 
     <div id="colorPickerBox" class="popup-box" style="padding:15px; width:250px;">
@@ -103,7 +108,7 @@
     <div id="dropdownPopup" class="popup-box" style="padding:5px; min-width:180px;">
         <div id="dropdownListArea" style="max-height:200px; overflow-y:auto;"></div>
         <div class="divider"></div>
-        <div class="menu-item" style="justify-content:center; color:var(--blue);" onclick="openDropdownEditor()"><i class="fas fa-pencil-alt"></i> Sửa danh sách</div>
+        <div class="menu-item" style="justify-content:center; color:var(--theme-color);" onclick="openDropdownEditor()"><i class="fas fa-pencil-alt"></i> Sửa danh sách</div>
     </div>
 
     <div id="filterPopup" class="popup-box" style="padding:0; min-width:200px;">
@@ -127,40 +132,28 @@
     </div>
 
     <script>
-        const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+        const API_URL = "https://script.google.com/macros/s/AKfycbwidKF9KKL6oLFObO5-SMwoH0Z6O2cZ4hD1WvH7XHGldJwk8K_eZpkAXQR1OpawZAs/exec";
         let sysData = { sheets: {}, attributes: {}, tabOrder: [], filters: {} };
-        let activeTab = ""; let actionQueue = []; let isProcessingQueue = false; let currentSyncToken = 0;
+        let activeTab = "KẾ HOẠCH"; // Ép mở tab kế hoạch
+        let actionQueue = []; let isProcessingQueue = false; let currentSyncToken = 0;
         let selStart = null, selEnd = null; let isFullRow = false, isFullCol = false;
         let colorTarget = 'bg', activeColPopup = -1, activeFilterCol = -1;
         let isResizing = false, resizeData = { type: '', index: -1, startDim: 0, startMouse: 0 };
         let globalSearchKeyword = "";
 
-        // HÀM NHẬN DIỆN NGƯỜI DÙNG ĐANG GÕ CHỮ
-        function checkIsEditing() {
-            return document.querySelector('.cell-expanded') !== null || 
-                   (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('cell-editor'));
-        }
+        function checkIsEditing() { return document.querySelector('.cell-expanded') !== null || (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('cell-editor')); }
 
-        const stdColors = ["#000000", "#434343", "#666666", "#999999", "#b7b7b7", "#cccccc", "#d9d9d9", "#efefef", "#f3f3f3", "#ffffff", "#980000", "#ff0000", "#ff9900", "#ffff00", "#00ff00", "#00ffff", "#4a86e8", "#0000ff", "#9900ff", "#ff00ff", "#db1010", "#01adee", "#4caf50", "#ffeb3b", "#ff9800", "#795548", "#e91e63", "#9c27b0", "#3f51b5", "#009688"];
+        const stdColors = ["#000000", "#434343", "#666666", "#999999", "#b7b7b7", "#cccccc", "#d9d9d9", "#efefef", "#f3f3f3", "#ffffff", "#980000", "#ff0000", "#ff9900", "#ffff00", "#00ff00", "#00ffff", "#4a86e8", "#0000ff", "#9900ff", "#ff00ff", "#db1010", "#e67e22", "#4caf50", "#ffeb3b", "#ff9800", "#795548", "#e91e63", "#9c27b0", "#3f51b5", "#009688"];
 
         window.onload = () => {
             let grid = document.getElementById("standardColorGrid");
-            stdColors.forEach(c => {
-                let div = document.createElement("div"); div.style.background = c; div.style.width = "20px"; div.style.height = "20px"; div.style.borderRadius = "50%"; div.style.cursor = "pointer"; div.style.border = "0.5px solid var(--gray-border)";
-                div.onclick = () => { document.getElementById("hexInput").value = c; previewColor(); applyChosenColor(); }; grid.appendChild(div);
-            });
+            stdColors.forEach(c => { let div = document.createElement("div"); div.style.background = c; div.style.width = "20px"; div.style.height = "20px"; div.style.borderRadius = "50%"; div.style.cursor = "pointer"; div.style.border = "0.5px solid var(--gray-border)"; div.onclick = () => { document.getElementById("hexInput").value = c; previewColor(); applyChosenColor(); }; grid.appendChild(div); });
             let cached = localStorage.getItem("MKT_DATA");
-            if (cached) { sysData = JSON.parse(cached); activeTab = sysData.tabOrder[0]; currentSyncToken = sysData.syncToken || 0; renderTabs(); renderGrid(); }
+            if (cached) { sysData = JSON.parse(cached); if(!sysData.tabOrder.includes(activeTab)) activeTab = sysData.tabOrder[0]; currentSyncToken = sysData.syncToken || 0; renderTabs(); renderGrid(); }
             
             fetchDataFromServer(); 
-            setInterval(processQueueAndSync, 4000); // Vòng lặp Queue cũ
-            
-            // VÒNG LẶP DỰ PHÒNG: Quét tự động mỗi 20s nếu không gõ chữ
-            setInterval(() => {
-                if(actionQueue.length === 0 && !isProcessingQueue && !checkIsEditing()) {
-                    fetchDataFromServer();
-                }
-            }, 20000); 
+            setInterval(processQueueAndSync, 4000);
+            setInterval(() => { if(actionQueue.length === 0 && !isProcessingQueue && !checkIsEditing()) fetchDataFromServer(); }, 20000); 
 
             document.addEventListener('paste', handlePasteEvent); document.addEventListener('mousemove', handleMouseMove); document.addEventListener('mouseup', handleMouseUp);
             document.addEventListener('click', (e) => { document.querySelectorAll('.popup-box').forEach(el => { if(!el.contains(e.target)) el.style.display = 'none'; }); });
@@ -168,27 +161,17 @@
         };
 
         function setSyncStatus(msg, color) { let s = document.getElementById('syncStatus'); s.innerText = msg; s.style.color = color; }
-
-        function forceFetchData() {
-            if(checkIsEditing()) { alert("Vui lòng click ra ngoài ô đang gõ để làm mới dữ liệu!"); return; }
-            fetchDataFromServer();
-        }
+        function forceFetchData() { if(checkIsEditing()) { alert("Vui lòng click ra ngoài ô đang gõ!"); return; } fetchDataFromServer(); }
 
         async function fetchDataFromServer() {
             try {
-                if(actionQueue.length === 0) setSyncStatus("🔄 Đang lấy dữ liệu...", "var(--blue)");
+                if(actionQueue.length === 0) setSyncStatus("🔄 Đang lấy dữ liệu...", "var(--theme-color)");
                 let res = await fetch(API_URL + "?t=" + new Date().getTime(), { method: "GET", redirect: "follow", cache: "no-store" });
                 let json = await res.json();
                 if(json.success) {
                     let localFilters = sysData.filters; sysData = json.data; sysData.filters = localFilters || {}; currentSyncToken = sysData.syncToken;
-                    localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); if(!activeTab || !sysData.tabOrder.includes(activeTab)) activeTab = sysData.tabOrder[0];
-                    
-                    // CHỈ RENDER NẾU NGƯỜI DÙNG KHÔNG GÕ CHỮ
-                    if (!checkIsEditing()) {
-                        renderTabs(); renderGrid(); setSyncStatus("✅ Sẵn sàng", "#27ae60");
-                    } else {
-                        setSyncStatus("⚠️ Có dữ liệu mới (Chờ render)", "#f39c12");
-                    }
+                    localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); if(!sysData.tabOrder.includes(activeTab)) activeTab = sysData.tabOrder[0];
+                    if (!checkIsEditing()) { renderTabs(); renderGrid(); setSyncStatus("✅ Sẵn sàng", "#27ae60"); } else { setSyncStatus("⚠️ Có dữ liệu mới", "#f39c12"); }
                 }
             } catch(e) { setSyncStatus("⚠️ Ngoại tuyến", "var(--red)"); }
         }
@@ -197,17 +180,13 @@
             if(isProcessingQueue) return; isProcessingQueue = true;
             let batch = [...actionQueue]; actionQueue = []; 
             try {
-                if(batch.length > 0) setSyncStatus("⏳ Đang lưu...", "var(--blue)");
+                if(batch.length > 0) setSyncStatus("⏳ Đang lưu...", "var(--theme-color)");
                 let res = await fetch(API_URL, { method: "POST", body: JSON.stringify(batch), headers: { "Content-Type": "text/plain;charset=utf-8" } });
                 let json = await res.json();
                 if (!json.success) { if(batch.length > 0) actionQueue = batch.concat(actionQueue); } 
                 else { 
                     if(batch.length > 0) setSyncStatus("✅ Đã lưu", "#27ae60"); 
-                    // PHÁT HIỆN DỮ LIỆU MỚI TỪ API GỬI VỀ
-                    if (currentSyncToken !== 0 && json.syncToken > currentSyncToken && batch.length === 0) {
-                        if(!checkIsEditing()) await fetchDataFromServer();
-                        else setSyncStatus("⚠️ Có dữ liệu mới", "#f39c12");
-                    }
+                    if (currentSyncToken !== 0 && json.syncToken > currentSyncToken && batch.length === 0) { if(!checkIsEditing()) await fetchDataFromServer(); else setSyncStatus("⚠️ Có dữ liệu mới", "#f39c12"); }
                     currentSyncToken = json.syncToken;
                 }
             } catch(e) { if(batch.length > 0) { actionQueue = batch.concat(actionQueue); setSyncStatus("⚠️ Lỗi mạng", "var(--red)"); } }
@@ -228,74 +207,112 @@
             });
         }
 
+        // MA THUẬT MEGA-ROW BẮT ĐẦU TỪ ĐÂY
         function renderGrid() {
             let mat = sysData.sheets[activeTab] || [[""]]; let attrs = sysData.attributes[activeTab] || {}; let types = attrs.columnTypes || {};
-            let frzRow = attrs.frozenRows || 0; let frzCol = attrs.frozenCols || 0;
-            let head = document.getElementById("dataHead"); let body = document.getElementById("dataBody");
-            head.innerHTML = ""; body.innerHTML = ""; if(mat.length === 0) return; let cols = mat[0].length;
+            let frzCol = attrs.frozenCols || 0;
+            let body = document.getElementById("dataBody");
+            body.innerHTML = ""; if(mat.length === 0) return; 
             
+            // TỰ ĐỘNG TÌM/TẠO CỘT "Ngày Lên Lịch"
+            let dateColIdx = mat[0].indexOf("Ngày Lên Lịch");
+            if (dateColIdx === -1) { dateColIdx = mat[0].length; mat[0].push("Ngày Lên Lịch"); for(let i=1;i<mat.length;i++) mat[i].push(""); }
+            
+            let cols = mat[0].length;
             let colLefts = []; let currL = 40; for(let c=0; c<cols; c++) { let w = (attrs.colWidths && attrs.colWidths[c]) ? parseInt(attrs.colWidths[c]) : 150; colLefts.push({w: w, l: currL}); currL += w; }
-            let rowTops = []; let currT = 35; for(let r=0; r<mat.length; r++) { let h = (attrs.rowHeights && attrs.rowHeights[r]) ? parseInt(attrs.rowHeights[r]) : 35; rowTops.push({h: h, t: currT}); currT += h; }
+            let rowTops = []; for(let r=0; r<mat.length; r++) { rowTops.push({h: (attrs.rowHeights && attrs.rowHeights[r]) ? parseInt(attrs.rowHeights[r]) : 35}); }
 
-            let trH = document.createElement("tr"); let th0 = document.createElement("th"); th0.className = "col-index"; th0.innerText = "#";
-            th0.style.position = 'sticky'; th0.style.left = '0'; th0.style.top = '0'; th0.style.zIndex = 20; th0.onclick = () => selectRange(0, 0, mat.length-1, cols-1, true, true); trH.appendChild(th0);
-
-            for(let c=0; c<cols; c++) {
-                let th = document.createElement("th"); th.style.width = colLefts[c].w + "px"; th.style.position = 'sticky'; th.style.top = '0'; th.style.zIndex = 10;
-                let hasFilter = sysData.filters[activeTab] && sysData.filters[activeTab][c];
-                th.innerHTML = `<div class="col-header-content"><span style="font-weight:bold; color:var(--text-main);">${getColLetter(c)}</span> <i class="fas fa-filter filter-icon ${hasFilter ? 'active':''}"></i></div><div class="resizer-col"></div>`;
-                if(c < frzCol) { th.style.left = colLefts[c].l + "px"; th.style.zIndex = 15; }
-                if(c === frzCol - 1) th.style.borderRight = "1px solid var(--gray-border)";
-                th.onclick = (e) => { if(e.target.classList.contains("resizer-col") || e.target.classList.contains("filter-icon")) return; selectRange(0, c, mat.length-1, c, false, true, e.shiftKey); };
-                th.oncontextmenu = (e) => { if(!isFullCol || !isInRange(0, c)) selectRange(0, c, mat.length-1, c, false, true); showGridMenu(e, 0, c); };
-                th.querySelector(".filter-icon").onclick = ((idx) => (e) => { e.stopPropagation(); openFilterMenu(e, idx)})(c); th.querySelector(".resizer-col").onmousedown = ((idx, w) => (e) => initResize(e, 'col', idx, w))(c, colLefts[c].w);
-                th.draggable = true; th.ondragstart = (e) => e.dataTransfer.setData("text/plain", JSON.stringify({t: 'col', s: selStart.c, e: selEnd.c})); th.ondragover = (e) => { e.preventDefault(); th.style.borderLeft = "1.5px solid var(--blue)"; }; th.ondragleave = (e) => { th.style.borderLeft = ""; }; th.ondrop = (e) => { th.style.borderLeft = ""; let d = JSON.parse(e.dataTransfer.getData("text")); if(d.t === 'col') moveStruct(d.s, d.e, c, 'col'); };
-                trH.appendChild(th);
+            // GOM NHÓM THEO NGÀY
+            let groups = {};
+            for(let r=1; r<mat.length; r++) {
+                if(isRowFilteredOut(r, mat)) continue;
+                if(globalSearchKeyword !== "" && mat[r].join(" ").toLowerCase().indexOf(globalSearchKeyword) === -1) continue;
+                
+                let dateVal = mat[r][dateColIdx] || "Chưa lên lịch";
+                if (!groups[dateVal]) groups[dateVal] = [];
+                groups[dateVal].push({ r: r, data: mat[r] }); // Gói kèm Index gốc (r) để không làm đứt gãy Database
             }
-            head.appendChild(trH);
 
-            mat.forEach((row, r) => {
-                if(r > 0 && isRowFilteredOut(r, mat)) return;
-                if(r > 0 && globalSearchKeyword !== "") { let rowText = row.join(" ").toLowerCase(); if(rowText.indexOf(globalSearchKeyword) === -1) return; }
+            // SẮP XẾP NGÀY THÁNG
+            let sortedDates = Object.keys(groups).sort((a,b) => {
+                if(a === "Chưa lên lịch") return 1; if(b === "Chưa lên lịch") return -1;
+                return new Date(a) - new Date(b);
+            });
 
-                let tr = document.createElement("tr"); tr.style.height = rowTops[r].h + "px";
-                let td0 = document.createElement("td"); td0.className = "row-index"; td0.innerText = r + 1;
-                td0.style.position = 'sticky'; td0.style.left = '0'; td0.style.zIndex = 5;
-                td0.innerHTML += `<div class="resizer-row"></div> <div class="quick-add-btn"><i class="fas fa-plus"></i></div>`;
-                if(r < frzRow) { td0.style.top = rowTops[r].t + "px"; td0.style.zIndex = 15; } if(r === frzRow - 1) td0.style.borderBottom = "1px solid var(--gray-border)";
-                td0.onclick = (e) => { if(e.target.closest('.resizer-row, .quick-add-btn')) return; selectRange(r, 0, r, cols-1, true, false, e.shiftKey); }; td0.oncontextmenu = (e) => { if(!isFullRow || !isInRange(r, 0)) selectRange(r, 0, r, cols-1, true, false); showGridMenu(e, r, 0); }; td0.querySelector(".quick-add-btn").onclick = (e) => { e.stopPropagation(); promptQuickAddRow(r); }; td0.querySelector(".resizer-row").onmousedown = (e) => initResize(e, 'row', r, rowTops[r].h);
-                td0.draggable = true; td0.ondragstart = (e) => e.dataTransfer.setData("text/plain", JSON.stringify({t: 'row', s: selStart.r, e: selEnd.r})); td0.ondragover = (e) => { e.preventDefault(); tr.style.borderTop = "1.5px solid var(--blue)"; }; td0.ondragleave = (e) => { tr.style.borderTop = ""; }; td0.ondrop = (e) => { tr.style.borderTop = ""; let d = JSON.parse(e.dataTransfer.getData("text")); if(d.t === 'row') moveStruct(d.s, d.e, r, 'row'); };
-                tr.appendChild(td0);
+            // VẼ TỪNG NHÓM (MEGA-ROW)
+            sortedDates.forEach(date => {
+                // HÀNG 1: MEGA-ROW NGÀY THÁNG (DÍNH TRÊN CÙNG)
+                let trDate = document.createElement("tr");
+                let tdDate = document.createElement("td");
+                tdDate.colSpan = cols + 1;
+                tdDate.className = "mega-row-date";
+                
+                // Định dạng ngày DD/MM/YYYY cho đẹp
+                let displayDate = date;
+                if(date !== "Chưa lên lịch" && date.includes("-")) { let pts = date.split("-"); displayDate = `${pts[2]}/${pts[1]}/${pts[0]}`; }
+                tdDate.innerHTML = `<i class="fas fa-calendar-day" style="margin-right:8px;"></i> CÔNG VIỆC NGÀY: ${displayDate}`;
+                trDate.appendChild(tdDate); body.appendChild(trDate);
 
-                row.forEach((val, c) => {
-                    let td = document.createElement("td"); td.id = `cell_${r}_${c}`; applyStyle(td, r, c, attrs);
-                    let isFrzR = r < frzRow; let isFrzC = c < frzCol;
-                    if(isFrzR || isFrzC) { td.style.position = 'sticky'; if(isFrzR) td.style.top = rowTops[r].t + "px"; if(isFrzC) td.style.left = colLefts[c].l + "px"; td.style.zIndex = (isFrzR && isFrzC) ? 8 : 4; }
-                    if(r === frzRow - 1) td.style.borderBottom = "1px solid var(--gray-border)"; if(c === frzCol - 1) td.style.borderRight = "1px solid var(--gray-border)";
+                // HÀNG 2: TIÊU ĐỀ (DÍNH NGAY DƯỚI MEGA-ROW)
+                let trHead = document.createElement("tr");
+                let th0 = document.createElement("th"); th0.className = "col-index"; th0.innerText = "#";
+                th0.style.cssText = "position: sticky; top: 35px; left: 0; z-index: 25; background: var(--gray-light); height: 35px;";
+                trHead.appendChild(th0);
 
-                    let type = r === 0 ? "text" : (types[c] || "text");
-                    if (type === "dropdown") {
-                        let opts = (attrs.dropdownChoices && attrs.dropdownChoices[c]) ? attrs.dropdownChoices[c] : ["Mục 1"]; let arr = val ? String(val).split(",").map(s=>s.trim()).filter(Boolean) : []; let ui = document.createElement("div"); ui.className = "dropdown-ui"; ui.innerHTML = `<div class="dropdown-text">${arr.length ? arr.join(", ") : "<span style='color:#999; font-style:italic;'>Trống...</span>"}</div> <i style="color:var(--text-main); opacity:0.5;" class="fas fa-caret-down"></i>`; ui.ondblclick = (e) => { e.stopPropagation(); openDropdownEditorDirect(c); }; ui.onclick = (e) => { e.stopPropagation(); selectRange(r, c, r, c); openDropdownMenu(e, r, c, arr, opts); }; td.appendChild(ui);
-                    } else if (type === "checkbox") {
-                        let chk = document.createElement("input"); chk.type = "checkbox"; chk.checked = (val === "true" || val === true); chk.style.margin = "0 8px"; chk.style.cursor = "pointer"; chk.style.verticalAlign = "middle"; chk.onchange = () => updateCell(r, c, chk.checked); td.appendChild(chk);
-                    } else if (type === "link") {
-                        let str = String(val); if (str.startsWith("http")) td.innerHTML = `<a href="${str}" target="_blank" style="color:var(--blue); font-weight:bold; margin:0 4px; text-decoration:none;">Link</a>`; else td.appendChild(createEditor(r, c, val, false));
-                    } else {
-                        let str = String(val); 
-                        if (r !== 0 && str.trim().startsWith("<") && str.trim().endsWith(">")) { 
-                            let div = document.createElement("div"); div.className = "cell-editor"; div.innerHTML = str; div.contentEditable = "false"; td.appendChild(div); 
-                            td.ondblclick = (e) => { td.innerHTML = ""; let ed = document.createElement("div"); ed.className = "cell-editor cell-expanded"; ed.contentEditable = "true"; ed.innerText = str; ed.onblur = function() { this.classList.remove("cell-expanded"); updateCell(r, c, this.innerText); }; td.appendChild(ed); ed.focus(); }; 
-                        } else {
-                            td.appendChild(createEditor(r, c, val, true));
+                for(let c=0; c<cols; c++) {
+                    let th = document.createElement("th"); th.style.width = colLefts[c].w + "px"; th.style.position = 'sticky'; th.style.top = '35px'; th.style.zIndex = 20;
+                    let hasFilter = sysData.filters[activeTab] && sysData.filters[activeTab][c];
+                    th.innerHTML = `<div class="col-header-content"><span style="font-weight:bold; color:var(--text-main);">${mat[0][c] || getColLetter(c)}</span> <i class="fas fa-filter filter-icon ${hasFilter ? 'active':''}"></i></div><div class="resizer-col"></div>`;
+                    if(c < frzCol) { th.style.left = colLefts[c].l + "px"; th.style.zIndex = 24; }
+                    if(c === frzCol - 1) th.style.borderRight = "1px solid var(--gray-border)";
+                    
+                    th.querySelector(".filter-icon").onclick = ((idx) => (e) => { e.stopPropagation(); openFilterMenu(e, idx)})(c); th.querySelector(".resizer-col").onmousedown = ((idx, w) => (e) => initResize(e, 'col', idx, w))(c, colLefts[c].w);
+                    trHead.appendChild(th);
+                }
+                body.appendChild(trHead);
+
+                // HÀNG 3+: DỮ LIỆU CỦA NGÀY
+                groups[date].forEach(item => {
+                    let r = item.r; let row = item.data;
+                    let tr = document.createElement("tr"); tr.style.height = rowTops[r].h + "px";
+                    
+                    let td0 = document.createElement("td"); td0.className = "row-index"; td0.innerText = r + 1;
+                    td0.style.position = 'sticky'; td0.style.left = '0'; td0.style.zIndex = 5;
+                    td0.innerHTML += `<div class="resizer-row"></div> <div class="quick-add-btn"><i class="fas fa-plus"></i></div>`;
+                    td0.onclick = (e) => { if(e.target.closest('.resizer-row, .quick-add-btn')) return; selectRange(r, 0, r, cols-1, true, false, e.shiftKey); }; td0.oncontextmenu = (e) => { if(!isFullRow || !isInRange(r, 0)) selectRange(r, 0, r, cols-1, true, false); showGridMenu(e, r, 0); }; td0.querySelector(".quick-add-btn").onclick = (e) => { e.stopPropagation(); promptQuickAddRow(r, date); }; td0.querySelector(".resizer-row").onmousedown = (e) => initResize(e, 'row', r, rowTops[r].h);
+                    td0.draggable = true; td0.ondragstart = (e) => e.dataTransfer.setData("text/plain", JSON.stringify({t: 'row', s: selStart.r, e: selEnd.r})); td0.ondragover = (e) => { e.preventDefault(); tr.style.borderTop = "1.5px solid var(--theme-color)"; }; td0.ondragleave = (e) => { tr.style.borderTop = ""; }; td0.ondrop = (e) => { tr.style.borderTop = ""; let d = JSON.parse(e.dataTransfer.getData("text")); if(d.t === 'row') moveStruct(d.s, d.e, r, 'row'); };
+                    tr.appendChild(td0);
+
+                    row.forEach((val, c) => {
+                        // Ẩn nội dung của cột Ngày Lên Lịch (Vì đã hiện ở Mega-row)
+                        if (c === dateColIdx) {
+                            let td = document.createElement("td"); td.id = `cell_${r}_${c}`; td.style.cssText = "background:#f9f9f9; color:#999; text-align:center;"; td.innerText = "System Date"; tr.appendChild(td); return;
                         }
-                    }
-                    td.onclick = (e) => { if(e.target.tagName !== 'A' && e.target.tagName !== 'INPUT') selectRange(r, c, r, c, false, false, e.shiftKey); }; td.oncontextmenu = (e) => { if(!isInRange(r, c)) selectRange(r, c, r, c); showGridMenu(e, r, c); }; tr.appendChild(td);
+
+                        let td = document.createElement("td"); td.id = `cell_${r}_${c}`; applyStyle(td, r, c, attrs);
+                        let isFrzC = c < frzCol;
+                        if(isFrzC) { td.style.position = 'sticky'; td.style.left = colLefts[c].l + "px"; td.style.zIndex = 4; }
+                        if(c === frzCol - 1) td.style.borderRight = "1px solid var(--gray-border)";
+
+                        let type = types[c] || "text";
+                        if (type === "dropdown") {
+                            let opts = (attrs.dropdownChoices && attrs.dropdownChoices[c]) ? attrs.dropdownChoices[c] : ["Mục 1"]; let arr = val ? String(val).split(",").map(s=>s.trim()).filter(Boolean) : []; let ui = document.createElement("div"); ui.className = "dropdown-ui"; ui.innerHTML = `<div class="dropdown-text">${arr.length ? arr.join(", ") : "<span style='color:#999; font-style:italic;'>Trống...</span>"}</div> <i style="color:var(--text-main); opacity:0.5;" class="fas fa-caret-down"></i>`; ui.ondblclick = (e) => { e.stopPropagation(); openDropdownEditorDirect(c); }; ui.onclick = (e) => { e.stopPropagation(); selectRange(r, c, r, c); openDropdownMenu(e, r, c, arr, opts); }; td.appendChild(ui);
+                        } else if (type === "checkbox") {
+                            let chk = document.createElement("input"); chk.type = "checkbox"; chk.checked = (val === "true" || val === true); chk.style.margin = "0 8px"; chk.style.cursor = "pointer"; chk.style.verticalAlign = "middle"; chk.onchange = () => updateCell(r, c, chk.checked); td.appendChild(chk);
+                        } else if (type === "link") {
+                            let str = String(val); if (str.startsWith("http")) td.innerHTML = `<a href="${str}" target="_blank" style="color:var(--theme-color); font-weight:bold; margin:0 4px; text-decoration:none;">Link</a>`; else td.appendChild(createEditor(r, c, val, false));
+                        } else {
+                            let str = String(val); if (r !== 0 && str.trim().startsWith("<") && str.trim().endsWith(">")) { let div = document.createElement("div"); div.className = "cell-editor"; div.innerHTML = str; div.contentEditable = "false"; td.appendChild(div); td.ondblclick = (e) => { td.innerHTML = ""; let ed = document.createElement("div"); ed.className = "cell-editor cell-expanded"; ed.contentEditable = "true"; ed.innerText = str; ed.onblur = function() { this.classList.remove("cell-expanded"); updateCell(r, c, this.innerText); }; td.appendChild(ed); ed.focus(); }; } else { td.appendChild(createEditor(r, c, val, true)); }
+                        }
+                        td.onclick = (e) => { if(e.target.tagName !== 'A' && e.target.tagName !== 'INPUT') selectRange(r, c, r, c, false, false, e.shiftKey); }; td.oncontextmenu = (e) => { if(!isInRange(r, c)) selectRange(r, c, r, c); showGridMenu(e, r, c); }; tr.appendChild(td);
+                    });
+                    body.appendChild(tr);
                 });
-                body.appendChild(tr);
             });
             highlightSelection();
         }
 
+        // CÁC HÀM TIỆN ÍCH DƯỚI NÀY GIỮ NGUYÊN (TƯƠNG TỰ IDEA.HTML)
         function createEditor(r, c, val, isRichText) { let ed = document.createElement("div"); ed.className = "cell-editor"; ed.contentEditable = "true"; ed.innerHTML = val; ed.ondblclick = function(e) { e.stopPropagation(); document.querySelectorAll(".cell-expanded").forEach(x=>x.classList.remove("cell-expanded")); this.classList.add("cell-expanded"); }; ed.onblur = function() { this.classList.remove("cell-expanded"); updateCell(r, c, this.innerHTML); }; return ed; }
         function updateCell(r, c, val) { sysData.sheets[activeTab][r][c] = val; dispatchAction({type: 'SYNC_CELL', row: r+1, col: c+1, val: val}); }
 
@@ -311,7 +328,34 @@
         function applyFormat(cmd) { if(!selStart) return; let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; attrs.cellStyles = attrs.cellStyles || {}; let minR = Math.min(selStart.r, selEnd.r), maxR = Math.max(selStart.r, selEnd.r), minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c); for(let r=minR; r<=maxR; r++) { for(let c=minC; c<=maxC; c++) { let st = attrs.cellStyles[`${r}_${c}`] = attrs.cellStyles[`${r}_${c}`] || {}; if(cmd==='bold') st.bold = !st.bold; if(cmd==='italic') st.italic = !st.italic; if(cmd==='underline') st.underline = !st.underline; if(cmd.startsWith('align-')) st.align = cmd.replace('align-', ''); }} dispatchAction({type: 'SAVE_TAB_ATTRS', targetTab: activeTab, attributes: attrs}); renderGrid(); }
 
         function generateID(existing) { let chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'; let id = ''; do { let str = ''; for(let i=0; i<3; i++) str += chars.charAt(Math.floor(Math.random() * chars.length)); let num = Math.floor(Math.random() * 100000).toString().padStart(5, '0'); id = 'WEB_' + str + num; } while (existing.has(id)); existing.add(id); return id; }
-        function promptQuickAddRow(r) { showModal("Thêm hàng tự động", `<input type="number" id="numAdd" class="popup-input" value="1" placeholder="Số lượng">`, [ { text: "Tạo ngay", class: "btn-blue", onclick: () => { let cnt = parseInt(document.getElementById("numAdd").value); if(cnt > 0) { let mat = sysData.sheets[activeTab]; let existing = new Set(); for(let i=1; i<mat.length; i++) existing.add(String(mat[i][0]).trim()); let newRows = []; for(let i=0; i<cnt; i++) { let nr = Array(mat[0].length).fill(""); nr[0] = generateID(existing); newRows.push(nr); } mat.splice.apply(mat, [r+1, 0].concat(newRows)); dispatchAction({type: 'STRUCTURAL', action: 'insertRow', index: r+2, count: cnt}); for(let i=0; i<cnt; i++) dispatchAction({type: 'SYNC_CELL', row: r+2+i, col: 1, val: newRows[i][0]}); renderGrid(); closeModal(); } } }, { text: "Hủy", class: "btn-cancel", onclick: closeModal } ]); }
+        
+        // Khi tạo hàng mới, mặc định gán luôn vào Ngày Lên Lịch của nhóm hiện tại
+        function promptQuickAddRow(r, targetDate) { 
+            showModal("Thêm hàng tự động", `<input type="number" id="numAdd" class="popup-input" value="1" placeholder="Số lượng">`, [ 
+                { text: "Tạo ngay", class: "btn-blue", onclick: () => { 
+                    let cnt = parseInt(document.getElementById("numAdd").value); 
+                    if(cnt > 0) { 
+                        let mat = sysData.sheets[activeTab]; let existing = new Set(); for(let i=1; i<mat.length; i++) existing.add(String(mat[i][0]).trim()); 
+                        let dateColIdx = mat[0].indexOf("Ngày Lên Lịch");
+                        let newRows = []; 
+                        for(let i=0; i<cnt; i++) { 
+                            let nr = Array(mat[0].length).fill(""); nr[0] = generateID(existing); 
+                            if(targetDate && dateColIdx !== -1) nr[dateColIdx] = targetDate === "Chưa lên lịch" ? "" : targetDate;
+                            newRows.push(nr); 
+                        } 
+                        mat.splice.apply(mat, [r+1, 0].concat(newRows)); 
+                        dispatchAction({type: 'STRUCTURAL', action: 'insertRow', index: r+2, count: cnt}); 
+                        for(let i=0; i<cnt; i++) {
+                            dispatchAction({type: 'SYNC_CELL', row: r+2+i, col: 1, val: newRows[i][0]}); 
+                            if(targetDate && dateColIdx !== -1) dispatchAction({type: 'SYNC_CELL', row: r+2+i, col: dateColIdx+1, val: newRows[i][dateColIdx]}); 
+                        }
+                        renderGrid(); closeModal(); 
+                    } 
+                } }, 
+                { text: "Hủy", class: "btn-cancel", onclick: closeModal } 
+            ]); 
+        }
+
         function initResize(e, type, index, dim) { e.stopPropagation(); e.preventDefault(); isResizing = true; resizeData = { type: type, index: index, startDim: dim, startMouse: type==='col'?e.clientX:e.clientY }; document.body.style.cursor = type==='col' ? 'col-resize' : 'row-resize'; }
         function handleMouseMove(e) { if(!isResizing) return; let delta = (resizeData.type==='col'?e.clientX:e.clientY) - resizeData.startMouse; let newDim = Math.max(21, resizeData.startDim + delta); if(resizeData.type==='col') document.querySelectorAll("#dataHead th")[resizeData.index+1].style.width = newDim+"px"; else document.querySelectorAll("#dataBody tr")[resizeData.index].style.height = newDim+"px"; }
         function handleMouseUp(e) { if(!isResizing) return; isResizing = false; document.body.style.cursor = 'default'; let delta = (resizeData.type==='col'?e.clientX:e.clientY) - resizeData.startMouse; let newDim = Math.max(21, resizeData.startDim + delta); let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; if(resizeData.type==='col') { attrs.colWidths = attrs.colWidths || {}; attrs.colWidths[resizeData.index] = newDim; } else { attrs.rowHeights = attrs.rowHeights || {}; attrs.rowHeights[resizeData.index] = newDim; } dispatchAttrSave(); renderGrid(); }
@@ -334,7 +378,7 @@
         function clearFilter() { if(sysData.filters[activeTab]) delete sysData.filters[activeTab][activeFilterCol]; document.getElementById("filterPopup").style.display = "none"; renderGrid(); }
         function isRowFilteredOut(r, matrix) { let flts = sysData.filters[activeTab]; if(!flts) return false; for(let c in flts) { if(flts[c].indexOf(String(matrix[r][c] || "").trim()) === -1) return true; } return false; }
 
-        function showGridMenu(e, r, c) { e.preventDefault(); e.stopPropagation(); let menu = document.getElementById("contextMenu"); menu.innerHTML = ` <div class="menu-item" onclick="execCmd('insertRowAbove')"><i class="fas fa-arrow-up"></i> Thêm hàng trên</div> <div class="menu-item" onclick="execCmd('insertRowBelow')"><i class="fas fa-arrow-down"></i> Thêm hàng dưới</div> <div class="divider"></div> <div class="menu-item" onclick="execCmd('insertColLeft')"><i class="fas fa-arrow-left"></i> Thêm cột trái</div> <div class="menu-item" onclick="execCmd('insertColRight')"><i class="fas fa-arrow-right"></i> Thêm cột phải</div> <div class="divider"></div> <div class="menu-item" style="color:var(--red);" onclick="execCmd('delRow')"><i class="fas fa-trash"></i> Xóa hàng/dãy</div> <div class="menu-item" style="color:var(--red);" onclick="execCmd('delCol')"><i class="fas fa-trash"></i> Xóa cột/dãy</div> <div class="divider"></div> <div class="menu-item" onclick="setType('dropdown')"><i class="fas fa-list"></i> Loại: Dropdown</div> <div class="menu-item" onclick="setType('checkbox')"><i class="fas fa-check-square"></i> Loại: Checkbox</div> <div class="menu-item" onclick="setType('link')"><i class="fas fa-link"></i> Loại: Link</div> <div class="menu-item" onclick="setType('text')"><i class="fas fa-font"></i> Loại: Văn bản</div> <div class="divider"></div> <div class="menu-item" style="color:var(--blue);" onclick="execCmd('freeze')"><i class="fas fa-snowflake"></i> Cố định tới đây</div> <div class="menu-item" onclick="execCmd('unfreeze')"><i class="fas fa-ban"></i> Bỏ cố định</div><div class="divider"></div><div class="menu-item" style="color:var(--blue);" onclick="openSchedulePopup()"><i class="fas fa-calendar-plus"></i> Lên lịch</div> `; showPopupSafe(menu, e); }
+        function showGridMenu(e, r, c) { e.preventDefault(); e.stopPropagation(); let menu = document.getElementById("contextMenu"); menu.innerHTML = ` <div class="menu-item" onclick="execCmd('insertRowAbove')"><i class="fas fa-arrow-up"></i> Thêm hàng trên</div> <div class="menu-item" onclick="execCmd('insertRowBelow')"><i class="fas fa-arrow-down"></i> Thêm hàng dưới</div> <div class="divider"></div> <div class="menu-item" onclick="execCmd('insertColLeft')"><i class="fas fa-arrow-left"></i> Thêm cột trái</div> <div class="menu-item" onclick="execCmd('insertColRight')"><i class="fas fa-arrow-right"></i> Thêm cột phải</div> <div class="divider"></div> <div class="menu-item" style="color:var(--red);" onclick="execCmd('delRow')"><i class="fas fa-trash"></i> Xóa hàng/dãy</div> <div class="menu-item" style="color:var(--red);" onclick="execCmd('delCol')"><i class="fas fa-trash"></i> Xóa cột/dãy</div> <div class="divider"></div> <div class="menu-item" onclick="setType('dropdown')"><i class="fas fa-list"></i> Loại: Dropdown</div> <div class="menu-item" onclick="setType('checkbox')"><i class="fas fa-check-square"></i> Loại: Checkbox</div> <div class="menu-item" onclick="setType('link')"><i class="fas fa-link"></i> Loại: Link</div> <div class="menu-item" onclick="setType('text')"><i class="fas fa-font"></i> Loại: Văn bản</div> <div class="divider"></div> <div class="menu-item" style="color:var(--theme-color);" onclick="execCmd('freeze')"><i class="fas fa-snowflake"></i> Cố định tới đây</div> <div class="menu-item" onclick="execCmd('unfreeze')"><i class="fas fa-ban"></i> Bỏ cố định</div> `; showPopupSafe(menu, e); }
         function execCmd(cmd) { document.getElementById("contextMenu").style.display = "none"; let minR = Math.min(selStart.r, selEnd.r), maxR = Math.max(selStart.r, selEnd.r), countR = maxR - minR + 1; let minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c), countC = maxC - minC + 1; let mat = sysData.sheets[activeTab]; if(cmd === 'insertRowAbove') { for(let i=0;i<countR;i++) mat.splice(minR, 0, Array(mat[0].length).fill("")); dispatchAction({type:'STRUCTURAL', action:'insertRow', index:minR+1, count:countR}); } if(cmd === 'insertRowBelow') { for(let i=0;i<countR;i++) mat.splice(maxR+1, 0, Array(mat[0].length).fill("")); dispatchAction({type:'STRUCTURAL', action:'insertRow', index:maxR+2, count:countR}); } if(cmd === 'insertColLeft') { mat.forEach(row => { for(let i=0;i<countC;i++) row.splice(minC, 0, ""); }); dispatchAction({type:'STRUCTURAL', action:'insertCol', index:minC+1, count:countC}); } if(cmd === 'insertColRight') { mat.forEach(row => { for(let i=0;i<countC;i++) row.splice(maxC+1, 0, ""); }); dispatchAction({type:'STRUCTURAL', action:'insertCol', index:maxC+2, count:countC}); } if(cmd === 'delRow') { mat.splice(minR, countR); if(mat.length===0) mat.push([""]); dispatchAction({type:'STRUCTURAL', action:'deleteRow', index:minR+1, count:countR}); } if(cmd === 'delCol') { mat.forEach(row => row.splice(minC, countC)); dispatchAction({type:'STRUCTURAL', action:'deleteCol', index:minC+1, count:countC}); } if(cmd === 'freeze' || cmd === 'unfreeze') { let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; attrs.frozenRows = cmd === 'freeze' ? minR + 1 : 0; attrs.frozenCols = cmd === 'freeze' ? minC + 1 : 0; dispatchAction({type:'FREEZE', rows: attrs.frozenRows, cols: attrs.frozenCols}); dispatchAction({type: 'SAVE_TAB_ATTRS', targetTab: activeTab, attributes: attrs}); } renderGrid(); }
         function setType(type) { document.getElementById("contextMenu").style.display = "none"; let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; attrs.columnTypes = attrs.columnTypes || {}; let minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c); for(let c=minC; c<=maxC; c++) attrs.columnTypes[c] = type; dispatchAction({type: 'SAVE_TAB_ATTRS', targetTab: activeTab, attributes: attrs}); renderGrid(); }
 
@@ -348,63 +392,6 @@
 
         function showModal(title, bodyHtml, btns) { document.getElementById("modalTitle").innerText = title; document.getElementById("modalBody").innerHTML = bodyHtml; let ft = document.getElementById("modalFooter"); ft.innerHTML = ""; btns.forEach(b => { let btn = document.createElement("button"); btn.innerText = b.text; btn.className = "btn-modal " + (b.class || "btn-blue"); btn.onclick = b.onclick; ft.appendChild(btn); }); document.getElementById("systemModal").style.display = "flex"; }
         function closeModal() { document.getElementById("systemModal").style.display = "none"; }
-        function executeSchedule() {
-            let dateVal = document.getElementById("scheduleDate").value;
-            if (!dateVal) return alert("Bạn chưa chọn ngày!");
-            
-            let minR = Math.min(selStart.r, selEnd.r);
-            let maxR = Math.max(selStart.r, selEnd.r);
-            let countR = maxR - minR + 1;
-            
-            let targetTab = "KẾ HOẠCH";
-            
-            // 1. Nếu tab KẾ HOẠCH chưa tồn tại, tự động tạo mới bên Sheet
-            if(!sysData.tabOrder.includes(targetTab)) {
-                sysData.tabOrder.push(targetTab);
-                sysData.sheets[targetTab] = [ [...sysData.sheets[activeTab][0]] ]; // Copy tiêu đề qua
-                dispatchAction({type:'MANAGE_TAB', action:'create', tab: targetTab});
-            }
-            
-            let sourceMat = sysData.sheets[activeTab];
-            let targetMat = sysData.sheets[targetTab];
-            
-            // 2. Đảm bảo KẾ HOẠCH có cột "Ngày Lên Lịch" (Gắn ở cuối cùng)
-            let dateCol = targetMat[0].indexOf("Ngày Lên Lịch");
-            if (dateCol === -1) {
-                dateCol = targetMat[0].length;
-                targetMat[0].push("Ngày Lên Lịch");
-            }
-            
-            // 3. Chuẩn bị hàng để di chuyển sang
-            let rowsToMove = sourceMat.slice(minR, maxR + 1);
-            let newRowsForTarget = rowsToMove.map(row => {
-                let newRow = [...row];
-                while(newRow.length <= dateCol) newRow.push("");
-                newRow[dateCol] = dateVal; // Đóng dấu ngày tháng
-                return newRow;
-            });
-            
-            // 4. Bắn dữ liệu sang KẾ HOẠCH
-            targetMat.push(...newRowsForTarget);
-            dispatchAction({type:'STRUCTURAL', action:'insertRow', index: targetMat.length - countR + 1, count: countR, tab: targetTab});
-            newRowsForTarget.forEach((rData, i) => {
-                rData.forEach((val, j) => {
-                    dispatchAction({type: 'SYNC_CELL', row: targetMat.length - countR + i + 1, col: j + 1, val: val, tab: targetTab});
-                });
-            });
-            
-            // 5. Xóa dữ liệu khỏi tab hiện tại (Ý Tưởng)
-            sourceMat.splice(minR, countR);
-            if(sourceMat.length === 1) { // Nếu xóa sạch sheet, tạo 1 hàng trống
-                sourceMat.push(Array(sourceMat[0].length).fill(""));
-                dispatchAction({type:'STRUCTURAL', action:'insertRow', index: 2, count: 1, tab: activeTab});
-            }
-            dispatchAction({type:'STRUCTURAL', action:'deleteRow', index: minR + 1, count: countR, tab: activeTab});
-            
-            renderGrid();
-            closeModal();
-            alert("✅ Đã lên lịch và chuyển sang module KẾ HOẠCH thành công!");
-        }
     </script>
 </body>
 </html>

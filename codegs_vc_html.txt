@@ -141,3 +141,12 @@ function processActionQueue(batch) {
 
   return { success: true, syncToken: parseInt(lastToken) };
 }
+// TỰ ĐỘNG BẮT SỰ KIỆN KHI NGƯỜI DÙNG SỬA/THÊM TRỰC TIẾP TRÊN SHEET
+function onEdit(e) {
+  PropertiesService.getScriptProperties().setProperty('SYNC_TOKEN_' + SPREADSHEET_ID, new Date().getTime().toString());
+}
+
+// TỰ ĐỘNG BẮT SỰ KIỆN KHI CÁC HÀM HOẶC TOOL TỰ ĐỘNG (API/FORM) THÊM DÒNG
+function onChange(e) {
+  PropertiesService.getScriptProperties().setProperty('SYNC_TOKEN_' + SPREADSHEET_ID, new Date().getTime().toString());
+}
