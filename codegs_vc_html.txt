@@ -1,6 +1,16 @@
 const SPREADSHEET_ID = "1JpGA6elt651ZIa3w3kQVyCVfbGzAcRjIScPQoZjNXt4";
 
 function doGet(e) {
+  // Nếu có tham số ?action=get_admins, chỉ trả về danh sách email
+  if (e && e.parameter && e.parameter.action === 'get_admins') {
+    var props = PropertiesService.getScriptProperties();
+    var adminStr = props.getProperty('SYS_ADMIN_EMAILS');
+    // Mặc định luôn có Master Admin nếu chưa ai thêm gì
+    var admins = adminStr ? JSON.parse(adminStr) : ["admin@tudonghoavinhloc.com"]; 
+    return ContentService.createTextOutput(JSON.stringify({ success: true, admins: admins })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // Nếu không, trả về toàn bộ dữ liệu bảng tính như bình thường
   var data = getFullSystemData();
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
 }
@@ -58,7 +68,8 @@ function processActionQueue(batch) {
     
     batch.forEach(function(action) {
       var sheet = ss.getSheetByName(action.tab);
-      if (!sheet && action.type !== 'MANAGE_TAB') return;
+      // Cấp phép cho lệnh MANAGE_ADMINS đi qua mà không cần tên Tab
+      if (!sheet && action.type !== 'MANAGE_TAB' && action.type !== 'MANAGE_ADMINS') return;
 
       if (action.type === 'SYNC_CELL') {
         var targetRange = sheet.getRange(action.row, action.col);
@@ -98,6 +109,15 @@ function processActionQueue(batch) {
           var sh = ss.getSheetByName(action.tab); if(sh) ss.deleteSheet(sh); 
           var attrSh = ss.getSheetByName(action.tab + "_attributes"); if(attrSh) ss.deleteSheet(attrSh);
         }
+      }
+      else if (action.type === 'MANAGE_ADMINS') {
+        var props = PropertiesService.getScriptProperties();
+        // Đảm bảo Master Admin luôn tồn tại để tránh tự khóa bản thân
+        var safeEmails = action.emails;
+        if (safeEmails.indexOf("admin@tudonghoavinhloc.com") === -1) {
+            safeEmails.unshift("admin@tudonghoavinhloc.com");
+        }
+        props.setProperty('SYS_ADMIN_EMAILS', JSON.stringify(safeEmails));
       }
       else if (action.type === 'SAVE_TAB_ATTRS') {
         var attrTabName = action.targetTab + "_attributes";
