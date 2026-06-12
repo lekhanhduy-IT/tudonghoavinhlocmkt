@@ -347,54 +347,7 @@
         function deleteTab(tab) { document.getElementById("tabContextMenu").style.display = 'none'; showModal("Xác nhận xóa Tab", `<p style="font-size: 14px; margin-bottom: 10px;">Bạn có chắc chắn muốn xóa vĩnh viễn tab <b style="color: var(--red);">${tab}</b> không?</p><p style="font-size: 12px; color: #666; font-style: italic;">Hành động này sẽ xóa toàn bộ dữ liệu trong tab và không thể hoàn tác.</p>`, [ { text: "Xóa ngay", class: "btn-blue", onclick: () => { sysData.tabOrder = sysData.tabOrder.filter(t => t !== tab); delete sysData.sheets[tab]; activeTab = sysData.tabOrder[0] || ""; renderTabs(); renderGrid(); dispatchAction({type: 'MANAGE_TAB', action: 'delete', tab: tab}); closeModal(); } }, { text: "Hủy", class: "btn-cancel", onclick: closeModal } ]); }
 
         function showModal(title, bodyHtml, btns) { document.getElementById("modalTitle").innerText = title; document.getElementById("modalBody").innerHTML = bodyHtml; let ft = document.getElementById("modalFooter"); ft.innerHTML = ""; btns.forEach(b => { let btn = document.createElement("button"); btn.innerText = b.text; btn.className = "btn-modal " + (b.class || "btn-blue"); btn.onclick = b.onclick; ft.appendChild(btn); }); document.getElementById("systemModal").style.display = "flex"; }
-function showModal(title, bodyHtml, btns) { document.getElementById("modalTitle").innerText = title; document.getElementById("modalBody").innerHTML = bodyHtml; let ft = document.getElementById("modalFooter"); ft.innerHTML = ""; btns.forEach(b => { let btn = document.createElement("button"); btn.innerText = b.text; btn.className = "btn-modal " + (b.class || "btn-blue"); btn.onclick = b.onclick; ft.appendChild(btn); }); document.getElementById("systemModal").style.display = "flex"; }
         function closeModal() { document.getElementById("systemModal").style.display = "none"; }
-
-        // MỚI THÊM: HÀM MỞ POPUP CHỌN NGÀY
-        function openSchedulePopup() {
-            document.getElementById("contextMenu").style.display = "none";
-            if (!selStart) return alert("Vui lòng chọn dãy dữ liệu cần lên lịch!");
-            
-            showModal("Lên Lịch Kế Hoạch", 
-                `<input type="date" id="scheduleDate" class="popup-input" style="padding: 10px; font-weight: bold; color: var(--blue);">
-                 <p style="font-size:12px; color:#666; margin-top:5px; font-style: italic;">Các hàng được chọn sẽ được chuyển sang tab KẾ HOẠCH.</p>`, 
-                [ 
-                    { text: "Xác nhận chuyển", class: "btn-blue", onclick: () => executeSchedule() }, 
-                    { text: "Hủy", class: "btn-cancel", onclick: closeModal } 
-                ]
-            );
-        }
-
-        // HÀM CHUYỂN DỮ LIỆU SANG PLAN.HTML (Giữ nguyên)
-       // HÀM LÊN LỊCH CHUẨN: KHÔNG TẠO TAB MỚI, CHỈ GÁN NGÀY
-        function executeSchedule() {
-            let dateVal = document.getElementById("scheduleDate").value;
-            if (!dateVal) return alert("Bạn chưa chọn ngày!");
-            
-            let minR = Math.min(selStart.r, selEnd.r);
-            let maxR = Math.max(selStart.r, selEnd.r);
-            
-            let mat = sysData.sheets[activeTab];
-            
-            // Tìm hoặc tạo cột "Ngày Lên Lịch" ở cuối bảng
-            let dateCol = mat[0].indexOf("Ngày Lên Lịch");
-            if (dateCol === -1) {
-                dateCol = mat[0].length;
-                mat[0].push("Ngày Lên Lịch");
-                dispatchAction({type: 'SYNC_CELL', row: 1, col: dateCol + 1, val: "Ngày Lên Lịch"});
-            }
-            
-            // Gán ngày cho các hàng đã chọn
-            for (let r = minR; r <= maxR; r++) {
-                while(mat[r].length <= dateCol) mat[r].push("");
-                mat[r][dateCol] = dateVal;
-                dispatchAction({type: 'SYNC_CELL', row: r + 1, col: dateCol + 1, val: dateVal});
-            }
-            
-            renderGrid();
-            closeModal();
-            alert("✅ Đã lên lịch thành công! Mở module KẾ HOẠCH để xem giao diện Tháng/Năm.");
-        }
     </script>
 </body>
 </html>
