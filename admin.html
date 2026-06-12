@@ -50,7 +50,8 @@
         <a href="#" class="menu-item-side" onclick="loadModule('plan.html', this)"><div class="icon"><i class="fas fa-calendar-alt"></i></div><div class="text">KẾ HOẠCH</div></a>
         <a href="#" class="menu-item-side" onclick="loadModule('post.html', this)"><div class="icon"><i class="fas fa-file-alt"></i></div><div class="text">BÀI VIẾT</div></a>
         <a href="#" class="menu-item-side" onclick="loadModule('image.html', this)"><div class="icon"><i class="fas fa-images"></i></div><div class="text">HÌNH ẢNH</div></a>
-        <a href="#" class="menu-item-side" style="color: var(--red);" onclick="loadModule('caidat.html', this)"><div class="icon"><i class="fas fa-cogs"></i></div><div class="text">CÀI ĐẶT</div></a>
+        
+        <a href="#" id="menuSettings" class="menu-item-side" style="color: var(--red); display: none;" onclick="loadModule('caidat.html', this)"><div class="icon"><i class="fas fa-cogs"></i></div><div class="text">CÀI ĐẶT</div></a>
     </div>
 
     <div class="main-content">
@@ -71,6 +72,12 @@
 
     <script>
         document.getElementById('welcomeUser').innerText = localStorage.getItem('admin_name') || 'Admin';
+        
+        // KIỂM TRA QUYỀN ĐỂ MỞ KHÓA MENU CÀI ĐẶT
+        if (localStorage.getItem('admin_email') === 'admin@tudonghoavinhloc.com') {
+            document.getElementById('menuSettings').style.display = 'flex';
+        }
+
         function logout() { localStorage.clear(); window.location.href = 'index.html'; }
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
         function loadModule(url, element) {

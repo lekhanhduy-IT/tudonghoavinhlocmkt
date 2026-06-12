@@ -96,7 +96,7 @@ function processActionQueue(batch) {
         if(action.cols !== null) sheet.setFrozenColumns(action.cols);
       } 
       else if (action.type === 'MANAGE_TAB') {
-        if (action.action === "create") ss.insertSheet(action.tab);
+        if (action.action === "create") ss.insertSheet(action.tab, ss.getSheets().length);
         else if (action.action === "rename") { 
           var sh = ss.getSheetByName(action.oldName); if(sh) sh.setName(action.newName);
           var attrSh = ss.getSheetByName(action.oldName + "_attributes"); if(attrSh) attrSh.setName(action.newName + "_attributes");

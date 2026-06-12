@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cài Đặt</title>
+    
+    <script>
+        if (localStorage.getItem('admin_email') !== 'admin@tudonghoavinhloc.com') {
+            document.documentElement.innerHTML = '<div style="color:#db1010; text-align:center; margin-top:50px; font-family:sans-serif;"><h2>⛔ TRUY CẬP BỊ TỪ CHỐI</h2><p>Chỉ Chủ sở hữu hệ thống mới có quyền xem trang này.</p></div>';
+            throw new Error("Unauthorized Access"); // Chặn không cho tải các script bên dưới
+        }
+    </script>
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root { --bg-main: #111a22; --bg-card: #1a252f; --text-light: #f1f3f4; --blue: #01adee; --red: #db1010; --gray-border: #2c3e50; }
@@ -52,6 +60,7 @@
         </div>
     </div>
     <script>
+        // NHỚ KIỂM TRA LẠI LINK API NHÉ
         const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
         let adminList = []; const MASTER_ADMIN = "admin@tudonghoavinhloc.com";
         window.onload = () => fetchAdminList();
