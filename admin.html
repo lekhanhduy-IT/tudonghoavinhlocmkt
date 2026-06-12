@@ -22,8 +22,8 @@
         .sidebar-header { height: 60px; display: flex; align-items: center; border-bottom: 0.5px solid var(--gray-border); }
         .toggle-btn { width: 60px; height: 60px; background: transparent; border: none; font-size: 20px; color: var(--text-main); opacity: 0.7; cursor: pointer; flex-shrink: 0; display: flex; justify-content: center; align-items: center; }
         
-        /* Cập nhật Brand: Chữ đen, nét mỏng, size 18px */
-        .brand { font-size: 18px; font-weight: 300; color: #000000; opacity: 1; transition: opacity 0.2s; display: flex; align-items: center; }
+        /* Cập nhật Brand: Chữ đen, nét mỏng, size 14px */
+        .brand { font-size: 14px; font-weight: 300; color: #000000; opacity: 1; transition: opacity 0.2s; display: flex; align-items: center; }
         .brand img { height: 30px; margin-right: 10px; }
         .sidebar.collapsed .brand { opacity: 0; pointer-events: none; }
         
@@ -32,8 +32,8 @@
         .menu-item-side:hover, .menu-item-side.active { background: var(--blue); color: var(--white); }
         .icon { width: 60px; height: 50px; display: flex; justify-content: center; align-items: center; font-size: 18px; flex-shrink: 0; }
         
-        /* Cập nhật Text Menu: Nét mỏng, size 18px */
-        .text { font-weight: 300; font-size: 18px; transition: opacity 0.2s; opacity: 1; }
+        /* Cập nhật Text Menu: Nét mỏng, size 14px */
+        .text { font-weight: 300; font-size: 14px; transition: opacity 0.2s; opacity: 1; }
         .sidebar.collapsed .text { opacity: 0; pointer-events: none; }
 
         .main-content { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -46,15 +46,8 @@
         .user-actions { display: flex; align-items: center; gap: 15px; }
         .logout-btn { background: var(--red); color: var(--white); border: none; padding: 8px 16px; font-weight: bold; border-radius: 4px; cursor: pointer; }
         
-        /* Thêm hiệu ứng transition cho iframe để tạo hoạt ảnh cuộn dọc */
-        #moduleFrame { 
-            flex-grow: 1; 
-            border: none; 
-            width: 100%; 
-            height: 100%; 
-            background: #f9f9f9; 
-            transition: transform 0.4s ease-in-out, opacity 0.4s ease-in-out;
-        }
+        /* Iframe không có transition delay để đổi trang ngay lập tức */
+        #moduleFrame { flex-grow: 1; border: none; width: 100%; height: 100%; background: #f9f9f9; }
 
         @media (max-width: 768px) { .sidebar { position: absolute; height: 100%; transform: translateX(-100%); } .sidebar.mobile-open { transform: translateX(0); } }
     </style>
@@ -83,7 +76,7 @@
                 </div>
             </div>
             <div class="user-actions">
-                <span style="color: #000000; font-weight: 300; font-size: 18px;" id="welcomeUser"></span>
+                <span style="color: #000000; font-weight: 300; font-size: 14px;" id="welcomeUser"></span>
                 <button class="logout-btn" onclick="logout()">Đăng Xuất</button>
             </div>
         </div>
@@ -101,32 +94,12 @@
         function logout() { localStorage.clear(); window.location.href = 'index.html'; }
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
         
-        // Cập nhật hàm loadModule để xử lý hiệu ứng cuộn dọc
+        // Hàm loadModule tải trang ngay lập tức
         function loadModule(url, element) {
-            // Xóa active khỏi tất cả menu và thêm vào menu được chọn
             document.querySelectorAll('.menu-item-side').forEach(el => el.classList.remove('active')); 
             element.classList.add('active');
-            
-            const frame = document.getElementById('moduleFrame');
-            
-            // Bước 1: Trượt iframe hiện tại lên trên và làm mờ đi
-            frame.style.transform = 'translateY(-100px)';
-            frame.style.opacity = '0';
-
-            // Bước 2: Chờ hiệu ứng mờ xong (400ms) rồi đổi src
-            setTimeout(() => {
-                frame.src = url; 
-                document.getElementById('globalSearch').value = "";
-                
-                // Đưa iframe giấu xuống dưới trước khi trượt lên
-                frame.style.transform = 'translateY(100px)';
-                
-                // Bước 3: Sau khi trang mới đã tải xong, trượt nó vào vị trí giữa và hiện rõ
-                frame.onload = () => {
-                    frame.style.transform = 'translateY(0)';
-                    frame.style.opacity = '1';
-                };
-            }, 400); // Khớp với thời gian transition trong CSS
+            document.getElementById('moduleFrame').src = url; 
+            document.getElementById('globalSearch').value = "";
         }
 
         function executeGlobalSearch() {
