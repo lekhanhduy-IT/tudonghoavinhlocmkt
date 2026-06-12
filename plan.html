@@ -29,7 +29,14 @@
             cursor: pointer; display: flex; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         .mega-row-content { position: sticky; left: 20px; display: flex; align-items: center; gap: 10px; font-weight: bold; }
-        .mega-row-btn i.fa-chevron-down { transition: transform 0.3s; margin-left: auto; position: sticky; left: calc(100vw - 40px); }
+        /* Ghim dấu > sang mép phải màn hình */
+        .mega-row-btn i.fa-chevron-down { 
+            transition: transform 0.3s; 
+            margin-left: auto; 
+            position: sticky; 
+            right: 20px; 
+            z-index: 45;
+        }
         .month-group.collapsed .table-container { display: none; }
         .month-group.collapsed i.fa-chevron-down { transform: rotate(-90deg); }
 
@@ -58,12 +65,25 @@
         td.row-index { position: sticky; left: 0; z-index: 20; background: var(--gray-light); text-align: center; font-weight: bold; color: #7f8c8d; user-select: none; }
 
         /* ====== UI EDITORS BÊ TỪ IDEA.HTML ====== */
-        .cell-editor { width: 100%; height: 35px; max-height: 35px; padding: 8px 4px; outline: none; border: none; background: transparent; overflow: hidden; white-space: pre-wrap; word-wrap: break-word; line-height: 19px; cursor: text; display: block; resize: none; }
-        .cell-expanded { position: absolute; top: -1px; left: -1px; z-index: 100; height: auto !important; max-height: none; min-height: 60px; width: max-content; min-width: calc(100% + 2px); background: var(--white); border: 1.5px solid var(--blue); box-shadow: 0 4px 15px rgba(0,0,0,0.15); padding: 8px 4px !important; white-space: pre-wrap; overflow: visible; }
+        .cell-editor { 
+            width: 100%; height: 35px; max-height: 35px; padding: 8px 4px; outline: none; border: none; background: transparent; 
+            /* Thừa kế style từ cột (màu sắc, in đậm) */
+            color: inherit; font-weight: inherit; font-style: inherit; text-decoration: inherit; text-align: inherit;
+            overflow: hidden; white-space: pre-wrap; word-wrap: break-word; line-height: 19px; cursor: text; display: block; resize: none; 
+        }
+        .cell-expanded { 
+            position: absolute; top: -1px; left: -1px; z-index: 100; height: auto !important; max-height: none; min-height: 60px; 
+            width: max-content; min-width: calc(100% + 2px); background: var(--white); border: 1.5px solid var(--blue); 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15); padding: 8px 4px !important; white-space: pre-wrap; overflow: visible; 
+            color: var(--text-main); font-weight: normal; font-style: normal; text-decoration: none; text-align: left;
+        }
         
-        .dropdown-ui { display: flex; justify-content: space-between; align-items: center; background: #f1f3f4; border-radius: 12px; padding: 1px 8px; margin: 4px; cursor: pointer; font-size: 11px; height: 27px; }
-        .dropdown-ui:hover { background: #e8eaed; }
-        .dropdown-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+        .dropdown-ui { 
+            display: flex; justify-content: space-between; align-items: center; background: rgba(241, 243, 244, 0.8); 
+            border-radius: 12px; padding: 1px 8px; margin: 4px; cursor: pointer; font-size: 11px; height: 27px; color: inherit;
+        }
+        .dropdown-ui:hover { background: rgba(232, 234, 237, 0.9); }
+        .dropdown-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; font-weight: inherit; }
 
         /* Resizer */
         .resizer-col { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 25; }
@@ -133,7 +153,7 @@
             loadLocalData();
             fetchDataFromServer();
             
-            // Khởi chạy vòng lặp đồng bộ 2 chiều y hệt idea.html
+            // Khởi chạy vòng lặp đồng bộ 2 chiều
             setInterval(processQueueAndSync, 4000); 
             setInterval(() => {
                 if(actionQueue.length === 0 && !isProcessingQueue && !checkIsEditing()) {
@@ -237,24 +257,20 @@
         // ==========================================
         function updatePlanCell(planRowIndex, origColIndex, newVal) {
             let planSheet = sysData.sheets["_PLAN_DATA_"];
-            // Parse lại dữ liệu dòng
             let rowDataJson = planSheet[planRowIndex][2];
             let parsedRow = [];
             try { parsedRow = JSON.parse(rowDataJson); } catch(e){}
             
-            // Ghi đè cột tương ứng
             parsedRow[origColIndex] = newVal;
             let newJson = JSON.stringify(parsedRow);
             
-            // Cập nhật sysData local
             planSheet[planRowIndex][2] = newJson;
             localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
             
-            // Đẩy lệnh Sync lên API (Cập nhật thẳng vào _PLAN_DATA_)
             dispatchAction({
                 type: 'SYNC_CELL',
-                row: planRowIndex + 1, // API index từ 1
-                col: 3, // Cột chứa chuỗi JSON Data là cột C (3)
+                row: planRowIndex + 1, 
+                col: 3, 
                 val: newJson,
                 tab: '_PLAN_DATA_'
             });
@@ -305,15 +321,12 @@
                     
                     updatePlanCell(planRowIndex, origColIndex, current.join(", ")); 
                     openDropdownMenu(e, planRowIndex, origColIndex, current, opts); 
-                    
-                    // Render lại chỉ đúng cell đó thay vì cả bảng để mượt hơn (Hoặc gọi lại toàn bảng)
                     processAndRender(); 
                 }; 
                 box.appendChild(div); 
             }); 
             showPopupSafe(document.getElementById("dropdownPopup"), e); 
         }
-
 
         // ==========================================
         // RESIZER
@@ -436,8 +449,21 @@
                 let thIndex = document.createElement("th"); thIndex.className = "col-index"; thIndex.style.width = "40px"; thIndex.innerText = "#"; trH.appendChild(thIndex);
                 let thDate = document.createElement("th"); thDate.style.width = "120px"; thDate.style.color = "var(--red)"; thDate.innerHTML = `Deadline <div class="resizer-col" onmousedown="initResize(event, 'col', this.parentElement, this.parentElement.offsetWidth)"></div>`; trH.appendChild(thDate);
 
+                // --- ĐỌC & SET MÀU CHO TIÊU ĐỀ BẢNG (HEADERS) ---
                 headers.forEach((h, idx) => {
                     let th = document.createElement("th");
+                    
+                    let s0 = (tabAttrs.cellStyles && tabAttrs.cellStyles[`0_${idx}`]) || {};
+                    let rs0 = (tabAttrs.rowStyles && tabAttrs.rowStyles[0]) || {};
+                    let cs = (tabAttrs.colStyles && tabAttrs.colStyles[idx]) || {};
+                    
+                    th.style.backgroundColor = s0.bg || rs0.bg || cs.bg || "var(--gray-light)";
+                    th.style.color = s0.color || rs0.color || cs.color || "var(--text-main)";
+                    th.style.fontWeight = (s0.bold || rs0.bold || cs.bold) ? "bold" : "bold";
+                    th.style.fontStyle = (s0.italic || rs0.italic || cs.italic) ? "italic" : "normal";
+                    th.style.textDecoration = (s0.underline || rs0.underline || cs.underline) ? "underline" : "none";
+                    th.style.textAlign = s0.align || rs0.align || cs.align || "left";
+
                     th.style.width = (originalColWidths[idx] ? parseInt(originalColWidths[idx]) : 150) + "px";
                     th.innerHTML = `${h}<div class="resizer-col" onmousedown="initResize(event, 'col', this.parentElement, this.parentElement.offsetWidth)"></div>`;
                     trH.appendChild(th);
@@ -461,7 +487,7 @@
                     rowItem.data.forEach((val, c) => {
                         let td = document.createElement("td");
                         
-                        // --- 1. ÁP DỤNG STYLE CỦA CỘT (Màu sắc, in đậm...) ---
+                        // --- 1. ÁP DỤNG STYLE CỦA CỘT TỪ IDEA (Màu sắc, in đậm...) ---
                         let cs = (tabAttrs.colStyles && tabAttrs.colStyles[c]) || {};
                         td.style.backgroundColor = cs.bg || "#ffffff";
                         td.style.color = cs.color || "var(--text-main)";
@@ -470,14 +496,14 @@
                         td.style.textDecoration = cs.underline ? "underline" : "none";
                         td.style.textAlign = cs.align || "left";
 
-                        // --- 2. ÁP DỤNG LOẠI DỮ LIỆU CỦA CỘT ---
+                        // --- 2. ÁP DỤNG LOẠI DỮ LIỆU CỦA CỘT TỪ IDEA ---
                         let type = types[c] || "text";
                         if (type === "dropdown") {
                             let opts = (tabAttrs.dropdownChoices && tabAttrs.dropdownChoices[c]) ? tabAttrs.dropdownChoices[c] : ["Mục 1"]; 
                             let arr = val ? String(val).split(",").map(s=>s.trim()).filter(Boolean) : []; 
                             let ui = document.createElement("div"); 
                             ui.className = "dropdown-ui"; 
-                            ui.innerHTML = `<div class="dropdown-text">${arr.length ? arr.join(", ") : "<span style='color:#999; font-style:italic;'>Trống...</span>"}</div> <i style="color:var(--text-main); opacity:0.5;" class="fas fa-caret-down"></i>`; 
+                            ui.innerHTML = `<div class="dropdown-text">${arr.length ? arr.join(", ") : "<span style='opacity:0.6; font-style:italic;'>Trống...</span>"}</div> <i style="opacity:0.5;" class="fas fa-caret-down"></i>`; 
                             ui.onclick = (e) => { e.stopPropagation(); openDropdownMenu(e, rowItem.planRowIndex, c, arr, opts); }; 
                             td.appendChild(ui);
                         } 
@@ -509,7 +535,6 @@
 
             if (!hasVisibleData) area.innerHTML = `<div class="empty-msg">Không có dữ liệu kế hoạch phù hợp với bộ lọc.</div>`;
             
-            // Phục hồi vị trí cuộn
             document.getElementById("scrollArea").scrollTop = oldScrollY;
         }
 
