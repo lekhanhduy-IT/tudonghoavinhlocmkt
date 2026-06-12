@@ -4,101 +4,87 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Đăng Nhập - Tự Động Hóa Vĩnh Lộc</title>
+    <link rel="icon" href="https://i.postimg.cc/xCjmFrb4/Untitled-design.png">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background-color: #f4f7f6; color: #333; display: flex; flex-direction: column; height: 100vh; }
-        nav { background: #004d99; color: white; display: flex; padding: 15px 30px; justify-content: space-between; align-items: center; }
-        nav ul { list-style: none; display: flex; gap: 20px; }
-        nav ul li a { color: white; text-decoration: none; font-weight: bold; }
+        :root { --white: #ffffff; --blue: #01adee; --red: #db1010; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background-color: var(--white); color: var(--blue); display: flex; flex-direction: column; height: 100vh; }
+        
+        nav { background: var(--white); border-bottom: 2px solid var(--blue); display: flex; padding: 10px 30px; justify-content: space-between; align-items: center; }
+        .logo { display: flex; align-items: center; font-weight: 900; font-size: 20px; color: var(--blue); }
+        .logo img { height: 35px; margin-right: 10px; }
+        
+        nav ul { list-style: none; display: flex; gap: 30px; align-items: center; }
+        nav ul li a { color: var(--blue); text-decoration: none; font-weight: bold; transition: 0.2s; }
+        nav ul li a:hover { color: var(--red); }
         
         .login-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; padding: 20px; }
-        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 450px; width: 100%; text-align: center; }
-        .login-box h2 { color: #004d99; margin-bottom: 10px; }
-        .login-box p { font-size: 14px; color: #666; margin-bottom: 30px; }
+        .login-box { background: var(--white); padding: 40px; border: 2px solid var(--blue); border-radius: 12px; box-shadow: 0 4px 15px rgba(1, 173, 238, 0.2); max-width: 450px; width: 100%; text-align: center; }
+        .login-box h2 { color: var(--blue); margin-bottom: 10px; }
+        .login-box p { font-size: 14px; color: var(--text-main); margin-bottom: 30px; }
         
-        /* Căn giữa nút Google chuẩn */
-        .google-btn-wrapper { display: flex; justify-content: center; margin-top: 20px; }
-        
-        #loginError { color: #e74c3c; margin-top: 20px; display: none; font-size: 14px; font-weight: 500; background: #fdf2f2; padding: 10px; border-radius: 6px; }
+        #loginError { color: var(--white); background: var(--red); margin-top: 20px; display: none; font-size: 14px; font-weight: bold; padding: 10px; border-radius: 6px; }
     </style>
 </head>
 <body>
 
     <nav>
-        <div class="logo" style="font-weight: bold; font-size: 18px;">TĐH Vĩnh Lộc</div>
+        <div class="logo">
+            <img src="https://i.postimg.cc/xCjmFrb4/Untitled-design.png" alt="Logo"> WEB MKT
+        </div>
         <ul>
             <li><a href="#">TRANG CHỦ</a></li>
             <li><a href="#">GIỚI THIỆU</a></li>
             <li><a href="#">BLOG</a></li>
+            <li>
+                <div id="g_id_onload"
+                     data-client_id="5715002556-9hc14dlk471aq9nnk8e6cet8se84n9h8.apps.googleusercontent.com"
+                     data-context="signin"
+                     data-ux_mode="popup"
+                     data-callback="handleCredentialResponse"
+                     data-auto_select="false">
+                </div>
+                <div class="g_id_signin"
+                     data-type="icon"
+                     data-shape="circle"
+                     data-theme="outline"
+                     data-size="large">
+                </div>
+            </li>
         </ul>
     </nav>
 
     <div class="login-container">
         <div class="login-box">
+            <img src="https://i.postimg.cc/xCjmFrb4/Untitled-design.png" height="60" style="margin-bottom: 15px;">
             <h2>Hệ Thống Quản Trị</h2>
-            <p>Vui lòng đăng nhập bằng tài khoản Google để tiếp tục</p>
-            
-            <div id="g_id_onload"
-                 data-client_id="5715002556-9hc14dlk471aq9nnk8e6cet8se84n9h8.apps.googleusercontent.com"
-                 data-context="signin"
-                 data-ux_mode="popup"
-                 data-callback="handleCredentialResponse"
-                 data-auto_select="false">
-            </div>
-
-            <div class="google-btn-wrapper">
-                <div class="g_id_signin"
-                     data-type="standard"
-                     data-shape="pill"
-                     data-theme="outline"
-                     data-text="signin_with"
-                     data-size="large"
-                     data-logo_alignment="left">
-                </div>
-            </div>
-
+            <p>Sử dụng nút Google ở góc phải phía trên để đăng nhập vào hệ thống Admin.</p>
             <p id="loginError">Quyền truy cập bị từ chối. Tài khoản của bạn không phải là Admin.</p>
         </div>
     </div>
 
     <script>
-        // Nếu đã xác thực trước đó và đúng admin, chuyển hướng thẳng
-        if (localStorage.getItem('admin_session') === 'verified_admin') {
-            window.location.href = 'idea.html';
-        }
+        if (localStorage.getItem('admin_session') === 'verified_admin') window.location.href = 'admin.html';
 
-        // Hàm xử lý sau khi người dùng chọn tài khoản Google thành công
         function handleCredentialResponse(response) {
             try {
-                // Giải mã JWT Token từ Google trả về để đọc thông tin Profile ngầm
                 const base64Url = response.credential.split('.')[1];
                 const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-                const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
-                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-                }).join(''));
-
+                const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
                 const profile = JSON.parse(jsonPayload);
                 const email = profile.email ? profile.email.toLowerCase().trim() : "";
 
-                // KIỂM TRA QUYỀN ADMIN TUYỆT ĐỐI
                 if (email === 'admin@tudonghoavinhloc.com') {
-                    // Lưu trạng thái phiên làm việc an toàn
                     localStorage.setItem('admin_session', 'verified_admin');
                     localStorage.setItem('admin_email', email);
                     localStorage.setItem('admin_name', profile.name || 'Admin');
-                    
-                    // Chuyển sang giao diện ý tưởng
-                    window.location.href = 'idea.html';
+                    window.location.href = 'admin.html';
                 } else {
-                    // Nếu là tài khoản khác, giữ nguyên tại trang index và báo lỗi
                     localStorage.removeItem('admin_session');
                     document.getElementById('loginError').style.display = 'block';
                 }
-            } catch (error) {
-                console.error("Lỗi xử lý token Google:", error);
-                alert("Đăng nhập thất bại, vui lòng thử lại.");
-            }
+            } catch (error) { alert("Đăng nhập thất bại."); }
         }
     </script>
 </body>
