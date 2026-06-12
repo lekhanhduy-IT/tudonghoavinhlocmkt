@@ -517,9 +517,39 @@
         function setType(type) { document.getElementById("contextMenu").style.display = "none"; let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; attrs.columnTypes = attrs.columnTypes || {}; let minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c); for(let c=minC; c<=maxC; c++) attrs.columnTypes[c] = type; dispatchAttrSave(); renderGrid(); }
 
         function showTabMenu(e, tab) { e.preventDefault(); e.stopPropagation(); let menu = document.getElementById("tabContextMenu"); menu.innerHTML = ` <div class="menu-item" onclick="promptRenameTab('${tab}')"><i class="fas fa-edit"></i> Đổi tên</div> <div class="menu-item" onclick="duplicateTab('${tab}')"><i class="fas fa-clone"></i> Nhân bản</div> <div class="menu-item" style="color:var(--red);" onclick="hideTab('${tab}')"><i class="fas fa-eye-slash"></i> Ẩn</div> <div class="divider"></div> <div class="menu-item" style="color:var(--red);" onclick="deleteTab('${tab}')"><i class="fas fa-trash"></i> Xóa Tab</div> `; showPopupSafe(menu, e); }
-        function promptNewTab() { let name = prompt("Nhập tên tab mới:"); if(name && !sysData.tabOrder.includes(name)) { sysData.tabOrder.push(name); sysData.sheets[name] = [["A","B","C"]]; activeTab = name; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'create', tab: name}); } }
-        function promptRenameTab(old) { document.getElementById("tabContextMenu").style.display = 'none'; let n = prompt("Tên mới:", old); if(n && n !== old) { let idx = sysData.tabOrder.indexOf(old); sysData.tabOrder[idx] = n; sysData.sheets[n] = sysData.sheets[old]; delete sysData.sheets[old]; sysData.attributes[n] = sysData.attributes[old]; delete sysData.attributes[old]; activeTab = n; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'rename', oldName: old, newName: n}); } }
-        function duplicateTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let n = tab+"_copy"; sysData.tabOrder.push(n); sysData.sheets[n] = JSON.parse(JSON.stringify(sysData.sheets[tab])); sysData.attributes[n] = JSON.parse(JSON.stringify(sysData.attributes[tab] || {})); activeTab=n; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'duplicate', oldName: tab, newName: n}); }
+function promptNewTab() { 
+            showModal("Tạo Tab Mới", `<input type="text" id="newTabInput" class="popup-input" placeholder="Nhập tên tab...">`, [ 
+                { text: "Tạo", class: "btn-blue", onclick: () => { 
+                    let name = document.getElementById("newTabInput").value.trim(); 
+                    if(name && !sysData.tabOrder.includes(name)) { 
+                        sysData.tabOrder.push(name); sysData.sheets[name] = [["A","B","C"]]; activeTab = name; 
+                        renderTabs(); renderGrid(); 
+                        dispatchAction({type:'MANAGE_TAB', action:'create', tab: name}); 
+                        closeModal();
+                    } 
+                }}, 
+                { text: "Hủy", class: "btn-cancel", onclick: closeModal } 
+            ]); 
+        }
+
+        function promptRenameTab(old) { 
+            document.getElementById("tabContextMenu").style.display = 'none'; 
+            showModal("Đổi Tên Tab", `<input type="text" id="renTabInput" class="popup-input" value="${old}">`, [ 
+                { text: "Lưu", class: "btn-blue", onclick: () => { 
+                    let n = document.getElementById("renTabInput").value.trim(); 
+                    if(n && n !== old) { 
+                        let idx = sysData.tabOrder.indexOf(old); sysData.tabOrder[idx] = n; 
+                        sysData.sheets[n] = sysData.sheets[old]; delete sysData.sheets[old]; 
+                        sysData.attributes[n] = sysData.attributes[old]; delete sysData.attributes[old]; 
+                        activeTab = n; 
+                        renderTabs(); renderGrid(); 
+                        dispatchAction({type:'MANAGE_TAB', action:'rename', oldName: old, newName: n}); 
+                        closeModal();
+                    } 
+                }}, 
+                { text: "Hủy", class: "btn-cancel", onclick: closeModal } 
+            ]); 
+        }        function duplicateTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let n = tab+"_copy"; sysData.tabOrder.push(n); sysData.sheets[n] = JSON.parse(JSON.stringify(sysData.sheets[tab])); sysData.attributes[n] = JSON.parse(JSON.stringify(sysData.attributes[tab] || {})); activeTab=n; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'duplicate', oldName: tab, newName: n}); }
         function hideTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let attrs = sysData.attributes[tab] = sysData.attributes[tab] || {}; attrs.hidden = true; activeTab = sysData.tabOrder.find(t => !(sysData.attributes[t]||{}).hidden); renderTabs(); renderGrid(); dispatchAttrSave(); }
         function deleteTab(tab) { document.getElementById("tabContextMenu").style.display='none'; if(confirm("Xóa tab?")) { sysData.tabOrder = sysData.tabOrder.filter(t=>t!==tab); delete sysData.sheets[tab]; activeTab = sysData.tabOrder[0]; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'delete', tab: tab}); } }
 
