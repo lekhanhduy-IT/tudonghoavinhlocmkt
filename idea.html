@@ -348,6 +348,80 @@
 
         function showModal(title, bodyHtml, btns) { document.getElementById("modalTitle").innerText = title; document.getElementById("modalBody").innerHTML = bodyHtml; let ft = document.getElementById("modalFooter"); ft.innerHTML = ""; btns.forEach(b => { let btn = document.createElement("button"); btn.innerText = b.text; btn.className = "btn-modal " + (b.class || "btn-blue"); btn.onclick = b.onclick; ft.appendChild(btn); }); document.getElementById("systemModal").style.display = "flex"; }
         function closeModal() { document.getElementById("systemModal").style.display = "none"; }
+        // ==========================================
+// CHỨC NĂNG LÊN LỊCH & CHUYỂN DỮ LIỆU SANG PLAN
+// ==========================================
+
+function openSchedulePopup() {
+    document.getElementById("contextMenu").style.display = "none";
+    
+    if (!selStart) {
+        alert("Vui lòng bôi đen (chọn) dữ liệu cần lên lịch!");
+        return;
+    }
+
+    let minR = Math.min(selStart.r, selEnd.r);
+    if (minR === 0) {
+        alert("Không thể chuyển hàng tiêu đề. Vui lòng chỉ chọn dữ liệu!");
+        return;
+    }
+
+    showModal("Lên Lịch Công Việc", `
+        <div style="margin-bottom: 8px; font-size: 13px; font-weight: bold; color: var(--text-main);">Chọn ngày hoàn thành dự kiến:</div>
+        <input type="date" id="scheduleDate" class="popup-input" style="width: 100%; margin-bottom: 10px; padding: 10px; border-radius: 4px; border: 1px solid var(--gray-border);">
+    `, [
+        { text: "Lên lịch & Chuyển", class: "btn-blue", onclick: processSchedule },
+        { text: "Hủy", class: "btn-cancel", onclick: closeModal }
+    ]);
+}
+
+function processSchedule() {
+    let dateVal = document.getElementById("scheduleDate").value;
+    if (!dateVal) return alert("Vui lòng chọn ngày hợp lệ!");
+
+    let minR = Math.min(selStart.r, selEnd.r), maxR = Math.max(selStart.r, selEnd.r), countR = maxR - minR + 1;
+    let mat = sysData.sheets[activeTab];
+
+    // Tạo tab ẩn chứa dữ liệu lịch nếu hệ thống chưa có
+    if (!sysData.sheets["_PLAN_DATA_"]) {
+        sysData.tabOrder.push("_PLAN_DATA_");
+        sysData.sheets["_PLAN_DATA_"] = [["Tab", "Date", "Data"]];
+        dispatchAction({type:'MANAGE_TAB', action:'create', tab: "_PLAN_DATA_"});
+        dispatchAction({type:'SYNC_CELL', row: 1, col: 1, val: "Tab", tab: "_PLAN_DATA_"});
+        dispatchAction({type:'SYNC_CELL', row: 1, col: 2, val: "Date", tab: "_PLAN_DATA_"});
+        dispatchAction({type:'SYNC_CELL', row: 1, col: 3, val: "Data", tab: "_PLAN_DATA_"});
+        
+        let attrs = sysData.attributes["_PLAN_DATA_"] || {};
+        attrs.hidden = true;
+        sysData.attributes["_PLAN_DATA_"] = attrs;
+        dispatchAction({type: 'SAVE_TAB_ATTRS', targetTab: "_PLAN_DATA_", attributes: attrs});
+    }
+
+    let planMat = sysData.sheets["_PLAN_DATA_"];
+    let rowsToMove = mat.slice(minR, maxR + 1);
+
+    // 1. Lưu các dòng đã chọn vào _PLAN_DATA_
+    let startRowPlan = planMat.length + 1;
+    rowsToMove.forEach((row, i) => {
+        let rowJson = JSON.stringify(row);
+        planMat.push([activeTab, dateVal, rowJson]);
+        
+        // Đẩy Queue lên Apps Script
+        dispatchAction({type:'STRUCTURAL', action:'insertRow', index: startRowPlan + i, count: 1, tab: "_PLAN_DATA_"});
+        dispatchAction({type:'SYNC_CELL', row: startRowPlan + i, col: 1, val: activeTab, tab: "_PLAN_DATA_"});
+        dispatchAction({type:'SYNC_CELL', row: startRowPlan + i, col: 2, val: dateVal, tab: "_PLAN_DATA_"});
+        dispatchAction({type:'SYNC_CELL', row: startRowPlan + i, col: 3, val: rowJson, tab: "_PLAN_DATA_"});
+    });
+
+    // 2. Xóa các dòng này khỏi tab hiện tại
+    mat.splice(minR, countR);
+    if(mat.length === 0) mat.push(Array(sysData.sheets[activeTab][0].length).fill("")); // Giữ lại ít nhất 1 dòng nếu lỡ tay xóa hết
+    dispatchAction({type:'STRUCTURAL', action:'deleteRow', index: minR + 1, count: countR, tab: activeTab});
+
+    closeModal();
+    renderGrid();
+    selStart = null; selEnd = null; // Reset vùng chọn
+}
     </script>
 </body>
 </html>
