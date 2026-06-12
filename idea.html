@@ -301,8 +301,33 @@
         function promptRenameTab(old) { document.getElementById("tabContextMenu").style.display = 'none'; showModal("Đổi Tên Tab", `<input type="text" id="renTabInput" class="popup-input" value="${old}">`, [ { text: "Lưu", class: "tool-btn", onclick: () => { let n = document.getElementById("renTabInput").value.trim(); if(n && n !== old) { let idx = sysData.tabOrder.indexOf(old); sysData.tabOrder[idx] = n; sysData.sheets[n] = sysData.sheets[old]; delete sysData.sheets[old]; sysData.attributes[n] = sysData.attributes[old]; delete sysData.attributes[old]; activeTab = n; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'rename', oldName: old, newName: n}); closeModal(); } } }, { text: "Hủy", class: "tool-btn", onclick: closeModal } ]); }
         function duplicateTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let n = tab+"_copy"; sysData.tabOrder.push(n); sysData.sheets[n] = JSON.parse(JSON.stringify(sysData.sheets[tab])); sysData.attributes[n] = JSON.parse(JSON.stringify(sysData.attributes[tab] || {})); activeTab=n; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'duplicate', oldName: tab, newName: n}); }
         function hideTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let attrs = sysData.attributes[tab] = sysData.attributes[tab] || {}; attrs.hidden = true; activeTab = sysData.tabOrder.find(t => !(sysData.attributes[t]||{}).hidden); renderTabs(); renderGrid(); dispatchAttrSave(); }
-        function deleteTab(tab) { document.getElementById("tabContextMenu").style.display='none'; if(confirm("Xóa tab?")) { sysData.tabOrder = sysData.tabOrder.filter(t=>t!==tab); delete sysData.sheets[tab]; activeTab = sysData.tabOrder[0]; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'delete', tab: tab}); } }
-
+function deleteTab(tab) { 
+            document.getElementById("tabContextMenu").style.display = 'none'; 
+            showModal("Xác nhận xóa Tab", 
+                `<p style="font-size: 14px; margin-bottom: 10px;">Bạn có chắc chắn muốn xóa vĩnh viễn tab <b style="color: var(--red);">${tab}</b> không?</p>
+                 <p style="font-size: 12px; color: #666; font-style: italic;">Hành động này sẽ xóa toàn bộ dữ liệu trong tab và không thể hoàn tác.</p>`, 
+                [ 
+                    { 
+                        text: "Xóa ngay", 
+                        class: "btn-blue", 
+                        onclick: () => { 
+                            sysData.tabOrder = sysData.tabOrder.filter(t => t !== tab); 
+                            delete sysData.sheets[tab]; 
+                            activeTab = sysData.tabOrder[0] || ""; 
+                            renderTabs(); 
+                            renderGrid(); 
+                            dispatchAction({type: 'MANAGE_TAB', action: 'delete', tab: tab}); 
+                            closeModal(); 
+                        } 
+                    }, 
+                    { 
+                        text: "Hủy", 
+                        class: "btn-cancel", 
+                        onclick: closeModal 
+                    } 
+                ]
+            ); 
+        }
         function showModal(title, bodyHtml, btns) { document.getElementById("modalTitle").innerText = title; document.getElementById("modalBody").innerHTML = bodyHtml; let ft = document.getElementById("modalFooter"); ft.innerHTML = ""; btns.forEach(b => { let btn = document.createElement("button"); btn.innerText = b.text; btn.className = "tool-btn"; if(b.class === "btn-blue") { btn.style.background = "var(--blue)"; btn.style.color = "var(--white)"; } else { btn.style.background = "var(--white)"; btn.style.color = "var(--text-main)"; btn.style.borderColor = "var(--gray-border)"; } btn.onclick = b.onclick; ft.appendChild(btn); }); document.getElementById("systemModal").style.display = "flex"; }
         function closeModal() { document.getElementById("systemModal").style.display = "none"; }
     </script>
