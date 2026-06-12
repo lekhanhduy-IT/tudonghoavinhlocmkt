@@ -7,7 +7,13 @@
     <link rel="icon" href="https://i.postimg.cc/xCjmFrb4/Untitled-design.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        :root { --white: #ffffff; --blue: #01adee; --red: #db1010; --text-main: #333333; --gray-border: #e0e0e0; }
+        :root { 
+            --white: #ffffff; 
+            --blue: #01adee; 
+            --red: #db1010; 
+            --text-main: #333333; 
+            --gray-border: #e0e0e0; 
+        }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
         body { display: flex; height: 100vh; overflow: hidden; background: var(--white); color: var(--text-main); }
         
@@ -15,14 +21,19 @@
         .sidebar.collapsed { width: 60px; }
         .sidebar-header { height: 60px; display: flex; align-items: center; border-bottom: 0.5px solid var(--gray-border); }
         .toggle-btn { width: 60px; height: 60px; background: transparent; border: none; font-size: 20px; color: var(--text-main); opacity: 0.7; cursor: pointer; flex-shrink: 0; display: flex; justify-content: center; align-items: center; }
-        .brand { font-size: 18px; font-weight: 900; color: var(--blue); opacity: 1; transition: opacity 0.2s; display: flex; align-items: center; }
+        
+        /* Cập nhật Brand: Chữ đen, nét mỏng, size 18px */
+        .brand { font-size: 18px; font-weight: 300; color: #000000; opacity: 1; transition: opacity 0.2s; display: flex; align-items: center; }
         .brand img { height: 30px; margin-right: 10px; }
         .sidebar.collapsed .brand { opacity: 0; pointer-events: none; }
         
-        .menu-item-side { padding: 0; display: flex; align-items: center; cursor: pointer; border-bottom: 0.5px solid var(--gray-border); transition: 0.3s; color: var(--blue); text-decoration: none;}
+        /* Cập nhật Menu Item: Chữ đen */
+        .menu-item-side { padding: 0; display: flex; align-items: center; cursor: pointer; border-bottom: 0.5px solid var(--gray-border); transition: 0.3s; color: #000000; text-decoration: none;}
         .menu-item-side:hover, .menu-item-side.active { background: var(--blue); color: var(--white); }
         .icon { width: 60px; height: 50px; display: flex; justify-content: center; align-items: center; font-size: 18px; flex-shrink: 0; }
-        .text { font-weight: bold; transition: opacity 0.2s; opacity: 1; }
+        
+        /* Cập nhật Text Menu: Nét mỏng, size 18px */
+        .text { font-weight: 300; font-size: 18px; transition: opacity 0.2s; opacity: 1; }
         .sidebar.collapsed .text { opacity: 0; pointer-events: none; }
 
         .main-content { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -34,7 +45,16 @@
         
         .user-actions { display: flex; align-items: center; gap: 15px; }
         .logout-btn { background: var(--red); color: var(--white); border: none; padding: 8px 16px; font-weight: bold; border-radius: 4px; cursor: pointer; }
-        #moduleFrame { flex-grow: 1; border: none; width: 100%; height: 100%; background: #f9f9f9; }
+        
+        /* Thêm hiệu ứng transition cho iframe để tạo hoạt ảnh cuộn dọc */
+        #moduleFrame { 
+            flex-grow: 1; 
+            border: none; 
+            width: 100%; 
+            height: 100%; 
+            background: #f9f9f9; 
+            transition: transform 0.4s ease-in-out, opacity 0.4s ease-in-out;
+        }
 
         @media (max-width: 768px) { .sidebar { position: absolute; height: 100%; transform: translateX(-100%); } .sidebar.mobile-open { transform: translateX(0); } }
     </style>
@@ -51,7 +71,7 @@
         <a href="#" class="menu-item-side" onclick="loadModule('post.html', this)"><div class="icon"><i class="fas fa-file-alt"></i></div><div class="text">BÀI VIẾT</div></a>
         <a href="#" class="menu-item-side" onclick="loadModule('image.html', this)"><div class="icon"><i class="fas fa-images"></i></div><div class="text">HÌNH ẢNH</div></a>
         
-        <a href="#" id="menuSettings" class="menu-item-side" style="color: var(--red); display: none;" onclick="loadModule('caidat.html', this)"><div class="icon"><i class="fas fa-cogs"></i></div><div class="text">CÀI ĐẶT</div></a>
+        <a href="#" id="menuSettings" class="menu-item-side" style="display: none;" onclick="loadModule('caidat.html', this)"><div class="icon"><i class="fas fa-cogs"></i></div><div class="text">CÀI ĐẶT</div></a>
     </div>
 
     <div class="main-content">
@@ -63,7 +83,7 @@
                 </div>
             </div>
             <div class="user-actions">
-                <span style="color: var(--blue); font-weight: bold;" id="welcomeUser"></span>
+                <span style="color: #000000; font-weight: 300; font-size: 18px;" id="welcomeUser"></span>
                 <button class="logout-btn" onclick="logout()">Đăng Xuất</button>
             </div>
         </div>
@@ -80,13 +100,41 @@
 
         function logout() { localStorage.clear(); window.location.href = 'index.html'; }
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
+        
+        // Cập nhật hàm loadModule để xử lý hiệu ứng cuộn dọc
         function loadModule(url, element) {
-            document.querySelectorAll('.menu-item-side').forEach(el => el.classList.remove('active')); element.classList.add('active');
-            document.getElementById('moduleFrame').src = url; document.getElementById('globalSearch').value = "";
+            // Xóa active khỏi tất cả menu và thêm vào menu được chọn
+            document.querySelectorAll('.menu-item-side').forEach(el => el.classList.remove('active')); 
+            element.classList.add('active');
+            
+            const frame = document.getElementById('moduleFrame');
+            
+            // Bước 1: Trượt iframe hiện tại lên trên và làm mờ đi
+            frame.style.transform = 'translateY(-100px)';
+            frame.style.opacity = '0';
+
+            // Bước 2: Chờ hiệu ứng mờ xong (400ms) rồi đổi src
+            setTimeout(() => {
+                frame.src = url; 
+                document.getElementById('globalSearch').value = "";
+                
+                // Đưa iframe giấu xuống dưới trước khi trượt lên
+                frame.style.transform = 'translateY(100px)';
+                
+                // Bước 3: Sau khi trang mới đã tải xong, trượt nó vào vị trí giữa và hiện rõ
+                frame.onload = () => {
+                    frame.style.transform = 'translateY(0)';
+                    frame.style.opacity = '1';
+                };
+            }, 400); // Khớp với thời gian transition trong CSS
         }
+
         function executeGlobalSearch() {
-            let kw = document.getElementById('globalSearch').value.trim(); let frame = document.getElementById('moduleFrame');
-            if(frame && frame.contentWindow && typeof frame.contentWindow.executeSearch === 'function') frame.contentWindow.executeSearch(kw);
+            let kw = document.getElementById('globalSearch').value.trim(); 
+            let frame = document.getElementById('moduleFrame');
+            if(frame && frame.contentWindow && typeof frame.contentWindow.executeSearch === 'function') {
+                frame.contentWindow.executeSearch(kw);
+            }
         }
     </script>
 </body>
