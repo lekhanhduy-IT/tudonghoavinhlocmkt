@@ -3,29 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cài Đặt Hệ Thống</title>
+    <title>Cài Đặt</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* CHỦ ĐỀ ĐEN (DARK THEME) CHO MODULE CÀI ĐẶT */
         :root { --bg-main: #111a22; --bg-card: #1a252f; --text-light: #f1f3f4; --blue: #01adee; --red: #db1010; --gray-border: #2c3e50; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
         body { background: var(--bg-main); color: var(--text-light); height: 100vh; display: flex; flex-direction: column; overflow: hidden; padding: 20px; }
 
         .settings-container { max-width: 800px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; height: 100%; }
-        .header-title { font-size: 24px; font-weight: bold; border-bottom: 2px solid var(--gray-border); padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .header-title { font-size: 24px; font-weight: bold; border-bottom: 0.5px solid var(--gray-border); padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
         
-        .card { background: var(--bg-card); border: 1px solid var(--gray-border); border-radius: 8px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        .card { background: var(--bg-card); border: 0.5px solid var(--gray-border); border-radius: 8px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .card h3 { margin-bottom: 15px; color: var(--text-light); font-size: 18px; }
         .card p { font-size: 13px; color: #aab7c4; margin-bottom: 20px; }
 
         .input-group { display: flex; gap: 10px; margin-bottom: 25px; }
-        .input-group input { flex: 1; padding: 12px 15px; border: 1px solid var(--gray-border); background: var(--bg-main); color: var(--white); border-radius: 4px; outline: none; font-size: 14px; }
+        .input-group input { flex: 1; padding: 12px 15px; border: 0.5px solid var(--gray-border); background: var(--bg-main); color: var(--white); border-radius: 4px; outline: none; font-size: 14px; }
         .input-group input:focus { border-color: var(--blue); }
         .btn-add { background: var(--blue); color: #fff; border: none; padding: 0 20px; font-weight: bold; border-radius: 4px; cursor: pointer; transition: 0.2s; }
         .btn-add:hover { background: #0199d3; }
 
-        .admin-list { list-style: none; overflow-y: auto; max-height: 400px; border: 1px solid var(--gray-border); border-radius: 4px; background: var(--bg-main); }
-        .admin-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid var(--gray-border); transition: 0.2s; }
+        .admin-list { list-style: none; overflow-y: auto; max-height: 400px; border: 0.5px solid var(--gray-border); border-radius: 4px; background: var(--bg-main); }
+        .admin-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 0.5px solid var(--gray-border); transition: 0.2s; }
         .admin-item:hover { background: #15202b; }
         .admin-item:last-child { border-bottom: none; }
         .admin-email { font-size: 15px; font-weight: 500; }
@@ -33,126 +32,58 @@
         .btn-delete { background: transparent; color: var(--red); border: none; cursor: pointer; font-size: 16px; padding: 5px; transition: 0.2s; }
         .btn-delete:hover { transform: scale(1.1); }
         .btn-delete:disabled { color: #555; cursor: not-allowed; }
-
         #syncStatus { font-size: 13px; font-weight: bold; }
     </style>
 </head>
 <body>
-
     <div class="settings-container">
         <div class="header-title">
             <span><i class="fas fa-user-shield" style="color:var(--blue);"></i> PHÂN QUYỀN QUẢN TRỊ VIÊN</span>
             <span id="syncStatus">🔄 Đang tải...</span>
         </div>
-
         <div class="card">
-            <h3>Thêm Tài Khoản Admin Mới</h3>
-            <p>Tài khoản Gmail được thêm vào danh sách này sẽ có toàn quyền truy cập vào giao diện Admin (Thêm, Sửa, Xóa Dữ liệu).</p>
-            
+            <h3>Cấp Quyền Truy Cập Giao Diện Admin</h3>
+            <p>Các tài khoản Gmail được thêm vào danh sách này sẽ vượt qua được màn hình đăng nhập để vào giao diện quản trị.</p>
             <div class="input-group">
-                <input type="email" id="newAdminEmail" placeholder="Nhập địa chỉ Gmail (VD: nhanvien@gmail.com)...">
-                <button class="btn-add" onclick="addAdmin()"><i class="fas fa-plus"></i> THÊM QUYỀN</button>
+                <input type="email" id="newAdminEmail" placeholder="Nhập địa chỉ Gmail...">
+                <button class="btn-add" onclick="addAdmin()"><i class="fas fa-key"></i> CẤP QUYỀN</button>
             </div>
-
-            <ul class="admin-list" id="adminListContainer">
-                </ul>
+            <ul class="admin-list" id="adminListContainer"></ul>
         </div>
     </div>
-
     <script>
-        // API URL (NHỚ THAY BẰNG LINK CỦA BẠN)
-        const API_URL = "https://script.google.com/macros/s/AKfycbwidKF9KKL6oLFObO5-SMwoH0Z6O2cZ4hD1WvH7XHGldJwk8K_eZpkAXQR1OpawZAs/exec";
-        
-        let adminList = [];
-        const MASTER_ADMIN = "admin@tudonghoavinhloc.com"; // Admin gốc không thể bị xóa
-
-        window.onload = () => {
-            fetchAdminList();
-        };
-
-        function setSyncStatus(msg, color) {
-            let s = document.getElementById('syncStatus');
-            s.innerHTML = msg; s.style.color = color;
-        }
-
-        // TẢI DANH SÁCH TỪ GOOGLE SCRIPT
+        const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+        let adminList = []; const MASTER_ADMIN = "admin@tudonghoavinhloc.com";
+        window.onload = () => fetchAdminList();
+        function setSyncStatus(msg, color) { document.getElementById('syncStatus').innerHTML = msg; document.getElementById('syncStatus').style.color = color; }
         async function fetchAdminList() {
             try {
-                setSyncStatus("🔄 Đang tải...", "var(--blue)");
-                let res = await fetch(API_URL + "?action=get_admins&t=" + new Date().getTime());
-                let json = await res.json();
-                if(json.success) {
-                    adminList = json.admins;
-                    renderAdminList();
-                    setSyncStatus("✅ Đã cập nhật", "#27ae60");
-                }
-            } catch (e) {
-                setSyncStatus("⚠️ Lỗi mạng", "var(--red)");
-            }
+                setSyncStatus("🔄 Đang tải...", "var(--blue)"); let res = await fetch(API_URL + "?action=get_admins&t=" + new Date().getTime()); let json = await res.json();
+                if(json.success) { adminList = json.admins; renderAdminList(); setSyncStatus("✅ Đã cập nhật", "#27ae60"); }
+            } catch (e) { setSyncStatus("⚠️ Lỗi mạng", "var(--red)"); }
         }
-
         function renderAdminList() {
-            const container = document.getElementById('adminListContainer');
-            container.innerHTML = '';
-            
+            const container = document.getElementById('adminListContainer'); container.innerHTML = '';
             adminList.forEach(email => {
-                let isMaster = email === MASTER_ADMIN;
-                let li = document.createElement('li');
-                li.className = 'admin-item';
-                li.innerHTML = `
-                    <div>
-                        <span class="admin-email">${email}</span>
-                        ${isMaster ? '<span class="admin-role" style="background:var(--red);">Master</span>' : '<span class="admin-role">Admin</span>'}
-                    </div>
-                    <button class="btn-delete" onclick="removeAdmin('${email}')" ${isMaster ? 'disabled title="Không thể xóa Master Admin"' : 'title="Gỡ quyền Admin"'}><i class="fas fa-trash-alt"></i></button>
-                `;
+                let isMaster = email === MASTER_ADMIN; let li = document.createElement('li'); li.className = 'admin-item';
+                li.innerHTML = `<div><span class="admin-email">${email}</span>${isMaster ? '<span class="admin-role" style="background:var(--red);">Chủ sở hữu</span>' : '<span class="admin-role">Được phép truy cập</span>'}</div><button class="btn-delete" onclick="removeAdmin('${email}')" ${isMaster ? 'disabled title="Không thể xóa"' : 'title="Thu hồi quyền"'}><i class="fas fa-times-circle"></i></button>`;
                 container.appendChild(li);
             });
         }
-
-        // THÊM ADMIN (GỬI LỆNH LÊN MÁY CHỦ)
         async function addAdmin() {
-            let emailInput = document.getElementById('newAdminEmail');
-            let email = emailInput.value.trim().toLowerCase();
-            
-            if (!email || !email.includes('@')) return alert("Vui lòng nhập Email hợp lệ!");
-            if (adminList.includes(email)) return alert("Email này đã có quyền Admin!");
-
-            setSyncStatus("⏳ Đang lưu...", "#f39c12");
-            adminList.push(email);
-            renderAdminList();
-            emailInput.value = "";
-
-            await syncAdminListToServer();
+            let emailInput = document.getElementById('newAdminEmail'); let email = emailInput.value.trim().toLowerCase();
+            if (!email || !email.includes('@')) return alert("Vui lòng nhập Email hợp lệ!"); if (adminList.includes(email)) return alert("Email này đã có quyền Admin!");
+            setSyncStatus("⏳ Đang lưu...", "#f39c12"); adminList.push(email); renderAdminList(); emailInput.value = ""; await syncAdminListToServer();
         }
-
-        // XÓA ADMIN
         async function removeAdmin(email) {
-            if (email === MASTER_ADMIN) return;
-            if (!confirm(`Bạn có chắc muốn gỡ quyền truy cập của ${email}?`)) return;
-
-            setSyncStatus("⏳ Đang xóa...", "#f39c12");
-            adminList = adminList.filter(e => e !== email);
-            renderAdminList();
-
-            await syncAdminListToServer();
+            if (email === MASTER_ADMIN || !confirm(`Gỡ quyền truy cập của ${email}?`)) return;
+            setSyncStatus("⏳ Đang xóa...", "#f39c12"); adminList = adminList.filter(e => e !== email); renderAdminList(); await syncAdminListToServer();
         }
-
-        // ĐỒNG BỘ MẢNG EMAIL LÊN GOOGLE APPS SCRIPT
         async function syncAdminListToServer() {
             try {
-                let action = { type: 'MANAGE_ADMINS', emails: adminList };
-                let res = await fetch(API_URL, {
-                    method: "POST",
-                    body: JSON.stringify([action]), // Gói vào mảng theo cấu trúc Queue của bạn
-                    headers: { "Content-Type": "text/plain;charset=utf-8" }
-                });
-                let json = await res.json();
-                if (json.success) setSyncStatus("✅ Đã lưu", "#27ae60");
-                else setSyncStatus("⚠️ Lỗi lưu", "var(--red)");
-            } catch (e) {
-                setSyncStatus("⚠️ Lỗi mạng", "var(--red)");
-            }
+                let res = await fetch(API_URL, { method: "POST", body: JSON.stringify([{ type: 'MANAGE_ADMINS', emails: adminList }]), headers: { "Content-Type": "text/plain;charset=utf-8" } });
+                let json = await res.json(); if (json.success) setSyncStatus("✅ Đã lưu", "#27ae60"); else setSyncStatus("⚠️ Lỗi lưu", "var(--red)");
+            } catch (e) { setSyncStatus("⚠️ Lỗi mạng", "var(--red)"); }
         }
     </script>
 </body>

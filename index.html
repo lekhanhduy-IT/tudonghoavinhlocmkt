@@ -7,11 +7,11 @@
     <link rel="icon" href="https://i.postimg.cc/xCjmFrb4/Untitled-design.png">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
-        :root { --white: #ffffff; --blue: #01adee; --red: #db1010; }
+        :root { --white: #ffffff; --blue: #01adee; --red: #db1010; --text-main: #333333; --gray-border: #e0e0e0; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
         body { background-color: var(--white); color: var(--blue); display: flex; flex-direction: column; height: 100vh; }
         
-        nav { background: var(--white); border-bottom: 2px solid var(--blue); display: flex; padding: 10px 30px; justify-content: space-between; align-items: center; }
+        nav { background: var(--white); border-bottom: 0.5px solid var(--gray-border); display: flex; padding: 10px 30px; justify-content: space-between; align-items: center; }
         .logo { display: flex; align-items: center; font-weight: 900; font-size: 20px; color: var(--blue); }
         .logo img { height: 35px; margin-right: 10px; }
         
@@ -20,7 +20,7 @@
         nav ul li a:hover { color: var(--red); }
         
         .login-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; padding: 20px; }
-        .login-box { background: var(--white); padding: 40px; border: 2px solid var(--blue); border-radius: 12px; box-shadow: 0 4px 15px rgba(1, 173, 238, 0.2); max-width: 450px; width: 100%; text-align: center; }
+        .login-box { background: var(--white); padding: 40px; border: 0.5px solid var(--gray-border); border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 450px; width: 100%; text-align: center; }
         .login-box h2 { color: var(--blue); margin-bottom: 10px; }
         .login-box p { font-size: 14px; color: var(--text-main); margin-bottom: 30px; }
         
@@ -38,19 +38,8 @@
             <li><a href="#">GIỚI THIỆU</a></li>
             <li><a href="#">BLOG</a></li>
             <li>
-                <div id="g_id_onload"
-                     data-client_id="5715002556-9hc14dlk471aq9nnk8e6cet8se84n9h8.apps.googleusercontent.com"
-                     data-context="signin"
-                     data-ux_mode="popup"
-                     data-callback="handleCredentialResponse"
-                     data-auto_select="false">
-                </div>
-                <div class="g_id_signin"
-                     data-type="icon"
-                     data-shape="circle"
-                     data-theme="outline"
-                     data-size="large">
-                </div>
+                <div id="g_id_onload" data-client_id="5715002556-9hc14dlk471aq9nnk8e6cet8se84n9h8.apps.googleusercontent.com" data-context="signin" data-ux_mode="popup" data-callback="handleCredentialResponse" data-auto_select="false"></div>
+                <div class="g_id_signin" data-type="icon" data-shape="circle" data-theme="outline" data-size="large"></div>
             </li>
         </ul>
     </nav>
@@ -60,49 +49,29 @@
             <img src="https://i.postimg.cc/xCjmFrb4/Untitled-design.png" height="60" style="margin-bottom: 15px;">
             <h2>Hệ Thống Quản Trị</h2>
             <p>Sử dụng nút Google ở góc phải phía trên để đăng nhập vào hệ thống Admin.</p>
-            <p id="loginError">Quyền truy cập bị từ chối. Tài khoản của bạn không phải là Admin.</p>
+            <p id="loginError">Quyền truy cập bị từ chối.</p>
         </div>
     </div>
 
     <script>
         if (localStorage.getItem('admin_session') === 'verified_admin') window.location.href = 'admin.html';
-
         async function handleCredentialResponse(response) {
             try {
-                // Giải mã Token Google
                 const base64Url = response.credential.split('.')[1];
                 const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-                const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-                const profile = JSON.parse(jsonPayload);
+                const profile = JSON.parse(decodeURIComponent(window.atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')));
                 const email = profile.email ? profile.email.toLowerCase().trim() : "";
 
-                // GỌI API ĐỂ KIỂM TRA QUYỀN TRUY CẬP ĐỘNG
-                // (NHỚ THAY BẰNG LINK API CỦA BẠN VÀO ĐÂY)
-                const API_URL = "https://script.google.com/macros/s/AKfycbwidKF9KKL6oLFObO5-SMwoH0Z6O2cZ4hD1WvH7XHGldJwk8K_eZpkAXQR1OpawZAs/exec";
-                
-                document.getElementById('loginError').style.display = 'block';
-                document.getElementById('loginError').style.background = '#01adee';
-                document.getElementById('loginError').innerText = "Đang kiểm tra quyền truy cập...";
-
-                let res = await fetch(API_URL + "?action=get_admins&t=" + new Date().getTime());
-                let data = await res.json();
+                const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+                document.getElementById('loginError').style.display = 'block'; document.getElementById('loginError').style.background = '#01adee'; document.getElementById('loginError').innerText = "Đang kiểm tra quyền truy cập...";
+                let res = await fetch(API_URL + "?action=get_admins&t=" + new Date().getTime()); let data = await res.json();
 
                 if (data.success && data.admins.includes(email)) {
-                    // Nếu email nằm trong danh sách -> CHO VÀO
-                    localStorage.setItem('admin_session', 'verified_admin');
-                    localStorage.setItem('admin_email', email);
-                    localStorage.setItem('admin_name', profile.name || 'Admin');
-                    window.location.href = 'admin.html';
+                    localStorage.setItem('admin_session', 'verified_admin'); localStorage.setItem('admin_email', email); localStorage.setItem('admin_name', profile.name || 'Admin'); window.location.href = 'admin.html';
                 } else {
-                    // Nếu không có quyền -> ĐUỔI RA
-                    localStorage.removeItem('admin_session');
-                    document.getElementById('loginError').style.background = 'var(--red)';
-                    document.getElementById('loginError').innerText = "Quyền truy cập bị từ chối. Tài khoản của bạn không nằm trong danh sách Admin.";
+                    localStorage.removeItem('admin_session'); document.getElementById('loginError').style.background = 'var(--red)'; document.getElementById('loginError').innerText = "Quyền truy cập bị từ chối. Tài khoản của bạn không nằm trong danh sách Admin.";
                 }
-            } catch (error) { 
-                document.getElementById('loginError').style.background = 'var(--red)';
-                document.getElementById('loginError').innerText = "Lỗi kết nối đến máy chủ xác thực.";
-            }
+            } catch (error) { document.getElementById('loginError').style.background = 'var(--red)'; document.getElementById('loginError').innerText = "Lỗi kết nối đến máy chủ xác thực."; }
         }
     </script>
 </body>
