@@ -55,10 +55,10 @@
         .dropdown-ui:hover { background: #e8eaed; }
         .dropdown-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 
-        /* POPUPS & MENUS */
+        /* POPUPS & MENUS (ĐÃ FIX LỖI HOVER MÀU TRẮNG) */
         .popup-box { position: absolute; background: var(--white); border: 2px solid var(--blue); box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 9999; display: none; padding: 5px 0; border-radius: 4px; }
         .menu-item { padding: 8px 15px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; color: var(--text-main); }
-        .menu-item:hover { background: var(--blue); color: var(--white); }
+        .menu-item:hover { background: var(--blue); color: var(--white) !important; }
         .divider { border-bottom: 1px solid var(--gray-border); margin: 4px 0; }
         .popup-input { width: 100%; padding: 6px; border: 1px solid var(--blue); outline: none; margin-bottom: 8px; font-size: 13px; }
 
@@ -85,7 +85,6 @@
     </style>
 
     <script>
-        // XÁC THỰC ADMIN
         if (localStorage.getItem('admin_session') !== 'verified_admin' || localStorage.getItem('admin_email') !== 'admin@tudonghoavinhloc.com') {
             localStorage.clear(); window.location.href = 'index.html';
         }
@@ -191,14 +190,15 @@
         function logout() { localStorage.clear(); window.location.href = 'index.html'; }
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
 
-        // 1. CẤU HÌNH API BACKEND
+        // ================= 1. CẤU HÌNH API BACKEND =================
         const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
 
-        // 2. STATE & CACHE
+        // ================= 2. STATE & CACHE =================
         let sysData = { sheets: {}, attributes: {}, tabOrder: [], filters: {} };
         let activeTab = "";
         let actionQueue = [];
         let isProcessingQueue = false;
+        let currentSyncToken = 0; // Biến theo dõi đồng bộ đa thiết bị
         
         let selStart = null, selEnd = null;
         let isFullRow = false, isFullCol = false;
@@ -207,7 +207,7 @@
 
         const stdColors = ["#000000", "#434343", "#666666", "#999999", "#b7b7b7", "#cccccc", "#d9d9d9", "#efefef", "#f3f3f3", "#ffffff", "#980000", "#ff0000", "#ff9900", "#ffff00", "#00ff00", "#00ffff", "#4a86e8", "#0000ff", "#9900ff", "#ff00ff", "#db1010", "#01adee", "#4caf50", "#ffeb3b", "#ff9800", "#795548", "#e91e63", "#9c27b0", "#3f51b5", "#009688"];
 
-        // 3. KHỞI TẠO & NGĂN POPUP ĐÓNG BẬY BẠ
+        // ================= 3. KHỞI TẠO =================
         window.onload = () => {
             let grid = document.getElementById("standardColorGrid");
             stdColors.forEach(c => {
@@ -217,25 +217,16 @@
             });
 
             let cached = localStorage.getItem("MKT_DATA");
-            if (cached) { sysData = JSON.parse(cached); activeTab = sysData.tabOrder[0]; renderTabs(); renderGrid(); }
+            if (cached) { sysData = JSON.parse(cached); activeTab = sysData.tabOrder[0]; currentSyncToken = sysData.syncToken || 0; renderTabs(); renderGrid(); }
             
             fetchDataFromServer();
-            setInterval(processQueueAndSync, 3000);
+            setInterval(processQueueAndSync, 4000); // Đã kích hoạt Polling chéo thiết bị
             
             document.addEventListener('paste', handlePasteEvent);
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
-            
-            // Xóa popup khi click ra ngoài, NHƯNG giữ lại nếu click vào trong popup
-            document.addEventListener('click', (e) => {
-                document.querySelectorAll('.popup-box').forEach(el => {
-                    if(!el.contains(e.target)) el.style.display = 'none';
-                });
-            });
-            // Chống đóng popup khi click vào input
-            document.querySelectorAll('.popup-box').forEach(box => {
-                box.addEventListener('click', (e) => e.stopPropagation());
-            });
+            document.addEventListener('click', (e) => { document.querySelectorAll('.popup-box').forEach(el => { if(!el.contains(e.target)) el.style.display = 'none'; }); });
+            document.querySelectorAll('.popup-box').forEach(box => { box.addEventListener('click', (e) => e.stopPropagation()); });
         };
 
         function setSyncStatus(msg, color) {
@@ -243,16 +234,17 @@
             s.innerText = msg; s.style.color = color;
         }
 
-        // 4. API GIAO TIẾP
+        // ================= 4. API GIAO TIẾP =================
         async function fetchDataFromServer() {
             try {
-                setSyncStatus("🔄 Đang tải...", "#f39c12");
+                if(actionQueue.length === 0) setSyncStatus("🔄 Đang tải...", "#f39c12");
                 let url = API_URL + "?t=" + new Date().getTime();
                 let res = await fetch(url, { method: "GET", redirect: "follow", cache: "no-store" });
                 let json = await res.json();
                 if(json.success) {
                     let localFilters = sysData.filters;
                     sysData = json.data; sysData.filters = localFilters || {};
+                    currentSyncToken = sysData.syncToken;
                     localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
                     if(!activeTab || !sysData.tabOrder.includes(activeTab)) activeTab = sysData.tabOrder[0];
                     renderTabs(); renderGrid();
@@ -261,17 +253,33 @@
             } catch(e) { setSyncStatus("⚠️ Offline", "#e74c3c"); }
         }
 
+        // CƠ CHẾ ĐỒNG BỘ ĐA THIẾT BỊ (NÃO NHỆN)
         async function processQueueAndSync() {
-            if(actionQueue.length === 0 || isProcessingQueue) return;
+            if(isProcessingQueue) return;
             isProcessingQueue = true;
             let batch = [...actionQueue]; actionQueue = []; 
             try {
-                setSyncStatus("⏳ Đang đồng bộ...", "#f39c12");
+                if(batch.length > 0) setSyncStatus("⏳ Đang đồng bộ...", "#f39c12");
+                
+                // Kể cả khi mảng rỗng (batch=[]), vẫn ping server để lấy Sync Token mới nhất
                 let res = await fetch(API_URL, { method: "POST", body: JSON.stringify(batch), headers: { "Content-Type": "text/plain;charset=utf-8" } });
                 let json = await res.json();
-                if (!json.success) { actionQueue = batch.concat(actionQueue); }
-                else setSyncStatus("✅ Đã lưu", "#27ae60");
-            } catch(e) { actionQueue = batch.concat(actionQueue); setSyncStatus("⚠️ Đợi mạng...", "#e74c3c"); }
+                
+                if (!json.success) { 
+                    if(batch.length > 0) actionQueue = batch.concat(actionQueue); 
+                } else { 
+                    if(batch.length > 0) setSyncStatus("✅ Đã lưu", "#27ae60"); 
+                    
+                    // NẾU PHÁT HIỆN SERVER CÓ DỮ LIỆU MỚI TỪ MÁY KHÁC (TOKEN CAO HƠN)
+                    if (currentSyncToken !== 0 && json.syncToken > currentSyncToken && batch.length === 0) {
+                        setSyncStatus("🔄 Có dữ liệu mới...", "#f39c12");
+                        await fetchDataFromServer();
+                    }
+                    currentSyncToken = json.syncToken;
+                }
+            } catch(e) { 
+                if(batch.length > 0) { actionQueue = batch.concat(actionQueue); setSyncStatus("⚠️ Đợi mạng...", "#e74c3c"); }
+            }
             isProcessingQueue = false;
         }
 
@@ -280,13 +288,12 @@
             localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
         }
 
-        // ĐẨY THUỘC TÍNH VÀO SHEET ĐUÔI _attributes NHƯ YÊU CẦU
         function dispatchAttrSave() {
             let attrs = sysData.attributes[activeTab];
             dispatchAction({type: 'SAVE_TAB_ATTRS', targetTab: activeTab, attributes: attrs});
         }
 
-        // 5. RENDER BẢNG TÍNH LÕI
+        // ================= 5. RENDER BẢNG TÍNH LÕI =================
         function renderTabs() {
             let wrap = document.getElementById("tabsWrapper"); wrap.innerHTML = "";
             sysData.tabOrder.forEach(tab => {
@@ -517,39 +524,9 @@
         function setType(type) { document.getElementById("contextMenu").style.display = "none"; let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; attrs.columnTypes = attrs.columnTypes || {}; let minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c); for(let c=minC; c<=maxC; c++) attrs.columnTypes[c] = type; dispatchAttrSave(); renderGrid(); }
 
         function showTabMenu(e, tab) { e.preventDefault(); e.stopPropagation(); let menu = document.getElementById("tabContextMenu"); menu.innerHTML = ` <div class="menu-item" onclick="promptRenameTab('${tab}')"><i class="fas fa-edit"></i> Đổi tên</div> <div class="menu-item" onclick="duplicateTab('${tab}')"><i class="fas fa-clone"></i> Nhân bản</div> <div class="menu-item" style="color:var(--red);" onclick="hideTab('${tab}')"><i class="fas fa-eye-slash"></i> Ẩn</div> <div class="divider"></div> <div class="menu-item" style="color:var(--red);" onclick="deleteTab('${tab}')"><i class="fas fa-trash"></i> Xóa Tab</div> `; showPopupSafe(menu, e); }
-function promptNewTab() { 
-            showModal("Tạo Tab Mới", `<input type="text" id="newTabInput" class="popup-input" placeholder="Nhập tên tab...">`, [ 
-                { text: "Tạo", class: "btn-blue", onclick: () => { 
-                    let name = document.getElementById("newTabInput").value.trim(); 
-                    if(name && !sysData.tabOrder.includes(name)) { 
-                        sysData.tabOrder.push(name); sysData.sheets[name] = [["A","B","C"]]; activeTab = name; 
-                        renderTabs(); renderGrid(); 
-                        dispatchAction({type:'MANAGE_TAB', action:'create', tab: name}); 
-                        closeModal();
-                    } 
-                }}, 
-                { text: "Hủy", class: "btn-cancel", onclick: closeModal } 
-            ]); 
-        }
-
-        function promptRenameTab(old) { 
-            document.getElementById("tabContextMenu").style.display = 'none'; 
-            showModal("Đổi Tên Tab", `<input type="text" id="renTabInput" class="popup-input" value="${old}">`, [ 
-                { text: "Lưu", class: "btn-blue", onclick: () => { 
-                    let n = document.getElementById("renTabInput").value.trim(); 
-                    if(n && n !== old) { 
-                        let idx = sysData.tabOrder.indexOf(old); sysData.tabOrder[idx] = n; 
-                        sysData.sheets[n] = sysData.sheets[old]; delete sysData.sheets[old]; 
-                        sysData.attributes[n] = sysData.attributes[old]; delete sysData.attributes[old]; 
-                        activeTab = n; 
-                        renderTabs(); renderGrid(); 
-                        dispatchAction({type:'MANAGE_TAB', action:'rename', oldName: old, newName: n}); 
-                        closeModal();
-                    } 
-                }}, 
-                { text: "Hủy", class: "btn-cancel", onclick: closeModal } 
-            ]); 
-        }        function duplicateTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let n = tab+"_copy"; sysData.tabOrder.push(n); sysData.sheets[n] = JSON.parse(JSON.stringify(sysData.sheets[tab])); sysData.attributes[n] = JSON.parse(JSON.stringify(sysData.attributes[tab] || {})); activeTab=n; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'duplicate', oldName: tab, newName: n}); }
+        function promptNewTab() { showModal("Tạo Tab Mới", `<input type="text" id="newTabInput" class="popup-input" placeholder="Nhập tên tab...">`, [ { text: "Tạo", class: "btn-blue", onclick: () => { let name = document.getElementById("newTabInput").value.trim(); if(name && !sysData.tabOrder.includes(name)) { sysData.tabOrder.push(name); sysData.sheets[name] = [["A","B","C"]]; activeTab = name; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'create', tab: name}); closeModal(); } } }, { text: "Hủy", class: "btn-cancel", onclick: closeModal } ]); }
+        function promptRenameTab(old) { document.getElementById("tabContextMenu").style.display = 'none'; showModal("Đổi Tên Tab", `<input type="text" id="renTabInput" class="popup-input" value="${old}">`, [ { text: "Lưu", class: "btn-blue", onclick: () => { let n = document.getElementById("renTabInput").value.trim(); if(n && n !== old) { let idx = sysData.tabOrder.indexOf(old); sysData.tabOrder[idx] = n; sysData.sheets[n] = sysData.sheets[old]; delete sysData.sheets[old]; sysData.attributes[n] = sysData.attributes[old]; delete sysData.attributes[old]; activeTab = n; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'rename', oldName: old, newName: n}); closeModal(); } } }, { text: "Hủy", class: "btn-cancel", onclick: closeModal } ]); }
+        function duplicateTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let n = tab+"_copy"; sysData.tabOrder.push(n); sysData.sheets[n] = JSON.parse(JSON.stringify(sysData.sheets[tab])); sysData.attributes[n] = JSON.parse(JSON.stringify(sysData.attributes[tab] || {})); activeTab=n; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'duplicate', oldName: tab, newName: n}); }
         function hideTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let attrs = sysData.attributes[tab] = sysData.attributes[tab] || {}; attrs.hidden = true; activeTab = sysData.tabOrder.find(t => !(sysData.attributes[t]||{}).hidden); renderTabs(); renderGrid(); dispatchAttrSave(); }
         function deleteTab(tab) { document.getElementById("tabContextMenu").style.display='none'; if(confirm("Xóa tab?")) { sysData.tabOrder = sysData.tabOrder.filter(t=>t!==tab); delete sysData.sheets[tab]; activeTab = sysData.tabOrder[0]; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'delete', tab: tab}); } }
 
