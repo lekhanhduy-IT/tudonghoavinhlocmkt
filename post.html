@@ -21,14 +21,17 @@
         .workspace { flex: 1; position: relative; overflow-y: auto; overflow-x: hidden; display: flex; justify-content: center; padding: 40px 0 100px 0; }
         .editor-container { width: 100%; max-width: 800px; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 5px 20px rgba(0,0,0,0.05); position: relative; display: flex; flex-direction: column; margin-top: 20px;}
         
-        /* Thước đo căn lề */
-        .ruler-h { position: absolute; top: -20px; left: 0; right: 0; height: 20px; background: repeating-linear-gradient(90deg, #ccc 0, #ccc 1px, transparent 1px, transparent 10px), var(--white); border: 0.5px solid var(--gray-border); display: block; border-bottom: none; z-index: 10;}
-        .ruler-v { position: absolute; top: 0; left: -20px; bottom: 0; width: 20px; background: repeating-linear-gradient(180deg, #ccc 0, #ccc 1px, transparent 1px, transparent 10px), var(--white); border: 0.5px solid var(--gray-border); display: block; border-right: none; }
-        .ruler-marker { position: absolute; top: 0; width: 10px; height: 100%; cursor: ew-resize; z-index: 20; display: flex; justify-content: center;}
-        .ruler-marker::before { content: ''; width: 2px; height: 100%; background: var(--blue); }
-        .ruler-marker::after { content: ''; position: absolute; top: 100%; border-width: 5px 4px 0 4px; border-style: solid; border-color: var(--blue) transparent transparent transparent; }
-        #markerLeft { left: 0px; transform: translateX(-5px); } 
-        #markerRight { right: 0px; transform: translateX(5px); }
+        /* CÂY THƯỚC (RULER) CHUẨN MS WORD */
+        .ruler-container { display: none; } /* Vùng bọc thước để ẩn/hiện */
+        .ruler-h { position: absolute; top: -20px; left: 0; right: 0; height: 20px; background: #f1f3f4; border: 0.5px solid var(--gray-border); border-bottom: none; z-index: 10; background-image: repeating-linear-gradient(90deg, transparent, transparent 9px, #ccc 9px, #ccc 10px), repeating-linear-gradient(90deg, transparent, transparent 49px, #888 49px, #888 50px); }
+        .ruler-v { position: absolute; top: 0; left: -20px; bottom: 0; width: 20px; background: #f1f3f4; border: 0.5px solid var(--gray-border); border-right: none; background-image: repeating-linear-gradient(180deg, transparent, transparent 9px, #ccc 9px, #ccc 10px), repeating-linear-gradient(180deg, transparent, transparent 49px, #888 49px, #888 50px); }
+        
+        /* Cục mốc kéo lề (Marker) */
+        .ruler-marker { position: absolute; top: 0; width: 12px; height: 100%; cursor: ew-resize; z-index: 20; display: flex; justify-content: center; }
+        .ruler-marker::before { content: ''; width: 1px; height: 100%; background: var(--blue); }
+        .ruler-marker::after { content: ''; position: absolute; top: 100%; border-width: 6px 5px 0 5px; border-style: solid; border-color: var(--blue) transparent transparent transparent; }
+        #markerLeft { left: 0px; transform: translateX(-6px); } 
+        #markerRight { right: 0px; transform: translateX(6px); }
 
         /* Rich Text Inputs */
         .rich-input { padding: 15px 20px; outline: none; border-bottom: 0.5px dashed var(--gray-border); width: 100%; line-height: 1.6; position: relative; }
@@ -42,15 +45,15 @@
         .cover-input { width: 100%; padding: 6px 10px; border: 0.5px solid var(--gray-border); outline: none; font-size: 12px; border-radius: 2px; margin-bottom: 5px; color: var(--blue); }
         .cover-preview { width: 100%; max-height: 400px; object-fit: contain; display: none; border: 0.5px solid var(--gray-border); margin-top: 5px; }
 
-        /* Custom HTML Blocks (Viền xanh, X đỏ) */
+        /* Custom HTML Blocks (Khối mã HTML) */
         .custom-html-block { position: relative; border: 0.5px solid transparent; padding: 10px 5px; margin: 10px 0; transition: 0.2s; }
-        .custom-html-block:hover, .custom-html-block.active { border: 0.5px solid var(--blue); }
+        .custom-html-block:hover, .custom-html-block.active { border: 0.5px solid var(--blue); background: rgba(1, 173, 238, 0.02); }
         .block-del-btn { position: absolute; left: 50%; transform: translateX(-50%); width: 18px; height: 18px; background: var(--red); color: var(--white); border-radius: 50%; display: none; justify-content: center; align-items: center; font-size: 10px; cursor: pointer; z-index: 10; border: none;}
         .custom-html-block:hover .block-del-btn { display: flex; }
         .del-top { top: -9px; } .del-bot { bottom: -9px; }
 
-        /* Floating Panels (Cố định & Cuộn) */
-        .floating-panel { position: absolute; width: 280px; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 5px 20px rgba(0,0,0,0.1); display: flex; flex-direction: column; max-height: 85vh; z-index: 50; }
+        /* Floating Panels (Bảng nổi kéo thả) */
+        .floating-panel { position: absolute; width: 280px; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 5px 20px rgba(0,0,0,0.1); display: flex; flex-direction: column; max-height: 85vh; z-index: 50; transition: transform 0.1s; }
         .panel-header { padding: 8px 12px; background: var(--gray-light); border-bottom: 0.5px solid var(--gray-border); font-weight: bold; font-size: 12px; cursor: move; user-select: none; display: flex; justify-content: space-between; align-items: center; color: var(--blue); }
         .panel-content { flex: 1; overflow-y: auto; padding: 10px; font-size: 13px; }
 
@@ -66,22 +69,32 @@
 
         /* Tools Định dạng */
         .tool-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 12px; }
-        .fmt-btn { background: var(--white); border: 0.5px solid var(--gray-border); padding: 5px 0; text-align: center; cursor: pointer; color: var(--text-main); font-size: 13px; transition: 0.2s; }
+        .fmt-btn { background: var(--white); border: 0.5px solid var(--gray-border); padding: 5px 0; text-align: center; cursor: pointer; color: var(--text-main); font-size: 13px; transition: 0.2s; outline: none; }
         .fmt-btn:hover { background: var(--gray-light); color: var(--blue); border-color: var(--blue); }
         
-        .tool-row { display: flex; gap: 5px; margin-bottom: 8px; align-items: center; }
-        /* Fix lỗi ô nhập bị teo nhỏ */
-        .tool-input { flex: 1; min-width: 0; width: 100%; border: 0.5px solid var(--gray-border); padding: 5px 8px; font-size: 12px; outline: none; color: var(--text-main); }
+        .tool-row { display: flex; gap: 5px; margin-bottom: 8px; align-items: center; justify-content: space-between; }
+        .tool-input { flex: 1; width: 100%; border: 0.5px solid var(--gray-border); padding: 5px 8px; font-size: 12px; outline: none; color: var(--text-main); }
         .tool-input:focus { border-color: var(--blue); }
-        .tool-label { font-size: 11px; color: #777; min-width: 60px; }
+        .tool-label { font-size: 11px; color: #777; width: 60px; flex-shrink: 0;}
 
+        /* Bộ Chọn Cỡ Chữ & Dãn Dòng Mới */
+        .size-controller { display: flex; align-items: center; border: 0.5px solid var(--gray-border); border-radius: 3px; overflow: hidden; flex: 1; }
+        .size-btn { width: 25px; height: 26px; background: var(--gray-light); border: none; font-weight: bold; cursor: pointer; color: var(--text-main); display: flex; justify-content: center; align-items: center; outline: none;}
+        .size-btn:hover { background: var(--gray-border); color: var(--blue); }
+        .size-select { flex: 1; height: 26px; border: none; outline: none; text-align: center; font-size: 12px; border-left: 0.5px solid var(--gray-border); border-right: 0.5px solid var(--gray-border); -webkit-appearance: none; -moz-appearance: none; appearance: none; cursor: pointer;}
+        
         /* Templates (Mẫu HTML) */
         .mega-row-cat { background: var(--blue); color: var(--white); padding: 6px 10px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; margin-top: 10px; border: 0.5px solid var(--blue); }
         .cat-content { border: 0.5px solid var(--gray-border); border-top: none; padding: 5px; display: none; }
-        .cat-content.open { display: block; }
-        .template-item { padding: 6px; font-size: 11px; cursor: pointer; border-bottom: 0.5px solid var(--gray-border); display: flex; justify-content: space-between; align-items: center; transition: 0.2s;}
-        .template-item:hover { background: #f1f3f4; color: var(--blue); border-color: var(--blue); }
-        .template-item:last-child { border-bottom: none; }
+        .cat-content.open { display: block; background: #fdfdfd; }
+        
+        /* Hiển thị HTML thực tế trong danh sách mẫu */
+        .template-item { cursor: pointer; border: 0.5px solid var(--gray-border); margin-bottom: 5px; background: var(--white); transition: 0.2s; position: relative; overflow: hidden; }
+        .template-item:hover { border-color: var(--blue); box-shadow: 0 2px 5px rgba(1, 173, 238, 0.2); }
+        .template-preview { padding: 5px; font-size: 10px; opacity: 0.8; pointer-events: none; max-height: 80px; overflow: hidden; position: relative; }
+        /* Phủ gradient làm mờ phần cuối nếu khối html dài */
+        .template-preview::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 20px; background: linear-gradient(transparent, var(--white)); }
+        .template-item:hover .template-preview { opacity: 1; }
 
         /* Modals (Cảnh báo, Mã HTML) */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: none; justify-content: center; align-items: center; }
@@ -135,7 +148,7 @@
             <div class="panel-content">
                 
                 <div id="tabFormat" class="ptab-content active">
-                    <select class="tool-input" style="margin-bottom: 12px; font-weight: bold;" onchange="formatDoc('formatBlock', this.value); this.selectedIndex=0;">
+                    <select class="tool-input" style="margin-bottom: 12px; font-weight: bold;" onmousedown="event.preventDefault();" onchange="formatDoc('formatBlock', this.value); this.selectedIndex=0;">
                         <option value="">-- Chọn Tiêu Đề (Heading) --</option>
                         <option value="H1">Heading 1</option>
                         <option value="H2">Heading 2</option>
@@ -145,37 +158,49 @@
                     </select>
 
                     <div class="tool-grid">
-                        <button class="fmt-btn" onclick="formatDoc('bold')" title="In đậm (Ctrl+B)"><b>B</b></button>
-                        <button class="fmt-btn" onclick="formatDoc('italic')" title="In nghiêng (Ctrl+I)"><i>I</i></button>
-                        <button class="fmt-btn" onclick="formatDoc('underline')" title="Gạch chân (Ctrl+U)"><u>U</u></button>
-                        <button class="fmt-btn" onclick="formatDoc('strikeThrough')" title="Gạch ngang"><strike>S</strike></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('bold')" title="In đậm"><b>B</b></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('italic')" title="In nghiêng"><i>I</i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('underline')" title="Gạch chân"><u>U</u></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('strikeThrough')" title="Gạch ngang"><strike>S</strike></button>
                         
-                        <button class="fmt-btn" onclick="formatDoc('justifyLeft')" title="Căn trái"><i class="fas fa-align-left"></i></button>
-                        <button class="fmt-btn" onclick="formatDoc('justifyCenter')" title="Căn giữa"><i class="fas fa-align-center"></i></button>
-                        <button class="fmt-btn" onclick="formatDoc('justifyRight')" title="Căn phải"><i class="fas fa-align-right"></i></button>
-                        <button class="fmt-btn" onclick="formatDoc('justifyFull')" title="Căn đều"><i class="fas fa-align-justify"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('justifyLeft')" title="Căn trái"><i class="fas fa-align-left"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('justifyCenter')" title="Căn giữa"><i class="fas fa-align-center"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('justifyRight')" title="Căn phải"><i class="fas fa-align-right"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('justifyFull')" title="Căn đều"><i class="fas fa-align-justify"></i></button>
 
-                        <button class="fmt-btn" onclick="formatDoc('insertUnorderedList')" title="Bullet list"><i class="fas fa-list-ul"></i></button>
-                        <button class="fmt-btn" onclick="formatDoc('insertOrderedList')" title="Number list"><i class="fas fa-list-ol"></i></button>
-                        <button class="fmt-btn" onclick="insertLink()" title="Chèn Link URL"><i class="fas fa-link"></i></button>
-                        <button class="fmt-btn" onclick="insertComment()" title="Chèn Ghi chú (Highlight)"><i class="fas fa-comment"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('insertUnorderedList')" title="Bullet list"><i class="fas fa-list-ul"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('insertOrderedList')" title="Number list"><i class="fas fa-list-ol"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault(); insertLink()" title="Chèn Link URL"><i class="fas fa-link"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault(); insertComment()" title="Chèn Ghi chú (Highlight)"><i class="fas fa-comment"></i></button>
                     </div>
 
                     <div class="tool-row">
                         <span class="tool-label">Cỡ chữ:</span>
-                        <input type="number" id="inpFontSize" class="tool-input" placeholder="VD: 16" onchange="applyCustomStyle('font-size', this.value + 'px')">
+                        <div class="size-controller">
+                            <button class="size-btn" onmousedown="event.preventDefault(); updateSize('font', -1)"><i class="fas fa-minus"></i></button>
+                            <select id="fontSizeSel" class="size-select" onmousedown="event.preventDefault();" onchange="applySize('font')">
+                                </select>
+                            <button class="size-btn" onmousedown="event.preventDefault(); updateSize('font', 1)"><i class="fas fa-plus"></i></button>
+                        </div>
                     </div>
+                    
                     <div class="tool-row">
                         <span class="tool-label">Dãn dòng:</span>
-                        <input type="number" id="inpLineHeight" class="tool-input" placeholder="VD: 24" onchange="applyCustomStyle('line-height', this.value + 'px')">
+                        <div class="size-controller">
+                            <button class="size-btn" onmousedown="event.preventDefault(); updateSize('line', -1)"><i class="fas fa-minus"></i></button>
+                            <select id="lineHeightSel" class="size-select" onmousedown="event.preventDefault();" onchange="applySize('line')">
+                                </select>
+                            <button class="size-btn" onmousedown="event.preventDefault(); updateSize('line', 1)"><i class="fas fa-plus"></i></button>
+                        </div>
                     </div>
+
                     <div class="tool-row">
                         <span class="tool-label">Màu chữ:</span>
-                        <input type="color" class="tool-input" style="padding: 0; height: 24px;" onchange="formatDoc('foreColor', this.value)">
+                        <input type="color" class="tool-input" style="padding: 0; height: 26px;" onchange="formatDoc('foreColor', this.value)">
                     </div>
                     <div class="tool-row">
                         <span class="tool-label">Màu nền:</span>
-                        <input type="color" class="tool-input" style="padding: 0; height: 24px;" onchange="formatDoc('hiliteColor', this.value)">
+                        <input type="color" class="tool-input" style="padding: 0; height: 26px;" onchange="formatDoc('hiliteColor', this.value)">
                     </div>
 
                     <hr style="border-bottom: 0.5px dashed var(--gray-border); margin: 15px 0;">
@@ -185,8 +210,8 @@
                         <input type="text" id="fontLink" class="tool-input" placeholder="Dán thẻ <link> Google Font...">
                         <button class="tool-btn" style="margin: 0; padding: 4px 8px;" onclick="addGoogleFont()"><i class="fas fa-plus"></i></button>
                     </div>
-                    <select id="fontSelect" class="tool-input" style="margin-top: 5px;" onchange="applyCustomStyle('font-family', this.value)">
-                        <option value="Segoe UI, sans-serif">Mặc định (Segoe UI)</option>
+                    <select id="fontSelect" class="tool-input" style="margin-top: 5px;" onmousedown="event.preventDefault();" onchange="applyCustomStyle('font-family', this.value)">
+                        <option value="Segoe UI, sans-serif" style="font-family: 'Segoe UI', sans-serif">Mặc định (Segoe UI)</option>
                     </select>
 
                     <button class="tool-btn" style="width: 100%; justify-content: center; margin-top: 15px;" onclick="toggleRulers()">
@@ -207,7 +232,6 @@
                             <option value="">-- Chọn Loại Khối --</option>
                             <option value="NEW" style="color: var(--blue); font-weight: bold;">+ Thêm Loại Mới...</option>
                         </select>
-                        <input type="text" id="tplNameInput" class="tool-input" style="margin-bottom: 5px;" placeholder="Tên mẫu...">
                         <textarea id="tplHtmlInput" class="tool-input" style="height: 60px; resize: none; margin-bottom: 5px; font-family: monospace;" placeholder="Dán mã HTML mẫu vào đây..."></textarea>
                         
                         <div style="font-size:11px; margin-bottom:5px; color:#555;">Xem trước (Preview):</div>
@@ -224,11 +248,13 @@
         </div>
 
         <div class="editor-container">
-            <div class="ruler-h" id="rulerH">
-                <div class="ruler-marker" id="markerLeft" onmousedown="startDragRuler(event, 'left')"></div>
-                <div class="ruler-marker" id="markerRight" onmousedown="startDragRuler(event, 'right')"></div>
+            <div class="ruler-container" id="rulerContainer">
+                <div class="ruler-h" id="rulerH">
+                    <div class="ruler-marker" id="markerLeft" onmousedown="startDragRuler(event, 'left')"></div>
+                    <div class="ruler-marker" id="markerRight" onmousedown="startDragRuler(event, 'right')"></div>
+                </div>
+                <div class="ruler-v" id="rulerV"></div>
             </div>
-            <div class="ruler-v" id="rulerV"></div>
 
             <div class="rich-input" contenteditable="true" id="postTitle" data-placeholder="Nhập Tiêu đề bài viết tại đây..."></div>
             <div class="rich-input" contenteditable="true" id="postSapo" data-placeholder="Nhập Sapo (Đoạn tóm tắt) tại đây..."></div>
@@ -288,6 +314,7 @@
         let promptCallback = null;
 
         window.onload = async () => {
+            initSizeSelects(); // Khởi tạo mảng số 2-40 cho dropdown
             await fetchAllData();
             loadDraftData();
             loadGoogleFonts();
@@ -298,7 +325,7 @@
                 document.getElementById('tplPreview').innerHTML = this.value;
             });
 
-            // LƯU LẠI VÙNG BÔI ĐEN LIÊN TỤC ĐỂ CHỐNG LỖI MẤT FOCUS KHI CLICK INPUT
+            // LƯU LẠI VÙNG BÔI ĐEN LIÊN TỤC ĐỂ CHỐNG LỖI MẤT FOCUS
             document.addEventListener('selectionchange', () => {
                 let sel = window.getSelection();
                 if (sel.rangeCount > 0) {
@@ -321,6 +348,33 @@
                 }
             });
         };
+
+        // Khởi tạo các ô Select 2-40px
+        function initSizeSelects() {
+            let fs = document.getElementById('fontSizeSel');
+            let lh = document.getElementById('lineHeightSel');
+            for(let i=2; i<=40; i++) {
+                fs.add(new Option(i + 'px', i));
+                lh.add(new Option(i + 'px', i));
+            }
+            fs.value = "15"; lh.value = "24"; // Giá trị mặc định
+        }
+
+        // Cập nhật Size khi bấm Nút +/-
+        function updateSize(type, step) {
+            let select = document.getElementById(type === 'font' ? 'fontSizeSel' : 'lineHeightSel');
+            let cur = parseInt(select.value);
+            let next = cur + step;
+            if(next >= 2 && next <= 40) {
+                select.value = next;
+                applySize(type);
+            }
+        }
+
+        function applySize(type) {
+            let val = document.getElementById(type === 'font' ? 'fontSizeSel' : 'lineHeightSel').value;
+            applyCustomStyle(type === 'font' ? 'font-size' : 'line-height', val + 'px');
+        }
 
         // ==========================================
         // UI MODALS MỚI
@@ -379,7 +433,7 @@
         }
 
         // ==========================================
-        // KÉO THẢ PANEL (FIXED)
+        // KÉO THẢ PANEL (FIXED CHỐNG TRÔI)
         // ==========================================
         function dragElement(e, panelId) {
             e.preventDefault();
@@ -411,7 +465,7 @@
 
             function closeDragElement() {
                 document.onmouseup = null; document.onmousemove = null;
-                // Nhả ra ở vị trí cũ (Gần header) thì trả về Absolute để cuộn theo trang
+                // Nếu ném panel về gần lề trên thì trả về Absolute để trôi theo cuộn (Reset)
                 if (panel.offsetTop < 100 && (panel.offsetLeft < 50 || window.innerWidth - panel.offsetLeft < 350)) {
                     panel.style.position = 'absolute';
                     if (panelId === 'panelRight') {
@@ -424,7 +478,7 @@
         }
 
         // ==========================================
-        // RICH TEXT & PHỤC HỒI BÔI ĐEN
+        // RICH TEXT & FORMAT DOC
         // ==========================================
         function switchRightTab(tabId, btn) {
             document.querySelectorAll('.ptab-btn').forEach(b => b.classList.remove('active'));
@@ -441,14 +495,12 @@
         }
 
         function formatDoc(cmd, value=null) {
-            restoreSelection(); 
             if(value) document.execCommand(cmd, false, value);
             else document.execCommand(cmd);
         }
 
         function applyCustomStyle(property, value) {
             if(!value || value === 'px') return;
-            restoreSelection(); 
             
             let sel = window.getSelection();
             if(sel.rangeCount) {
@@ -472,14 +524,12 @@
         }
 
         function insertLink() {
-            restoreSelection();
             showPrompt("Nhập đường dẫn (URL):", "https://", (url) => {
                 if (url) { restoreSelection(); document.execCommand('createLink', false, url); }
             });
         }
 
         function insertComment() {
-            restoreSelection();
             showPrompt("Nhập ghi chú cho đoạn bôi đen:", "", (note) => {
                 if(note) {
                     restoreSelection();
@@ -505,7 +555,7 @@
         }
 
         // ==========================================
-        // KÉO THƯỚC CĂN LÊ (RULER DRAG)
+        // KÉO THƯỚC CĂN LỀ (RULER DRAG)
         // ==========================================
         let isDraggingRuler = false; let activeRulerSide = '';
         
@@ -528,7 +578,8 @@
                     targetEl = targetEl.parentNode;
                 }
             }
-            if(!targetEl || targetEl.classList.contains('rich-input')) targetEl = document.getElementById('postContent'); // Chỉnh cả khung nếu không bôi đen
+            // Chỉnh cả khung nếu không bôi đen / focus nội dung
+            if(!targetEl || targetEl.classList.contains('rich-input')) targetEl = document.getElementById('postContent'); 
 
             if(activeRulerSide === 'left') {
                 let offset = e.clientX - rect.left;
@@ -543,14 +594,15 @@
             }
         }
         function stopDragRuler() { isDraggingRuler = false; document.onmousemove = null; document.onmouseup = null; }
+        
         function toggleRulers() {
-            let h = document.getElementById('rulerH'); let v = document.getElementById('rulerV');
-            if(h.style.display === 'block') { h.style.display = 'none'; v.style.display = 'none'; } 
-            else { h.style.display = 'block'; v.style.display = 'block'; }
+            let r = document.getElementById('rulerContainer');
+            if(r.style.display === 'block') r.style.display = 'none'; 
+            else r.style.display = 'block';
         }
 
         // ==========================================
-        // GOOGLE FONTS (Lưu Sheet tự động)
+        // GOOGLE FONTS (Lưu Sheet tự động & Cập nhật mảng)
         // ==========================================
         function loadGoogleFonts() {
             let fontsTab = sysData.sheets["Google Fonts"];
@@ -561,7 +613,13 @@
                     if(fontName && link) {
                         let temp = document.createElement('div'); temp.innerHTML = link;
                         temp.querySelectorAll('link').forEach(t => { let newLink = document.createElement('link'); newLink.rel = "stylesheet"; newLink.href = t.href; document.head.appendChild(newLink); });
-                        let opt = document.createElement('option'); opt.value = `'${fontName}', sans-serif`; opt.innerText = fontName; select.appendChild(opt);
+                        
+                        // Cài đúng tên Font vào Style của Select Option
+                        let opt = document.createElement('option'); 
+                        opt.value = `'${fontName}', sans-serif`; 
+                        opt.innerText = fontName; 
+                        opt.style.fontFamily = `'${fontName}', sans-serif`; // Giao diện dùng chính font đó
+                        select.appendChild(opt);
                     }
                 }
             }
@@ -575,18 +633,23 @@
             if(match && match[1]) {
                 let fontName = match[1].replace(/\+/g, ' ');
                 
+                // Cập nhật giao diện Option
                 let select = document.getElementById('fontSelect');
                 let opt = document.createElement('option');
-                opt.value = `'${fontName}', sans-serif`; opt.innerText = fontName;
+                opt.value = `'${fontName}', sans-serif`; 
+                opt.innerText = fontName;
+                opt.style.fontFamily = `'${fontName}', sans-serif`;
                 select.appendChild(opt); select.value = opt.value;
                 
+                // Gắn thẻ Link vào Head
                 let temp = document.createElement('div'); temp.innerHTML = link;
                 temp.querySelectorAll('link').forEach(t => { let n = document.createElement('link'); n.rel="stylesheet"; n.href=t.href; document.head.appendChild(n); });
+                
                 applyCustomStyle('font-family', opt.value);
                 document.getElementById('fontLink').value = "";
-                showAlert("Đã tải và áp dụng Font thành công!");
+                showAlert("Đã tải và lưu Font thành công!");
 
-                // LƯU VỀ SHEET
+                // LƯU VỀ SHEET NGAY LẬP TỨC
                 if(!sysData.sheets["Google Fonts"]) {
                     sysData.tabOrder.push("Google Fonts"); sysData.sheets["Google Fonts"] = [["Mã Link", "Tên Font"]];
                     await pushQueue({type:'MANAGE_TAB', action:'create', tab: "Google Fonts"});
@@ -602,7 +665,7 @@
         }
 
         // ==========================================
-        // KHỐI HTML TÙY CHỈNH (Realtime 2-way)
+        // KHỐI HTML TÙY CHỈNH (Realtime 2-way & Chèn thông minh)
         // ==========================================
         function updateLineNumbers() {
             let ta = document.getElementById('htmlEditorTextarea');
@@ -646,27 +709,36 @@
             }
         }
 
+        function insertDirectHtmlBlock(html) {
+            // Hàm chèn khối HTML tĩnh (từ mẫu), bỏ qua bước mở Modal
+            if(!html) return;
+            insertHtmlCore(html);
+        }
+
         function insertHtmlBlock() {
+            // Hàm lấy mã từ Modal và chèn
             let html = document.getElementById('htmlEditorTextarea').value;
             if(!html) { closeHtmlModal(); return; }
-            
             if (activeHtmlBlock) { closeHtmlModal(); return; } // Nếu đang sửa khối cũ thì đã sync realtime rồi
+            insertHtmlCore(html);
+            closeHtmlModal();
+        }
 
-            // TẠO KHỐI MỚI CHUẨN YÊU CẦU
+        function insertHtmlCore(html) {
+            // TẠO KHỐI MỚI CHUẨN YÊU CẦU: Viền mỏng, nút xóa
             let block = document.createElement("div");
             block.className = "custom-html-block";
             block.innerHTML = `
-                <button class="block-del-btn del-top" onclick="this.parentElement.remove()" title="Xóa khối này"><i class="fas fa-times"></i></button>
+                <button class="block-del-btn del-top" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>
                 <div class="block-content">${html}</div>
-                <button class="block-del-btn del-bot" onclick="this.parentElement.remove()" title="Xóa khối này"><i class="fas fa-times"></i></button>
+                <button class="block-del-btn del-bot" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>
             `;
             
             restoreSelection();
             let sel = window.getSelection();
             let editor = document.getElementById('postContent');
             
-            // Xử lý chèn khối liên tiếp: Nếu con trỏ đang nằm trong khối, nhét luôn vào khối đó.
-            let isInsideOtherBlock = false;
+            // Nếu con trỏ đang nằm trong khối cũ, nhét luôn vào khối đó.
             if(sel.rangeCount && editor.contains(sel.anchorNode)) {
                 let node = sel.anchorNode;
                 let parentBlock = node.nodeType === 3 ? node.parentNode : node;
@@ -674,10 +746,8 @@
                     parentBlock = parentBlock.parentNode;
                 }
                 if(parentBlock && parentBlock.classList.contains('custom-html-block')) {
-                    // Trộn chung HTML vào khối cũ
-                    parentBlock.querySelector('.block-content').innerHTML += html;
-                    isInsideOtherBlock = true;
-                    block = parentBlock; // Trỏ biến block về parent để xử lý con trỏ
+                    parentBlock.querySelector('.block-content').innerHTML += html; // Gộp mã
+                    block = parentBlock; 
                 } else {
                     let range = sel.getRangeAt(0);
                     range.insertNode(block);
@@ -695,12 +765,10 @@
             newRange.setStart(emptyP, 0); newRange.collapse(true);
             sel.removeAllRanges(); sel.addRange(newRange);
             savedSelectionRange = newRange;
-
-            closeHtmlModal();
         }
 
         // ==========================================
-        // MẪU HTML (Templates & Dropdown)
+        // MẪU HTML (Templates - Hiện Trực Quan)
         // ==========================================
         function loadTemplates() {
             let tplTab = sysData.sheets["Mẫu html"];
@@ -710,9 +778,9 @@
             while(catSelect.options.length > 2) catSelect.remove(2);
 
             for(let r=1; r<tplTab.length; r++) {
-                let cat = tplTab[r][0]; let name = tplTab[r][1]; let html = tplTab[r][2];
+                let cat = tplTab[r][0]; let html = tplTab[r][1]; // Cột B giờ là HTML luôn
                 if(!cats[cat]) cats[cat] = [];
-                cats[cat].push({name: name, html: html});
+                cats[cat].push({html: html});
                 if(!Array.from(catSelect.options).some(o => o.value === cat)) catSelect.add(new Option(cat, cat));
             }
 
@@ -726,9 +794,10 @@
                     <div class="cat-content" id="${id}">
                 `;
                 cats[c].forEach(item => {
+                    // Render HTML trực quan vào class template-preview
                     listHTML += `
-                        <div class="template-item" data-html="${item.html.replace(/"/g, '&quot;')}" onclick="openHtmlModal(this.dataset.html)">
-                            <span>${item.name}</span> <i class="fas fa-plus-circle"></i>
+                        <div class="template-item" data-html="${item.html.replace(/"/g, '&quot;')}" onclick="insertDirectHtmlBlock(this.dataset.html)">
+                            <div class="template-preview">${item.html}</div>
                         </div>
                     `;
                 });
@@ -752,28 +821,27 @@
 
         async function saveTemplate() {
             let cat = document.getElementById('catSelect').value;
-            let name = document.getElementById('tplNameInput').value.trim();
             let html = document.getElementById('tplHtmlInput').value.trim();
             
-            if(!cat || !name || !html) return showAlert("Vui lòng nhập đủ Loại khối, Tên mẫu và Mã HTML!", true);
+            if(!cat || !html) return showAlert("Vui lòng nhập đủ Loại khối và Mã HTML!", true);
 
+            // Bỏ cột Tên mẫu, rút gọn cấu trúc
             if(!sysData.sheets["Mẫu html"]) {
-                sysData.tabOrder.push("Mẫu html"); sysData.sheets["Mẫu html"] = [["Loại Khối", "Tên Mẫu", "Mã HTML"]];
+                sysData.tabOrder.push("Mẫu html"); sysData.sheets["Mẫu html"] = [["Loại Khối", "Mã HTML"]];
                 await pushQueue({type:'MANAGE_TAB', action:'create', tab: "Mẫu html"});
                 await pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "Loại Khối", tab: "Mẫu html"});
-                await pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Tên Mẫu", tab: "Mẫu html"});
-                await pushQueue({type:'SYNC_CELL', row: 1, col: 3, val: "Mã HTML", tab: "Mẫu html"});
+                await pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Mã HTML", tab: "Mẫu html"});
             }
             let tplTab = sysData.sheets["Mẫu html"];
             let newRow = tplTab.length + 1;
-            tplTab.push([cat, name, html]);
+            tplTab.push([cat, html]);
             await pushQueue({type:'STRUCTURAL', action:'insertRow', index: newRow, count: 1, tab: "Mẫu html"});
             await pushQueue({type:'SYNC_CELL', row: newRow, col: 1, val: cat, tab: "Mẫu html"});
-            await pushQueue({type:'SYNC_CELL', row: newRow, col: 2, val: name, tab: "Mẫu html"});
-            await pushQueue({type:'SYNC_CELL', row: newRow, col: 3, val: html, tab: "Mẫu html"});
+            await pushQueue({type:'SYNC_CELL', row: newRow, col: 2, val: html, tab: "Mẫu html"});
 
-            showAlert("Đã lưu Mẫu HTML vào hệ thống thành công!");
-            document.getElementById('tplNameInput').value = ""; document.getElementById('tplHtmlInput').value = "";
+            showAlert("Lưu mẫu khối thành công!");
+            document.getElementById('tplHtmlInput').value = "";
+            document.getElementById('tplPreview').innerHTML = ""; // Xóa bảng xem trước theo yêu cầu
             loadTemplates();
         }
 
@@ -788,7 +856,7 @@
             let coverUrl = document.getElementById("coverUrlInput").value.trim();
             let content = document.getElementById("postContent").innerHTML;
             
-            // Xóa rác định dạng UI trước khi lưu
+            // DỌN DẸP RÁC HTML TRƯỚC KHI LƯU
             let tempDiv = document.createElement('div'); tempDiv.innerHTML = content;
             tempDiv.querySelectorAll('.block-del-btn').forEach(el => el.remove());
             tempDiv.querySelectorAll('.custom-html-block').forEach(el => { el.style.border = ""; el.style.padding = ""; el.style.margin = ""; });
@@ -803,7 +871,7 @@
                 </div>
             `;
 
-            let planId = draftData.data[1]; // Cột 1 luôn là ID
+            let planId = draftData.data[1]; // Cột B (ID)
 
             if(!sysData.sheets["Bài viết"]) {
                 sysData.tabOrder.push("Bài viết"); sysData.sheets["Bài viết"] = [["ID Kế Hoạch", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML"]];
