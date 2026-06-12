@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Viết Bài</title>
+    <title>Viết Bài Blog</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root { --white: #ffffff; --blue: #01adee; --red: #db1010; --gray-light: #f9f9f9; --gray-border: #e0e0e0; --text-main: #333333; }
@@ -12,122 +12,135 @@
 
         /* Toolbar Header */
         .toolbar { height: 45px; background: var(--white); border-bottom: 0.5px solid var(--gray-border); display: flex; align-items: center; padding: 0 15px; justify-content: space-between; z-index: 100; flex-shrink: 0; }
-        .tool-btn { background: var(--white); border: 0.5px solid var(--gray-border); color: var(--blue); padding: 5px 12px; cursor: pointer; font-size: 13px; font-weight: bold; border-radius: 3px; display: inline-flex; align-items: center; gap: 5px; transition: 0.2s;}
+        .tool-btn { background: var(--white); border: 0.5px solid var(--gray-border); color: var(--blue); padding: 5px 12px; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 3px; display: inline-flex; align-items: center; gap: 5px; transition: 0.2s; outline: none; }
         .tool-btn:hover { background: var(--blue); color: var(--white); border-color: var(--blue); }
         .save-btn { background: var(--blue); color: var(--white); border-color: var(--blue); }
         .save-btn:hover { background: #0199d3; }
 
-        /* Vùng làm việc chính */
-        .workspace { flex: 1; position: relative; overflow-y: auto; overflow-x: hidden; display: flex; justify-content: center; padding: 30px 0 100px 0; }
-
-        /* Khung Trình soạn thảo ở giữa */
-        .editor-container { width: 100%; max-width: 800px; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 5px 20px rgba(0,0,0,0.05); border-radius: 4px; position: relative; }
+        /* Workspace */
+        .workspace { flex: 1; position: relative; overflow-y: auto; overflow-x: hidden; display: flex; justify-content: center; padding: 40px 0 100px 0; }
+        .editor-container { width: 100%; max-width: 800px; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 5px 20px rgba(0,0,0,0.05); position: relative; display: flex; flex-direction: column; }
         
         /* Thước đo */
-        .ruler-h { position: absolute; top: -15px; left: 0; right: 0; height: 15px; background: repeating-linear-gradient(90deg, #ccc 0, #ccc 1px, transparent 1px, transparent 10px), var(--white); border: 0.5px solid var(--gray-border); display: none; }
-        .ruler-v { position: absolute; top: 0; left: -15px; bottom: 0; width: 15px; background: repeating-linear-gradient(180deg, #ccc 0, #ccc 1px, transparent 1px, transparent 10px), var(--white); border: 0.5px solid var(--gray-border); display: none; }
-
-        /* Các ô nhập Rich Text */
-        .rich-input { padding: 15px 20px; outline: none; border-bottom: 0.5px dashed var(--gray-border); width: 100%; display: block; line-height: 1.6; }
-        .rich-input:empty:before { content: attr(data-placeholder); color: #999; pointer-events: none; display: block; }
+        .ruler-h { position: absolute; top: -20px; left: 0; right: 0; height: 20px; background: repeating-linear-gradient(90deg, #ccc 0, #ccc 1px, transparent 1px, transparent 10px), var(--white); border: 0.5px solid var(--gray-border); display: block; border-bottom: none; }
+        .ruler-v { position: absolute; top: 0; left: -20px; bottom: 0; width: 20px; background: repeating-linear-gradient(180deg, #ccc 0, #ccc 1px, transparent 1px, transparent 10px), var(--white); border: 0.5px solid var(--gray-border); display: block; border-right: none; }
+        .ruler-marker { position: absolute; top: 0; width: 0; height: 100%; border-left: 2px solid var(--blue); cursor: ew-resize; z-index: 10; }
+        .ruler-marker::after { content: ''; position: absolute; top: 100%; left: -5px; border-width: 5px 4px 0 4px; border-style: solid; border-color: var(--blue) transparent transparent transparent; }
         
-        #postTitle { font-size: 24px; font-weight: bold; color: var(--blue); }
-        #postSapo { font-size: 16px; font-style: italic; color: #555; }
-        #postContent { font-size: 15px; min-height: 400px; border-bottom: none; padding-bottom: 50px; }
-        
-        /* Ảnh bìa */
-        .cover-area { padding: 15px 20px; border-bottom: 0.5px dashed var(--gray-border); background: #fcfcfc; }
-        .cover-input { width: 100%; padding: 8px 10px; border: 0.5px solid var(--gray-border); outline: none; font-size: 13px; border-radius: 3px; margin-bottom: 10px; }
-        .cover-preview { width: 100%; max-height: 400px; object-fit: contain; border-radius: 4px; display: none; border: 0.5px solid var(--gray-border); }
+        #markerLeft { left: 20px; } #markerRight { right: 20px; left: auto; border-left: none; border-right: 2px solid var(--blue); }
 
-        /* Floating Panels (Trái & Phải) */
-        .floating-panel { position: absolute; width: 300px; background: var(--white); border: 0.5px solid var(--gray-border); border-radius: 4px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; max-height: 85vh; z-index: 50; }
-        .panel-header { padding: 10px; background: var(--gray-light); border-bottom: 0.5px solid var(--gray-border); font-weight: bold; font-size: 13px; cursor: move; user-select: none; display: flex; justify-content: space-between; align-items: center; color: var(--blue); }
+        /* Rich Text Inputs */
+        .rich-input { padding: 15px 20px; outline: none; border-bottom: 0.5px solid var(--gray-border); width: 100%; line-height: 1.6; }
+        .rich-input:empty:before { content: attr(data-placeholder); color: #aaa; pointer-events: none; display: block; }
+        
+        #postTitle { font-size: 26px; font-weight: bold; color: var(--blue); }
+        #postSapo { font-size: 16px; font-style: italic; color: #555; background: #fdfdfd; }
+        #postContent { font-size: 15px; flex: 1; min-height: 500px; border-bottom: none; padding-bottom: 50px; }
+        
+        .cover-area { padding: 10px 20px; border-bottom: 0.5px solid var(--gray-border); background: var(--white); }
+        .cover-input { width: 100%; padding: 6px 10px; border: 0.5px solid var(--gray-border); outline: none; font-size: 12px; border-radius: 2px; margin-bottom: 5px; color: var(--blue); }
+        .cover-preview { width: 100%; max-height: 400px; object-fit: contain; display: none; border: 0.5px solid var(--gray-border); margin-top: 5px; }
+
+        /* Custom HTML Blocks */
+        .custom-html-block { position: relative; border: 0.5px solid transparent; padding: 5px; margin: 5px 0; min-height: 20px; transition: 0.2s; }
+        .custom-html-block:hover { border: 0.5px solid var(--blue); background: rgba(1, 173, 238, 0.02); }
+        .custom-html-block .block-tools { position: absolute; top: -10px; right: 10px; display: none; gap: 5px; background: var(--white); border: 0.5px solid var(--gray-border); padding: 2px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); z-index: 10; }
+        .custom-html-block:hover .block-tools { display: flex; }
+        .btn-del-block { color: var(--white); background: var(--red); border: none; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; cursor: pointer; display: flex; justify-content: center; align-items: center; }
+
+        /* Floating Panels */
+        .floating-panel { position: absolute; width: 280px; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 5px 20px rgba(0,0,0,0.1); display: flex; flex-direction: column; max-height: 85vh; z-index: 50; transition: transform 0.1s; }
+        .panel-header { padding: 8px 12px; background: var(--gray-light); border-bottom: 0.5px solid var(--gray-border); font-weight: bold; font-size: 12px; cursor: move; user-select: none; display: flex; justify-content: space-between; align-items: center; color: var(--blue); }
         .panel-content { flex: 1; overflow-y: auto; padding: 10px; font-size: 13px; }
 
-        /* Panel Trái: Cấu trúc Dữ liệu */
-        .data-row { margin-bottom: 10px; border: 0.5px solid var(--gray-border); border-radius: 3px; overflow: hidden; }
-        .data-label { background: var(--gray-light); padding: 5px 8px; font-weight: bold; border-bottom: 0.5px solid var(--gray-border); font-size: 11px; color: var(--red); }
-        .data-val { padding: 8px; background: var(--white); word-wrap: break-word; }
-        
-        /* Cột Target để lưu */
-        .target-col-select { width: 100%; padding: 6px; border: 0.5px solid var(--blue); outline: none; border-radius: 3px; font-weight: bold; margin-bottom: 15px; }
+        /* Panel Cấu trúc Dữ liệu */
+        .data-row { margin-bottom: 8px; border: 0.5px solid var(--gray-border); overflow: hidden; }
+        .data-label { background: var(--gray-light); padding: 4px 8px; font-weight: bold; border-bottom: 0.5px solid var(--gray-border); font-size: 11px; color: var(--text-main); }
+        .data-val { padding: 6px 8px; background: var(--white); word-wrap: break-word; font-size: 12px; }
 
-        /* Panel Phải: Tabs */
+        /* Panel Tabs */
         .panel-tabs { display: flex; border-bottom: 0.5px solid var(--gray-border); }
-        .ptab-btn { flex: 1; text-align: center; padding: 8px; cursor: pointer; font-size: 12px; font-weight: bold; border-bottom: 2px solid transparent; color: #777; transition: 0.2s; }
-        .ptab-btn.active { color: var(--blue); border-bottom: 2px solid var(--blue); background: rgba(1, 173, 238, 0.05); }
+        .ptab-btn { flex: 1; text-align: center; padding: 8px; cursor: pointer; font-size: 11px; font-weight: bold; color: #777; transition: 0.2s; border-bottom: 1px solid transparent; }
+        .ptab-btn.active { color: var(--blue); border-bottom: 1px solid var(--blue); background: var(--white); }
         .ptab-content { display: none; }
         .ptab-content.active { display: block; }
 
         /* Tools Định dạng */
-        .tool-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 15px; }
-        .fmt-btn { background: var(--white); border: 0.5px solid var(--gray-border); padding: 6px 0; text-align: center; cursor: pointer; border-radius: 3px; color: var(--text-main); font-size: 14px; transition: 0.2s; }
+        .tool-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 12px; }
+        .fmt-btn { background: var(--white); border: 0.5px solid var(--gray-border); padding: 5px 0; text-align: center; cursor: pointer; color: var(--text-main); font-size: 13px; transition: 0.2s; }
         .fmt-btn:hover { background: var(--gray-light); color: var(--blue); border-color: var(--blue); }
         
-        .tool-row { display: flex; gap: 5px; margin-bottom: 10px; align-items: center; }
-        .tool-input { flex: 1; border: 0.5px solid var(--gray-border); padding: 5px; font-size: 12px; outline: none; border-radius: 3px; }
+        .tool-row { display: flex; gap: 5px; margin-bottom: 8px; align-items: center; }
+        .tool-input { flex: 1; min-width: 0; border: 0.5px solid var(--gray-border); padding: 5px 8px; font-size: 12px; outline: none; color: var(--text-main); }
+        .tool-input:focus { border-color: var(--blue); }
         .tool-label { font-size: 11px; color: #777; min-width: 60px; }
 
-        /* Modal HTML */
+        /* Khối Templates (Mega-row) */
+        .mega-row-cat { background: var(--blue); color: var(--white); padding: 6px 10px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; margin-top: 10px; border: 0.5px solid var(--blue); }
+        .cat-content { border: 0.5px solid var(--gray-border); border-top: none; padding: 5px; display: none; }
+        .cat-content.open { display: block; }
+        .template-item { padding: 6px; font-size: 11px; cursor: pointer; border-bottom: 0.5px solid var(--gray-border); display: flex; justify-content: space-between; align-items: center; }
+        .template-item:hover { background: #f1f3f4; color: var(--blue); }
+        .template-item:last-child { border-bottom: none; }
+
+        /* Code Modal */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: none; justify-content: center; align-items: center; }
-        .modal-box { background: var(--white); width: 600px; max-width: 90%; border: 0.5px solid var(--gray-border); border-radius: 4px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: flex; flex-direction: column; }
-        .modal-header { padding: 10px 15px; background: var(--gray-light); border-bottom: 0.5px solid var(--gray-border); font-weight: bold; display: flex; justify-content: space-between; }
-        .html-textarea { width: 100%; height: 300px; border: none; outline: none; padding: 15px; font-family: monospace; font-size: 13px; background: #282c34; color: #abb2bf; resize: none; }
+        .modal-box { background: var(--white); width: 700px; max-width: 90%; border: 0.5px solid var(--gray-border); box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: flex; flex-direction: column; }
+        .modal-header { padding: 10px 15px; background: var(--gray-light); border-bottom: 0.5px solid var(--gray-border); font-weight: bold; display: flex; justify-content: space-between; font-size: 13px; color: var(--blue); }
         
-        hr { border: none; border-bottom: 0.5px dashed var(--gray-border); margin: 15px 0; }
+        .code-container { display: flex; height: 350px; border-bottom: 0.5px solid var(--gray-border); background: #1e1e1e; }
+        .line-numbers { width: 35px; background: #252526; color: #858585; text-align: right; padding: 10px 5px; font-family: monospace; font-size: 13px; overflow: hidden; border-right: 0.5px solid #444; line-height: 1.5; }
+        .html-textarea { flex: 1; background: transparent; color: #d4d4d4; border: none; outline: none; padding: 10px; font-family: monospace; font-size: 13px; resize: none; line-height: 1.5; white-space: pre; overflow: auto; }
+
+        /* System Modal nhỏ */
+        .alert-box { width: 350px; text-align: center; }
+        .alert-title { color: var(--red); font-size: 16px; margin-bottom: 10px; }
+        .alert-msg { font-size: 13px; margin-bottom: 20px; line-height: 1.5; }
     </style>
 </head>
 <body>
 
     <div class="toolbar">
         <div>
-            <span style="font-weight: bold; color: var(--blue);"><i class="fas fa-edit"></i> Trình Soạn Thảo Blog</span>
+            <span style="font-weight: bold; color: var(--blue); font-size: 14px;"><i class="fas fa-edit"></i> Trình Soạn Thảo Blog</span>
         </div>
-        <div>
-            <span id="syncStatus" style="font-size: 12px; font-weight: bold; margin-right: 15px; color: #27ae60;">✅ Hệ thống sẵn sàng</span>
-            <button class="tool-btn save-btn" onclick="savePostToSheet()"><i class="fas fa-cloud-upload-alt"></i> Lưu bài về Sheet</button>
+        <div style="display: flex; align-items: center;">
+            <span id="syncStatus" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60;">✅ Hệ thống kết nối</span>
+            <button class="tool-btn save-btn" onclick="savePostToSheet()"><i class="fas fa-save"></i> Lưu bài viết</button>
         </div>
     </div>
 
     <div class="workspace" id="workspaceArea">
         
-        <div class="floating-panel" id="panelLeft" style="left: 20px; top: 20px;">
+        <div class="floating-panel" id="panelLeft" style="left: 20px; top: 60px;">
             <div class="panel-header" onmousedown="dragElement(event, 'panelLeft')">
                 <span><i class="fas fa-database"></i> Dữ Liệu Nguồn</span>
                 <i class="fas fa-arrows-alt"></i>
             </div>
-            <div class="panel-content">
-                <div style="font-size: 11px; color: var(--red); margin-bottom: 5px; font-weight: bold;">CHỌN CỘT LƯU BÀI VIẾT:</div>
-                <select id="targetColumnSelect" class="target-col-select">
-                    <option value="">-- Đang tải cấu hình cột --</option>
-                </select>
-                <hr style="margin-top: 5px;">
-                <div id="sourceDataContainer">
-                    <div style="color: #999; text-align: center; margin-top: 20px;">Không có dữ liệu nguồn. Hãy quay lại Tab Kế Hoạch và click vào một dòng.</div>
-                </div>
+            <div class="panel-content" id="sourceDataContainer">
+                <div style="color: #999; text-align: center; margin-top: 20px; font-style: italic;">Chưa có dữ liệu từ Kế Hoạch.</div>
             </div>
         </div>
 
-        <div class="floating-panel" id="panelRight" style="right: 20px; top: 20px;">
+        <div class="floating-panel" id="panelRight" style="right: 20px; top: 60px;">
             <div class="panel-header" onmousedown="dragElement(event, 'panelRight')">
                 <span><i class="fas fa-toolbox"></i> Bộ Công Cụ</span>
                 <i class="fas fa-arrows-alt"></i>
             </div>
             <div class="panel-tabs">
                 <div class="ptab-btn active" onclick="switchRightTab('tabFormat', this)">Định Dạng</div>
-                <div class="ptab-btn" onclick="switchRightTab('tabBlocks', this)">Khối</div>
+                <div class="ptab-btn" onclick="switchRightTab('tabBlocks', this)">Khối HTML</div>
             </div>
             <div class="panel-content">
                 
                 <div id="tabFormat" class="ptab-content active">
-                    <select class="tool-input" style="width: 100%; margin-bottom: 10px; font-weight: bold;" onchange="formatDoc('formatBlock', this.value); this.selectedIndex=0;">
+                    <select class="tool-input" style="width: 100%; margin-bottom: 12px; font-weight: bold;" onchange="formatDoc('formatBlock', this.value); this.selectedIndex=0;">
                         <option value="">-- Chọn Tiêu Đề (Heading) --</option>
                         <option value="H1">Heading 1</option>
                         <option value="H2">Heading 2</option>
                         <option value="H3">Heading 3</option>
                         <option value="H4">Heading 4</option>
-                        <option value="P">Đoạn văn (Paragraph)</option>
+                        <option value="P">Đoạn văn bình thường (P)</option>
                     </select>
 
                     <div class="tool-grid">
@@ -143,73 +156,77 @@
 
                         <button class="fmt-btn" onclick="formatDoc('insertUnorderedList')" title="Bullet list"><i class="fas fa-list-ul"></i></button>
                         <button class="fmt-btn" onclick="formatDoc('insertOrderedList')" title="Number list"><i class="fas fa-list-ol"></i></button>
-                        <button class="fmt-btn" onclick="insertLink()" title="Chèn Link"><i class="fas fa-link"></i></button>
-                        <button class="fmt-btn" onclick="insertComment()" title="Chèn Ghi chú"><i class="fas fa-comment"></i></button>
+                        <button class="fmt-btn" onclick="insertLink()" title="Chèn Link URL"><i class="fas fa-link"></i></button>
+                        <button class="fmt-btn" onclick="insertComment()" title="Chèn Ghi chú (Highlight)"><i class="fas fa-comment"></i></button>
                     </div>
 
                     <div class="tool-row">
                         <span class="tool-label">Cỡ chữ:</span>
-                        <input type="number" id="inpFontSize" class="tool-input" placeholder="Ví dụ: 16" onchange="applyCustomStyle('font-size', this.value + 'px')">
-                        <span style="font-size: 11px;">px</span>
+                        <input type="number" id="inpFontSize" class="tool-input" placeholder="VD: 16" onchange="applyCustomStyle('font-size', this.value + 'px')">
+                        <span style="font-size: 10px; color: #999;">px</span>
                     </div>
                     <div class="tool-row">
                         <span class="tool-label">Dãn dòng:</span>
-                        <input type="number" id="inpLineHeight" class="tool-input" placeholder="Ví dụ: 24" onchange="applyCustomStyle('line-height', this.value + 'px')">
-                        <span style="font-size: 11px;">px</span>
+                        <input type="number" id="inpLineHeight" class="tool-input" placeholder="VD: 24" onchange="applyCustomStyle('line-height', this.value + 'px')">
+                        <span style="font-size: 10px; color: #999;">px</span>
                     </div>
                     <div class="tool-row">
                         <span class="tool-label">Màu chữ:</span>
-                        <input type="color" class="tool-input" style="padding: 0; height: 26px;" onchange="formatDoc('foreColor', this.value)">
+                        <input type="color" class="tool-input" style="padding: 0; height: 24px;" onchange="formatDoc('foreColor', this.value)">
                     </div>
                     <div class="tool-row">
-                        <span class="tool-label">Nền chữ:</span>
-                        <input type="color" class="tool-input" style="padding: 0; height: 26px;" onchange="formatDoc('hiliteColor', this.value)">
+                        <span class="tool-label">Màu nền:</span>
+                        <input type="color" class="tool-input" style="padding: 0; height: 24px;" onchange="formatDoc('hiliteColor', this.value)">
                     </div>
 
-                    <hr>
-                    <div style="font-weight: bold; margin-bottom: 5px;">Google Fonts:</div>
+                    <hr style="border-bottom: 0.5px dashed var(--gray-border); margin: 15px 0;">
+                    
+                    <div style="font-weight: bold; margin-bottom: 8px; color: var(--blue); font-size: 12px;"><i class="fab fa-google"></i> Google Fonts:</div>
                     <div class="tool-row">
-                        <input type="text" id="fontLink" class="tool-input" placeholder="Dán thẻ <link> của Google Font...">
+                        <input type="text" id="fontLink" class="tool-input" placeholder="Dán thẻ <link> Google Font...">
                         <button class="tool-btn" style="margin: 0; padding: 4px 8px;" onclick="addGoogleFont()"><i class="fas fa-plus"></i></button>
                     </div>
-                    <select id="fontSelect" class="tool-input" style="width: 100%;" onchange="applyCustomStyle('font-family', this.value)">
+                    <select id="fontSelect" class="tool-input" style="width: 100%; margin-top: 5px;" onchange="applyCustomStyle('font-family', this.value)">
                         <option value="Segoe UI, sans-serif">Mặc định (Segoe UI)</option>
-                        <option value="Arial, sans-serif">Arial</option>
-                        <option value="Times New Roman, serif">Times New Roman</option>
-                        <option value="Courier New, serif">Courier New</option>
                     </select>
-
-                    <hr>
-                    <button class="tool-btn" style="width: 100%; justify-content: center;" onclick="toggleRulers()">
-                        <i class="fas fa-ruler-combined"></i> Bật / Tắt Thước Đo
-                    </button>
                 </div>
 
                 <div id="tabBlocks" class="ptab-content">
                     <button class="tool-btn" style="width: 100%; justify-content: center; background: var(--blue); color: var(--white); margin-bottom: 15px;" onclick="openHtmlModal()">
-                        <i class="fas fa-code"></i> Chèn Mã HTML Tùy Chỉnh
+                        <i class="fas fa-code"></i> Soạn Khối HTML
                     </button>
                     
-                    <div style="font-weight: bold; margin-bottom: 10px; color: var(--red);">Mẫu Khối Có Sẵn:</div>
-                    <select class="tool-input" style="width: 100%; margin-bottom: 10px;">
-                        <option>Loại khối 1 (Ví dụ)</option>
-                        <option>Loại khối 2 (Ví dụ)</option>
-                    </select>
-                    <div style="font-size: 11px; color: #999; font-style: italic;">Tính năng lưu và tải mẫu HTML từ Sheet sẽ được cập nhật đồng bộ ở phiên bản tiếp theo. Hiện tại hãy dùng nút "Chèn mã HTML tùy chỉnh".</div>
+                    <hr style="border-bottom: 0.5px dashed var(--gray-border); margin: 15px 0;">
+                    <div style="font-weight: bold; margin-bottom: 8px; color: var(--red); font-size: 12px;"><i class="fas fa-box"></i> Mẫu HTML Đã Lưu:</div>
+                    
+                    <div style="border: 0.5px solid var(--gray-border); padding: 8px; background: #fdfdfd; margin-bottom: 15px;">
+                        <select id="catSelect" class="tool-input" style="width: 100%; margin-bottom: 5px;" onchange="checkNewCategory(this)">
+                            <option value="">-- Chọn Loại Khối --</option>
+                            <option value="NEW" style="color: var(--blue); font-weight: bold;">+ Thêm Loại Mới...</option>
+                        </select>
+                        <input type="text" id="tplNameInput" class="tool-input" style="width: 100%; margin-bottom: 5px;" placeholder="Tên mẫu khối...">
+                        <textarea id="tplHtmlInput" class="tool-input" style="width: 100%; height: 60px; resize: none; margin-bottom: 5px; font-family: monospace;" placeholder="Dán mã HTML mẫu..."></textarea>
+                        <button class="tool-btn" style="width: 100%; justify-content: center;" onclick="saveTemplate()"><i class="fas fa-save"></i> Lưu Mẫu</button>
+                    </div>
+
+                    <div id="templatesList"></div>
                 </div>
 
             </div>
         </div>
 
         <div class="editor-container">
-            <div class="ruler-h" id="rulerH"></div>
+            <div class="ruler-h" id="rulerH">
+                <div class="ruler-marker" id="markerLeft" onmousedown="startDragRuler(event, 'left')"></div>
+                <div class="ruler-marker" id="markerRight" onmousedown="startDragRuler(event, 'right')"></div>
+            </div>
             <div class="ruler-v" id="rulerV"></div>
 
             <div class="rich-input" contenteditable="true" id="postTitle" data-placeholder="Nhập Tiêu đề bài viết tại đây..."></div>
             <div class="rich-input" contenteditable="true" id="postSapo" data-placeholder="Nhập Sapo (Đoạn tóm tắt) tại đây..."></div>
             
             <div class="cover-area">
-                <input type="text" id="coverUrlInput" class="cover-input" placeholder="Dán URL ảnh bìa vào đây..." oninput="updateCoverPreview()">
+                <input type="text" id="coverUrlInput" class="cover-input" placeholder="Dán URL ảnh bìa (Thumbnail) vào đây..." oninput="updateCoverPreview()">
                 <img id="coverPreview" class="cover-preview">
             </div>
 
@@ -221,13 +238,24 @@
     <div class="modal-overlay" id="htmlModal">
         <div class="modal-box">
             <div class="modal-header">
-                <span style="color: var(--blue);"><i class="fas fa-code"></i> Mã HTML của Khối</span>
+                <span><i class="fas fa-code"></i> Mã HTML của Khối</span>
                 <i class="fas fa-times" style="cursor: pointer; color: var(--red);" onclick="closeHtmlModal()"></i>
             </div>
-            <textarea id="htmlEditorTextarea" class="html-textarea" placeholder="Nhập hoặc dán mã HTML vào đây..."></textarea>
-            <div style="padding: 10px 15px; text-align: right; background: var(--gray-light); border-top: 0.5px solid var(--gray-border);">
-                <button class="tool-btn save-btn" onclick="insertHtmlBlock()">Chèn vào bài viết</button>
+            <div class="code-container">
+                <div class="line-numbers" id="lineNumbers">1</div>
+                <textarea id="htmlEditorTextarea" class="html-textarea" wrap="off" oninput="syncCodeToEditor(); updateLineNumbers()" onscroll="syncScroll()"></textarea>
             </div>
+            <div style="padding: 10px 15px; text-align: right; background: var(--gray-light); border-top: 0.5px solid var(--gray-border);">
+                <button class="tool-btn save-btn" onclick="insertHtmlBlock()"><i class="fas fa-check"></i> Áp dụng & Đóng</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="customAlert">
+        <div class="modal-box alert-box">
+            <div class="alert-title" id="alertTitle"><i class="fas fa-exclamation-triangle"></i> Thông báo</div>
+            <div class="alert-msg" id="alertMsg">Nội dung</div>
+            <button class="tool-btn btn-blue" onclick="document.getElementById('customAlert').style.display='none'">Đã hiểu</button>
         </div>
     </div>
 
@@ -235,73 +263,99 @@
         const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
         let sysData = {};
         let draftData = null;
+        let savedSelectionRange = null; // Biến lưu vùng bôi đen (Khắc phục lỗi mất focus)
+        let activeHtmlBlock = null;     // Khối HTML đang được chỉnh sửa (2-way sync)
+        let isDraggingPanel = false;
 
-        window.onload = () => {
+        window.onload = async () => {
+            await fetchAllData();
             loadDraftData();
+            loadGoogleFonts();
+            loadTemplates();
             
-            // Xóa rác định dạng khi paste vào content
+            // Xóa rác định dạng khi dán
             document.getElementById('postContent').addEventListener('paste', function(e) {
-                // Tắt dòng dưới nếu muốn giữ nguyên style gốc khi copy từ web khác
                 // e.preventDefault();
                 // let text = (e.originalEvent || e).clipboardData.getData('text/plain');
                 // document.execCommand('insertText', false, text);
             });
+
+            // Lắng nghe sự kiện để lưu bôi đen (Giữ Selection)
+            document.addEventListener('selectionchange', () => {
+                let sel = window.getSelection();
+                if (sel.rangeCount > 0) {
+                    let r = sel.getRangeAt(0);
+                    // Chỉ lưu nếu đang focus trong vùng nhập liệu
+                    if(document.getElementById('postContent').contains(r.commonAncestorContainer) || 
+                       document.getElementById('postTitle').contains(r.commonAncestorContainer) || 
+                       document.getElementById('postSapo').contains(r.commonAncestorContainer)) {
+                        savedSelectionRange = r;
+                    }
+                }
+            });
         };
+
+        function showAlert(msg, isError = false) {
+            document.getElementById('alertMsg').innerHTML = msg;
+            document.getElementById('alertTitle').style.color = isError ? "var(--red)" : "var(--blue)";
+            document.getElementById('customAlert').style.display = 'flex';
+        }
+
+        async function fetchAllData() {
+            try {
+                let res = await fetch(API_URL + "?t=" + new Date().getTime(), { method: "GET" });
+                let json = await res.json();
+                if(json.success) {
+                    sysData = json.data;
+                    localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+                }
+            } catch(e) { console.log("Offline mode"); }
+        }
 
         // ==========================================
         // 1. TẢI DỮ LIỆU TỪ KẾ HOẠCH
         // ==========================================
         function loadDraftData() {
-            let cachedData = localStorage.getItem("MKT_DATA");
-            if (cachedData) sysData = JSON.parse(cachedData);
-
             let draftStr = localStorage.getItem("DRAFT_POST_DATA");
             if (!draftStr) return;
             
             draftData = JSON.parse(draftStr);
             let container = document.getElementById("sourceDataContainer");
-            let targetSelect = document.getElementById("targetColumnSelect");
-            
             container.innerHTML = "";
-            targetSelect.innerHTML = "<option value=''>-- Lựa chọn cột để lưu bài --</option>";
 
-            // Render dữ liệu dọc
             draftData.headers.forEach((h, i) => {
                 let val = draftData.data[i] || "";
-                
-                // Tránh lỗi hiển thị object object nếu val là html
                 if(typeof val === 'string') val = val.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
                 container.innerHTML += `
                     <div class="data-row">
                         <div class="data-label">${h}</div>
                         <div class="data-val">${val || "<i style='color:#ccc'>Trống</i>"}</div>
                     </div>
                 `;
-
-                // Đưa vào option lưu (Chỉ cho lưu vào các cột)
-                targetSelect.innerHTML += `<option value="${i}">Lưu vào cột: ${h}</option>`;
             });
-            
-            // Chọn mặc định cột cuối cùng để lưu bài
-            if(draftData.headers.length > 0) {
-                targetSelect.selectedIndex = draftData.headers.length; 
-            }
         }
 
         // ==========================================
-        // 2. KÉO THẢ PANEL (DRAG & DROP)
+        // 2. KÉO THẢ PANEL (Ghim cứng Fixed)
         // ==========================================
         function dragElement(e, panelId) {
             e.preventDefault();
             let panel = document.getElementById(panelId);
             let pos1 = 0, pos2 = 0, pos3 = e.clientX, pos4 = e.clientY;
             
+            // Lấy tọa độ hiện tại so với viewport để set fixed không bị giật
+            let rect = panel.getBoundingClientRect();
+            panel.style.position = 'fixed';
+            panel.style.top = rect.top + 'px';
+            panel.style.left = rect.left + 'px';
+            panel.style.right = 'auto'; // Hủy right
+
             document.onmouseup = closeDragElement;
             document.onmousemove = elementDrag;
 
             function elementDrag(ev) {
                 ev.preventDefault();
+                isDraggingPanel = true;
                 pos1 = pos3 - ev.clientX;
                 pos2 = pos4 - ev.clientY;
                 pos3 = ev.clientX;
@@ -310,23 +364,30 @@
                 let newTop = panel.offsetTop - pos2;
                 let newLeft = panel.offsetLeft - pos1;
                 
-                // Giới hạn màn hình
-                if(newTop < 45) newTop = 45; // Dưới thanh công cụ
-                if(newLeft < 0) newLeft = 0;
+                if(newTop < 45) newTop = 45; // Cấn thanh toolbar
                 
                 panel.style.top = newTop + "px";
                 panel.style.left = newLeft + "px";
-                panel.style.right = "auto"; // Xóa right để drag theo left cho chuẩn
             }
 
             function closeDragElement() {
                 document.onmouseup = null;
                 document.onmousemove = null;
+                // Nếu kéo sát lề trên/trái, trả về absolute cuộn theo trang (Theo yêu cầu)
+                if (panel.offsetTop < 80 && (panel.offsetLeft < 40 || window.innerWidth - panel.offsetLeft < 320)) {
+                    panel.style.position = 'absolute';
+                    if (panelId === 'panelRight') {
+                        panel.style.right = '20px'; panel.style.left = 'auto'; panel.style.top = '60px';
+                    } else {
+                        panel.style.left = '20px'; panel.style.top = '60px';
+                    }
+                }
+                setTimeout(() => isDraggingPanel = false, 100);
             }
         }
 
         // ==========================================
-        // 3. TÍNH NĂNG RICH TEXT & CÔNG CỤ
+        // 3. TÍNH NĂNG RICH TEXT & PHỤC HỒI BÔI ĐEN
         // ==========================================
         function switchRightTab(tabId, btn) {
             document.querySelectorAll('.ptab-btn').forEach(b => b.classList.remove('active'));
@@ -335,36 +396,54 @@
             document.getElementById(tabId).classList.add('active');
         }
 
-        function formatDoc(cmd, value=null) {
-            if(value) {
-                document.execCommand(cmd, false, value);
-            } else {
-                document.execCommand(cmd);
+        function restoreSelection() {
+            if (savedSelectionRange) {
+                let sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(savedSelectionRange);
             }
-            document.getElementById('postContent').focus();
+        }
+
+        function formatDoc(cmd, value=null) {
+            restoreSelection(); // Phục hồi bôi đen trước khi format
+            if(value) document.execCommand(cmd, false, value);
+            else document.execCommand(cmd);
         }
 
         function applyCustomStyle(property, value) {
             if(!value || value === 'px') return;
-            // Dùng trick: Bọc span
+            restoreSelection(); // PHỤC HỒI BÔI ĐEN
+            
             let sel = window.getSelection();
             if(sel.rangeCount) {
                 let range = sel.getRangeAt(0);
-                let span = document.createElement("span");
-                span.style[property] = value;
-                span.appendChild(range.extractContents());
-                range.insertNode(span);
                 
-                // Merge text để tránh lỗi lồng span nhiều lớp (cơ bản)
+                // Nếu không bôi đen chữ nào (chỉ click), áp dụng cho cả khối P/DIV chứa nó
+                if(range.collapsed) {
+                    let block = range.startContainer.nodeType === 3 ? range.startContainer.parentNode : range.startContainer;
+                    // Tìm thẻ block gần nhất
+                    while (block && block.tagName !== 'P' && block.tagName !== 'DIV' && !block.classList?.contains('rich-input')) {
+                        block = block.parentNode;
+                    }
+                    if(block && block.style) block.style[property] = value;
+                } else {
+                    // Bôi đen: Bọc thẻ span
+                    let span = document.createElement("span");
+                    span.style[property] = value;
+                    span.appendChild(range.extractContents());
+                    range.insertNode(span);
+                }
             }
         }
 
         function insertLink() {
+            restoreSelection();
             let url = prompt("Nhập đường dẫn (URL):", "https://");
-            if (url) formatDoc('createLink', url);
+            if (url) document.execCommand('createLink', false, url);
         }
 
         function insertComment() {
+            restoreSelection();
             let note = prompt("Nhập ghi chú cho đoạn bôi đen:");
             if(note) {
                 let sel = window.getSelection();
@@ -372,7 +451,7 @@
                     let range = sel.getRangeAt(0);
                     let span = document.createElement("span");
                     span.style.backgroundColor = "rgba(255, 235, 59, 0.4)";
-                    span.title = note; // Ghi chú dạng tooltip
+                    span.title = note;
                     span.style.borderBottom = "1px dashed var(--red)";
                     span.appendChild(range.extractContents());
                     range.insertNode(span);
@@ -380,180 +459,393 @@
             }
         }
 
-        function toggleRulers() {
-            let h = document.getElementById('rulerH');
-            let v = document.getElementById('rulerV');
-            if(h.style.display === 'block') {
-                h.style.display = 'none'; v.style.display = 'none';
-            } else {
-                h.style.display = 'block'; v.style.display = 'block';
-            }
-        }
-
         function updateCoverPreview() {
             let url = document.getElementById('coverUrlInput').value.trim();
             let img = document.getElementById('coverPreview');
-            if(url) {
-                img.src = url;
-                img.style.display = 'block';
+            if(url) { img.src = url; img.style.display = 'block'; } 
+            else { img.style.display = 'none'; }
+        }
+
+        // ==========================================
+        // 4. KÉO THƯỚC CĂN LÊ (RULER DRAG)
+        // ==========================================
+        let isDraggingRuler = false;
+        let activeRulerSide = '';
+        
+        function startDragRuler(e, side) {
+            e.preventDefault();
+            isDraggingRuler = true;
+            activeRulerSide = side;
+            document.onmousemove = dragRuler;
+            document.onmouseup = stopDragRuler;
+        }
+
+        function dragRuler(e) {
+            if(!isDraggingRuler) return;
+            let container = document.querySelector('.editor-container');
+            let rect = container.getBoundingClientRect();
+            
+            // Tìm phần tử đang được focus (để chỉnh lề riêng) hoặc chỉnh lề toàn khung
+            let targetEl = null;
+            if(savedSelectionRange) {
+                let node = savedSelectionRange.startContainer;
+                targetEl = node.nodeType === 3 ? node.parentNode : node;
+                while (targetEl && targetEl.tagName !== 'P' && targetEl.tagName !== 'DIV' && !targetEl.classList?.contains('rich-input')) {
+                    targetEl = targetEl.parentNode;
+                }
+            }
+            if(!targetEl || targetEl.classList.contains('rich-input')) targetEl = document.getElementById('postContent'); // Chỉnh tổng thể
+
+            if(activeRulerSide === 'left') {
+                let offset = e.clientX - rect.left;
+                if(offset < 0) offset = 0; if(offset > 300) offset = 300;
+                document.getElementById('markerLeft').style.left = offset + 'px';
+                targetEl.style.paddingLeft = offset + 'px';
             } else {
-                img.style.display = 'none';
+                let offset = rect.right - e.clientX;
+                if(offset < 0) offset = 0; if(offset > 300) offset = 300;
+                document.getElementById('markerRight').style.right = offset + 'px';
+                targetEl.style.paddingRight = offset + 'px';
             }
         }
 
-        function addGoogleFont() {
+        function stopDragRuler() {
+            isDraggingRuler = false;
+            document.onmousemove = null;
+            document.onmouseup = null;
+        }
+
+        // ==========================================
+        // 5. GOOGLE FONTS (Lưu Sheet)
+        // ==========================================
+        function loadGoogleFonts() {
+            let fontsTab = sysData.sheets["Google Fonts"];
+            if(fontsTab) {
+                let select = document.getElementById('fontSelect');
+                for(let r=1; r<fontsTab.length; r++) {
+                    let fontName = fontsTab[r][1]; let link = fontsTab[r][0];
+                    if(fontName && link) {
+                        // Thêm thẻ link vào head
+                        let temp = document.createElement('div'); temp.innerHTML = link;
+                        temp.querySelectorAll('link').forEach(t => {
+                            let newLink = document.createElement('link'); newLink.rel = "stylesheet"; newLink.href = t.href; document.head.appendChild(newLink);
+                        });
+                        // Thêm vào Dropdown
+                        let opt = document.createElement('option');
+                        opt.value = `'${fontName}', sans-serif`; opt.innerText = fontName;
+                        select.appendChild(opt);
+                    }
+                }
+            }
+        }
+
+        async function addGoogleFont() {
             let link = document.getElementById('fontLink').value.trim();
-            if(!link.includes('<link')) return alert("Vui lòng dán nguyên thẻ <link> lấy từ Google Fonts.");
+            if(!link.includes('<link')) return showAlert("Vui lòng dán nguyên thẻ &lt;link&gt; lấy từ Google Fonts.", true);
             
-            // Bóc tách href
-            let temp = document.createElement('div'); temp.innerHTML = link;
-            let lTags = temp.querySelectorAll('link');
-            lTags.forEach(t => {
-                let newLink = document.createElement('link');
-                newLink.rel = "stylesheet";
-                newLink.href = t.href;
-                document.head.appendChild(newLink);
-            });
-            
-            // Lấy tên family thô (Ví dụ font Roboto)
             let match = link.match(/family=([^:&]+)/);
             if(match && match[1]) {
                 let fontName = match[1].replace(/\+/g, ' ');
+                
+                // Cập nhật giao diện
                 let select = document.getElementById('fontSelect');
                 let opt = document.createElement('option');
-                opt.value = `'${fontName}', sans-serif`;
-                opt.innerText = fontName + " (Mới thêm)";
-                select.appendChild(opt);
-                select.value = opt.value;
+                opt.value = `'${fontName}', sans-serif`; opt.innerText = fontName;
+                select.appendChild(opt); select.value = opt.value;
+                
+                // Thêm vào Head
+                let temp = document.createElement('div'); temp.innerHTML = link;
+                temp.querySelectorAll('link').forEach(t => { let n = document.createElement('link'); n.rel="stylesheet"; n.href=t.href; document.head.appendChild(n); });
                 applyCustomStyle('font-family', opt.value);
+                document.getElementById('fontLink').value = "";
+                showAlert("Đã tải và áp dụng Font thành công!");
+
+                // LƯU VỀ SHEET 'Google Fonts'
+                if(!sysData.sheets["Google Fonts"]) {
+                    sysData.tabOrder.push("Google Fonts"); sysData.sheets["Google Fonts"] = [["Mã Link", "Tên Font"]];
+                    await pushQueue({type:'MANAGE_TAB', action:'create', tab: "Google Fonts"});
+                    await pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "Mã Link", tab: "Google Fonts"});
+                    await pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Tên Font", tab: "Google Fonts"});
+                }
+                let gfTab = sysData.sheets["Google Fonts"];
+                let newRow = gfTab.length + 1;
+                gfTab.push([link, fontName]);
+                await pushQueue({type:'STRUCTURAL', action:'insertRow', index: newRow, count: 1, tab: "Google Fonts"});
+                await pushQueue({type:'SYNC_CELL', row: newRow, col: 1, val: link, tab: "Google Fonts"});
+                await pushQueue({type:'SYNC_CELL', row: newRow, col: 2, val: fontName, tab: "Google Fonts"});
             }
-            
-            document.getElementById('fontLink').value = "";
-            alert("Đã tải Font chữ thành công!");
         }
 
         // ==========================================
-        // 4. KHỐI HTML TÙY CHỈNH
+        // 6. KHỐI HTML TÙY CHỈNH & 2-WAY SYNC
         // ==========================================
-        function openHtmlModal() {
-            document.getElementById('htmlEditorTextarea').value = "";
+        function updateLineNumbers() {
+            let ta = document.getElementById('htmlEditorTextarea');
+            let lines = ta.value.split('\n').length;
+            let lnObj = document.getElementById('lineNumbers');
+            lnObj.innerHTML = Array(lines).fill(0).map((_, i) => i + 1).join('<br>');
+        }
+        function syncScroll() {
+            document.getElementById('lineNumbers').scrollTop = document.getElementById('htmlEditorTextarea').scrollTop;
+        }
+
+        function openHtmlModal(preFill = "") {
+            restoreSelection();
+            let sel = window.getSelection();
+            let ta = document.getElementById('htmlEditorTextarea');
+            
+            activeHtmlBlock = null;
+
+            // Kiểm tra xem con trỏ có đang trong 1 khối HTML cũ không?
+            if(sel.rangeCount) {
+                let node = sel.anchorNode;
+                let block = node.nodeType === 3 ? node.parentNode : node;
+                while (block && !block.classList?.contains('custom-html-block') && block.id !== 'postContent') {
+                    block = block.parentNode;
+                }
+                if(block && block.classList.contains('custom-html-block')) {
+                    activeHtmlBlock = block; // Ghi nhận đang sửa khối này
+                    ta.value = block.querySelector('.block-content').innerHTML; // Load code cũ lên
+                } else {
+                    ta.value = preFill; // Chèn khối mới
+                }
+            } else {
+                ta.value = preFill;
+            }
+
+            updateLineNumbers();
             document.getElementById('htmlModal').style.display = 'flex';
         }
         
-        function closeHtmlModal() {
-            document.getElementById('htmlModal').style.display = 'none';
+        function closeHtmlModal() { document.getElementById('htmlModal').style.display = 'none'; activeHtmlBlock = null; }
+
+        // Đồng bộ realtime từ Modal Textarea ra UI
+        function syncCodeToEditor() {
+            if (activeHtmlBlock) {
+                activeHtmlBlock.querySelector('.block-content').innerHTML = document.getElementById('htmlEditorTextarea').value;
+            }
         }
 
         function insertHtmlBlock() {
             let html = document.getElementById('htmlEditorTextarea').value;
-            if(!html) return;
+            if(!html) { closeHtmlModal(); return; }
             
+            // Nếu đang sửa khối có sẵn thì xong rồi (vì đã sync realtime)
+            if (activeHtmlBlock) {
+                closeHtmlModal(); return;
+            }
+
+            // Nếu tạo khối mới
             let block = document.createElement("div");
             block.className = "custom-html-block";
-            block.innerHTML = html;
-            block.style.border = "1px dashed var(--gray-border)"; // Border nhận dạng khi edit
-            block.style.padding = "5px";
-            block.style.margin = "10px 0";
+            // Bọc HTML vào div content để bảo vệ nút xóa
+            block.innerHTML = `
+                <div class="block-tools" contenteditable="false">
+                    <button class="btn-del-block" onclick="this.parentElement.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>
+                </div>
+                <div class="block-content">${html}</div>
+            `;
             
-            // Chèn vào vị trí con trỏ trong postContent
+            restoreSelection();
             let sel = window.getSelection();
-            if(sel.rangeCount && document.getElementById('postContent').contains(sel.anchorNode)) {
+            let editor = document.getElementById('postContent');
+            
+            if(sel.rangeCount && editor.contains(sel.anchorNode)) {
                 let range = sel.getRangeAt(0);
                 range.insertNode(block);
                 range.collapse(false);
             } else {
-                document.getElementById('postContent').appendChild(block);
+                editor.appendChild(block);
             }
+
+            // Tự động đẩy con trỏ xuống một dòng (Tạo P rỗng)
+            let p = document.createElement('p'); p.innerHTML = "<br>";
+            block.parentNode.insertBefore(p, block.nextSibling);
+            
+            // Focus vào dòng P rỗng mới
+            let newRange = document.createRange();
+            newRange.setStart(p, 0); newRange.collapse(true);
+            sel.removeAllRanges(); sel.addRange(newRange);
+
             closeHtmlModal();
         }
 
         // ==========================================
-        // 5. LƯU BÀI VIẾT VỀ SHEET GỐC
+        // 7. MẪU HTML (Templates)
+        // ==========================================
+        function loadTemplates() {
+            let tplTab = sysData.sheets["Mẫu html"];
+            if(!tplTab) return;
+            
+            let cats = {}; let catSelect = document.getElementById('catSelect');
+            // Xóa option cũ giữ lại Default và NEW
+            while(catSelect.options.length > 2) catSelect.remove(2);
+
+            for(let r=1; r<tplTab.length; r++) {
+                let cat = tplTab[r][0]; let name = tplTab[r][1]; let html = tplTab[r][2];
+                if(!cats[cat]) cats[cat] = [];
+                cats[cat].push({name: name, html: html});
+                
+                // Thêm vào Dropdown nếu chưa có
+                if(!Array.from(catSelect.options).some(o => o.value === cat)) {
+                    catSelect.add(new Option(cat, cat));
+                }
+            }
+
+            let listHTML = "";
+            for(let c in cats) {
+                let id = 'cat_' + Math.random().toString(36).substr(2, 5);
+                listHTML += `
+                    <div class="mega-row-cat" onclick="document.getElementById('${id}').classList.toggle('open')">
+                        <span><i class="fas fa-folder-open"></i> ${c}</span> <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="cat-content" id="${id}">
+                `;
+                cats[c].forEach(item => {
+                    listHTML += `
+                        <div class="template-item" onclick="openHtmlModal(this.dataset.html)">
+                            <span>${item.name}</span> <i class="fas fa-plus-circle" style="color:var(--blue)"></i>
+                        </div>
+                    `;
+                });
+                // Sửa lỗi nháy nháy HTML bằng cách lưu vào dataset an toàn
+                listHTML = listHTML.replace(/data-html=""/g, () => `data-html="${cats[c][cats[c].length-1].html.replace(/"/g, '&quot;')}"`);
+                listHTML += `</div>`;
+            }
+            document.getElementById('templatesList').innerHTML = listHTML;
+            
+            // Xử lý lại dataset cho an toàn
+            setTimeout(() => {
+                let items = document.querySelectorAll('.template-item');
+                let idx = 0;
+                for(let c in cats) {
+                    cats[c].forEach(item => {
+                        items[idx].dataset.html = item.html;
+                        idx++;
+                    });
+                }
+            }, 100);
+        }
+
+        function checkNewCategory(sel) {
+            if(sel.value === "NEW") {
+                let newCat = prompt("Nhập tên Loại Khối mới:");
+                if(newCat) {
+                    let opt = new Option(newCat, newCat);
+                    sel.add(opt); sel.value = newCat;
+                } else {
+                    sel.selectedIndex = 0;
+                }
+            }
+        }
+
+        async function saveTemplate() {
+            let cat = document.getElementById('catSelect').value;
+            let name = document.getElementById('tplNameInput').value.trim();
+            let html = document.getElementById('tplHtmlInput').value.trim();
+            
+            if(!cat || !name || !html) return showAlert("Vui lòng nhập đủ Loại khối, Tên mẫu và Mã HTML!", true);
+
+            // LƯU VỀ SHEET 'Mẫu html'
+            if(!sysData.sheets["Mẫu html"]) {
+                sysData.tabOrder.push("Mẫu html"); sysData.sheets["Mẫu html"] = [["Loại Khối", "Tên Mẫu", "Mã HTML"]];
+                await pushQueue({type:'MANAGE_TAB', action:'create', tab: "Mẫu html"});
+                await pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "Loại Khối", tab: "Mẫu html"});
+                await pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Tên Mẫu", tab: "Mẫu html"});
+                await pushQueue({type:'SYNC_CELL', row: 1, col: 3, val: "Mã HTML", tab: "Mẫu html"});
+            }
+            let tplTab = sysData.sheets["Mẫu html"];
+            let newRow = tplTab.length + 1;
+            tplTab.push([cat, name, html]);
+            await pushQueue({type:'STRUCTURAL', action:'insertRow', index: newRow, count: 1, tab: "Mẫu html"});
+            await pushQueue({type:'SYNC_CELL', row: newRow, col: 1, val: cat, tab: "Mẫu html"});
+            await pushQueue({type:'SYNC_CELL', row: newRow, col: 2, val: name, tab: "Mẫu html"});
+            await pushQueue({type:'SYNC_CELL', row: newRow, col: 3, val: html, tab: "Mẫu html"});
+
+            showAlert("Lưu mẫu khối thành công!");
+            document.getElementById('tplNameInput').value = "";
+            document.getElementById('tplHtmlInput').value = "";
+            loadTemplates();
+        }
+
+        // ==========================================
+        // 8. LƯU BÀI VIẾT CHÍNH
         // ==========================================
         async function savePostToSheet() {
-            if(!draftData) return alert("Không tìm thấy dữ liệu nguồn để lưu!");
-            
-            let targetColIdx = document.getElementById("targetColumnSelect").value;
-            if(targetColIdx === "") return alert("Vui lòng chọn cột để lưu bài viết ở Menu bên trái!");
-            targetColIdx = parseInt(targetColIdx);
+            if(!draftData) return showAlert("Không tìm thấy dữ liệu nguồn Kế Hoạch!", true);
 
-            // Gom HTML
             let title = document.getElementById("postTitle").innerHTML;
             let sapo = document.getElementById("postSapo").innerHTML;
             let coverUrl = document.getElementById("coverUrlInput").value.trim();
             let content = document.getElementById("postContent").innerHTML;
             
-            // Xóa các khung đứt đoạn của custom-html-block trước khi xuất mã
+            // Xóa rác block-tools trước khi xuất HTML
             let tempDiv = document.createElement('div');
             tempDiv.innerHTML = content;
+            tempDiv.querySelectorAll('.block-tools').forEach(el => el.remove());
             tempDiv.querySelectorAll('.custom-html-block').forEach(el => {
-                el.style.border = "";
-                el.style.padding = "";
-                el.style.margin = "";
+                el.style.border = ""; el.style.padding = ""; el.style.margin = ""; el.style.background = "";
             });
             content = tempDiv.innerHTML;
 
-            // Đóng gói thành chuẩn HTML 
             let finalHtml = `
                 <div class="post-wrapper">
                     ${title ? `<h1 class="post-title">${title}</h1>` : ""}
                     ${sapo ? `<div class="post-sapo">${sapo}</div>` : ""}
-                    ${coverUrl ? `<img class="post-cover" src="${coverUrl}" alt="Cover Image">` : ""}
+                    ${coverUrl ? `<img class="post-cover" src="${coverUrl}" alt="Cover">` : ""}
                     <div class="post-body">${content}</div>
                 </div>
             `;
 
-            let tabName = draftData.tab;
-            let planRowIdx = draftData.planRowIndex;
-            let planSheet = sysData.sheets["_PLAN_DATA_"];
+            let planId = draftData.data[1]; // Cột 1 là ID bên Kế Hoạch
 
-            if(!planSheet || !planSheet[planRowIdx]) return alert("Lỗi: Không tìm thấy dòng Kế Hoạch tương ứng trong CSDL nội bộ.");
-
-            // 1. Cập nhật dữ liệu vào chuỗi JSON của _PLAN_DATA_
-            let rowDataJson = planSheet[planRowIdx][2];
-            let parsedRow = [];
-            try { parsedRow = JSON.parse(rowDataJson); } catch(e){}
-            
-            parsedRow[targetColIdx] = finalHtml.trim();
-            let newJson = JSON.stringify(parsedRow);
-            planSheet[planRowIdx][2] = newJson;
-            
-            localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
-
-            // 2. Bắn lệnh API Sync
-            let statusEl = document.getElementById('syncStatus');
-            statusEl.innerText = "⏳ Đang đồng bộ lên Sheet...";
-            statusEl.style.color = "var(--blue)";
-
-            let action = {
-                type: 'SYNC_CELL', 
-                row: planRowIdx + 1, 
-                col: 3, // Cột C của tab _PLAN_DATA_
-                val: newJson, 
-                tab: '_PLAN_DATA_'
-            };
-
-            try {
-                let res = await fetch(API_URL, { 
-                    method: "POST", 
-                    body: JSON.stringify([action]), 
-                    headers: { "Content-Type": "text/plain;charset=utf-8" } 
-                });
-                let json = await res.json();
-                
-                if (json.success) {
-                    statusEl.innerText = "✅ Lưu thành công!";
-                    statusEl.style.color = "#27ae60";
-                    setTimeout(() => { statusEl.innerText = "✅ Hệ thống sẵn sàng"; }, 3000);
-                } else {
-                    statusEl.innerText = "⚠️ Lỗi lưu dữ liệu";
-                    statusEl.style.color = "var(--red)";
-                    alert("Có lỗi từ máy chủ khi lưu.");
-                }
-            } catch(e) {
-                statusEl.innerText = "⚠️ Lỗi mạng";
-                statusEl.style.color = "var(--red)";
+            // Tạo Sheet Bài Viết nếu chưa có
+            if(!sysData.sheets["Bài viết"]) {
+                sysData.tabOrder.push("Bài viết"); sysData.sheets["Bài viết"] = [["ID Kế Hoạch", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML"]];
+                await pushQueue({type:'MANAGE_TAB', action:'create', tab: "Bài viết"});
+                await pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "ID Kế Hoạch", tab: "Bài viết"});
+                await pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Tiêu đề", tab: "Bài viết"});
+                await pushQueue({type:'SYNC_CELL', row: 1, col: 3, val: "Sapo", tab: "Bài viết"});
+                await pushQueue({type:'SYNC_CELL', row: 1, col: 4, val: "Ảnh Bìa", tab: "Bài viết"});
+                await pushQueue({type:'SYNC_CELL', row: 1, col: 5, val: "Nội Dung HTML", tab: "Bài viết"});
             }
+
+            let bvTab = sysData.sheets["Bài viết"];
+            let targetRow = -1;
+            // Tìm dòng đã tồn tại
+            for(let r=1; r<bvTab.length; r++) {
+                if(bvTab[r][0] == planId) { targetRow = r; break; }
+            }
+
+            if(targetRow !== -1) {
+                bvTab[targetRow] = [planId, title, sapo, coverUrl, finalHtml];
+                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết"});
+                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết"});
+                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết"});
+                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết"});
+            } else {
+                targetRow = bvTab.length;
+                bvTab.push([planId, title, sapo, coverUrl, finalHtml]);
+                await pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow+1, count: 1, tab: "Bài viết"});
+                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 1, val: planId, tab: "Bài viết"});
+                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết"});
+                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết"});
+                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết"});
+                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết"});
+            }
+            showAlert("Đã lưu Bài viết thành công vào hệ thống!");
+        }
+
+        // HÀM PUSH QUEUE SYNC GIỐNG CÁC TRANG KHÁC
+        async function pushQueue(action) {
+            actionQueue.push(action);
+            localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+            let s = document.getElementById('syncStatus'); s.innerText = "⏳ Đang lưu..."; s.style.color = "#f39c12";
+            try {
+                let res = await fetch(API_URL, { method: "POST", body: JSON.stringify([action]), headers: { "Content-Type": "text/plain;charset=utf-8" } });
+                let json = await res.json();
+                if(json.success) { s.innerText = "✅ Hệ thống kết nối"; s.style.color = "#27ae60"; currentSyncToken = json.syncToken; }
+            } catch(e) { s.innerText = "⚠️ Mất mạng"; s.style.color = "var(--red)"; }
         }
     </script>
 </body>
