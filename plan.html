@@ -31,11 +31,7 @@
         .mega-row-content { position: sticky; left: 20px; display: flex; align-items: center; gap: 10px; font-weight: bold; }
         /* Ghim dấu > sang mép phải màn hình */
         .mega-row-btn i.fa-chevron-down { 
-            transition: transform 0.3s; 
-            margin-left: auto; 
-            position: sticky; 
-            right: 20px; 
-            z-index: 45;
+            transition: transform 0.3s; margin-left: auto; position: sticky; right: 20px; z-index: 45;
         }
         .month-group.collapsed .table-container { display: none; }
         .month-group.collapsed i.fa-chevron-down { transform: rotate(-90deg); }
@@ -56,9 +52,12 @@
         td { 
             height: 35px; padding: 0; border-bottom: 1px solid var(--gray-border); 
             border-right: 1px solid var(--gray-border); background: var(--white);
-            position: relative; max-width: 0; vertical-align: middle;
+            position: relative; max-width: 0; vertical-align: middle; cursor: pointer;
         }
         td:first-child { border-left: 1px solid var(--gray-border); }
+        
+        /* Hiệu ứng chọn dòng */
+        tr.row-selected td { background-color: rgba(1, 173, 238, 0.15) !important; }
 
         /* Cố định cột STT (#) bên trái */
         th.col-index { left: 0; z-index: 35; text-align: center; background: #e0e0e0; }
@@ -67,7 +66,6 @@
         /* ====== UI EDITORS BÊ TỪ IDEA.HTML ====== */
         .cell-editor { 
             width: 100%; height: 35px; max-height: 35px; padding: 8px 4px; outline: none; border: none; background: transparent; 
-            /* Thừa kế style từ cột (màu sắc, in đậm) */
             color: inherit; font-weight: inherit; font-style: inherit; text-decoration: inherit; text-align: inherit;
             overflow: hidden; white-space: pre-wrap; word-wrap: break-word; line-height: 19px; cursor: text; display: block; resize: none; 
         }
@@ -112,6 +110,8 @@
         <div>
             <button class="tool-btn" onclick="openFilterPopup(event)"><i class="fas fa-filter"></i> Lọc Theo Tháng</button>
             <button class="tool-btn" style="background:var(--white); color:var(--text-main); border-color:var(--gray-border);" onclick="forceFetchData()"><i class="fas fa-sync-alt"></i> Tải Lại Cấu Hình</button>
+            
+            <button class="tool-btn" style="margin-left: 10px;" onclick="transferToPost()"><i class="fas fa-edit"></i> Viết bài</button>
         </div>
         <span id="syncStatus" onclick="forceFetchData()" title="Bấm để lấy dữ liệu mới nhất từ Sheet">🔄 Đang tải...</span>
     </div>
@@ -138,13 +138,13 @@
     <script>
         const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
         
-        // BIẾN HỆ THỐNG
         let sysData = {};
         let activeFilters = [];
         let activeBottomTab = ""; 
         let actionQueue = []; 
         let isProcessingQueue = false; 
         let currentSyncToken = 0;
+        let selectedRowData = null; // Biến lưu dữ liệu dòng được chọn để viết bài
 
         let isResizing = false;
         let resizeData = { type: '', targetEl: null, startDim: 0, startMouse: 0, startTableW: 0 };
@@ -153,26 +153,17 @@
             loadLocalData();
             fetchDataFromServer();
             
-            // Khởi chạy vòng lặp đồng bộ 2 chiều
             setInterval(processQueueAndSync, 4000); 
             setInterval(() => {
-                if(actionQueue.length === 0 && !isProcessingQueue && !checkIsEditing()) {
-                    fetchDataFromServer();
-                }
+                if(actionQueue.length === 0 && !isProcessingQueue && !checkIsEditing()) fetchDataFromServer();
             }, 20000); 
             
-            // Xử lý click ra ngoài đóng menu
             document.addEventListener('click', (e) => {
                 document.querySelectorAll('.popup-box').forEach(el => {
                     if(!el.contains(e.target)) el.style.display = 'none';
                 });
-                
-                // Thu gọn ô đang edit nếu click ra ngoài
                 if(!e.target.closest('.cell-expanded')) {
-                    document.querySelectorAll(".cell-expanded").forEach(x => {
-                        x.classList.remove("cell-expanded");
-                        x.blur(); // Gọi onblur để save
-                    });
+                    document.querySelectorAll(".cell-expanded").forEach(x => { x.classList.remove("cell-expanded"); x.blur(); });
                 }
             });
             document.querySelectorAll('.popup-box').forEach(box => { box.addEventListener('click', (e) => e.stopPropagation()); });
@@ -182,22 +173,41 @@
         };
 
         // ==========================================
-        // HỆ THỐNG ĐỒNG BỘ CROSS-DEVICE & API
+        // CHUYỂN DỮ LIỆU SANG TRANG VIẾT BÀI
         // ==========================================
-        function checkIsEditing() {
-            return document.querySelector('.cell-expanded') !== null || 
-                   (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('cell-editor'));
+        function transferToPost() {
+            if(!selectedRowData) {
+                alert("Vui lòng click chọn một dòng dữ liệu (kế hoạch) bên dưới để tiến hành viết bài!");
+                return;
+            }
+            
+            // Lưu dữ liệu vào LocalStorage để post.html có thể đọc
+            localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(selectedRowData));
+            
+            // Yêu cầu admin.html (Iframe Cha) chuyển tab sang post.html
+            if(window.parent && typeof window.parent.loadModule === 'function') {
+                let sideItems = window.parent.document.querySelectorAll('.menu-item-side');
+                // Tìm nút "BÀI VIẾT" trên sidebar của admin
+                let postItem = Array.from(sideItems).find(el => el.innerText.includes('BÀI VIẾT'));
+                if(postItem) {
+                    window.parent.loadModule('post.html', postItem);
+                } else {
+                    window.location.href = 'post.html';
+                }
+            } else {
+                window.location.href = 'post.html';
+            }
         }
 
+        // ==========================================
+        // HỆ THỐNG ĐỒNG BỘ CROSS-DEVICE & API
+        // ==========================================
+        function checkIsEditing() { return document.querySelector('.cell-expanded') !== null || (document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('cell-editor')); }
         function setSyncStatus(msg, color) { let s = document.getElementById('syncStatus'); s.innerText = msg; s.style.color = color; }
 
         function loadLocalData() {
             let cached = localStorage.getItem("MKT_DATA");
-            if (cached) {
-                sysData = JSON.parse(cached);
-                currentSyncToken = sysData.syncToken || 0;
-                processAndRender();
-            }
+            if (cached) { sysData = JSON.parse(cached); currentSyncToken = sysData.syncToken || 0; processAndRender(); }
         }
 
         function forceFetchData() {
@@ -212,17 +222,11 @@
                 let json = await res.json();
                 if(json.success) {
                     let localFilters = sysData.filters || {}; 
-                    sysData = json.data; 
-                    sysData.filters = localFilters; 
-                    currentSyncToken = sysData.syncToken;
+                    sysData = json.data; sysData.filters = localFilters; currentSyncToken = sysData.syncToken;
                     localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
                     
-                    if (!checkIsEditing()) {
-                        processAndRender(); 
-                        setSyncStatus("✅ Sẵn sàng", "#27ae60");
-                    } else {
-                        setSyncStatus("⚠️ Có dữ liệu mới", "#f39c12");
-                    }
+                    if (!checkIsEditing()) { processAndRender(); setSyncStatus("✅ Sẵn sàng", "#27ae60"); } 
+                    else setSyncStatus("⚠️ Có dữ liệu mới", "#f39c12");
                 }
             } catch(e) { setSyncStatus("⚠️ Ngoại tuyến", "var(--red)"); }
         }
@@ -238,8 +242,7 @@
                 else { 
                     if(batch.length > 0) setSyncStatus("✅ Đã lưu", "#27ae60"); 
                     if (currentSyncToken !== 0 && json.syncToken > currentSyncToken && batch.length === 0) {
-                        if(!checkIsEditing()) await fetchDataFromServer();
-                        else setSyncStatus("⚠️ Có dữ liệu mới", "#f39c12");
+                        if(!checkIsEditing()) await fetchDataFromServer(); else setSyncStatus("⚠️ Có dữ liệu mới", "#f39c12");
                     }
                     currentSyncToken = json.syncToken;
                 }
@@ -247,10 +250,7 @@
             isProcessingQueue = false;
         }
 
-        function dispatchAction(action) { 
-            actionQueue.push(action); 
-            localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
-        }
+        function dispatchAction(action) { actionQueue.push(action); localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); }
 
         // ==========================================
         // CẬP NHẬT DỮ LIỆU CỦA CELL
@@ -267,74 +267,45 @@
             planSheet[planRowIndex][2] = newJson;
             localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
             
-            dispatchAction({
-                type: 'SYNC_CELL',
-                row: planRowIndex + 1, 
-                col: 3, 
-                val: newJson,
-                tab: '_PLAN_DATA_'
-            });
+            dispatchAction({ type: 'SYNC_CELL', row: planRowIndex + 1, col: 3, val: newJson, tab: '_PLAN_DATA_' });
         }
 
         // ==========================================
-        // UI COMPONENTS & RENDER ENGINE CHUẨN IDEA
+        // UI COMPONENTS & RENDER ENGINE
         // ==========================================
         function createEditor(planRowIndex, origColIndex, val) { 
-            let ed = document.createElement("div"); 
-            ed.className = "cell-editor"; 
-            ed.contentEditable = "true"; 
-            ed.innerHTML = val; 
-            
-            ed.ondblclick = function(e) { 
-                e.stopPropagation(); 
-                document.querySelectorAll(".cell-expanded").forEach(x=>x.classList.remove("cell-expanded")); 
-                this.classList.add("cell-expanded"); 
-            }; 
-            
-            ed.onblur = function() { 
-                this.classList.remove("cell-expanded"); 
-                updatePlanCell(planRowIndex, origColIndex, this.innerHTML); 
-            }; 
+            let ed = document.createElement("div"); ed.className = "cell-editor"; ed.contentEditable = "true"; ed.innerHTML = val; 
+            ed.ondblclick = function(e) { e.stopPropagation(); document.querySelectorAll(".cell-expanded").forEach(x=>x.classList.remove("cell-expanded")); this.classList.add("cell-expanded"); }; 
+            ed.onblur = function() { this.classList.remove("cell-expanded"); updatePlanCell(planRowIndex, origColIndex, this.innerHTML); }; 
             return ed; 
         }
 
         function showPopupSafe(menu, e) { 
-            menu.style.display = "block"; 
-            let x = e.clientX, y = e.clientY + 15; 
+            menu.style.display = "block"; let x = e.clientX, y = e.clientY + 15; 
             if(x + menu.offsetWidth > window.innerWidth) x = window.innerWidth - menu.offsetWidth - 5; 
             if(y + menu.offsetHeight > window.innerHeight) y = window.innerHeight - menu.offsetHeight - 5; 
             menu.style.left = x + "px"; menu.style.top = y + "px"; 
         }
 
         function openDropdownMenu(e, planRowIndex, origColIndex, current, opts) { 
-            let box = document.getElementById("dropdownListArea"); 
-            box.innerHTML = ""; 
+            let box = document.getElementById("dropdownListArea"); box.innerHTML = ""; 
             opts.forEach(opt => { 
-                let div = document.createElement("div"); 
-                div.className = "menu-item"; 
+                let div = document.createElement("div"); div.className = "menu-item"; 
                 let isChk = current.includes(opt); 
                 div.innerHTML = `<input type="checkbox" ${isChk?'checked':''} style="pointer-events:none;"> <span>${opt}</span>`; 
                 div.onclick = (ev) => { 
                     ev.stopPropagation(); 
-                    if(isChk) current = current.filter(x => x !== opt); 
-                    else current.push(opt); 
-                    
+                    if(isChk) current = current.filter(x => x !== opt); else current.push(opt); 
                     updatePlanCell(planRowIndex, origColIndex, current.join(", ")); 
                     openDropdownMenu(e, planRowIndex, origColIndex, current, opts); 
                     processAndRender(); 
-                }; 
-                box.appendChild(div); 
+                }; box.appendChild(div); 
             }); 
             showPopupSafe(document.getElementById("dropdownPopup"), e); 
         }
 
-        // ==========================================
-        // RESIZER
-        // ==========================================
         function initResize(e, type, targetEl, currentDim) {
-            e.stopPropagation(); e.preventDefault();
-            isResizing = true;
-            let tableEl = targetEl.closest('table');
+            e.stopPropagation(); e.preventDefault(); isResizing = true; let tableEl = targetEl.closest('table');
             resizeData = { type: type, targetEl: targetEl, startDim: currentDim, startMouse: type === 'col' ? e.clientX : e.clientY, startTableW: tableEl ? tableEl.offsetWidth : 0 };
             document.body.style.cursor = type === 'col' ? 'col-resize' : 'row-resize';
         }
@@ -344,90 +315,57 @@
             let delta = (resizeData.type === 'col' ? e.clientX : e.clientY) - resizeData.startMouse;
             let newDim = Math.max(30, resizeData.startDim + delta); 
             if (resizeData.type === 'col') {
-                resizeData.targetEl.style.width = newDim + "px";
-                let tbl = resizeData.targetEl.closest('table');
-                if (tbl) {
-                    let diff = newDim - resizeData.startDim; let newTableW = resizeData.startTableW + diff;
-                    tbl.style.width = newTableW + "px"; tbl.style.minWidth = newTableW + "px";
-                }
+                resizeData.targetEl.style.width = newDim + "px"; let tbl = resizeData.targetEl.closest('table');
+                if (tbl) { let diff = newDim - resizeData.startDim; let newTableW = resizeData.startTableW + diff; tbl.style.width = newTableW + "px"; tbl.style.minWidth = newTableW + "px"; }
             } else resizeData.targetEl.style.height = newDim + "px";
         }
 
-        function handleMouseUp() {
-            if (!isResizing) return; isResizing = false; document.body.style.cursor = 'default';
-        }
-
+        function handleMouseUp() { if (!isResizing) return; isResizing = false; document.body.style.cursor = 'default'; }
         function toggleMegaRow(btn) { btn.parentElement.classList.toggle('collapsed'); }
 
         // ==========================================
-        // LÕI XỬ LÝ & RENDER GIAO DIỆN BẢNG
+        // RENDER CHÍNH
         // ==========================================
         function processAndRender() {
-            let area = document.getElementById("planArea");
-            let tabsWrapper = document.getElementById("bottomTabs");
+            let area = document.getElementById("planArea"); let tabsWrapper = document.getElementById("bottomTabs");
             let oldScrollY = document.getElementById("scrollArea").scrollTop;
-
             area.innerHTML = ""; tabsWrapper.innerHTML = "";
 
             let planSheet = sysData.sheets["_PLAN_DATA_"];
-            if (!planSheet || planSheet.length <= 1) {
-                area.innerHTML = `<div class="empty-msg"><i class="fas fa-folder-open" style="font-size:30px; color:var(--gray-border); margin-bottom:10px;"></i><br>Chưa có kế hoạch nào được lên lịch.</div>`;
-                return;
-            }
+            if (!planSheet || planSheet.length <= 1) { area.innerHTML = `<div class="empty-msg"><i class="fas fa-folder-open" style="font-size:30px; color:var(--gray-border); margin-bottom:10px;"></i><br>Chưa có kế hoạch nào được lên lịch.</div>`; return; }
 
-            let uniqueTabs = new Set();
-            for (let i = 1; i < planSheet.length; i++) if(planSheet[i][0]) uniqueTabs.add(planSheet[i][0]);
-            let availableTabs = Array.from(uniqueTabs);
-
-            if (availableTabs.length === 0) {
-                area.innerHTML = `<div class="empty-msg">Chưa có dữ liệu kế hoạch hợp lệ.</div>`; return;
-            }
-
+            let uniqueTabs = new Set(); for (let i = 1; i < planSheet.length; i++) if(planSheet[i][0]) uniqueTabs.add(planSheet[i][0]);
+            let availableTabs = Array.from(uniqueTabs); if (availableTabs.length === 0) { area.innerHTML = `<div class="empty-msg">Chưa có dữ liệu kế hoạch hợp lệ.</div>`; return; }
             if (!activeBottomTab || !availableTabs.includes(activeBottomTab)) activeBottomTab = availableTabs[0];
 
-            // Render Tabs
             availableTabs.forEach(tab => {
                 let div = document.createElement("div"); div.className = "tab-item" + (tab === activeBottomTab ? " active" : "");
                 div.innerHTML = `<i class="fas fa-table" style="margin-right: 5px; opacity: 0.7;"></i> ${tab}`;
-                div.onclick = () => { activeBottomTab = tab; processAndRender(); };
-                tabsWrapper.appendChild(div);
+                div.onclick = () => { activeBottomTab = tab; processAndRender(); }; tabsWrapper.appendChild(div);
             });
 
-            // Lấy cấu hình Styles/Types từ Tab Gốc
             let tabAttrs = sysData.attributes[activeBottomTab] || {};
             let originalColWidths = tabAttrs.colWidths || {};
             let types = tabAttrs.columnTypes || {};
+            let frzCol = tabAttrs.frozenCols || 0; // Lấy số lượng cột cần cố định từ Idea.html
 
             let groupedData = {};
             for (let i = 1; i < planSheet.length; i++) {
                 let tabName = planSheet[i][0]; let dateStr = planSheet[i][1]; let rowDataJson = planSheet[i][2];
                 if (tabName !== activeBottomTab || !dateStr || !rowDataJson) continue; 
-
-                let dateObj = new Date(dateStr);
-                let monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+                let dateObj = new Date(dateStr); let monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
                 let monthLabel = `Tháng ${dateObj.getMonth() + 1} / ${dateObj.getFullYear()}`;
-
                 if (!groupedData[monthKey]) groupedData[monthKey] = { label: monthLabel, rows: [] };
-
-                let parsedRow = [];
-                try { parsedRow = JSON.parse(rowDataJson); } catch(e){}
-                
-                // Bắn thêm ID index gốc để biết đường Update
+                let parsedRow = []; try { parsedRow = JSON.parse(rowDataJson); } catch(e){}
                 groupedData[monthKey].rows.push({ date: dateStr, data: parsedRow, planRowIndex: i });
             }
 
-            let sortedMonths = Object.keys(groupedData).sort();
-            let hasVisibleData = false;
-
-            let headers = [];
-            if (sysData.sheets[activeBottomTab] && sysData.sheets[activeBottomTab].length > 0) {
-                headers = sysData.sheets[activeBottomTab][0];
-            }
+            let sortedMonths = Object.keys(groupedData).sort(); let hasVisibleData = false;
+            let headers = []; if (sysData.sheets[activeBottomTab] && sysData.sheets[activeBottomTab].length > 0) headers = sysData.sheets[activeBottomTab][0];
 
             sortedMonths.forEach(mKey => {
                 if (activeFilters.length > 0 && !activeFilters.includes(mKey)) return;
-                hasVisibleData = true;
-                let monthInfo = groupedData[mKey];
+                hasVisibleData = true; let monthInfo = groupedData[mKey];
 
                 let groupDiv = document.createElement("div"); groupDiv.className = "month-group";
                 let btn = document.createElement("button"); btn.className = "mega-row-btn"; 
@@ -437,19 +375,32 @@
                 let tableContainer = document.createElement("div"); tableContainer.className = "table-container";
                 let table = document.createElement("table");
                 
-                if (headers.length === 0 && monthInfo.rows.length > 0) {
-                    for(let c=0; c<monthInfo.rows[0].data.length; c++) headers.push("Cột " + (c+1));
-                }
+                if (headers.length === 0 && monthInfo.rows.length > 0) { for(let c=0; c<monthInfo.rows[0].data.length; c++) headers.push("Cột " + (c+1)); }
                 
-                let totalTableWidth = 40 + 120; 
-                headers.forEach((h, idx) => { totalTableWidth += originalColWidths[idx] ? parseInt(originalColWidths[idx]) : 150; });
+                // --- TÍNH TOÁN LEFT OFFSET CHO CÁC CỘT CỐ ĐỊNH ---
+                let stickyLefts = [0, 40]; // [0] cho cột STT, [1] cho cột Deadline
+                let currentLeft = 160; // 40 (STT) + 120 (Deadline)
+                
+                let totalTableWidth = 160; 
+                headers.forEach((h, idx) => { 
+                    stickyLefts.push(currentLeft); // Lưu vị trí Left của từng Data Col
+                    let w = originalColWidths[idx] ? parseInt(originalColWidths[idx]) : 150;
+                    currentLeft += w;
+                    totalTableWidth += w; 
+                });
+                
                 table.style.width = totalTableWidth + "px"; table.style.minWidth = totalTableWidth + "px";
                 
                 let thead = document.createElement("thead"); let trH = document.createElement("tr");
-                let thIndex = document.createElement("th"); thIndex.className = "col-index"; thIndex.style.width = "40px"; thIndex.innerText = "#"; trH.appendChild(thIndex);
-                let thDate = document.createElement("th"); thDate.style.width = "120px"; thDate.style.color = "var(--red)"; thDate.innerHTML = `Deadline <div class="resizer-col" onmousedown="initResize(event, 'col', this.parentElement, this.parentElement.offsetWidth)"></div>`; trH.appendChild(thDate);
+                
+                let thIndex = document.createElement("th"); thIndex.className = "col-index"; thIndex.style.width = "40px"; thIndex.innerText = "#"; 
+                thIndex.style.position = 'sticky'; thIndex.style.left = '0px'; thIndex.style.zIndex = '35'; trH.appendChild(thIndex);
+                
+                let thDate = document.createElement("th"); thDate.style.width = "120px"; thDate.style.color = "var(--red)"; 
+                thDate.innerHTML = `Deadline <div class="resizer-col" onmousedown="initResize(event, 'col', this.parentElement, this.parentElement.offsetWidth)"></div>`; 
+                thDate.style.position = 'sticky'; thDate.style.left = '40px'; thDate.style.zIndex = '35'; trH.appendChild(thDate);
 
-                // --- ĐỌC & SET MÀU CHO TIÊU ĐỀ BẢNG (HEADERS) ---
+                // HEADER MANG CẤU HÌNH CỐ ĐỊNH TỪ IDEA
                 headers.forEach((h, idx) => {
                     let th = document.createElement("th");
                     
@@ -466,6 +417,15 @@
 
                     th.style.width = (originalColWidths[idx] ? parseInt(originalColWidths[idx]) : 150) + "px";
                     th.innerHTML = `${h}<div class="resizer-col" onmousedown="initResize(event, 'col', this.parentElement, this.parentElement.offsetWidth)"></div>`;
+                    
+                    // Thiết lập cố định nếu nằm trong phạm vi frzCol
+                    if(idx < frzCol) {
+                        th.style.position = 'sticky';
+                        th.style.left = stickyLefts[idx + 2] + 'px'; // +2 do có STT và Deadline
+                        th.style.zIndex = '35';
+                        if(idx === frzCol - 1) th.style.borderRight = "2px solid var(--blue)";
+                    }
+                    
                     trH.appendChild(th);
                 });
                 thead.appendChild(trH); table.appendChild(thead);
@@ -474,56 +434,75 @@
                 
                 monthInfo.rows.sort((a,b) => new Date(a.date) - new Date(b.date)).forEach((rowItem, rIdx) => {
                     let tr = document.createElement("tr");
+                    
+                    // LẮNG NGHE SỰ KIỆN CHỌN DÒNG ĐỂ VIẾT BÀI
+                    tr.onclick = (e) => {
+                        document.querySelectorAll('tr.row-selected').forEach(r => r.classList.remove('row-selected'));
+                        tr.classList.add('row-selected');
+                        
+                        selectedRowData = {
+                            planRowIndex: rowItem.planRowIndex,
+                            date: rowItem.date,
+                            tab: activeBottomTab,
+                            data: rowItem.data,
+                            headers: headers
+                        };
+                    };
+                    
                     let dObj = new Date(rowItem.date); let dStrVN = `${String(dObj.getDate()).padStart(2,'0')}/${String(dObj.getMonth()+1).padStart(2,'0')}/${dObj.getFullYear()}`;
                     
                     let tdNum = document.createElement("td"); tdNum.className = "row-index"; 
                     tdNum.innerHTML = `${rIdx + 1}<div class="resizer-row" onmousedown="initResize(event, 'row', this.parentElement.parentElement, this.parentElement.parentElement.offsetHeight)"></div>`;
-                    tr.appendChild(tdNum);
+                    tdNum.style.position = 'sticky'; tdNum.style.left = '0px'; tdNum.style.zIndex = '20'; tr.appendChild(tdNum);
 
                     let tdDate = document.createElement("td");
                     tdDate.innerHTML = `<div class="cell-view" style="font-weight:bold; color:var(--blue); text-align:center;">${dStrVN}</div>`;
-                    tr.appendChild(tdDate);
+                    tdDate.style.position = 'sticky'; tdDate.style.left = '40px'; tdDate.style.zIndex = '20'; tdDate.style.backgroundColor = "var(--white)"; tr.appendChild(tdDate);
                     
                     rowItem.data.forEach((val, c) => {
                         let td = document.createElement("td");
                         
-                        // --- 1. ÁP DỤNG STYLE CỦA CỘT TỪ IDEA (Màu sắc, in đậm...) ---
+                        // ÁP DỤNG STYLE
                         let cs = (tabAttrs.colStyles && tabAttrs.colStyles[c]) || {};
-                        td.style.backgroundColor = cs.bg || "#ffffff";
+                        let finalBg = cs.bg || "#ffffff";
+                        td.style.backgroundColor = finalBg;
                         td.style.color = cs.color || "var(--text-main)";
                         td.style.fontWeight = cs.bold ? "bold" : "normal";
                         td.style.fontStyle = cs.italic ? "italic" : "normal";
                         td.style.textDecoration = cs.underline ? "underline" : "none";
                         td.style.textAlign = cs.align || "left";
 
-                        // --- 2. ÁP DỤNG LOẠI DỮ LIỆU CỦA CỘT TỪ IDEA ---
+                        // ÁP DỤNG CỐ ĐỊNH CỘT CHO DATA CELL
+                        if(c < frzCol) {
+                            td.style.position = 'sticky';
+                            td.style.left = stickyLefts[c + 2] + 'px';
+                            td.style.zIndex = '20';
+                            if(c === frzCol - 1) td.style.borderRight = "2px solid var(--blue)";
+                            // Nếu ô trong suốt thì gán nền trắng để khi cuộn chữ không đè lên nhau
+                            if(finalBg === "transparent" || finalBg === "rgba(0, 0, 0, 0)") td.style.backgroundColor = "#ffffff";
+                        }
+
+                        // ÁP DỤNG LOẠI DỮ LIỆU
                         let type = types[c] || "text";
                         if (type === "dropdown") {
                             let opts = (tabAttrs.dropdownChoices && tabAttrs.dropdownChoices[c]) ? tabAttrs.dropdownChoices[c] : ["Mục 1"]; 
                             let arr = val ? String(val).split(",").map(s=>s.trim()).filter(Boolean) : []; 
-                            let ui = document.createElement("div"); 
-                            ui.className = "dropdown-ui"; 
+                            let ui = document.createElement("div"); ui.className = "dropdown-ui"; 
                             ui.innerHTML = `<div class="dropdown-text">${arr.length ? arr.join(", ") : "<span style='opacity:0.6; font-style:italic;'>Trống...</span>"}</div> <i style="opacity:0.5;" class="fas fa-caret-down"></i>`; 
                             ui.onclick = (e) => { e.stopPropagation(); openDropdownMenu(e, rowItem.planRowIndex, c, arr, opts); }; 
                             td.appendChild(ui);
                         } 
                         else if (type === "checkbox") {
-                            let chk = document.createElement("input"); 
-                            chk.type = "checkbox"; 
-                            chk.checked = (val === "true" || val === true); 
-                            chk.style.margin = "0 8px"; 
-                            chk.style.cursor = "pointer"; 
-                            chk.onchange = () => updatePlanCell(rowItem.planRowIndex, c, chk.checked); 
-                            td.appendChild(chk);
+                            let chk = document.createElement("input"); chk.type = "checkbox"; chk.checked = (val === "true" || val === true); 
+                            chk.style.margin = "0 8px"; chk.style.cursor = "pointer"; 
+                            chk.onchange = () => updatePlanCell(rowItem.planRowIndex, c, chk.checked); td.appendChild(chk);
                         } 
                         else if (type === "link") {
                             let str = String(val); 
                             if (str.startsWith("http")) td.innerHTML = `<a href="${str}" target="_blank" style="color:var(--blue); font-weight:bold; margin:0 4px; text-decoration:none;">Link</a>`; 
                             else td.appendChild(createEditor(rowItem.planRowIndex, c, val));
                         } 
-                        else {
-                            td.appendChild(createEditor(rowItem.planRowIndex, c, val));
-                        }
+                        else td.appendChild(createEditor(rowItem.planRowIndex, c, val));
 
                         tr.appendChild(td);
                     });
@@ -534,7 +513,6 @@
             });
 
             if (!hasVisibleData) area.innerHTML = `<div class="empty-msg">Không có dữ liệu kế hoạch phù hợp với bộ lọc.</div>`;
-            
             document.getElementById("scrollArea").scrollTop = oldScrollY;
         }
 
