@@ -366,62 +366,34 @@ function showModal(title, bodyHtml, btns) { document.getElementById("modalTitle"
         }
 
         // HÀM CHUYỂN DỮ LIỆU SANG PLAN.HTML (Giữ nguyên)
+       // HÀM LÊN LỊCH CHUẨN: KHÔNG TẠO TAB MỚI, CHỈ GÁN NGÀY
         function executeSchedule() {
             let dateVal = document.getElementById("scheduleDate").value;
             if (!dateVal) return alert("Bạn chưa chọn ngày!");
             
             let minR = Math.min(selStart.r, selEnd.r);
             let maxR = Math.max(selStart.r, selEnd.r);
-            let countR = maxR - minR + 1;
             
-            let targetTab = "KẾ HOẠCH";
+            let mat = sysData.sheets[activeTab];
             
-            // 1. Nếu tab KẾ HOẠCH chưa tồn tại, tự động tạo mới bên Sheet
-            if(!sysData.tabOrder.includes(targetTab)) {
-                sysData.tabOrder.push(targetTab);
-                sysData.sheets[targetTab] = [ [...sysData.sheets[activeTab][0]] ]; // Copy tiêu đề qua
-                dispatchAction({type:'MANAGE_TAB', action:'create', tab: targetTab});
-            }
-            
-            let sourceMat = sysData.sheets[activeTab];
-            let targetMat = sysData.sheets[targetTab];
-            
-            // 2. Đảm bảo KẾ HOẠCH có cột "Ngày Lên Lịch" (Gắn ở cuối cùng)
-            let dateCol = targetMat[0].indexOf("Ngày Lên Lịch");
+            // Tìm hoặc tạo cột "Ngày Lên Lịch" ở cuối bảng
+            let dateCol = mat[0].indexOf("Ngày Lên Lịch");
             if (dateCol === -1) {
-                dateCol = targetMat[0].length;
-                targetMat[0].push("Ngày Lên Lịch");
+                dateCol = mat[0].length;
+                mat[0].push("Ngày Lên Lịch");
+                dispatchAction({type: 'SYNC_CELL', row: 1, col: dateCol + 1, val: "Ngày Lên Lịch"});
             }
             
-            // 3. Chuẩn bị hàng để di chuyển sang
-            let rowsToMove = sourceMat.slice(minR, maxR + 1);
-            let newRowsForTarget = rowsToMove.map(row => {
-                let newRow = [...row];
-                while(newRow.length <= dateCol) newRow.push("");
-                newRow[dateCol] = dateVal; // Đóng dấu ngày tháng
-                return newRow;
-            });
-            
-            // 4. Bắn dữ liệu sang KẾ HOẠCH
-            targetMat.push(...newRowsForTarget);
-            dispatchAction({type:'STRUCTURAL', action:'insertRow', index: targetMat.length - countR + 1, count: countR, tab: targetTab});
-            newRowsForTarget.forEach((rData, i) => {
-                rData.forEach((val, j) => {
-                    dispatchAction({type: 'SYNC_CELL', row: targetMat.length - countR + i + 1, col: j + 1, val: val, tab: targetTab});
-                });
-            });
-            
-            // 5. Xóa dữ liệu khỏi tab hiện tại (Ý Tưởng)
-            sourceMat.splice(minR, countR);
-            if(sourceMat.length === 1) { // Nếu xóa sạch sheet, tạo 1 hàng trống
-                sourceMat.push(Array(sourceMat[0].length).fill(""));
-                dispatchAction({type:'STRUCTURAL', action:'insertRow', index: 2, count: 1, tab: activeTab});
+            // Gán ngày cho các hàng đã chọn
+            for (let r = minR; r <= maxR; r++) {
+                while(mat[r].length <= dateCol) mat[r].push("");
+                mat[r][dateCol] = dateVal;
+                dispatchAction({type: 'SYNC_CELL', row: r + 1, col: dateCol + 1, val: dateVal});
             }
-            dispatchAction({type:'STRUCTURAL', action:'deleteRow', index: minR + 1, count: countR, tab: activeTab});
             
             renderGrid();
             closeModal();
-            alert("✅ Đã lên lịch và chuyển sang module KẾ HOẠCH thành công!");
+            alert("✅ Đã lên lịch thành công! Mở module KẾ HOẠCH để xem giao diện Tháng/Năm.");
         }
     </script>
 </body>
