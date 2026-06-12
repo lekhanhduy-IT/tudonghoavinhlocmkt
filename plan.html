@@ -19,35 +19,16 @@
         /* Vùng cuộn chính */
         .scroll-area { flex: 1; overflow: auto; background: var(--gray-light); position: relative; }
         
-        /* Bao bọc nội dung - Bí quyết để Mega-row kéo dài bằng Table */
         .content-wrapper { display: inline-block; min-width: 100%; background: var(--white); padding-bottom: 50px; }
         .month-group { width: 100%; display: flex; flex-direction: column; }
 
         /* Mega Row (Thanh Tháng) - Cố định Top 0 */
         .mega-row-btn { 
-            position: sticky; 
-            top: 0; 
-            z-index: 40; 
-            width: 100%; 
-            height: 48px;
-            background: var(--blue); 
-            color: var(--white); 
-            font-size: 15px; 
-            border: none; 
-            cursor: pointer; 
-            display: flex;
-            align-items: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            position: sticky; top: 0; z-index: 40; width: 100%; height: 48px;
+            background: var(--blue); color: var(--white); font-size: 15px; border: none; 
+            cursor: pointer; display: flex; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-        /* Giữ chữ luôn hiển thị ở mép trái khi cuộn ngang */
-        .mega-row-content {
-            position: sticky;
-            left: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-weight: bold;
-        }
+        .mega-row-content { position: sticky; left: 20px; display: flex; align-items: center; gap: 10px; font-weight: bold; }
         .mega-row-btn i.fa-chevron-down { transition: transform 0.3s; margin-left: auto; position: sticky; left: calc(100vw - 40px); }
         .month-group.collapsed .table-container { display: none; }
         .month-group.collapsed i.fa-chevron-down { transform: rotate(-90deg); }
@@ -55,41 +36,27 @@
         /* Khung chứa bảng */
         .table-container { display: block; }
 
-        /* Cấu trúc Bảng chuẩn */
+        /* Cấu trúc Bảng ÉP CỨNG TUYỆT ĐỐI */
         table { 
-            width: max-content; 
-            min-width: 100%;
             border-collapse: separate; 
             border-spacing: 0; 
-            table-layout: fixed; /* Ép cứng width */
+            table-layout: fixed; /* Ép cứng chiều rộng cột */
         }
         
         /* Tiêu đề bảng - Cố định dưới Mega-row (48px) */
         th { 
-            position: sticky; 
-            top: 48px; 
-            z-index: 30; 
-            background: var(--gray-light); 
-            color: var(--text-main); 
-            height: 35px; 
-            padding: 0 10px; 
-            font-size: 13px;
-            text-align: left;
-            white-space: nowrap; 
-            border-bottom: 1px solid var(--gray-border);
-            border-right: 1px solid var(--gray-border);
-            box-shadow: 0 -2px 0 var(--blue); /* Vá lỗ hổng 1px giữa header và mega-row */
+            position: sticky; top: 48px; z-index: 30; background: var(--gray-light); color: var(--text-main); 
+            height: 35px; padding: 0 10px; font-size: 13px; text-align: left; white-space: nowrap; 
+            border-bottom: 1px solid var(--gray-border); border-right: 1px solid var(--gray-border);
+            box-shadow: 0 -2px 0 var(--blue); overflow: hidden; text-overflow: ellipsis;
         }
         th:first-child { border-left: 1px solid var(--gray-border); }
 
         /* Dòng dữ liệu */
         td { 
-            height: 35px; 
-            padding: 0; /* Padding chuyển vào cell-view để kiểm soát chiều cao */
-            border-bottom: 1px solid var(--gray-border); 
-            border-right: 1px solid var(--gray-border);
-            background: var(--white);
-            position: relative;
+            height: 35px; padding: 0; border-bottom: 1px solid var(--gray-border); 
+            border-right: 1px solid var(--gray-border); background: var(--white);
+            position: relative; max-width: 0; /* max-width: 0 giúp table-layout: fixed hoạt động mượt mà */
         }
         td:first-child { border-left: 1px solid var(--gray-border); }
 
@@ -99,43 +66,28 @@
 
         /* Bộ Khung Giữ Chiều Cao 35px Tuyệt Đối */
         .cell-view {
-            height: 34px;
-            line-height: 34px;
-            padding: 0 10px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            font-size: 13px;
-            cursor: pointer;
-            width: 100%;
+            height: 34px; line-height: 34px; padding: 0 10px;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            font-size: 13px; cursor: pointer; width: 100%;
         }
 
         /* Khung hiển thị nội dung bung ra khi Double-click */
         .cell-expanded {
-            position: absolute;
-            top: -1px;
-            left: -1px;
-            z-index: 100;
-            height: max-content;
-            max-height: 300px;
-            width: max-content;
-            min-width: calc(100% + 2px);
-            max-width: 500px;
-            background: var(--white);
-            border: 1.5px solid var(--blue);
-            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-            padding: 10px;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            overflow-y: auto;
-            color: var(--text-main);
-            font-weight: normal;
-            font-size: 13px;
-            line-height: 1.5;
-            text-align: left;
-            border-radius: 4px;
-            cursor: text;
+            position: absolute; top: -1px; left: -1px; z-index: 100;
+            height: max-content; max-height: 300px; width: max-content;
+            min-width: calc(100% + 2px); max-width: 500px; background: var(--white);
+            border: 1.5px solid var(--blue); box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            padding: 15px 10px 10px 10px; white-space: pre-wrap; word-wrap: break-word;
+            overflow-y: auto; color: var(--text-main); font-weight: normal;
+            font-size: 13px; line-height: 1.5; text-align: left; border-radius: 4px; cursor: text;
         }
+
+        /* Nút Close cho ô bung rộng */
+        .close-expanded-btn {
+            position: absolute; top: 4px; right: 6px; font-size: 14px;
+            color: var(--red); cursor: pointer; opacity: 0.7; transition: 0.2s;
+        }
+        .close-expanded-btn:hover { opacity: 1; transform: scale(1.1); }
 
         /* Resizer Hàng/Cột */
         .resizer-col { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 25; }
@@ -145,29 +97,14 @@
 
         /* Thanh Footer Tabs */
         .footer-tabs { 
-            height: 40px; 
-            background: var(--white); 
-            display: flex; 
-            align-items: center; 
-            padding: 0 10px; 
-            border-top: 1px solid var(--gray-border); 
-            overflow-x: auto; 
-            flex-shrink: 0; 
-            z-index: 100;
+            height: 40px; background: var(--white); display: flex; align-items: center; 
+            padding: 0 10px; border-top: 1px solid var(--gray-border); overflow-x: auto; 
+            flex-shrink: 0; z-index: 100;
         }
         .tab-item { 
-            padding: 6px 20px; 
-            background: var(--white); 
-            border: 1px solid var(--gray-border); 
-            color: var(--text-main); 
-            opacity: 0.8; 
-            cursor: pointer; 
-            font-size: 13px; 
-            font-weight: bold; 
-            margin-right: 6px; 
-            border-radius: 4px;
-            white-space: nowrap;
-            transition: 0.2s;
+            padding: 6px 20px; background: var(--white); border: 1px solid var(--gray-border); 
+            color: var(--text-main); opacity: 0.8; cursor: pointer; font-size: 13px; 
+            font-weight: bold; margin-right: 6px; border-radius: 4px; white-space: nowrap; transition: 0.2s;
         }
         .tab-item:hover { opacity: 1; border-color: var(--blue); }
         .tab-item.active { background: var(--blue); color: var(--white); opacity: 1; border: 1px solid var(--blue); }
@@ -211,7 +148,7 @@
         let activeFilters = [];
         let activeBottomTab = ""; 
         let isResizing = false;
-        let resizeData = { type: '', targetEl: null, startDim: 0, startMouse: 0 };
+        let resizeData = { type: '', targetEl: null, startDim: 0, startMouse: 0, startTableW: 0 };
 
         window.onload = () => {
             loadData();
@@ -221,12 +158,13 @@
                 if(!document.getElementById('filterPopup').contains(e.target)) {
                     document.getElementById('filterPopup').style.display = 'none';
                 }
-                if(!e.target.closest('.cell-expanded') && !e.target.closest('.cell-view')) {
+                
+                // Nếu click không trúng ô đang bung thì dọn dẹp các ô đang bung
+                if(!e.target.closest('.cell-expanded')) {
                     document.querySelectorAll(".cell-expanded").forEach(x => x.remove());
                 }
             });
 
-            // Lắng nghe sự kiện kéo thả chuột toàn hệ thống cho Resizer
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
         };
@@ -244,12 +182,19 @@
         }
 
         // ==========================================
-        // RESIZER: HÀM KÉO GIÃN HÀNG/CỘT
+        // RESIZER: KÉO GIÃN KÍCH THƯỚC ĐỒNG BỘ CẢ BẢNG
         // ==========================================
         function initResize(e, type, targetEl, currentDim) {
             e.stopPropagation(); e.preventDefault();
             isResizing = true;
-            resizeData = { type: type, targetEl: targetEl, startDim: currentDim, startMouse: type === 'col' ? e.clientX : e.clientY };
+            let tableEl = targetEl.closest('table');
+            resizeData = { 
+                type: type, 
+                targetEl: targetEl, 
+                startDim: currentDim, 
+                startMouse: type === 'col' ? e.clientX : e.clientY,
+                startTableW: tableEl ? tableEl.offsetWidth : 0 // Lưu chiều dài gốc của bảng
+            };
             document.body.style.cursor = type === 'col' ? 'col-resize' : 'row-resize';
         }
 
@@ -257,8 +202,21 @@
             if (!isResizing) return;
             let delta = (resizeData.type === 'col' ? e.clientX : e.clientY) - resizeData.startMouse;
             let newDim = Math.max(30, resizeData.startDim + delta); 
-            if (resizeData.type === 'col') resizeData.targetEl.style.width = newDim + "px";
-            else resizeData.targetEl.style.height = newDim + "px";
+            
+            if (resizeData.type === 'col') {
+                resizeData.targetEl.style.width = newDim + "px";
+                
+                // Thay đổi chiều rộng của Table đồng thời để nó không bị ép lại
+                let tbl = resizeData.targetEl.closest('table');
+                if (tbl) {
+                    let diff = newDim - resizeData.startDim;
+                    let newTableW = resizeData.startTableW + diff;
+                    tbl.style.width = newTableW + "px";
+                    tbl.style.minWidth = newTableW + "px";
+                }
+            } else {
+                resizeData.targetEl.style.height = newDim + "px";
+            }
         }
 
         function handleMouseUp() {
@@ -266,7 +224,6 @@
             isResizing = false; document.body.style.cursor = 'default';
         }
 
-        // Đóng/Mở Group Tháng
         function toggleMegaRow(btn) {
             btn.parentElement.classList.toggle('collapsed');
         }
@@ -285,7 +242,6 @@
                 return;
             }
 
-            // Quét danh sách Tab hiện có
             let uniqueTabs = new Set();
             for (let i = 1; i < planSheet.length; i++) {
                 if(planSheet[i][0]) uniqueTabs.add(planSheet[i][0]);
@@ -299,7 +255,6 @@
 
             if (!activeBottomTab || !availableTabs.includes(activeBottomTab)) activeBottomTab = availableTabs[0];
 
-            // Render thanh Tab đáy
             availableTabs.forEach(tab => {
                 let div = document.createElement("div");
                 div.className = "tab-item" + (tab === activeBottomTab ? " active" : "");
@@ -308,11 +263,9 @@
                 tabsWrapper.appendChild(div);
             });
 
-            // Kế thừa kích thước cột từ Idea
             let tabAttrs = sysData.attributes[activeBottomTab] || {};
             let originalColWidths = tabAttrs.colWidths || {};
 
-            // Nhóm dữ liệu theo Tháng
             let groupedData = {};
             for (let i = 1; i < planSheet.length; i++) {
                 let tabName = planSheet[i][0];
@@ -340,7 +293,6 @@
                 headers = sysData.sheets[activeBottomTab][0];
             }
 
-            // Render từng Tháng
             sortedMonths.forEach(mKey => {
                 if (activeFilters.length > 0 && !activeFilters.includes(mKey)) return;
                 hasVisibleData = true;
@@ -349,7 +301,6 @@
                 let groupDiv = document.createElement("div");
                 groupDiv.className = "month-group";
 
-                // Thanh Mega Row xanh ghim Top
                 let btn = document.createElement("button");
                 btn.className = "mega-row-btn"; 
                 btn.innerHTML = `
@@ -370,7 +321,16 @@
                     for(let c=0; c<monthInfo.rows[0].data.length; c++) headers.push("Cột " + (c+1));
                 }
                 
-                // Khởi tạo Header Bảng (Cố định ở Top 48px)
+                // --- TÍNH TỔNG WIDTH CHIỀU NGANG CHO BẢNG ---
+                let totalTableWidth = 40 + 120; // Cột STT (#) = 40, Cột Deadline = 120
+                headers.forEach((h, idx) => {
+                    let baseW = originalColWidths[idx] ? parseInt(originalColWidths[idx]) : 150;
+                    totalTableWidth += baseW;
+                });
+                // Ép cứng width cho thẻ table để các cột tuân lệnh
+                table.style.width = totalTableWidth + "px";
+                table.style.minWidth = totalTableWidth + "px";
+                
                 let thead = document.createElement("thead");
                 let trH = document.createElement("tr");
                 
@@ -388,7 +348,7 @@
 
                 headers.forEach((h, idx) => {
                     let th = document.createElement("th");
-                    let baseW = originalColWidths[idx] ? parseInt(originalColWidths[idx]) : 150; // Tránh bảng dài thòn lòn
+                    let baseW = originalColWidths[idx] ? parseInt(originalColWidths[idx]) : 150; 
                     th.style.width = baseW + "px";
                     th.innerHTML = `${h}<div class="resizer-col" onmousedown="initResize(event, 'col', this.parentElement, this.parentElement.offsetWidth)"></div>`;
                     trH.appendChild(th);
@@ -398,26 +358,21 @@
 
                 let tbody = document.createElement("tbody");
                 
-                // Sắp xếp Deadline theo ngày
                 monthInfo.rows.sort((a,b) => new Date(a.date) - new Date(b.date)).forEach((rowItem, rIdx) => {
                     let tr = document.createElement("tr");
-                    tr.style.height = "35px"; 
                     
                     let dObj = new Date(rowItem.date);
                     let dStrVN = `${String(dObj.getDate()).padStart(2,'0')}/${String(dObj.getMonth()+1).padStart(2,'0')}/${dObj.getFullYear()}`;
                     
-                    // Cột STT tích hợp Resizer hàng
                     let tdNum = document.createElement("td");
                     tdNum.className = "row-index";
                     tdNum.innerHTML = `${rIdx + 1}<div class="resizer-row" onmousedown="initResize(event, 'row', this.parentElement.parentElement, this.parentElement.parentElement.offsetHeight)"></div>`;
                     tr.appendChild(tdNum);
 
-                    // Cột Ngày
                     let tdDate = document.createElement("td");
                     tdDate.innerHTML = `<div class="cell-view" style="font-weight:bold; color:var(--blue); text-align:center;">${dStrVN}</div>`;
                     tr.appendChild(tdDate);
                     
-                    // Cột Dữ Liệu
                     rowItem.data.forEach(cell => {
                         let td = document.createElement("td");
                         let cellContent = String(cell).replace(/<[^>]*>?/gm, '').trim(); 
@@ -426,15 +381,30 @@
                         cellDiv.className = "cell-view";
                         cellDiv.innerText = cellContent;
                         
-                        // KÍCH ĐÚP (Double Click) MỞ BUNG NỘI DUNG
+                        // KÍCH ĐÚP (Double Click) MỞ BUNG NỘI DUNG MỚI
                         cellDiv.ondblclick = function(e) {
                             e.stopPropagation();
+                            
+                            // Xóa các ô đang bung khác đi
                             document.querySelectorAll(".cell-expanded").forEach(x => x.remove());
                             
                             let exp = document.createElement("div");
                             exp.className = "cell-expanded";
-                            exp.innerText = this.innerText;
-                            exp.onclick = function(ev) { ev.stopPropagation(); }; // Cho phép bôi đen copy bên trong
+                            
+                            // Nút X (Đóng) góc phải
+                            let closeBtn = document.createElement("i");
+                            closeBtn.className = "fas fa-times close-expanded-btn";
+                            closeBtn.onclick = function(ev) { ev.stopPropagation(); exp.remove(); };
+                            
+                            let contentDiv = document.createElement("div");
+                            contentDiv.style.marginTop = "8px";
+                            contentDiv.innerText = this.innerText;
+                            
+                            exp.appendChild(closeBtn);
+                            exp.appendChild(contentDiv);
+                            
+                            // Chặn event để bấm bên trong text (như bôi đen copy) không làm tắt popup
+                            exp.onclick = function(ev) { ev.stopPropagation(); }; 
                             
                             this.parentElement.appendChild(exp);
                         };
