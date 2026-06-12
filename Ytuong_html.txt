@@ -1,0 +1,2027 @@
+<style>
+  /* Cấu trúc lõi của Không gian bảng tính Phẳng 2D Tốc độ cao */
+  .grid-module-container {
+    position: absolute;
+    top: 0; bottom: 0; left: 0; right: 0;
+    display: block;
+    background-color: var(--white);
+  }
+  
+  /* Thanh công cụ phụ trợ tối giản */
+  .grid-action-bar {
+    height: 40px;
+    background-color: var(--gray-light);
+    border-bottom: 1px solid var(--gray-border);
+    padding: 5px 15px;
+  }
+  
+  .grid-mini-btn {
+    display: inline-block;
+    padding: 4px 10px;
+    font-size: 12px;
+    background: var(--white);
+    border: 1px solid var(--blue);
+    color: var(--blue);
+    cursor: pointer;
+    font-weight: bold;
+    margin-right: 5px;
+  }
+  
+  .grid-mini-btn:hover {
+    background: var(--blue);
+    color: var(--white);
+  }
+
+  /* Khung chứa bảng cuộn tải mượt mà */
+  .grid-scrollable-area {
+    position: absolute;
+    top: 40px; bottom: 45px; left: 0; right: 0;
+    overflow: auto;
+  }
+  
+  .mkt-custom-table {
+    border-collapse: collapse;
+    table-layout: fixed;
+    width: max-content;
+    background-color: var(--white);
+  }
+  
+  /* Cấu trúc Header chỉ định rõ ràng hàng 1 làm tiêu đề không bị ảnh hưởng định dạng cột */
+  .mkt-custom-table th {
+    background-color: var(--gray-light);
+    color: var(--text-main);
+    border: 1px solid var(--gray-border);
+    font-weight: bold;
+    font-size: 13px;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    user-select: none;
+  }
+  
+  .mkt-custom-table th.col-index-header {
+    width: 50px;
+    left: 0;
+    z-index: 20;
+    background-color: #eee;
+  }
+  
+  .mkt-custom-table td {
+    border: 1px solid var(--gray-border);
+    padding: 0;
+    font-size: 13px;
+    position: relative;
+    vertical-align: top;
+    word-break: break-all;
+  }
+  
+  /* Ô số thứ tự bên trái cố định */
+  .mkt-custom-table td.row-index-cell {
+    background-color: var(--gray-light);
+    text-align: center;
+    font-weight: bold;
+    color: #666;
+    position: sticky;
+    left: 0;
+    z-index: 5;
+    user-select: none;
+    cursor: pointer;
+  }
+  
+  /* Lớp phủ soạn thảo RichText bên trong ô dữ liệu */
+/* Lớp phủ soạn thảo RichText bên trong ô dữ liệu */
+/* Lớp phủ soạn thảo RichText bên trong ô dữ liệu */
+  .cell-rich-editor {
+    width: 100%;
+    height: 21px; /* CHÌA KHÓA: Ép cứng chiều cao mặc định thay vì dùng 100% */
+    min-height: 21px;
+    padding: 2px 4px;
+    outline: none;
+    border: none;
+    background: transparent;
+    overflow: hidden; /* Ẩn toàn bộ phần chữ bị tràn xuống dưới */
+    resize: both; /* Vẫn cho phép người dùng nắm góc dưới bên phải để kéo giãn ô */
+    line-height: 17px; /* Cân chỉnh khoảng cách dòng cho vừa khít ô 21px */
+    display: block; /* Bắt buộc phải là block để nhận diện chiều cao cứng */
+    white-space: pre-wrap; /* Giữ nguyên định dạng xuống dòng của text */
+  }
+  
+  /* Đường nét viền liền khối chuyên nghiệp thay thế nét đứt rối mắt */
+  .mkt-custom-table td.cell-selected {
+    outline: 2px solid var(--blue) !important;
+    outline-offset: -2px;
+  }
+  
+  /* Thanh Tab điều khiển phía dưới đáy */
+  .sheet-tabs-footer {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 45px;
+    background-color: var(--gray-light);
+    border-top: 2px solid var(--blue);
+    padding: 0 10px;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  
+  .tab-item-element {
+    display: inline-block;
+    padding: 10px 20px;
+    background-color: #e0e0e0;
+    color: var(--text-main);
+    font-weight: bold;
+    font-size: 13px;
+    margin-right: 4px;
+    cursor: pointer;
+    border-bottom: none;
+    position: relative;
+  }
+  
+  .tab-item-element.active {
+    background-color: var(--blue);
+    color: var(--white);
+  }
+  
+  .add-tab-trigger {
+    display: inline-block;
+    padding: 10px 15px;
+    color: var(--blue);
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+  }
+  
+  /* Menu chuột phải Context Menu thiết kế phẳng siêu tốc */
+  .mkt-context-menu {
+    position: fixed;
+    background: var(--white);
+    border: 2px solid var(--blue);
+    z-index: 2000;
+    width: 240px;
+    display: none;
+  }
+  
+  .mkt-context-menu-item {
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-main);
+    font-weight: 500;
+  }
+  
+  .mkt-context-menu-item:hover {
+    background-color: var(--blue);
+    color: var(--white);
+  }
+  
+  .mkt-context-menu-divider {
+    height: 1px;
+    background-color: var(--gray-border);
+    margin: 4px 0;
+  }
+  
+  /* Bộ chọn mã màu tự do gợi ý phân cực */
+  .color-picker-palette {
+    padding: 8px;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-gap: 5px;
+  }
+  
+  .color-dot-suggest {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    border: 1px solid #ccc;
+  }
+  
+  /* Định dạng thành phần HTML của ô Dropdown phức hợp hiển thị không bị che khuất */
+  .dropdown-cell-select-container {
+    width: 100%;
+    padding: 2px;
+  }
+  
+  .custom-select-pill {
+    display: inline-block;
+    background: #e0e0e0;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin: 2px;
+    font-size: 11px;
+    color: var(--text-main);
+    cursor: pointer;
+  }
+  
+  .custom-select-pill.selected {
+    background: var(--blue);
+    color: var(--white);
+  }
+  /* Box Popup Chọn Màu Cố Định Trực Tiếp */
+  .inline-color-picker {
+    position: absolute;
+    background: var(--white);
+    border: 1px solid var(--gray-border);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    padding: 12px;
+    z-index: 3000;
+    display: none;
+    width: 240px;
+    border-radius: 4px;
+  }
+  
+  .color-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 4px;
+    margin-bottom: 10px;
+  }
+  
+  .color-swatch {
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 1px solid #ddd;
+    transition: transform 0.1s;
+  }
+  
+  .color-swatch:hover {
+    transform: scale(1.3);
+    border-color: var(--text-main);
+  }
+
+  .picker-section-title {
+    font-size: 11px; font-weight: bold; color: #666; margin-bottom: 6px;
+  }
+
+  /* Trạng thái mở rộng khi Double-Click vào ô */
+  .cell-expanded {
+    height: auto !important;
+    min-height: 50px !important;
+    overflow: visible !important;
+    position: absolute;
+    z-index: 100;
+    background: var(--white);
+    box-shadow: 0 2px 8px rgba(1, 173, 238, 0.4);
+    border: 2px solid var(--blue);
+    width: max-content;
+    min-width: 100%;
+    padding: 5px !important;
+  }
+  /* Hiệu ứng hiển thị vạch xanh khi kéo thả Hàng/Cột */
+  .drag-over-row { border-top: 3px solid var(--blue) !important; }
+  .drag-over-col { border-left: 3px solid var(--blue) !important; }
+
+  /* Popup Checkbox khi Double Click vào ô Dropdown */
+  .inline-dropdown-list {
+    position: absolute; background: var(--white); border: 2px solid var(--blue);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 3000; display: none;
+    min-width: 180px; max-height: 250px; overflow-y: auto; padding: 5px;
+  }
+  .dropdown-list-item {
+    padding: 6px 10px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px;
+  }
+  .dropdown-list-item:hover { background: var(--gray-light); }
+  .dropdown-list-item input { pointer-events: none; margin:0; }
+  /* Nút lọc (Filter) trên tiêu đề cột */
+  .col-filter-btn {
+    color: #999; cursor: pointer; padding: 2px 5px; border-radius: 3px; font-size: 11px;
+  }
+  .col-filter-btn:hover { background: #e0e0e0; color: #333; }
+  .col-filter-btn.active { color: var(--blue); }
+
+  /* Giao diện ô Dropdown mô phỏng Google Sheets */
+  .cell-dropdown-ui {
+    display: flex; justify-content: space-between; align-items: center;
+    background-color: #f1f3f4; border-radius: 10px; padding: 0 6px;
+    margin: 1px 2px; cursor: pointer; height: 17px;
+  }
+  .cell-dropdown-ui:hover { background-color: #e8eaed; }
+  .cell-dropdown-ui .dropdown-text {
+    font-size: 11px; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; color: #333; flex: 1; text-align: left;
+  }
+  .cell-dropdown-ui .dropdown-arrow { font-size: 9px; color: #5f6368; margin-left: 4px; }
+  
+  /* Cửa sổ Popup Bộ Lọc */
+  .inline-filter-box {
+    position: absolute; background: var(--white); border: 2px solid var(--blue);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 3000; display: none;
+    min-width: 220px; padding: 0;
+  }
+  /* Thanh kéo giãn Cột (nằm ở mép phải của tiêu đề A, B, C) */
+  .resizer-col {
+    position: absolute; top: 0; right: 0; width: 6px; bottom: 0;
+    cursor: col-resize; z-index: 50;
+  }
+  .resizer-col:hover { background: rgba(1, 173, 238, 0.4); }
+
+  /* Thanh kéo giãn Hàng (nằm ở mép dưới của tiêu đề 1, 2, 3) */
+  .resizer-row {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 6px;
+    cursor: row-resize; z-index: 50;
+  }
+  .resizer-row:hover { background: rgba(1, 173, 238, 0.4); }
+
+  /* Nút (+) Tạo hàng tự động (ẩn mặc định, hiện khi di chuột vào ô 1, 2, 3) */
+  .quick-add-btn-inline {
+    position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%);
+    width: 20px; height: 20px; background: var(--blue); color: var(--white);
+    border-radius: 50%; font-size: 14px; line-height: 20px; text-align: center;
+    cursor: pointer; z-index: 60; display: none; box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  }
+  .row-index-cell:hover .quick-add-btn-inline { display: block; }
+</style>
+
+<div class="grid-module-container">
+<div class="grid-action-bar">
+    <button class="grid-mini-btn" onclick="applyFormatToSelectedRange('bold')"><i class="fas fa-bold"></i></button>
+    <button class="grid-mini-btn" onclick="applyFormatToSelectedRange('italic')"><i class="fas fa-italic"></i></button>
+    <button class="grid-mini-btn" onclick="applyFormatToSelectedRange('underline')"><i class="fas fa-underline"></i></button>
+    <button class="grid-mini-btn" onclick="applyFormatToSelectedRange('align-left')"><i class="fas fa-align-left"></i></button>
+    <button class="grid-mini-btn" onclick="applyFormatToSelectedRange('align-center')"><i class="fas fa-align-center"></i></button>
+    <button class="grid-mini-btn" onclick="applyFormatToSelectedRange('align-right')"><i class="fas fa-align-right"></i></button>
+    
+    <button class="grid-mini-btn" onclick="toggleInlineColorPicker(event, 'text')"><i class="fas fa-font"></i> Màu Chữ</button>
+    <button class="grid-mini-btn" onclick="toggleInlineColorPicker(event, 'bg')"><i class="fas fa-paint-roller"></i> Màu Nền</button>
+  </div>
+
+  <div id="inlineColorPickerBox" class="inline-color-picker">
+    <div class="picker-section-title">BẢNG MÀU</div>
+    <div id="standardColorGrid" class="color-grid"></div>
+   <div class="picker-section-title" style="margin-top:10px;">TÙY CHỈNH</div>
+    <div style="display: flex; align-items: center; gap: 5px; margin-bottom: 8px;">
+      <input type="text" id="hexColorInput" class="popup-input" placeholder="#ffffff" style="flex: 1; padding:4px; font-size:12px; margin: 0;" oninput="updateRealtimeColorPreview()">
+      
+      <div id="hexColorPreview" style="width: 24px; height: 24px; border: 1px solid var(--gray-border); border-radius: 4px; background-color: #ffffff;"></div>
+      
+      <button class="grid-mini-btn" style="padding: 4px 8px; margin: 0;" onclick="activateEyedropperTool()" title="Hút màu trên màn hình">
+        <i class="fas fa-eye-dropper"></i>
+      </button>
+    </div>
+    <button class="grid-mini-btn" style="width:100%; margin-top:5px;" onclick="applyCustomHexColor()">ÁP DỤNG</button>
+  </div>
+  </div> <div id="inlineDropdownListBox" class="inline-dropdown-list"></div>
+  
+  <div id="inlineFilterBox" class="inline-filter-box"></div>
+
+  <div class="grid-scrollable-area" id="gridScrollArea">
+
+  <div class="grid-scrollable-area" id="gridScrollArea">
+    <table class="mkt-custom-table" id="mktDataTable">
+      <thead id="mktTableHead"></thead>
+      <tbody id="mktTableBody"></tbody>
+    </table>
+  </div>
+
+  <div class="sheet-tabs-footer" id="sheetTabsFooter">
+    <div id="tabsListWrapper" style="display:inline-block;"></div>
+    <div class="add-tab-trigger" onclick="promptCreateNewTab()"><i class="fas fa-plus"></i> Thêm Tab</div>
+  </div>
+</div>
+
+<div class="mkt-context-menu" id="gridContextMenu"></div>
+<div class="mkt-context-menu" id="tabContextMenu"></div>
+
+<script>
+  // Quản lý trạng thái bộ nhớ đệm ứng dụng (Client Session Memory Store)
+  var rawSpreadsheetCache = {};
+  var attributesCache = {};
+  var systemTabOrder = [];
+  var currentActiveTab = "";
+  var activeSpreadsheetId = "";
+  
+  // Quản lý tọa độ vùng chọn dữ liệu dãy ô (Shift + Click Chọn Dải vùng rộng)
+  var selectionAnchor = null; // {r: rowIdx, c: colIdx}
+  var selectedRangeBounds = null; // {minR, maxR, minC, maxC}
+  var isSelectingFullRows = false;
+  var isSelectingFullCols = false;
+
+  /**
+   * Khởi tạo cơ chế nạp dữ liệu giao diện ngầm ngay khi load ứng dụng
+   */
+/**
+   * Khởi tạo cơ chế nạp dữ liệu giao diện ngầm ngay khi load ứng dụng
+   */
+function initSpreadsheetEngine(spreadsheetId) {
+    activeSpreadsheetId = spreadsheetId;
+    
+    // 1. LỤC TÌM TRONG TRÍ NHỚ CỦA TRÌNH DUYỆT (LOCAL STORAGE)
+    var offlineCache = localStorage.getItem('MKT_OFFLINE_CACHE_' + spreadsheetId);
+
+    if (offlineCache && offlineCache !== "undefined") {
+        // CÓ DỮ LIỆU CŨ: Ráp giao diện ngay lập tức trong 0.1 giây
+        var parsedData = JSON.parse(offlineCache);
+        rawSpreadsheetCache = parsedData.sheets;
+        attributesCache = parsedData.attributes;
+        systemTabOrder = parsedData.tabOrder;
+        
+        var firstVisibleTab = systemTabOrder.find(function(tabName) {
+            var attrs = attributesCache[tabName] || {};
+            return attrs.hidden !== true;
+        });
+        currentActiveTab = firstVisibleTab || systemTabOrder[0];
+        
+        renderTabControls();
+        buildSpreadsheetGrid();
+        
+        // 2. Kích hoạt Radar nạp ngầm để kiểm tra xem có ai đổi dữ liệu lúc mình đang tắt app không
+        fetchFreshDataBackground(spreadsheetId);
+    } else {
+        // LẦN ĐẦU TIÊN MỞ APP: Bắt buộc phải chờ tải từ Google Sheets
+        fetchFreshDataBackground(spreadsheetId);
+    }
+
+    setupGlobalMouseInterceptors();
+    startQueueManager(); 
+    startSpiderSyncEngine(); 
+  }
+
+  // HÀM TẢI DỮ LIỆU NGẦM VÀ LƯU VÀO TRÍ NHỚ TRÌNH DUYỆT
+  function fetchFreshDataBackground(spreadsheetId) {
+    google.script.run.withSuccessHandler(function(response) {
+        if (response.success) {
+            // LƯU TOÀN BỘ VÀO Ổ CỨNG TRÌNH DUYỆT ĐỂ LẦN SAU MỞ LÀ CÓ NGAY
+            localStorage.setItem('MKT_OFFLINE_CACHE_' + spreadsheetId, JSON.stringify(response.data));
+            
+            rawSpreadsheetCache = response.data.sheets;
+            attributesCache = response.data.attributes;
+            systemTabOrder = response.data.tabOrder;
+            
+            if(!currentActiveTab) {
+                var firstVisibleTab = systemTabOrder.find(function(tabName) {
+                    var attrs = attributesCache[tabName] || {};
+                    return attrs.hidden !== true;
+                });
+                currentActiveTab = firstVisibleTab || systemTabOrder[0];
+            }
+            
+            // Vẽ lại bảng một cách êm ái
+            renderTabControls();
+            buildSpreadsheetGrid();
+        }
+    }).getInitialSystemData(spreadsheetId);
+  }
+// Bộ nhớ đệm hàng đợi
+var actionQueue = [];
+var isProcessingQueue = false;
+
+// Kích hoạt vòng lặp xử lý ngầm (Chạy mỗi 2 giây)
+// Kích hoạt vòng lặp xử lý ngầm (Chạy mỗi 2 giây)
+function startQueueManager() {
+  setInterval(function() {
+    if (isProcessingQueue || actionQueue.length === 0) return;
+    
+    isProcessingQueue = true;
+    var batchToProcess = actionQueue.splice(0, actionQueue.length); // Rút toàn bộ Queue ra
+    
+    google.script.run.withSuccessHandler(function(res) {
+      isProcessingQueue = false; 
+      
+      // ⚡ CHÌA KHÓA 1: Bắt Sync Token từ Server trả về để Radar không tự tải lại dữ liệu do chính mình vừa sửa
+      if (res && res.newSyncToken) {
+          currentSyncToken = res.newSyncToken;
+      }
+      
+    }).withFailureHandler(function(err) {
+      console.warn("Mạng lỗi, đang lưu trữ thao tác chờ khôi phục...");
+      actionQueue = batchToProcess.concat(actionQueue);
+      isProcessingQueue = false;
+    }).processActionBatchBackground(batchToProcess); 
+    
+  }, 2000);
+}
+
+// Sửa lại hàm cập nhật ô của bạn
+function updateCellCacheAndSyncBackground(rIdx, cIdx, newValue) {
+  // 1. Optimistic UI: Cập nhật giao diện lập tức (Code cũ bạn đã làm tốt phần này)
+  rawSpreadsheetCache[currentActiveTab][rIdx][cIdx] = newValue;
+  
+  // 2. Không gọi API trực tiếp nữa, tống nó vào Queue
+  actionQueue.push({
+    action: 'SYNC_CELL',
+    sheetId: activeSpreadsheetId,
+    tab: currentActiveTab,
+    row: rIdx + 1,
+    col: cIdx + 1,
+    val: newValue,
+    timestamp: new Date().getTime()
+  });
+}
+
+  /**
+   * Kết xuất thanh tab chân trang và thiết lập sự kiện chuột phải tương tác tab
+   */
+  function renderTabControls() {
+    var wrapper = document.getElementById("tabsListWrapper");
+    wrapper.innerHTML = "";
+    
+    systemTabOrder.forEach(function(tabName) {
+      // Bỏ qua nếu cấu hình ẩn trong tệp thuộc tính mở rộng
+      var attrs = attributesCache[tabName] || {};
+      if (attrs.hidden === true) return;
+      
+      var tabEl = document.createElement("div");
+      tabEl.className = "tab-item-element" + (tabName === currentActiveTab ? " active" : "");
+      tabEl.innerText = tabName;
+      
+      // Chuyển tab lập tức không cần đợi tải lại dữ liệu từ máy chủ mạng
+      tabEl.onclick = function() {
+        currentActiveTab = tabName;
+        renderTabControls();
+        buildSpreadsheetGrid();
+      };
+      
+      // Gắn sự kiện chuột phải cấu hình thuộc tính tab ẩn/xóa/duplicate
+      tabEl.oncontextmenu = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        openTabContextMenu(e, tabName);
+      };
+      
+      wrapper.appendChild(tabEl);
+    });
+  }
+
+  /**
+   * Kỹ thuật xây dựng cấu trúc bảng Excel mượt mà tốc độ cao từ Cache
+   */
+/**
+   * Kỹ thuật xây dựng cấu trúc bảng Excel mượt mà tốc độ cao từ Cache
+   */
+  function buildSpreadsheetGrid() {
+    var dataMatrix = rawSpreadsheetCache[currentActiveTab] || [[""]];
+    var attrs = attributesCache[currentActiveTab] || {};
+    var columnTypes = attrs.columnTypes || {};
+    var headEl = document.getElementById("mktTableHead");
+    var bodyEl = document.getElementById("mktTableBody");
+    headEl.innerHTML = ""; bodyEl.innerHTML = "";
+    if (dataMatrix.length === 0) return;
+    
+    var colCount = dataMatrix[0].length;
+    var frozenRows = attrs.frozenRows || 0;
+    var frozenCols = attrs.frozenCols || 0;
+
+    // Đoạn Tính Tọa độ Cố định Cột (Sticky offset)
+    var colWidthsArr = [];
+    var currentLeft = 50; 
+    for (var c = 0; c < colCount; c++) {
+      var w = (attrs.colWidths && attrs.colWidths[c]) ? parseInt(attrs.colWidths[c]) : 150;
+      colWidthsArr[c] = { width: w, left: currentLeft };
+      currentLeft += w;
+    }
+
+    // Đoạn Tính Tọa độ Cố định Hàng (Sticky offset)
+    var rowHeightsArr = [];
+    var currentTop = 21; 
+    for(var r = 0; r < dataMatrix.length; r++) {
+      var h = (attrs.rowHeights && attrs.rowHeights[r]) ? parseInt(attrs.rowHeights[r]) : 21;
+      rowHeightsArr[r] = { height: h, top: currentTop };
+      currentTop += h;
+    }
+
+    // 1. Tạo Hàng Tiêu Đề Cột A, B, C...
+    var trHead = document.createElement("tr");
+    var thIndex = document.createElement("th");
+    thIndex.className = "col-index-header";
+    thIndex.innerText = "#";
+    thIndex.style.position = 'sticky'; thIndex.style.left = '0px'; thIndex.style.top = '0px'; thIndex.style.zIndex = '20';
+    
+    thIndex.onclick = function(e) {
+      e.preventDefault();
+      selectedRangeBounds = { minR: 0, maxR: dataMatrix.length - 1, minC: 0, maxC: colCount - 1 };
+      selectionAnchor = { r: 0, c: 0 };
+      isSelectingFullRows = true; isSelectingFullCols = true;
+      highlightSelectedVisualCells();
+    };
+    trHead.appendChild(thIndex);
+    
+for (var c = 0; c < colCount; c++) {
+      var th = document.createElement("th");
+      th.style.width = colWidthsArr[c].width + "px";
+      var filterActive = (activeColumnFilters[currentActiveTab] && activeColumnFilters[currentActiveTab][c]) ? "active" : "";
+      
+      // ⚡ BƯỚC 1: BỎ thẻ onclick="..." bên trong chuỗi HTML
+      th.innerHTML = `<div style="padding:2px 4px; display:flex; justify-content:space-between; align-items:center;">
+          <span>${getColumnLetterName(c)}</span>
+          <i class="fas fa-filter col-filter-btn ${filterActive}"></i>
+      </div>`;
+      
+      // Khối Sticky Tiêu Đề Cột
+      th.style.position = 'sticky'; th.style.top = '0px'; th.style.zIndex = '10';
+      if (c < frozenCols) {
+         th.style.left = colWidthsArr[c].left + 'px';
+         th.style.zIndex = '15';
+      }
+      if (c === frozenCols - 1) th.style.borderRight = '3px solid var(--blue)';
+
+      // ⚡ BƯỚC 2: Gắn sự kiện CLICK vào Phễu bằng Kỹ thuật Closure (Đảm bảo không bao giờ nhận sai ID cột)
+      var filterBtn = th.querySelector('.col-filter-btn');
+      if (filterBtn) {
+          filterBtn.onclick = (function(colIdx) { 
+              return function(e) { 
+                  openFilterBox(e, colIdx); 
+              }; 
+          })(c);
+      }
+
+      // Gắn sự kiện click vào phần nền tiêu đề để bôi đen cột
+      th.onclick = (function(colIdx) { return function(e) { executeFullColumnSelection(e, colIdx); }; })(c);
+      th.oncontextmenu = (function(colIdx) { return function(e) { 
+    // Nếu cột được click chuột phải KHÔNG nằm trong dải đang được bôi đen, thì mới reset vùng chọn
+    if (!isSelectingFullCols || !selectedRangeBounds || colIdx < selectedRangeBounds.minC || colIdx > selectedRangeBounds.maxC) {
+        executeFullColumnSelection(e, colIdx); 
+    }
+    handleCellRightClickEngine(e, 0, colIdx); 
+}; })(c);
+      
+      th.draggable = true;
+      th.ondragstart = (function(colIdx) { return function(e) {
+         var start = colIdx, end = colIdx;
+         if (isSelectingFullCols && selectedRangeBounds && colIdx >= selectedRangeBounds.minC && colIdx <= selectedRangeBounds.maxC) {
+             start = selectedRangeBounds.minC; end = selectedRangeBounds.maxC;
+         }
+         e.dataTransfer.setData("text/plain", JSON.stringify({type: 'col', start: start, end: end}));
+      };})(c);
+      th.ondragover = function(e) { e.preventDefault(); th.classList.add("drag-over-col"); };
+      th.ondragleave = function(e) { th.classList.remove("drag-over-col"); };
+      th.ondrop = (function(colIdx) { return function(e) {
+         e.preventDefault(); th.classList.remove("drag-over-col");
+         var data = JSON.parse(e.dataTransfer.getData("text/plain"));
+         if(data.type === 'col') executeMoveColsAction(data.start, data.end, colIdx);
+      };})(c);
+      // Gắn thanh kéo giãn kích thước Cột
+      var colResizer = document.createElement("div");
+      colResizer.className = "resizer-col";
+      colResizer.onmousedown = (function(colIdx, width) { return function(e) { initResize(e, 'col', colIdx, width); }; })(c, colWidthsArr[c].width);
+      th.appendChild(colResizer);
+      trHead.appendChild(th);
+    }
+    trHead.style.height = "21px";
+    headEl.appendChild(trHead);
+    
+    // 2. Tạo toàn bộ Khối Hàng thân bảng
+    dataMatrix.forEach(function(rowData, rIdx) {
+      var tr = document.createElement("tr");
+      tr.style.height = rowHeightsArr[rIdx].height + "px";
+      
+      var tdIdx = document.createElement("td");
+      tdIdx.className = "row-index-cell";
+      tdIdx.innerText = rIdx + 1;
+      
+      // Khối Sticky Tiêu Đề Hàng
+      tdIdx.style.position = 'sticky'; tdIdx.style.left = '0px'; tdIdx.style.zIndex = '5';
+      if (rIdx < frozenRows) {
+         tdIdx.style.top = rowHeightsArr[rIdx].top + 'px';
+         tdIdx.style.zIndex = '15';
+      }
+      if (rIdx === frozenRows - 1) tdIdx.style.borderBottom = '3px solid var(--blue)';
+
+      tdIdx.onclick = function(e) { executeFullRowSelection(e, rIdx); };
+      tdIdx.oncontextmenu = function(e) { 
+    // Nếu hàng được click chuột phải KHÔNG nằm trong dải đang được bôi đen, thì mới reset vùng chọn
+    if (!isSelectingFullRows || !selectedRangeBounds || rIdx < selectedRangeBounds.minR || rIdx > selectedRangeBounds.maxR) {
+        executeFullRowSelection(e, rIdx); 
+    }
+    handleCellRightClickEngine(e, rIdx, 0); 
+};
+      
+      tdIdx.draggable = true;
+      tdIdx.ondragstart = function(e) {
+         var start = rIdx, end = rIdx;
+         if (isSelectingFullRows && selectedRangeBounds && rIdx >= selectedRangeBounds.minR && rIdx <= selectedRangeBounds.maxR) {
+             start = selectedRangeBounds.minR; end = selectedRangeBounds.maxR;
+         }
+         e.dataTransfer.setData("text/plain", JSON.stringify({type: 'row', start: start, end: end}));
+      };
+      tdIdx.ondragover = function(e) { e.preventDefault(); tr.classList.add("drag-over-row"); };
+      tdIdx.ondragleave = function(e) { tr.classList.remove("drag-over-row"); };
+      tdIdx.ondrop = function(e) {
+         e.preventDefault(); tr.classList.remove("drag-over-row");
+         var data = JSON.parse(e.dataTransfer.getData("text/plain"));
+         if(data.type === 'row') executeMoveRowsAction(data.start, data.end, rIdx);
+      };
+      // Gắn thanh kéo giãn kích thước Hàng
+      var rowResizer = document.createElement("div");
+      rowResizer.className = "resizer-row";
+      rowResizer.onmousedown = function(e) { initResize(e, 'row', rIdx, rowHeightsArr[rIdx].height); };
+      tdIdx.appendChild(rowResizer);
+
+      // Gắn Nút (+) Tạo hàng sinh ID tự động
+      var addBtn = document.createElement("div");
+      addBtn.className = "quick-add-btn-inline";
+      addBtn.innerHTML = "<i class='fas fa-plus'></i>";
+      addBtn.title = "Thêm hàng ở dưới";
+      addBtn.onclick = function(e) { e.stopPropagation(); promptQuickAddRow(rIdx); };
+      tdIdx.appendChild(addBtn);
+      tr.appendChild(tdIdx);
+      
+      rowData.forEach(function(cellValue, cIdx) {
+        var td = document.createElement("td");
+        td.id = "cell_" + rIdx + "_" + cIdx;
+        applyCellSavedAttributesInline(td, rIdx, cIdx, attrs);
+        
+        // --- XỬ LÝ CSS FREEZE CỐ ĐỊNH Ô DỮ LIỆU ---
+        var isFrozenRow = rIdx < frozenRows;
+        var isFrozenCol = cIdx < frozenCols;
+        if (isFrozenRow || isFrozenCol) {
+            td.style.position = 'sticky';
+            if(isFrozenRow) td.style.top = rowHeightsArr[rIdx].top + 'px';
+            if(isFrozenCol) td.style.left = colWidthsArr[cIdx].left + 'px';
+            if(isFrozenRow && isFrozenCol) td.style.zIndex = '8';
+            else td.style.zIndex = '4';
+        }
+        if (cIdx === frozenCols - 1) td.style.borderRight = '3px solid var(--blue)';
+        if (rIdx === frozenRows - 1) td.style.borderBottom = '3px solid var(--blue)';
+
+        var colType = (rIdx === 0) ? "text" : (columnTypes[cIdx] || "text");
+        renderCellContentByType(td, rIdx, cIdx, cellValue, colType, attrs);
+        td.onclick = function(e) { handleCellClickEngine(e, rIdx, cIdx); };
+        td.oncontextmenu = function(e) { handleCellRightClickEngine(e, rIdx, cIdx); };
+        tr.appendChild(td);
+      });
+      bodyEl.appendChild(tr);
+    });
+    executeDataFilters(); // Thực thi các bộ lọc đang kích hoạt
+  }
+  function getColumnLetterName(colIdx) {
+    var letter = "";
+    while (colIdx >= 0) {
+      letter = String.fromCharCode((colIdx % 26) + 65) + letter;
+      colIdx = Math.floor(colIdx / 26) - 1;
+    }
+    return letter;
+  }
+
+  /**
+   * Khôi phục trực quan màu sắc, định dạng đã lưu trữ từ bộ nhớ thuộc tính
+   */
+  function applyCellSavedAttributesInline(td, rIdx, cIdx, attrs) {
+    var cellStyles = attrs.cellStyles || {};
+    var key = rIdx + "_" + cIdx;
+    var style = cellStyles[key] || {};
+    
+    // Thuộc tính dòng hoặc cột diện rộng
+    var rowStyle = (attrs.rowStyles && attrs.rowStyles[rIdx]) ? attrs.rowStyles[rIdx] : {};
+    var colStyle = (attrs.colStyles && attrs.colStyles[cIdx]) ? attrs.colStyles[cIdx] : {};
+    
+    var finalBg = style.bg || rowStyle.bg || colStyle.bg || "";
+    var finalColor = style.color || rowStyle.color || colStyle.color || "";
+    var finalBold = style.bold || rowStyle.bold || colStyle.bold || false;
+    var finalItalic = style.italic || rowStyle.italic || colStyle.italic || false;
+    var finalUnderline = style.underline || rowStyle.underline || colStyle.underline || false;
+    var finalAlign = style.align || rowStyle.align || colStyle.align || "left";
+    
+    if (finalBg) td.style.backgroundColor = finalBg;
+    if (finalColor) td.style.color = finalColor;
+    if (finalBold) td.style.fontWeight = "bold";
+    if (finalItalic) td.style.fontStyle = "italic";
+    if (finalUnderline) td.style.textDecoration = "underline";
+    td.style.textAlign = finalAlign;
+  }
+
+  /**
+   * Kết xuất thành phần giao diện động tương thích chính xác loại dữ liệu đầu vào
+   */
+  function renderCellContentByType(td, rIdx, cIdx, val, type, attrs) {
+    td.innerHTML = "";
+    
+    if (type === "checkbox") {
+      var chk = document.createElement("input");
+      chk.type = "checkbox";
+      chk.checked = (val === true || val === "true" || val === 1 || val === "1");
+      chk.style.margin = "8px";
+      chk.onchange = function() {
+        updateCellCacheAndSyncBackground(rIdx, cIdx, chk.checked);
+      };
+      td.appendChild(chk);
+      return;
+    }
+    
+    if (type === "dropdown") {
+      var globalOptions = (attrs.dropdownChoices && attrs.dropdownChoices[cIdx]) ? attrs.dropdownChoices[cIdx] : ["Ý tưởng mới", "Đang xử lý", "Hoàn thành"];
+      var currentSelections = String(val).split(",").map(function(s){return s.trim();}).filter(Boolean);
+
+      // Tạo giao diện khung bo tròn
+      var wrapper = document.createElement("div");
+      wrapper.className = "cell-dropdown-ui";
+      
+      // Tạo chữ hiển thị bên trong
+      var textSpan = document.createElement("div");
+      textSpan.className = "dropdown-text";
+      textSpan.innerText = currentSelections.length > 0 ? currentSelections.join(", ") : "Chọn mục...";
+      if(currentSelections.length === 0) textSpan.style.color = "#999";
+      
+      // Tạo mũi tên ▼
+      var arrow = document.createElement("div");
+      arrow.className = "dropdown-arrow";
+      arrow.innerHTML = "▼";
+      
+      wrapper.appendChild(textSpan);
+      wrapper.appendChild(arrow);
+
+      // Click chuột trái 1 LẦN để mở danh sách, không cần Double Click nữa
+      wrapper.onclick = function(e) {
+        e.stopPropagation();
+        handleCellClickEngine(e, rIdx, cIdx); // Giữ nguyên hiệu ứng bôi đen ô
+        openInlineDropdownList(e, rIdx, cIdx, currentSelections, globalOptions);
+      };
+      
+      td.appendChild(wrapper);
+      return;
+    }
+    
+    if (type === "link") {
+      var strVal = String(val);
+      if (strVal.indexOf("http") === 0) {
+        var a = document.createElement("a");
+        a.href = strVal;
+        a.target = "_blank";
+        a.innerText = td.getAttribute("data-hyperlink-name") || "Xem liên kết";
+        a.style.color = "var(--blue)";
+        a.style.padding = "5px";
+        a.style.display = "inline-block";
+        td.appendChild(a);
+      } else {
+        var editor = createTextCellEditor(rIdx, cIdx, val);
+        td.appendChild(editor);
+      }
+      return;
+    }
+    
+    // Mặc định: loại dữ liệu TEXT (Xử lý RichText, Tự động chạy mã hiển thị nếu chứa thẻ HTML)
+    var strValue = String(val);
+    if (rIdx !== 0 && strValue.indexOf("<") === 0 && strValue.indexOf(">") !== -1) {
+      // Tự động run mã và hiển thị trực tiếp lên giao diện ngay lập tức
+      var htmlContainer = document.createElement("div");
+      htmlContainer.style.padding = "5px";
+      htmlContainer.innerHTML = strValue;
+      td.appendChild(htmlContainer);
+      
+      td.ondblclick = function() {
+        td.innerHTML = "";
+        var editor = createTextCellEditor(rIdx, cIdx, strValue);
+        td.appendChild(editor);
+        editor.focus();
+      };
+    } else {
+      var editor = createTextCellEditor(rIdx, cIdx, val);
+      td.appendChild(editor);
+    }
+  }
+
+function createTextCellEditor(rIdx, cIdx, val) {
+    var div = document.createElement("div");
+    div.className = "cell-rich-editor";
+    div.contentEditable = "true";
+    div.innerHTML = val;
+    
+    // Bắt sự kiện double-click để mở rộng diện tích ô
+    div.ondblclick = function(e) {
+      e.stopPropagation();
+      if(this.classList.contains("cell-expanded")) {
+        this.classList.remove("cell-expanded");
+      } else {
+        // Thu gọn các ô khác trước khi mở ô mới
+        document.querySelectorAll(".cell-expanded").forEach(el => el.classList.remove("cell-expanded"));
+        this.classList.add("cell-expanded");
+      }
+    };
+    
+    div.onblur = function() {
+      this.classList.remove("cell-expanded"); // Tự thu gọn khi click ra ngoài
+      updateCellCacheAndSyncBackground(rIdx, cIdx, div.innerHTML);
+    };
+    
+    div.onkeydown = function(e) {
+      if (e.key === "Tab") {
+        var text = div.innerText.trim();
+        if (text.indexOf("http") === 0) {
+          e.preventDefault();
+          updateCellCacheAndSyncBackground(rIdx, cIdx, text);
+          buildSpreadsheetGrid();
+        }
+      }
+    };
+    return div;
+  }
+
+  /**
+   * Cập nhật tức thời giao diện cục bộ và phát lệnh đồng bộ âm thầm về Server Apps Script
+   */
+  function updateCellCacheAndSyncBackground(rIdx, cIdx, newValue) {
+    rawSpreadsheetCache[currentActiveTab][rIdx][cIdx] = newValue;
+    // Chạy ngầm hoàn toàn không chặn UI người dùng
+    google.script.run.syncCellValuesBackground(activeSpreadsheetId, currentActiveTab, rIdx + 1, cIdx + 1, newValue);
+  }
+
+  /**
+   * Thuật toán chặn tính năng mặc định để triển khai quy tắc Shift + Click chọn dải ô đa điểm
+   */
+  function handleCellClickEngine(e, rIdx, cIdx) {
+    if (e.shiftKey && selectionAnchor) {
+      e.preventDefault();
+      clearTextSelectionSelection();
+      calculateSelectedRangeBounds(selectionAnchor.r, selectionAnchor.c, rIdx, cIdx);
+    } else {
+      selectionAnchor = { r: rIdx, c: cIdx };
+      calculateSelectedRangeBounds(rIdx, cIdx, rIdx, cIdx);
+    }
+    highlightSelectedVisualCells();
+  }
+
+  function calculateSelectedRangeBounds(r1, c1, r2, c2) {
+    selectedRangeBounds = {
+      minR: Math.min(r1, r2),
+      maxR: Math.max(r1, r2),
+      minC: Math.min(c1, c2),
+      maxC: Math.max(c1, c2)
+    };
+    isSelectingFullRows = false;
+    isSelectingFullCols = false;
+  }
+
+  function executeFullRowSelection(e, rIdx) {
+    e.preventDefault();
+    var colCount = rawSpreadsheetCache[currentActiveTab][0].length;
+    if (e.shiftKey && selectionAnchor !== null) {
+      clearTextSelectionSelection();
+      selectedRangeBounds = {
+        minR: Math.min(selectionAnchor.r, rIdx), maxR: Math.max(selectionAnchor.r, rIdx),
+        minC: 0, maxC: colCount - 1
+      };
+    } else {
+      selectionAnchor = { r: rIdx, c: 0 };
+      selectedRangeBounds = { minR: rIdx, maxR: rIdx, minC: 0, maxC: colCount - 1 };
+    }
+    isSelectingFullRows = true; isSelectingFullCols = false;
+    highlightSelectedVisualCells();
+  }
+
+  function executeFullColumnSelection(e, colIdx) {
+    e.preventDefault();
+    var rowCount = rawSpreadsheetCache[currentActiveTab].length;
+    if (e.shiftKey && selectionAnchor !== null) {
+      clearTextSelectionSelection();
+      selectedRangeBounds = {
+        minR: 0, maxR: rowCount - 1,
+        minC: Math.min(selectionAnchor.c, colIdx), maxC: Math.max(selectionAnchor.c, colIdx)
+      };
+    } else {
+      selectionAnchor = { r: 0, c: colIdx };
+      selectedRangeBounds = { minR: 0, maxR: rowCount - 1, minC: colIdx, maxC: colIdx };
+    }
+    isSelectingFullRows = false; isSelectingFullCols = true;
+    highlightSelectedVisualCells();
+  }
+
+  function highlightSelectedVisualCells() {
+    // Xóa toàn bộ viền cũ
+    var cells = document.querySelectorAll(".mkt-custom-table td");
+    cells.forEach(function(c) { c.classList.remove("cell-selected"); });
+    
+    if (!selectedRangeBounds) return;
+    
+    for (var r = selectedRangeBounds.minR; r <= selectedRangeBounds.maxR; r++) {
+      for (var c = selectedRangeBounds.minC; c <= selectedRangeBounds.maxC; c++) {
+        var cell = document.getElementById("cell_" + r + "_" + c);
+        if (cell) cell.classList.add("cell-selected");
+      }
+    }
+  }
+
+  function clearTextSelectionSelection() {
+    if (window.getSelection) { window.getSelection().removeAllRanges(); }
+    else if (document.selection) { document.selection.empty(); }
+  }
+/**
+   * Hàm tính toán thông minh giúp Menu chuột phải không bao giờ bị lọt ra ngoài màn hình
+   */
+  function showContextMenuSafe(menu, e) {
+    menu.style.display = "block"; // Hiển thị tạm để lấy kích thước thật
+    var menuWidth = menu.offsetWidth;
+    var menuHeight = menu.offsetHeight;
+    
+    var leftPos = e.clientX;
+    var topPos = e.clientY;
+    
+    // Nếu menu bị tràn lề phải
+    if (leftPos + menuWidth > window.innerWidth) {
+      leftPos = window.innerWidth - menuWidth - 5;
+    }
+    // Nếu menu bị tràn lề dưới (đáy màn hình)
+    if (topPos + menuHeight > window.innerHeight) {
+      topPos = window.innerHeight - menuHeight - 5;
+    }
+    
+    menu.style.left = leftPos + "px";
+    menu.style.top = topPos + "px";
+  }
+  /**
+   * Thiết lập hệ thống chặn bắt sự kiện Click chuột ngoài cấu trúc để đóng Menu Context độc quyền
+   */
+  function setupGlobalMouseInterceptors() {
+    document.addEventListener("click", function() {
+      document.getElementById("gridContextMenu").style.display = "none";
+      document.getElementById("tabContextMenu").style.display = "none";
+    });
+  }
+
+  /**
+   * Xử lý Menu Chuột Phải linh hoạt trên Tọa độ Ma Trận Bảng tính
+   */
+  function handleCellRightClickEngine(e, rIdx, cIdx) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!selectedRangeBounds || rIdx < selectedRangeBounds.minR || rIdx > selectedRangeBounds.maxR || cIdx < selectedRangeBounds.minC || cIdx > selectedRangeBounds.maxC) {
+      handleCellClickEngine(e, rIdx, cIdx);
+    }
+    
+    var menu = document.getElementById("gridContextMenu");
+    menu.innerHTML = "";
+    
+    // --- TÍNH NĂNG COPY / PASTE ---
+    addContextMenuItem(menu, "<i class='fas fa-copy'></i> Sao chép (Copy)", function() { copySelectedRangeAction(); });
+    addContextMenuItem(menu, "<i class='fas fa-paste'></i> Dán (Paste)", function() { pasteToSelectedRangeAction(); });
+    addContextMenuDivider(menu);
+
+    // --- TÍNH NĂNG CẤU TRÚC (Thêm/Xóa) ---
+    addContextMenuItem(menu, "<i class='fas fa-arrow-up'></i> Thêm hàng bên trên", function() { insertStructuralRowAction('above'); });
+    addContextMenuItem(menu, "<i class='fas fa-arrow-down'></i> Thêm hàng bên dưới", function() { insertStructuralRowAction('below'); });
+    addContextMenuItem(menu, "<i class='fas fa-arrow-left'></i> Thêm cột bên trái", function() { insertStructuralColAction('left'); });
+    addContextMenuItem(menu, "<i class='fas fa-arrow-right'></i> Thêm cột bên phải", function() { insertStructuralColAction('right'); });
+    
+    addContextMenuDivider(menu);
+    addContextMenuItem(menu, "<i class='fas fa-trash-alt' style='color:var(--red);'></i> Xóa Hàng / Dải Hàng được chọn", function() { deleteStructuralRowsAction(); });
+    addContextMenuItem(menu, "<i class='fas fa-trash-alt' style='color:var(--red);'></i> Xóa Cột / Dải Cột được chọn", function() { deleteStructuralColsAction(); });
+    addContextMenuDivider(menu);
+    
+    // --- LOẠI CỘT ---
+    addContextMenuItem(menu, "<i class='fas fa-cog'></i> Đặt loại cột: Text", function() { setColumnDataTypeAction(cIdx, 'text'); });
+    addContextMenuItem(menu, "<i class='fas fa-link'></i> Đặt loại cột: Link", function() { setColumnDataTypeAction(cIdx, 'link'); });
+    addContextMenuItem(menu, "<i class='fas fa-list'></i> Đặt loại cột: Dropdown", function() { setColumnDataTypeAction(cIdx, 'dropdown'); });
+    addContextMenuItem(menu, "<i class='fas fa-check-square'></i> Đặt loại cột: Checkbox", function() { setColumnDataTypeAction(cIdx, 'checkbox'); });
+    // --- CỐ ĐỊNH HÀNG CỘT (FREEZE PANES) ---
+    addContextMenuDivider(menu);
+    addContextMenuItem(menu, `<i class='fas fa-snowflake' style='color:var(--blue);'></i> Cố định tới hàng ${rIdx + 1}`, function() { executeFreezeAction(rIdx + 1, null); });
+    addContextMenuItem(menu, `<i class='fas fa-snowflake' style='color:var(--blue);'></i> Cố định tới cột ${getColumnLetterName(cIdx)}`, function() { executeFreezeAction(null, cIdx + 1); });
+    addContextMenuItem(menu, `<i class='fas fa-ban'></i> Bỏ cố định Hàng/Cột`, function() { executeFreezeAction(0, 0); });
+    
+    showContextMenuSafe(menu, e);
+  }
+
+  // --- HÀM XỬ LÝ COPY / PASTE ---
+  function copySelectedRangeAction() {
+    if (!selectedRangeBounds) return;
+    var tsvData = "";
+    var dataMatrix = rawSpreadsheetCache[currentActiveTab];
+    for (var r = selectedRangeBounds.minR; r <= selectedRangeBounds.maxR; r++) {
+      var rowStr = [];
+      for (var c = selectedRangeBounds.minC; c <= selectedRangeBounds.maxC; c++) {
+        rowStr.push(dataMatrix[r][c] || "");
+      }
+      tsvData += rowStr.join("\t") + "\n";
+    }
+    navigator.clipboard.writeText(tsvData).catch(function(err) {
+      console.error("Lỗi khi Copy: ", err);
+    });
+  }
+
+  function pasteToSelectedRangeAction() {
+    if (!selectedRangeBounds) return;
+    navigator.clipboard.readText().then(function(clipText) {
+      if(!clipText) return;
+      var rows = clipText.split("\n");
+      var startR = selectedRangeBounds.minR;
+      var startC = selectedRangeBounds.minC;
+      var dataMatrix = rawSpreadsheetCache[currentActiveTab];
+      
+      for (var i = 0; i < rows.length; i++) {
+        if (!rows[i] && i === rows.length - 1) continue; // Bỏ qua dòng rỗng cuối
+        var cols = rows[i].split("\t");
+        var targetR = startR + i;
+        if (targetR >= dataMatrix.length) {
+            // Tự động thêm hàng nếu dán vượt ranh giới
+            dataMatrix.push(Array(dataMatrix[0].length).fill(""));
+            google.script.run.structuralChangeBackground(activeSpreadsheetId, currentActiveTab, "insertRow", targetR + 1, 1);
+        }
+        for (var j = 0; j < cols.length; j++) {
+          var targetC = startC + j;
+          if (targetC < dataMatrix[0].length) {
+            dataMatrix[targetR][targetC] = cols[j];
+            google.script.run.syncCellValuesBackground(activeSpreadsheetId, currentActiveTab, targetR + 1, targetC + 1, cols[j]);
+          }
+        }
+      }
+      buildSpreadsheetGrid();
+    }).catch(function(err) {
+      console.error("Lỗi khi Paste: (Trình duyệt có thể chặn quyền đọc Clipboard) ", err);
+    });
+  }
+
+  function addContextMenuItem(parent, innerHtml, callback) {
+    var item = document.createElement("div");
+    item.className = "mkt-context-menu-item";
+    item.innerHTML = innerHtml;
+    item.onclick = callback;
+    parent.appendChild(item);
+  }
+
+  function addContextMenuDivider(parent) {
+    var div = document.createElement("div");
+    div.className = "mkt-context-menu-divider";
+    parent.appendChild(div);
+  }
+
+  /**
+   * Logic các hành động cấu trúc bảng (Thêm, Xóa, Đổi loại dữ liệu)
+   */
+  function insertStructuralRowAction(position) {
+    var targetR = (position === 'above') ? selectedRangeBounds.minR : selectedRangeBounds.maxR + 1;
+    var dataMatrix = rawSpreadsheetCache[currentActiveTab];
+    var colCount = dataMatrix[0].length;
+    var newRow = Array(colCount).fill("");
+    
+    dataMatrix.splice(targetR, 0, newRow);
+    buildSpreadsheetGrid();
+    
+    google.script.run.structuralChangeBackground(activeSpreadsheetId, currentActiveTab, "insertRow", targetR + 1, 1);
+  }
+
+  function insertStructuralColAction(position) {
+    var targetC = (position === 'left') ? selectedRangeBounds.minC : selectedRangeBounds.maxC + 1;
+    var dataMatrix = rawSpreadsheetCache[currentActiveTab];
+    
+    dataMatrix.forEach(function(row) {
+      row.splice(targetC, 0, "");
+    });
+    buildSpreadsheetGrid();
+    
+    google.script.run.structuralChangeBackground(activeSpreadsheetId, currentActiveTab, "insertCol", targetC + 1, 1);
+  }
+
+  function deleteStructuralRowsAction() {
+    var count = selectedRangeBounds.maxR - selectedRangeBounds.minR + 1;
+    var dataMatrix = rawSpreadsheetCache[currentActiveTab];
+    
+    dataMatrix.splice(selectedRangeBounds.minR, count);
+    if (dataMatrix.length === 0) dataMatrix.push([""]);
+    
+    buildSpreadsheetGrid();
+    google.script.run.structuralChangeBackground(activeSpreadsheetId, currentActiveTab, "deleteRow", selectedRangeBounds.minR + 1, count);
+  }
+
+  function deleteStructuralColsAction() {
+    var count = selectedRangeBounds.maxC - selectedRangeBounds.minC + 1;
+    var dataMatrix = rawSpreadsheetCache[currentActiveTab];
+    
+    dataMatrix.forEach(function(row) {
+      row.splice(selectedRangeBounds.minC, count);
+    });
+    
+    buildSpreadsheetGrid();
+    google.script.run.structuralChangeBackground(activeSpreadsheetId, currentActiveTab, "deleteCol", selectedRangeBounds.minC + 1, count);
+  }
+
+  function setColumnDataTypeAction(colIdx, dataType) {
+    attributesCache[currentActiveTab] = attributesCache[currentActiveTab] || {};
+    attributesCache[currentActiveTab].columnTypes = attributesCache[currentActiveTab].columnTypes || {};
+    attributesCache[currentActiveTab].columnTypes[colIdx] = dataType;
+    
+    buildSpreadsheetGrid();
+    google.script.run.saveSheetAttributesBackground(activeSpreadsheetId, currentActiveTab, attributesCache[currentActiveTab]);
+  }
+
+  /**
+   * Áp dụng định dạng phong cách Đậm, Nghiêng, Gạch chân, Căn lề vào Dải vùng chọn rộng toàn bảng
+   */
+  function applyFormatToSelectedRange(command) {
+    if (!selectedRangeBounds) return;
+    attributesCache[currentActiveTab] = attributesCache[currentActiveTab] || {};
+    attributesCache[currentActiveTab].cellStyles = attributesCache[currentActiveTab].cellStyles || {};
+    
+    for (var r = selectedRangeBounds.minR; r <= selectedRangeBounds.maxR; r++) {
+      for (var c = selectedRangeBounds.minC; c <= selectedRangeBounds.maxC; c++) {
+        var key = r + "_" + c;
+        attributesCache[currentActiveTab].cellStyles[key] = attributesCache[currentActiveTab].cellStyles[key] || {};
+        var style = attributesCache[currentActiveTab].cellStyles[key];
+        
+        if (command === 'bold') style.bold = !style.bold;
+        if (command === 'italic') style.italic = !style.italic;
+        if (command === 'underline') style.underline = !style.underline;
+        if (command === 'align-left') style.align = 'left';
+        if (command === 'align-center') style.align = 'center';
+        if (command === 'align-right') style.align = 'right';
+      }
+    }
+    buildSpreadsheetGrid();
+    google.script.run.saveSheetAttributesBackground(activeSpreadsheetId, currentActiveTab, attributesCache[currentActiveTab]);
+  }
+var currentColorPickerTarget = 'bg';
+
+  function toggleInlineColorPicker(e, targetMode) {
+    e.stopPropagation();
+    currentColorPickerTarget = targetMode;
+    var picker = document.getElementById("inlineColorPickerBox");
+    
+    // Tạo bảng màu chuẩn (nếu chưa tạo)
+    var grid = document.getElementById("standardColorGrid");
+    if (grid.innerHTML === "") {
+      var colors = [
+        "#000000", "#434343", "#666666", "#999999", "#b7b7b7", "#cccccc", "#d9d9d9", "#efefef", "#f3f3f3", "#ffffff",
+        "#980000", "#ff0000", "#ff9900", "#ffff00", "#00ff00", "#00ffff", "#4a86e8", "#0000ff", "#9900ff", "#ff00ff",
+        "#db1010", "#01adee", "#4caf50", "#ffeb3b", "#ff9800", "#795548", "#e91e63", "#9c27b0", "#3f51b5", "#009688"
+      ];
+      colors.forEach(function(c) {
+        var dot = document.createElement("div");
+        dot.className = "color-swatch";
+        dot.style.backgroundColor = c;
+        dot.onclick = function() {
+          executeRangeColorApplication(currentColorPickerTarget, c);
+          picker.style.display = "none"; // Áp dụng xong đóng luôn
+        };
+        grid.appendChild(dot);
+      });
+    }
+
+    // Hiển thị ngay dưới nút bấm
+    picker.style.display = "block";
+    picker.style.left = e.clientX + "px";
+    picker.style.top = (e.clientY + 15) + "px";
+  }
+
+  function applyCustomHexColor() {
+    var hex = document.getElementById("hexColorInput").value.trim();
+    if(hex) {
+      executeRangeColorApplication(currentColorPickerTarget, hex);
+      document.getElementById("inlineColorPickerBox").style.display = "none";
+    }
+  }
+/**
+   * Cập nhật màu sắc ô Preview ngay lập tức khi gõ phím vào ô input HEX
+   */
+  function updateRealtimeColorPreview() {
+    var hexInput = document.getElementById("hexColorInput").value.trim();
+    var previewBox = document.getElementById("hexColorPreview");
+    
+    // Nếu có nhập giá trị, thử áp dụng làm background. CSS sẽ tự động bỏ qua nếu mã HEX không hợp lệ.
+    if (hexInput) {
+      previewBox.style.backgroundColor = hexInput;
+    } else {
+      previewBox.style.backgroundColor = "#ffffff"; // Mặc định về trắng nếu để trống
+    }
+  }
+
+  /**
+   * Kích hoạt công cụ Hút Màu của trình duyệt (EyeDropper API)
+   */
+  async function activateEyedropperTool() {
+    // Kiểm tra xem trình duyệt có hỗ trợ tính năng hút màu không
+    if (!window.EyeDropper) {
+      alert("Trình duyệt của bạn hiện chưa hỗ trợ tính năng Hút màu. Vui lòng sử dụng Chrome/Edge phiên bản mới nhất.");
+      return;
+    }
+    
+    const eyeDropper = new EyeDropper();
+    
+    try {
+      // Mở công cụ hút màu, người dùng click vào đâu sẽ trả về mã HEX ở đó
+      const result = await eyeDropper.open();
+      
+      // Gán mã màu vào ô input và cập nhật luôn ô preview
+      document.getElementById("hexColorInput").value = result.sRGBHex;
+      updateRealtimeColorPreview();
+      
+    } catch (e) {
+      // Người dùng nhấn ESC để hủy công cụ hút màu, không cần làm gì cả
+      console.log("Đã hủy thao tác hút màu.");
+    }
+  }
+  // Đóng picker khi click ra ngoài
+  document.addEventListener("click", function() {
+    var picker = document.getElementById("inlineColorPickerBox");
+    if(picker) picker.style.display = "none";
+  });
+  document.getElementById("inlineColorPickerBox").addEventListener("click", function(e) {
+    e.stopPropagation();
+  });
+  /**
+   * Wizard hiển thị bảng chọn mã màu tự do không giới hạn, kèm ô gợi ý
+   */
+  function openColorPickerWizard(targetMode) {
+    var suggestColors = ["#ffff", "#01adee", "#db1010", "#ffeb3b", "#4caf50", "#ff9800", "#9c27b0", "#e91e63", "#009688", "#795548"];
+    var html = `<p style='margin-bottom:8px; font-size:12px;'>Chọn màu gợi ý hoặc nhập mã màu HEX tự do:</p><div class='color-picker-palette'>`;
+    
+    suggestColors.forEach(function(color) {
+      html += `<div class='color-dot-suggest' style='background:${color};' onclick='document.getElementById("customHexInput").value="${color}"'></div>`;
+    });
+    html += `</div><input type='text' id='customHexInput' class='popup-input' placeholder='#ffffff' style='margin-top:10px;'>`;
+    
+    showSystemModal("BỘ CHỌN MÀU SẮC TỰ DO", html, [
+      {
+        text: "ÁP DỤNG",
+        className: "btn-confirm",
+        callback: function() {
+          var chosenColor = document.getElementById("customHexInput").value.trim();
+          if (chosenColor) executeRangeColorApplication(targetMode, chosenColor);
+        }
+      },
+      { text: "HỦY BỎ", className: "btn-cancel", callback: function(){} }
+    ]);
+  }
+
+  function executeRangeColorApplication(targetMode, hexColor) {
+    attributesCache[currentActiveTab] = attributesCache[currentActiveTab] || {};
+    
+    if (isSelectingFullRows) {
+      attributesCache[currentActiveTab].rowStyles = attributesCache[currentActiveTab].rowStyles || {};
+      for (var r = selectedRangeBounds.minR; r <= selectedRangeBounds.maxR; r++) {
+        attributesCache[currentActiveTab].rowStyles[r] = attributesCache[currentActiveTab].rowStyles[r] || {};
+        if (targetMode === 'bg') attributesCache[currentActiveTab].rowStyles[r].bg = hexColor;
+        if (targetMode === 'text') attributesCache[currentActiveTab].rowStyles[r].color = hexColor;
+      }
+    } else if (isSelectingFullCols) {
+      attributesCache[currentActiveTab].colStyles = attributesCache[currentActiveTab].colStyles || {};
+      for (var c = selectedRangeBounds.minC; c <= selectedRangeBounds.maxC; c++) {
+        attributesCache[currentActiveTab].colStyles[c] = attributesCache[currentActiveTab].colStyles[c] || {};
+        if (targetMode === 'bg') attributesCache[currentActiveTab].colStyles[c].bg = hexColor;
+        if (targetMode === 'text') attributesCache[currentActiveTab].colStyles[c].color = hexColor;
+      }
+    } else {
+      attributesCache[currentActiveTab].cellStyles = attributesCache[currentActiveTab].cellStyles || {};
+      for (var r = selectedRangeBounds.minR; r <= selectedRangeBounds.maxR; r++) {
+        for (var c = selectedRangeBounds.minC; c <= selectedRangeBounds.maxC; c++) {
+          var key = r + "_" + c;
+          attributesCache[currentActiveTab].cellStyles[key] = attributesCache[currentActiveTab].cellStyles[key] || {};
+          if (targetMode === 'bg') attributesCache[currentActiveTab].cellStyles[key].bg = hexColor;
+          if (targetMode === 'text') attributesCache[currentActiveTab].cellStyles[key].color = hexColor;
+        }
+      }
+    }
+    
+    buildSpreadsheetGrid();
+    google.script.run.saveSheetAttributesBackground(activeSpreadsheetId, currentActiveTab, attributesCache[currentActiveTab]);
+  }
+
+  /**
+   * Quản lý Danh sách Item Lựa chọn Dropdown bằng cú pháp Double-Click
+   */
+  function openDropdownItemsEditorWizard(colIdx) {
+    attributesCache[currentActiveTab] = attributesCache[currentActiveTab] || {};
+    attributesCache[currentActiveTab].dropdownChoices = attributesCache[currentActiveTab].dropdownChoices || {};
+    var currentOpts = attributesCache[currentActiveTab].dropdownChoices[colIdx] || ["Ý tưởng mới", "Đang xử lý", "Hoàn thành"];
+    
+    var html = `<p style='font-size:12px; margin-bottom:8px;'>Nhập các mục tùy chọn cho cột, phân tách mỗi mục bằng một dấu xuống dòng (Enter):</p>`;
+    html += `<textarea id='dropdownItemsTextArea' class='popup-input' style='height:120px; font-family:monospace;'>${currentOpts.join("\n")}</textarea>`;
+    
+    showSystemModal("CẤU HÌNH DROP ITEMS", html, [
+      {
+        text: "LƯU ĐỊNH DẠNG",
+        className: "btn-confirm",
+        callback: function() {
+          var text = document.getElementById("dropdownItemsTextArea").value;
+          var lines = text.split("\n").map(function(l){return l.trim();}).filter(Boolean);
+          attributesCache[currentActiveTab].dropdownChoices[colIdx] = lines;
+          buildSpreadsheetGrid();
+          google.script.run.saveSheetAttributesBackground(activeSpreadsheetId, currentActiveTab, attributesCache[currentActiveTab]);
+        }
+      },
+      { text: "ĐÓNG", className: "btn-cancel", callback: function(){} }
+    ]);
+  }
+
+  function renameHyperlinkTextWizard(rIdx, cIdx) {
+    var cell = document.getElementById("cell_" + rIdx + "_" + cIdx);
+    var oldName = cell.getAttribute("data-hyperlink-name") || "Xem liên kết";
+    var html = `<input type='text' id='hyperlinkCustomNameInput' class='popup-input' value='${oldName}'>`;
+    
+    showSystemModal("ĐẶT TÊN HIỂN THỊ HYPERLINK", html, [
+      {
+        text: "CẬP NHẬT",
+        className: "btn-confirm",
+        callback: function() {
+          var name = document.getElementById("hyperlinkCustomNameInput").value.trim();
+          var cellEl = document.getElementById("cell_" + rIdx + "_" + cIdx);
+          if (cellEl) cellEl.setAttribute("data-hyperlink-name", name);
+          buildSpreadsheetGrid();
+        }
+      },
+      { text: "BỎ QUA", className: "btn-cancel", callback: function(){} }
+    ]);
+  }
+
+  /**
+   * Menu chuột phải tương tác quản trị cấu trúc Tab của bảng tính
+   */
+  function openTabContextMenu(e, tabName) {
+    var menu = document.getElementById("tabContextMenu");
+    menu.innerHTML = "";
+    
+    addContextMenuItem(menu, "<i class='fas fa-edit'></i> Đổi tên", function() { promptRenameTabAction(tabName); });
+    addContextMenuItem(menu, "<i class='fas fa-clone'></i> Nhân bản", function() { duplicateTabAction(tabName); });
+    addContextMenuItem(menu, "<i class='fas fa-eye-slash' style='color:var(--red);'></i> Ẩn", function() { hideTabPermanentlyAction(tabName); });
+    addContextMenuDivider(menu);
+    addContextMenuItem(menu, "<i class='fas fa-trash-alt' style='color:var(--red);'></i> Xóa", function() { deleteTabCompletelyAction(tabName); });
+    
+showContextMenuSafe(menu, e);
+  }
+
+  function promptCreateNewTab() {
+    var html = `<input type='text' id='newTabNameInput' class='popup-input' placeholder='Nhập tên tab sheet mới...'>`;
+    showSystemModal("TẠO TAB SHEET MỚI", html, [
+      {
+        text: "TẠO NGAY",
+        className: "btn-confirm",
+        callback: function() {
+          var name = document.getElementById("newTabNameInput").value.trim();
+          if (!name || systemTabOrder.indexOf(name) !== -1) return;
+          systemTabOrder.push(name);
+          rawSpreadsheetCache[name] = [["Tiêu đề 1", "Tiêu đề 2", "Tiêu đề 3"]];
+          currentActiveTab = name;
+          renderTabControls();
+          buildSpreadsheetGrid();
+          google.script.run.manageTabAction(activeSpreadsheetId, "create", name, "");
+        }
+      },
+      { text: "HỦY", className: "btn-cancel", callback: function(){} }
+    ]);
+  }
+
+  function promptRenameTabAction(oldName) {
+    var html = `<input type='text' id='renameTabNameInput' class='popup-input' value='${oldName}'>`;
+    showSystemModal("ĐỔI TÊN TAB SHEET", html, [
+      {
+        text: "CẬP NHẬT",
+        className: "btn-confirm",
+        callback: function() {
+          var newName = document.getElementById("renameTabNameInput").value.trim();
+          if (!newName || oldName === newName) return;
+          
+          var idx = systemTabOrder.indexOf(oldName);
+          if (idx !== -1) systemTabOrder[idx] = newName;
+          
+          rawSpreadsheetCache[newName] = rawSpreadsheetCache[oldName];
+          delete rawSpreadsheetCache[oldName];
+          
+          attributesCache[newName] = attributesCache[oldName];
+          delete attributesCache[oldName];
+          
+          currentActiveTab = newName;
+          renderTabControls();
+          buildSpreadsheetGrid();
+          google.script.run.manageTabAction(activeSpreadsheetId, "rename", oldName, newName);
+        }
+      },
+      { text: "BỎ QUA", className: "btn-cancel", callback: function(){} }
+    ]);
+  }
+
+  function duplicateTabAction(tabName) {
+    var newName = tabName + "_Bản_sao";
+    systemTabOrder.push(newName);
+    rawSpreadsheetCache[newName] = JSON.parse(JSON.stringify(rawSpreadsheetCache[tabName]));
+    attributesCache[newName] = JSON.parse(JSON.stringify(attributesCache[tabName] || {}));
+    
+    currentActiveTab = newName;
+    renderTabControls();
+    buildSpreadsheetGrid();
+    google.script.run.manageTabAction(activeSpreadsheetId, "duplicate", tabName, newName);
+  }
+
+  function hideTabPermanentlyAction(tabName) {
+    attributesCache[tabName] = attributesCache[tabName] || {};
+    attributesCache[tabName].hidden = true;
+    
+    // Tìm tab thay thế
+    var visibleTabs = systemTabOrder.filter(function(t){ return !(attributesCache[t] && attributesCache[t].hidden); });
+    currentActiveTab = visibleTabs.length > 0 ? visibleTabs[0] : "";
+    
+    renderTabControls();
+    buildSpreadsheetGrid();
+    google.script.run.saveSheetAttributesBackground(activeSpreadsheetId, tabName, attributesCache[tabName]);
+  }
+
+  function deleteTabCompletelyAction(tabName) {
+    var idx = systemTabOrder.indexOf(tabName);
+    if (idx !== -1) systemTabOrder.splice(idx, 1);
+    delete rawSpreadsheetCache[tabName];
+    delete attributesCache[tabName];
+    
+    currentActiveTab = systemTabOrder.length > 0 ? systemTabOrder[0] : "";
+    renderTabControls();
+    buildSpreadsheetGrid();
+    google.script.run.manageTabAction(activeSpreadsheetId, "delete", tabName, "");
+  }
+
+  /**
+   * Công cụ quét tìm kiếm thông minh toàn bảng hệ thống
+   */
+  function performGridSearch(keyword) {
+    var trs = document.querySelectorAll("#mktTableBody tr");
+    trs.forEach(function(tr) {
+      if (!keyword) {
+        tr.style.display = "";
+        return;
+      }
+      var text = tr.innerText.toLowerCase();
+      if (text.indexOf(keyword) !== -1) {
+        tr.style.display = "";
+      } else {
+        tr.style.display = "none";
+      }
+    });
+  }
+  // HÀM MỞ DANH SÁCH CHECKBOX CỦA DROPDOWN
+// HÀM MỞ DANH SÁCH CHECKBOX CỦA DROPDOWN VÀ NÚT CHỈNH SỬA
+  function openInlineDropdownList(e, rIdx, cIdx, currentSelections, globalOptions) {
+    e.stopPropagation();
+    var box = document.getElementById("inlineDropdownListBox");
+    box.innerHTML = "";
+    globalOptions.forEach(function(opt) {
+      if(!opt) return;
+      var item = document.createElement("div");
+      item.className = "dropdown-list-item";
+      var isChecked = currentSelections.indexOf(opt) !== -1;
+      item.innerHTML = `<input type='checkbox' ${isChecked ? 'checked' : ''}> <span>${opt}</span>`;
+      
+      item.onclick = function(ev) {
+        ev.stopPropagation();
+        var idx = currentSelections.indexOf(opt);
+        if (idx !== -1) currentSelections.splice(idx, 1);
+        else currentSelections.push(opt);
+        var newValStr = currentSelections.filter(Boolean).join(", ");
+        updateCellCacheAndSyncBackground(rIdx, cIdx, newValStr);
+        buildSpreadsheetGrid(); // Render lại ô
+        openInlineDropdownList(e, rIdx, cIdx, currentSelections, globalOptions); // Giữ menu mở để tick tiếp
+      };
+      box.appendChild(item);
+    });
+
+    // Thêm nút Chỉnh Sửa Master List ở dưới đáy
+    var editBtn = document.createElement("div");
+    editBtn.style.borderTop = "1px solid #ccc";
+    editBtn.style.padding = "8px";
+    editBtn.style.marginTop = "5px";
+    editBtn.innerHTML = `<button class="grid-mini-btn" style="width:100%;"><i class="fas fa-edit"></i> Sửa danh sách</button>`;
+    editBtn.onclick = function(ev) {
+        ev.stopPropagation();
+        box.style.display = "none";
+        openDropdownItemsEditorWizard(cIdx);
+    };
+    box.appendChild(editBtn);
+
+    box.style.display = "block";
+    box.style.left = e.clientX + "px";
+    box.style.top = (e.clientY + 15) + "px";
+    showContextMenuSafe(box, e);
+  }
+
+  document.addEventListener("click", function() {
+    var dpBox = document.getElementById("inlineDropdownListBox");
+    if(dpBox) dpBox.style.display = "none";
+  });
+
+  // HÀM THỰC THI DI CHUYỂN HÀNG/CỘT SAU KHI KÉO THẢ
+  // HÀM THỰC THI DI CHUYỂN HÀNG KÈM THEO THUỘC TÍNH
+  function executeMoveRowsAction(startR, endR, targetR) {
+    if (targetR >= startR && targetR <= endR) return;
+    var dataMatrix = rawSpreadsheetCache[currentActiveTab];
+    var count = endR - startR + 1;
+    var insertPos = targetR > endR ? targetR - count : targetR;
+
+    // Di chuyển dữ liệu
+    var extracted = dataMatrix.splice(startR, count);
+    dataMatrix.splice.apply(dataMatrix, [insertPos, 0].concat(extracted));
+
+    // Di chuyển thuộc tính cấu trúc (Màu hàng, độ cao...)
+    var attrs = attributesCache[currentActiveTab] || {};
+    var rowProps = ['rowHeights', 'rowStyles'];
+    rowProps.forEach(function(prop) {
+        if(attrs[prop]) {
+            var arr = [];
+            for(var i=0; i < dataMatrix.length + count; i++) arr.push(attrs[prop][i]);
+            var ext = arr.splice(startR, count);
+            arr.splice.apply(arr, [insertPos, 0].concat(ext));
+            var newObj = {};
+            arr.forEach(function(v, i) { if(v !== undefined) newObj[i] = v; });
+            attrs[prop] = newObj;
+        }
+    });
+
+    // Di chuyển các thuộc tính màu Ô
+    if(attrs.cellStyles) {
+        var newCellStyles = {};
+        for(var key in attrs.cellStyles) {
+            var parts = key.split('_');
+            var r = parseInt(parts[0]);
+            var c = parseInt(parts[1]);
+            var newR = r;
+            if(r >= startR && r <= endR) newR = insertPos + (r - startR);
+            else if (targetR > endR && r > endR && r < targetR) newR = r - count;
+            else if (targetR < startR && r >= targetR && r < startR) newR = r + count;
+            newCellStyles[newR + "_" + c] = attrs.cellStyles[key];
+        }
+        attrs.cellStyles = newCellStyles;
+    }
+
+    buildSpreadsheetGrid();
+    google.script.run.moveStructuralBackground(activeSpreadsheetId, currentActiveTab, 'row', startR + 1, endR + 1, targetR + 1);
+    google.script.run.saveSheetAttributesBackground(activeSpreadsheetId, currentActiveTab, attrs);
+  }
+
+  // HÀM THỰC THI DI CHUYỂN CỘT KÈM THEO THUỘC TÍNH VÀ LOẠI CỘT
+  function executeMoveColsAction(startC, endC, targetC) {
+    if (targetC >= startC && targetC <= endC) return;
+    var dataMatrix = rawSpreadsheetCache[currentActiveTab];
+    var count = endC - startC + 1;
+    var insertPos = targetC > endC ? targetC - count : targetC;
+
+    // Di chuyển dữ liệu
+    dataMatrix.forEach(function(row) {
+        var extracted = row.splice(startC, count);
+        row.splice.apply(row, [insertPos, 0].concat(extracted));
+    });
+
+    // Di chuyển cấu trúc (Loại Cột, Dropdown, Màu Cột...)
+    var attrs = attributesCache[currentActiveTab] || {};
+    var colProps = ['colWidths', 'colStyles', 'columnTypes', 'dropdownChoices'];
+    colProps.forEach(function(prop) {
+        if(attrs[prop]) {
+            var arr = [];
+            for(var i=0; i < dataMatrix[0].length + count; i++) arr.push(attrs[prop][i]);
+            var ext = arr.splice(startC, count);
+            arr.splice.apply(arr, [insertPos, 0].concat(ext));
+            var newObj = {};
+            arr.forEach(function(v, i) { if(v !== undefined) newObj[i] = v; });
+            attrs[prop] = newObj;
+        }
+    });
+
+    // Di chuyển thuộc tính màu Ô
+    if(attrs.cellStyles) {
+        var newCellStyles = {};
+        for(var key in attrs.cellStyles) {
+            var parts = key.split('_');
+            var r = parseInt(parts[0]);
+            var c = parseInt(parts[1]);
+            var newC = c;
+            if(c >= startC && c <= endC) newC = insertPos + (c - startC);
+            else if (targetC > endC && c > endC && c < targetC) newC = c - count;
+            else if (targetC < startC && c >= targetC && c < startC) newC = c + count;
+            newCellStyles[r + "_" + newC] = attrs.cellStyles[key];
+        }
+        attrs.cellStyles = newCellStyles;
+    }
+
+    buildSpreadsheetGrid();
+    google.script.run.moveStructuralBackground(activeSpreadsheetId, currentActiveTab, 'col', startC + 1, endC + 1, targetC + 1);
+    google.script.run.saveSheetAttributesBackground(activeSpreadsheetId, currentActiveTab, attrs);
+  }
+  function executeFreezeAction(rows, cols) {
+    attributesCache[currentActiveTab] = attributesCache[currentActiveTab] || {};
+    if(rows !== null) attributesCache[currentActiveTab].frozenRows = rows;
+    if(cols !== null) attributesCache[currentActiveTab].frozenCols = cols;
+    buildSpreadsheetGrid();
+    google.script.run.freezePanesBackground(activeSpreadsheetId, currentActiveTab, rows, cols);
+    google.script.run.saveSheetAttributesBackground(activeSpreadsheetId, currentActiveTab, attributesCache[currentActiveTab]);
+  }
+
+  function applyCellSavedAttributesInline(td, rIdx, cIdx, attrs) {
+    var key = rIdx + "_" + cIdx;
+    var style = (attrs.cellStyles && attrs.cellStyles[key]) || {};
+    var rowStyle = (attrs.rowStyles && attrs.rowStyles[rIdx]) ? attrs.rowStyles[rIdx] : {};
+    var colStyle = (attrs.colStyles && attrs.colStyles[cIdx]) ? attrs.colStyles[cIdx] : {};
+    
+    // Tự động set nền trắng để nội dung các hàng bị cuộn bên dưới bị che lấp khi dùng Sticky Cố Định
+    var finalBg = style.bg || rowStyle.bg || colStyle.bg || "#ffffff";
+    var finalColor = style.color || rowStyle.color || colStyle.color || "";
+    
+    td.style.backgroundColor = finalBg;
+    if (finalColor) td.style.color = finalColor;
+    if (style.bold || rowStyle.bold || colStyle.bold) td.style.fontWeight = "bold";
+    if (style.italic || rowStyle.italic || colStyle.italic) td.style.fontStyle = "italic";
+    if (style.underline || rowStyle.underline || colStyle.underline) td.style.textDecoration = "underline";
+    td.style.textAlign = style.align || rowStyle.align || colStyle.align || "left";
+  }
+  // Biến toàn cục lưu trữ trạng thái lọc của từng tab
+  var activeColumnFilters = {};
+
+  // Hàm mở Popup Lọc của Cột
+  function openFilterBox(e, colIdx) {
+      e.stopPropagation();
+      var box = document.getElementById("inlineFilterBox");
+      var dataMatrix = rawSpreadsheetCache[currentActiveTab];
+      
+      // Lấy danh sách các giá trị duy nhất trong cột (bỏ qua hàng 0 là tiêu đề)
+      var uniqueVals = {};
+      for(var r=1; r<dataMatrix.length; r++) {
+         var val = String(dataMatrix[r][colIdx] || "").trim();
+         uniqueVals[val] = true;
+      }
+      var valList = Object.keys(uniqueVals).sort();
+
+      var tabFilters = activeColumnFilters[currentActiveTab] || {};
+      var currentFilter = tabFilters[colIdx] || null; // null = chưa lọc, hiển thị tất cả
+
+      var html = `<div style="padding: 8px; border-bottom: 1px solid #eee; font-weight: bold; font-size: 13px; color: var(--blue);">
+                      <i class="fas fa-filter"></i> Lọc dữ liệu cột ${getColumnLetterName(colIdx)}
+                  </div>`;
+      html += `<div style="max-height: 200px; overflow-y: auto; padding: 5px;">`;
+      
+      // Checkbox "Chọn tất cả"
+      html += `<div class="dropdown-list-item" onclick="toggleAllFilterVals(${colIdx}, this)">
+                  <input type="checkbox" style="pointer-events:none;" id="flt_ALL_${colIdx}" ${currentFilter === null ? "checked" : ""}> 
+                  <span style="font-weight:bold;">(Chọn tất cả)</span>
+               </div>`;
+      
+      // Render từng giá trị riêng biệt
+      valList.forEach(function(v) {
+          var checked = (currentFilter === null || currentFilter.indexOf(v) !== -1) ? "checked" : "";
+          var displayLabel = v === "" ? "(Trống)" : v;
+          html += `<div class="dropdown-list-item" onclick="toggleSingleFilterVal(this)">
+                      <input type="checkbox" style="pointer-events:none;" class="flt-val-cb-${colIdx}" value="${v}" ${checked}> 
+                      <span>${displayLabel}</span>
+                   </div>`;
+      });
+      html += `</div>`;
+      
+      // Nút điều khiển
+      html += `<div style="padding: 8px; border-top: 1px solid #eee; display: flex; gap: 5px;">
+                  <button class="grid-mini-btn" style="flex:1;" onclick="applyColFilter(${colIdx})">OK</button>
+                  <button class="grid-mini-btn" style="flex:1; background: var(--white); color: #333;" onclick="clearColFilter(${colIdx})">Xóa Lọc</button>
+               </div>`;
+
+      box.innerHTML = html;
+      box.style.display = "block";
+      box.style.left = e.clientX + "px";
+      box.style.top = (e.clientY + 15) + "px";
+      showContextMenuSafe(box, e);
+  }
+
+  function toggleAllFilterVals(colIdx, el) {
+      var cb = el.querySelector("input");
+      cb.checked = !cb.checked;
+      var cbs = document.querySelectorAll(".flt-val-cb-" + colIdx);
+      cbs.forEach(function(item) { item.checked = cb.checked; });
+  }
+
+  function toggleSingleFilterVal(el) {
+      var cb = el.querySelector("input");
+      cb.checked = !cb.checked;
+  }
+
+  // Lưu trạng thái lọc và chạy thuật toán
+  function applyColFilter(colIdx) {
+      var cbs = document.querySelectorAll(".flt-val-cb-" + colIdx);
+      var selectedVals = [];
+      var allChecked = true;
+      
+      cbs.forEach(function(cb) {
+          if(cb.checked) selectedVals.push(cb.value);
+          else allChecked = false;
+      });
+
+      activeColumnFilters[currentActiveTab] = activeColumnFilters[currentActiveTab] || {};
+      
+      if (allChecked) {
+          delete activeColumnFilters[currentActiveTab][colIdx]; // Xóa lọc nếu chọn tất cả
+      } else {
+          activeColumnFilters[currentActiveTab][colIdx] = selectedVals;
+      }
+      
+      document.getElementById("inlineFilterBox").style.display = "none";
+      buildSpreadsheetGrid(); // Tải lại bảng với dữ liệu đã lọc
+  }
+
+  function clearColFilter(colIdx) {
+      if (activeColumnFilters[currentActiveTab]) delete activeColumnFilters[currentActiveTab][colIdx];
+      document.getElementById("inlineFilterBox").style.display = "none";
+      buildSpreadsheetGrid();
+  }
+
+  // Thuật toán quét và Ẩn/Hiện dữ liệu theo nhiều lớp bộ lọc (Đa tầng)
+  function executeDataFilters() {
+      var tabFilters = activeColumnFilters[currentActiveTab] || {};
+      var trs = document.querySelectorAll("#mktTableBody tr");
+      var dataMatrix = rawSpreadsheetCache[currentActiveTab];
+      
+      trs.forEach(function(tr, rIdx) {
+          if (rIdx === 0) { tr.style.display = ""; return; } // Hàng 0 là tiêu đề, không bao giờ ẩn
+          
+          var show = true;
+          for (var c in tabFilters) { // Kiểm tra qua tất cả các cột đang được áp dụng bộ lọc
+              var allowedVals = tabFilters[c];
+              var cellVal = String(dataMatrix[rIdx][c] || "").trim();
+              if (allowedVals.indexOf(cellVal) === -1) {
+                  show = false; // Nếu giá trị của ô này không nằm trong danh sách cho phép -> Ẩn hàng
+                  break;
+              }
+          }
+          tr.style.display = show ? "" : "none";
+      });
+  }
+
+  // Cập nhật lại Event đóng popup khi click ra ngoài màn hình
+  document.addEventListener("click", function() {
+    var dpBox = document.getElementById("inlineDropdownListBox");
+    if(dpBox) dpBox.style.display = "none";
+    var fltBox = document.getElementById("inlineFilterBox");
+    if(fltBox) fltBox.style.display = "none";
+  });
+  document.getElementById("inlineFilterBox")?.addEventListener("click", function(e) {
+    e.stopPropagation();
+  });
+  // ==========================================
+  // LOGIC 1: KÉO GIÃN HÀNG VÀ CỘT (RESIZE)
+  // ==========================================
+  var isResizing = false;
+  var resizeData = { type: '', index: -1, startDim: 0, startMouse: 0 };
+
+  function initResize(e, type, index, currentDim) {
+      e.stopPropagation(); e.preventDefault();
+      isResizing = true;
+      resizeData = { 
+          type: type, index: index, 
+          startDim: currentDim, 
+          startMouse: type === 'col' ? e.clientX : e.clientY 
+      };
+      document.body.style.cursor = type === 'col' ? 'col-resize' : 'row-resize';
+  }
+
+  document.addEventListener('mousemove', function(e) {
+      if (!isResizing) return;
+      var delta = (resizeData.type === 'col' ? e.clientX : e.clientY) - resizeData.startMouse;
+      var newDim = Math.max(21, resizeData.startDim + delta); // Tối thiểu 21px
+      
+      // Hiển thị tạm thời khi đang kéo
+      if (resizeData.type === 'col') {
+          document.querySelectorAll("#mktTableHead th")[resizeData.index + 1].style.width = newDim + "px";
+      } else {
+          document.querySelectorAll("#mktTableBody tr")[resizeData.index].style.height = newDim + "px";
+      }
+  });
+
+  document.addEventListener('mouseup', function(e) {
+      if (!isResizing) return;
+      isResizing = false;
+      document.body.style.cursor = 'default';
+      
+      var delta = (resizeData.type === 'col' ? e.clientX : e.clientY) - resizeData.startMouse;
+      var newDim = Math.max(21, resizeData.startDim + delta);
+      
+      attributesCache[currentActiveTab] = attributesCache[currentActiveTab] || {};
+      if (resizeData.type === 'col') {
+          attributesCache[currentActiveTab].colWidths = attributesCache[currentActiveTab].colWidths || {};
+          attributesCache[currentActiveTab].colWidths[resizeData.index] = newDim;
+      } else {
+          attributesCache[currentActiveTab].rowHeights = attributesCache[currentActiveTab].rowHeights || {};
+          attributesCache[currentActiveTab].rowHeights[resizeData.index] = newDim;
+      }
+      
+      buildSpreadsheetGrid(); // Render lại để cập nhật độ lệch của các cột/hàng Cố định
+      google.script.run.saveSheetAttributesBackground(activeSpreadsheetId, currentActiveTab, attributesCache[currentActiveTab]);
+  });
+
+  // ==========================================
+  // LOGIC 2: TẠO HÀNG + TỰ ĐỘNG SINH MÃ ID DUY NHẤT
+  // ==========================================
+  function generateUniqueWebID(existingSet) {
+      var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      var id = '';
+      do {
+          var str = '';
+          for (var i = 0; i < 3; i++) str += chars.charAt(Math.floor(Math.random() * chars.length));
+          var num = Math.floor(Math.random() * 100000).toString().padStart(5, '0');
+          id = 'WEB_' + str + num;
+      } while (existingSet.has(id));
+      existingSet.add(id); // Thêm vào set để vòng lặp sau không bị trùng
+      return id;
+  }
+
+  function promptQuickAddRow(rIdx) {
+      var html = `<input type="number" id="numAddRows" class="popup-input" value="1" min="1" max="100" placeholder="Số lượng hàng muốn tạo">`;
+      showSystemModal("Thêm hàng", html, [
+          { text: "TẠO NGAY", className: "btn-confirm", callback: function() {
+              var count = parseInt(document.getElementById("numAddRows").value);
+              if (count > 0) executeQuickAddRow(rIdx, count);
+          }},
+          { text: "HỦY", className: "btn-cancel", callback: function(){} }
+      ]);
+  }
+
+  function executeQuickAddRow(rIdx, count) {
+      var dataMatrix = rawSpreadsheetCache[currentActiveTab];
+      var colCount = dataMatrix[0].length;
+      
+      // Thu thập tất cả ID hiện có ở Cột Đầu Tiên (Cột 0) để chống trùng lặp
+      var existingIDs = new Set();
+      for (var i = 1; i < dataMatrix.length; i++) {
+          existingIDs.add(String(dataMatrix[i][0]).trim());
+      }
+
+      var newRows = [];
+      for (var i = 0; i < count; i++) {
+          var row = Array(colCount).fill("");
+          row[0] = generateUniqueWebID(existingIDs); // Gán ID tự động vào Cột 0 (Cột A)
+          newRows.push(row);
+      }
+
+      // Chèn dữ liệu vào Matrix
+      dataMatrix.splice.apply(dataMatrix, [rIdx + 1, 0].concat(newRows));
+      buildSpreadsheetGrid();
+
+      // Đồng bộ thay đổi cấu trúc mảng lên Sheet gốc
+      google.script.run.structuralChangeBackground(activeSpreadsheetId, currentActiveTab, "insertRow", rIdx + 2, count);
+
+      // Đồng bộ các mã ID mới được tạo vào đúng ô của Sheet
+      for (var i = 0; i < count; i++) {
+          google.script.run.syncCellValuesBackground(activeSpreadsheetId, currentActiveTab, rIdx + 2 + i, 1, newRows[i][0]);
+      }
+  }
+var currentSyncToken = new Date().getTime(); 
+var lastUserInteractionTime = 0;
+
+// ⚡ CHÌA KHÓA 2: Lắng nghe thao tác người dùng. Nếu đang làm việc, làm mới mốc thời gian.
+document.addEventListener('click', function() { lastUserInteractionTime = new Date().getTime(); });
+document.addEventListener('keydown', function() { lastUserInteractionTime = new Date().getTime(); });
+
+function startSpiderSyncEngine() {
+  setInterval(function() {
+    // TỐI THƯỢNG: Tránh ghi đè giao diện nếu (1) Queue đang mắc kẹt chưa đẩy xong, hoặc (2) Người dùng vừa chạm vào màn hình trong vòng 3 giây qua
+    if (actionQueue.length > 0 || isProcessingQueue) return;
+    if (new Date().getTime() - lastUserInteractionTime < 3000) return;
+
+    google.script.run.withSuccessHandler(function(deltaResponse) {
+      if (deltaResponse.hasChanges) {
+        
+        // NẾU CÓ THAY ĐỔI TỪ THIẾT BỊ KHÁC: Tải lại Data mới dạng ngầm
+        google.script.run.withSuccessHandler(function(newSysData) {
+            if (newSysData.success) {
+                // CHỐNG GHI ĐÈ KÉP LẦN CUỐI: Lỡ trong lúc đợi mạng kéo dữ liệu về (1-2s), người dùng lại vừa click/gõ phím thì hủy việc vẽ lại bảng
+                if (actionQueue.length > 0 || isProcessingQueue || (new Date().getTime() - lastUserInteractionTime < 3000)) return;
+
+                // CẬP NHẬT NGAY VÀO TRÍ NHỚ TRÌNH DUYỆT
+                localStorage.setItem('MKT_OFFLINE_CACHE_' + activeSpreadsheetId, JSON.stringify(newSysData.data));
+
+                rawSpreadsheetCache = newSysData.data.sheets;
+                attributesCache = newSysData.data.attributes;
+                buildSpreadsheetGrid(); 
+                currentSyncToken = deltaResponse.newSyncToken;
+            }
+        }).getInitialSystemData(activeSpreadsheetId);
+        
+      }
+    }).checkDeltaChangesBackground(activeSpreadsheetId, currentSyncToken);
+  }, 5000); 
+}
+// ==========================================
+  // LOGIC 3: LẮNG NGHE SỰ KIỆN CTRL+V ĐỂ DÁN ĐA Ô (BYPASS BẢO MẬT IFRAME)
+  // ==========================================
+  document.addEventListener('paste', function(e) {
+    // 1. Thả cửa cho trình duyệt tự xử lý nếu người dùng đang chủ động gõ chữ bên trong 1 ô (contentEditable) hoặc đang gõ vào ô tìm kiếm
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+      return; 
+    }
+
+    // 2. Nếu chưa bôi đen vùng nào trên lưới, bỏ qua thao tác dán
+    if (!selectedRangeBounds) return;
+
+    // 3. Đóng băng hành vi dán gom cục mặc định của trình duyệt
+    e.preventDefault(); 
+
+    // 4. Móc dữ liệu từ Clipboard (Lách được rào cản bảo mật của Iframe)
+    var clipText = (e.clipboardData || window.clipboardData).getData('text');
+    if (!clipText) return;
+
+    // 5. Tái sử dụng thuật toán phân tách ma trận
+    var rows = clipText.split("\n");
+    var startR = selectedRangeBounds.minR;
+    var startC = selectedRangeBounds.minC;
+    var dataMatrix = rawSpreadsheetCache[currentActiveTab];
+    
+    for (var i = 0; i < rows.length; i++) {
+      if (!rows[i] && i === rows.length - 1) continue; // Bỏ qua dòng rỗng cuối cùng khi copy từ Excel
+      var cols = rows[i].split("\t");
+      
+      var targetR = startR + i;
+      // Tự động cơi nới thêm hàng nếu dữ liệu dán vượt quá đáy bảng
+      if (targetR >= dataMatrix.length) {
+          dataMatrix.push(Array(dataMatrix[0].length).fill(""));
+          google.script.run.structuralChangeBackground(activeSpreadsheetId, currentActiveTab, "insertRow", targetR + 1, 1);
+      }
+      
+      for (var j = 0; j < cols.length; j++) {
+          var targetC = startC + j;
+          // Chỉ dán vào nếu chưa vượt quá số lượng cột của bảng
+          if (targetC < dataMatrix[0].length) {
+              // Tận dụng Action Queue bạn đã viết để đẩy dữ liệu lên server mà không làm nghẽn mạng
+              updateCellCacheAndSyncBackground(targetR, targetC, cols[j]);
+          }
+      }
+    }
+    
+    // 6. Vẽ lại giao diện lập tức
+    buildSpreadsheetGrid();
+  });
+</script>

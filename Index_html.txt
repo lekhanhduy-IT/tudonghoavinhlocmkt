@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+      :root {
+        --white: #ffffff;
+        --blue: #01adee;
+        --red: #db1010;
+        --gray-light: #f9f9f9;
+        --gray-border: #e0e0e0;
+        --text-main: #333333;
+      }
+      
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      
+      body, html {
+        width: 100%;
+        height: 100%;
+        background-color: var(--white);
+        color: var(--text-main);
+        overflow: hidden;
+      }
+
+      /* Khung cấu trúc 2D Phẳng không đổ bóng */
+      .app-wrapper {
+        display: block;
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+      
+      /* Hệ thống Header cố định */
+      .main-header {
+        display: block;
+        height: 60px;
+        background-color: var(--white);
+        border-bottom: 2px solid var(--blue);
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        z-index: 100;
+      }
+      
+      .header-container {
+        display: table;
+        width: 100%;
+        height: 100%;
+        padding: 0 15px;
+      }
+      
+      .brand-cell {
+        display: table-cell;
+        vertical-align: middle;
+        width: 220px;
+      }
+      
+      .brand-logo {
+        height: 40px;
+        vertical-align: middle;
+        margin-right: 8px;
+      }
+      
+      .search-cell {
+        display: table-cell;
+        vertical-align: middle;
+        padding: 0 20px;
+      }
+      
+      .search-box-wrapper {
+        position: relative;
+        width: 100%;
+        max-width: 500px;
+      }
+      
+      .search-box-wrapper input {
+        width: 100%;
+        padding: 8px 35px 8px 12px;
+        border: 2px solid var(--blue);
+        background-color: var(--white);
+        color: var(--text-main);
+        font-size: 14px;
+        outline: none;
+      }
+      
+      .search-box-wrapper i {
+        position: absolute;
+        right: 12px;
+        top: 11px;
+        color: var(--blue);
+      }
+      
+      .nav-cell {
+        display: table-cell;
+        vertical-align: middle;
+        text-align: right;
+      }
+      
+      /* Mode Switcher Admin / User */
+      .mode-toggle {
+        display: inline-block;
+        padding: 6px 12px;
+        border: 2px solid var(--blue);
+        background-color: var(--white);
+        color: var(--blue);
+        cursor: pointer;
+        font-weight: bold;
+        font-size: 12px;
+        margin-right: 15px;
+      }
+      .mode-toggle.active {
+        background-color: var(--blue);
+        color: var(--white);
+      }
+      
+      /* Navigation Tabs Cấp Cao */
+      .nav-tabs-container {
+        display: inline-block;
+        vertical-align: middle;
+      }
+      
+      .nav-btn {
+        display: inline-block;
+        padding: 18px 16px;
+        color: var(--text-main);
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 14px;
+        cursor: pointer;
+        border-bottom: 3px solid transparent;
+      }
+      
+      .nav-btn:hover, .nav-btn.active {
+        color: var(--blue);
+        border-bottom: 3px solid var(--blue);
+      }
+      
+      .nav-btn.admin-only {
+        border-left: 1px dashed var(--gray-border);
+      }
+      
+      /* Vùng hiển thị nội dung chính */
+      .main-content-viewport {
+        position: absolute;
+        top: 60px; bottom: 0; left: 0; right: 0;
+        background-color: var(--white);
+        overflow: hidden;
+      }
+      
+      .view-panel {
+        display: none;
+        width: 100%;
+        height: 100%;
+        position: relative;
+      }
+      
+      .view-panel.active {
+        display: block;
+      }
+      
+      /* CSS thông báo / Popup hệ thống tùy biến độc quyền theo 3 màu thiết kế */
+      .custom-popup-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.4);
+        z-index: 1000;
+        display: none;
+      }
+      
+      .custom-popup-box {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        background: var(--white);
+        border: 3px solid var(--blue);
+        width: 90%;
+        max-width: 400px;
+        padding: 20px;
+        box-shadow: none;
+      }
+      
+      .custom-popup-box h3 {
+        margin-bottom: 15px;
+        color: var(--blue);
+        font-size: 16px;
+        border-bottom: 2px solid var(--blue);
+        padding-bottom: 5px;
+      }
+      
+      .custom-popup-box .popup-input {
+        width: 100%;
+        padding: 8px;
+        border: 2px solid var(--blue);
+        margin-bottom: 15px;
+        outline: none;
+      }
+      
+      .popup-buttons-row {
+        text-align: right;
+      }
+      
+      .popup-btn {
+        padding: 8px 16px;
+        border: none;
+        cursor: pointer;
+        font-weight: bold;
+        margin-left: 8px;
+        font-size: 13px;
+      }
+      
+      .popup-btn.btn-confirm {
+        background-color: var(--blue);
+        color: var(--white);
+      }
+      
+      .popup-btn.btn-cancel {
+        background-color: var(--white);
+        color: var(--text-main);
+        border: 2px solid var(--gray-border);
+      }
+      
+      .popup-btn.btn-danger {
+        background-color: var(--red);
+        color: var(--white);
+      }
+
+      /* Toàn bộ giao diện Responsive trên Mobile */
+      @media (max-width: 768px) {
+        .main-header { height: auto; position: relative; }
+        .header-container { display: block; }
+        .brand-cell, .search-cell, .nav-cell { display: block; width: 100%; text-align: center; padding: 10px 0; }
+        .search-box-wrapper { max-width: 100%; padding: 0 10px; }
+        .main-content-viewport { top: auto; position: relative; height: calc(100% - 180px); }
+        .nav-btn { padding: 10px 8px; font-size: 12px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-wrapper">
+      <header class="main-header">
+        <div class="header-container">
+          <div class="brand-cell">
+            <img src="https://i.postimg.cc/xCjmFrb4/Untitled-design.png" class="brand-logo" alt="Logo">
+            <span style="font-weight:800; color:var(--blue); font-size:16px; vertical-align:middle;">WEB MKT</span>
+          </div>
+          
+          <div class="search-cell">
+            <div class="search-box-wrapper">
+              <input type="text" id="globalSystemSearch" placeholder="Tìm kiếm thông minh toàn bộ hệ thống..." onkeyup="executeGlobalSearch()">
+              <i class="fas fa-search"></i>
+            </div>
+          </div>
+          
+          <div class="nav-cell">
+            <div class="mode-toggle active" id="modeAdminBtn" onclick="switchSystemMode('ADMIN')">ADMIN MODE</div>
+            <div class="mode-toggle" id="modeUserBtn" onclick="switchSystemMode('USER')">USER MODE</div>
+            
+            <div class="nav-tabs-container" id="dynamicNavTabs">
+              </div>
+          </div>
+        </div>
+      </header>
+      
+      <main class="main-content-viewport" id="mainContentViewport">
+        <div id="panel_YTUONG" class="view-panel active">
+          <?!= include('Ytuong'); ?>
+        </div>
+        <div id="panel_KEHOACH" class="view-panel">
+          <div style="padding:30px; text-align:center; color:#999;"><i class="fas fa-calendar-alt fa-3x" style="color:var(--blue);"></i><p style="margin-top:15px;">Module KẾ HOẠCH Hệ Thống</p></div>
+        </div>
+        <div id="panel_BAIVIET" class="view-panel">
+          <div style="padding:30px; text-align:center; color:#999;"><i class="fas fa-file-alt fa-3x" style="color:var(--blue);"></i><p style="margin-top:15px;">Module BÀI VIẾT Hệ Thống</p></div>
+        </div>
+        <div id="panel_HINHANH" class="view-panel">
+          <div style="padding:30px; text-align:center; color:#999;"><i class="fas fa-images fa-3x" style="color:var(--blue);"></i><p style="margin-top:15px;">Module HÌNH ẢNH Hệ Thống</p></div>
+        </div>
+        <div id="panel_CAIDAT" class="view-panel">
+          <div style="padding:30px; text-align:center; color:#db1010;"><i class="fas fa-cogs fa-3x"></i><p style="margin-top:15px; font-weight:bold;">CÀI ĐẶT BẢO MẬT (Chỉ phân quyền tài khoản Admin cấp cao)</p></div>
+        </div>
+        <div id="panel_USER_HOME" class="view-panel">
+          <div style="padding:30px; text-align:center; font-weight:bold; color:var(--blue);">GIAO DIỆN USER - TRANG CHỦ MKT</div>
+        </div>
+        <div id="panel_USER_GIOITHIEU" class="view-panel">
+          <div style="padding:30px; text-align:center; font-weight:bold; color:var(--blue);">GIAO DIỆN USER - GIỚI THIỆU</div>
+        </div>
+        <div id="panel_USER_BLOG" class="view-panel">
+          <div style="padding:30px; text-align:center; font-weight:bold; color:var(--blue);">GIAO DIỆN USER - BLOG TRÌNH BÀY</div>
+        </div>
+      </main>
+    </div>
+
+    <div class="custom-popup-overlay" id="systemPopupOverlay">
+      <div class="custom-popup-box" id="systemPopupBox">
+        <h3 id="popupTitle">Thông báo</h3>
+        <div id="popupCustomContent"></div>
+        <div class="popup-buttons-row" id="popupButtonsRow"></div>
+      </div>
+    </div>
+
+    <script>
+      // Khai báo cấu hình quản lý định tuyến nội bộ
+      var currentMode = 'ADMIN';
+      var publicSpreadsheetId = "15rc5JlDgsbD_A_28uMHgM-gsDRbE6kuWJ_RCMXD-HT8"; // Link public của bạn
+      
+      // Khai báo cấu hình quản lý định tuyến nội bộ
+var currentMode = 'ADMIN';
+var publicSpreadsheetId = "15rc5JlDgsbD_A_28uMHgM-gsDRbE6kuWJ_RCMXD-HT8"; // Link public của bạn
+
+// ⚡ SERVER-SIDE INJECTION: Nhúng dữ liệu trực tiếp lúc Server render HTML
+// Biến window.INITIAL_SYSTEM_DATA sẽ chứa ngay 1000 dòng mà không cần đợi API
+// Hứng trực tiếp biến INITIAL_DATA từ Code.gs truyền sang
+window.INITIAL_SYSTEM_DATA = <?!= INITIAL_DATA ?>;
+
+var adminTabs = [
+        { id: "YTUONG", name: "Ý TƯỞNG", icon: "fa-lightbulb" },
+        { id: "KEHOACH", name: "KẾ HOẠCH", icon: "fa-calendar-alt" },
+        { id: "BAIVIET", name: "BÀI VIẾT", icon: "fa-file-alt" },
+        { id: "HINHANH", name: "HÌNH ANH", icon: "fa-images" },
+        { id: "CAIDAT", name: "CÀI ĐẶT", icon: "fa-cogs", adminOnly: true }
+      ];
+      
+      var userTabs = [
+        { id: "USER_HOME", name: "TRANG CHỦ", icon: "fa-home" },
+        { id: "USER_GIOITHIEU", name: "GIỚI THIỆU", icon: "fa-info-circle" },
+        { id: "USER_BLOG", name: "BLOG", icon: "fa-rss" }
+      ];
+      
+      window.addEventListener('load', function() {
+        renderNavigationTabs();
+        // Kích hoạt nạp dữ liệu ngầm cực nhanh ngay khi tải xong khung ứng dụng
+        if (typeof initSpreadsheetEngine === "function") {
+          initSpreadsheetEngine(publicSpreadsheetId);
+        }
+      });
+      
+      function renderNavigationTabs() {
+        var container = document.getElementById("dynamicNavTabs");
+        container.innerHTML = "";
+        var activeArr = (currentMode === 'ADMIN') ? adminTabs : userTabs;
+        
+        activeArr.forEach(function(tab) {
+          var btn = document.createElement("div");
+          btn.className = "nav-btn" + (tab.adminOnly ? " admin-only" : "");
+          btn.id = "navBtn_" + tab.id;
+          btn.innerHTML = "<i class='fas " + tab.icon + "'></i> " + tab.name;
+          btn.onclick = function() { activateViewPanel(tab.id); };
+          container.appendChild(btn);
+        });
+        
+        // Kích hoạt tab đầu tiên làm mặc định
+        activateViewPanel(activeArr[0].id);
+      }
+      
+      function switchSystemMode(mode) {
+        currentMode = mode;
+        document.getElementById("modeAdminBtn").className = "mode-toggle" + (mode==='ADMIN'?' active':'');
+        document.getElementById("modeUserBtn").className = "mode-toggle" + (mode==='USER'?' active':'');
+        renderNavigationTabs();
+      }
+      
+      function activateViewPanel(panelId) {
+        var panels = document.querySelectorAll(".view-panel");
+        panels.forEach(function(p) { p.classList.remove("active"); });
+        
+        var target = document.getElementById("panel_" + panelId);
+        if (target) target.classList.add("active");
+        
+        var btns = document.querySelectorAll(".nav-btn");
+        btns.forEach(function(b) { b.classList.remove("active"); });
+        
+        var activeBtn = document.getElementById("navBtn_" + panelId);
+        if (activeBtn) activeBtn.classList.add("active");
+      }
+      
+      // Hộp thoại tùy biến phẳng không sử dụng thành phần mặc định của trình duyệt
+      function showSystemModal(title, contentHtml, buttons) {
+        document.getElementById("popupTitle").innerText = title;
+        document.getElementById("popupCustomContent").innerHTML = contentHtml;
+        var btnRow = document.getElementById("popupButtonsRow");
+        btnRow.innerHTML = "";
+        
+        buttons.forEach(function(b) {
+          var button = document.createElement("button");
+          button.className = "popup-btn " + (b.className || "btn-cancel");
+          button.innerText = b.text;
+          button.onclick = function() {
+            b.callback();
+            closeSystemModal();
+          };
+          btnRow.appendChild(button);
+        });
+        document.getElementById("systemPopupOverlay").style.display = "block";
+      }
+      
+      function closeSystemModal() {
+        document.getElementById("systemPopupOverlay").style.display = "none";
+      }
+      
+      // Tìm kiếm thông minh toàn hệ thống
+      function executeGlobalSearch() {
+        var keyword = document.getElementById("globalSystemSearch").value.trim().toLowerCase();
+        if (typeof performGridSearch === "function") {
+          performGridSearch(keyword);
+        }
+      }
+    </script>
+  </body>
+</html>

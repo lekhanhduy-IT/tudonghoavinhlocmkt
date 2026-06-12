@@ -1,0 +1,248 @@
+// =========================================================================
+// BACKEND SERVER - HỆ THỐNG MKT TỐI THƯỢNG (APP SCRIPT ENGINE)
+// =========================================================================
+
+function doGet(e) {
+  var template = HtmlService.createTemplateFromFile('Index');
+  
+  // Bạn có thể tiêm window.INITIAL_SYSTEM_DATA trực tiếp tại đây nếu dùng Server-Side Injection
+  // template.INITIAL_DATA = JSON.stringify(getInitialSystemData("15rc5JlDgsbD_A_28uMHgM-gsDRbE6kuWJ_RCMXD-HT8"));
+  // TRUYỀN MỘT BIẾN RỖNG ĐỂ TRÁNH LỖI HTML
+  template.INITIAL_DATA = "null";
+
+  return template.evaluate()
+      .setTitle('Hệ Thống MKT Toàn Cầu')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+// =========================================================================
+// 1. LÕI NẠP DỮ LIỆU TỐC ĐỘ CAO (Đọc 1 lần toàn bộ bảng tính)
+// =========================================================================
+function getInitialSystemData(spreadsheetId) {
+  try {
+    var ss = spreadsheetId ? SpreadsheetApp.openById(spreadsheetId) : SpreadsheetApp.getActiveSpreadsheet();
+    var sheets = ss.getSheets();
+    var result = { sheets: {}, attributes: {}, tabOrder: [] };
+
+    // 1A. Đọc Cache Thuộc tính (Màu sắc, kích thước, cấu trúc...) từ Sheet ẩn
+    var configSheet = ss.getSheetByName("_SYS_CONFIG_");
+    var attrsData = {};
+    if (configSheet) {
+        var configContent = configSheet.getRange("A1").getValue();
+        if (configContent) {
+            try { attrsData = JSON.parse(configContent); } catch(e){}
+        }
+    }
+    result.attributes = attrsData;
+
+    // 1B. Nạp Cache Dữ liệu Ma trận siêu tốc
+    sheets.forEach(function(sheet) {
+      var name = sheet.getName();
+      if (name === "_SYS_CONFIG_") return; // Bỏ qua Database ẩn
+
+      // Lấy toàn bộ dữ liệu 1 lần duy nhất (Batch Read)
+      var range = sheet.getDataRange();
+      var data = range.getDisplayValues(); // Dùng getDisplayValues để giữ nguyên format ngày tháng/số
+      
+      if (data.length === 0) data = [[""]];
+
+      result.sheets[name] = data;
+      result.tabOrder.push(name);
+    });
+
+    return { success: true, data: result };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// =========================================================================
+// 2. LƯU TRỮ CẤU TRÚC (TRÁNH TRÀN BỘ NHỚ RAM)
+// =========================================================================
+function saveSheetAttributesBackground(spreadsheetId, tabName, attributes) {
+  var ss = SpreadsheetApp.openById(spreadsheetId);
+  var configSheet = ss.getSheetByName("_SYS_CONFIG_");
+  
+  // Tự động tạo Sheet ẩn nếu chưa có
+  if (!configSheet) {
+      configSheet = ss.insertSheet("_SYS_CONFIG_");
+      configSheet.hideSheet(); 
+  }
+
+  // Đọc config tổng hiện tại
+  var currentConfig = {};
+  var oldData = configSheet.getRange("A1").getValue();
+  if (oldData) {
+      try { currentConfig = JSON.parse(oldData); } catch(e){}
+  }
+
+  // Ghi đè cấu trúc của Tab hiện tại
+  currentConfig[tabName] = attributes;
+
+  // Lưu lại nguyên khối JSON siêu to vào ô A1 (Giới hạn của 1 ô là 50,000 ký tự, rất an toàn)
+  configSheet.getRange("A1").setValue(JSON.stringify(currentConfig));
+
+  markSystemChanged(spreadsheetId); // Phát sóng Radar cho máy khác
+}
+
+// =========================================================================
+// 3. ĐỒNG BỘ DỮ LIỆU TỪNG Ô NGẦM (OPTIMISTIC UPDATES)
+// =========================================================================
+function syncCellValuesBackground(spreadsheetId, tabName, row, col, val) {
+  var ss = SpreadsheetApp.openById(spreadsheetId);
+  var sheet = ss.getSheetByName(tabName);
+  
+  if (sheet) {
+      // Nhận diện loại dữ liệu để insert vào Google Sheet chuẩn xác
+      var targetRange = sheet.getRange(row, col);
+      
+      if (val === true || val === "true") {
+          targetRange.insertCheckboxes().check();
+      } else if (val === false || val === "false") {
+          targetRange.insertCheckboxes().uncheck();
+      } else {
+          targetRange.setValue(val);
+      }
+      
+      markSystemChanged(spreadsheetId);
+  }
+}
+
+// =========================================================================
+// 4. QUẢN LÝ CẤU TRÚC ĐỘNG (THÊM / XÓA HÀNG CỘT)
+// =========================================================================
+function structuralChangeBackground(spreadsheetId, tabName, action, index, count) {
+  var ss = SpreadsheetApp.openById(spreadsheetId);
+  var sheet = ss.getSheetByName(tabName);
+  if (!sheet) return;
+
+  if (action === "insertRow") sheet.insertRows(index, count);
+  if (action === "insertCol") sheet.insertColumns(index, count);
+  if (action === "deleteRow") sheet.deleteRows(index, count);
+  if (action === "deleteCol") sheet.deleteColumns(index, count);
+
+  markSystemChanged(spreadsheetId);
+}
+
+// =========================================================================
+// 5. DI CHUYỂN BẰNG KÉO THẢ (DRAG & DROP)
+// =========================================================================
+function moveStructuralBackground(spreadsheetId, tabName, type, start, end, target) {
+  var ss = SpreadsheetApp.openById(spreadsheetId);
+  var sheet = ss.getSheetByName(tabName);
+  if (!sheet) return;
+
+  var count = end - start + 1;
+  if (type === 'row') {
+      var specifier = sheet.getRange(start, 1, count, sheet.getMaxColumns());
+      sheet.moveRows(specifier, target);
+  } else if (type === 'col') {
+      var specifier = sheet.getRange(1, start, sheet.getMaxRows(), count);
+      sheet.moveColumns(specifier, target);
+  }
+
+  markSystemChanged(spreadsheetId);
+}
+
+// =========================================================================
+// 6. CỐ ĐỊNH PANES (FREEZE)
+// =========================================================================
+function freezePanesBackground(spreadsheetId, tabName, rows, cols) {
+  var ss = SpreadsheetApp.openById(spreadsheetId);
+  var sheet = ss.getSheetByName(tabName);
+  if (!sheet) return;
+
+  if (rows !== null) sheet.setFrozenRows(rows);
+  if (cols !== null) sheet.setFrozenColumns(cols);
+
+  markSystemChanged(spreadsheetId);
+}
+
+// =========================================================================
+// 7. VẬN HÀNH TAB SHEET GIAO DIỆN CHÍNH
+// =========================================================================
+function manageTabAction(spreadsheetId, action, tabName, newName) {
+  var ss = SpreadsheetApp.openById(spreadsheetId);
+
+  if (action === "create") {
+      ss.insertSheet(tabName);
+  } else if (action === "rename") {
+      var sheet = ss.getSheetByName(tabName);
+      if (sheet) sheet.setName(newName);
+  } else if (action === "duplicate") {
+      var sheet = ss.getSheetByName(tabName);
+      if (sheet) {
+          var newSheet = sheet.copyTo(ss);
+          newSheet.setName(newName);
+      }
+  } else if (action === "delete") {
+      var sheet = ss.getSheetByName(tabName);
+      if (sheet) ss.deleteSheet(sheet);
+  }
+
+  markSystemChanged(spreadsheetId);
+}
+
+// =========================================================================
+// 8. HỆ THỐNG NÃO NHỆN ĐỒNG BỘ ĐA THIẾT BỊ (MẢNG CHUYÊN SÂU)
+// =========================================================================
+
+// Hàm ghi nhận nhịp đập (Heartbeat) khi có bất kỳ thay đổi nào
+function markSystemChanged(ssId) {
+  PropertiesService.getScriptProperties().setProperty('SYS_LAST_UPDATE_' + ssId, new Date().getTime().toString());
+}
+
+// API Radar: Front-end sẽ Ping hàm này mỗi 5 giây để kiểm tra đồng bộ
+function checkDeltaChangesBackground(spreadsheetId, clientToken) {
+  var lastUpdateStr = PropertiesService.getScriptProperties().getProperty('SYS_LAST_UPDATE_' + spreadsheetId);
+  var lastUpdate = lastUpdateStr ? parseInt(lastUpdateStr) : 0;
+
+  if (lastUpdate > clientToken) {
+      // Nếu Server có thời gian cập nhật mới hơn token của Client
+      // Phát tín hiệu yêu cầu Client làm mới bản đồ dữ liệu
+      return { hasChanges: true, newSyncToken: new Date().getTime() };
+  }
+  return { hasChanges: false, newSyncToken: clientToken };
+}
+
+// API Queue: Cho phép xử lý một mảng trăm tác vụ 1 lúc nếu rớt mạng
+function processActionBatchBackground(batch) {
+   if (!batch || batch.length === 0) return { success: true };
+   var ssId = batch[0].sheetId;
+   var ss = SpreadsheetApp.openById(ssId);
+
+   batch.forEach(function(action) {
+       var sheet = ss.getSheetByName(action.tab);
+       if (!sheet) return;
+
+       if (action.action === 'SYNC_CELL') {
+           sheet.getRange(action.row, action.col).setValue(action.val);
+       }
+       // Có thể mở rộng thêm insertRow/deleteRow ở đây để bọc trong Queue
+   });
+
+   markSystemChanged(ssId);
+   return { success: true, newSyncToken: new Date().getTime() };
+}
+// =========================================================================
+// 9. BỘ LẮNG NGHE SỰ KIỆN TRỰC TIẾP TỪ GOOGLE SHEETS (NATIVE TRIGGERS)
+// =========================================================================
+
+// Bắt sự kiện khi có người gõ, sửa chữ hoặc đổi giá trị ô trực tiếp trên Sheet
+function onEdit(e) {
+  if (!e) return;
+  var ss = e.source;
+  markSystemChanged(ss.getId());
+}
+
+// Bắt sự kiện cấu trúc (khi có người thêm cột, xóa hàng, chèn dòng trực tiếp trên Sheet)
+function onChange(e) {
+  if (!e) return;
+  var ss = e.source || SpreadsheetApp.getActiveSpreadsheet();
+  markSystemChanged(ss.getId());
+}

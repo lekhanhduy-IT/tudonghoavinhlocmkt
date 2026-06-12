@@ -1,0 +1,123 @@
+const SPREADSHEET_ID = "1JpGA6elt651ZIa3w3kQVyCVfbGzAcRjIScPQoZjNXt4";
+
+function doGet(e) {
+  var data = getFullSystemData();
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    var payload = JSON.parse(e.postData.contents);
+    var result = processActionQueue(payload);
+    return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({success: false, error: err.toString()})).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// =========================================================
+// LÕI XỬ LÝ DỮ LIỆU
+// =========================================================
+
+function getFullSystemData() {
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheets = ss.getSheets();
+  var result = { sheets: {}, attributes: {}, tabOrder: [] };
+
+  sheets.forEach(function(sheet) {
+    var name = sheet.getName();
+    if (name === "_SYS_CONFIG_") return; 
+
+    if (name.indexOf("_attributes") !== -1) {
+      var baseName = name.replace("_attributes", "");
+      var attrContent = sheet.getRange("A1").getValue();
+      if (attrContent) { try { result.attributes[baseName] = JSON.parse(attrContent); } catch(e){} }
+      return; 
+    }
+
+    var data = sheet.getDataRange().getDisplayValues();
+    if (data.length === 0) data = [[""]];
+    result.sheets[name] = data;
+    result.tabOrder.push(name);
+  });
+  
+  // Lấy Token thời gian cập nhật mới nhất
+  var props = PropertiesService.getScriptProperties();
+  var lastToken = props.getProperty('SYNC_TOKEN_' + SPREADSHEET_ID) || new Date().getTime().toString();
+  result.syncToken = parseInt(lastToken);
+
+  return { success: true, data: result };
+}
+
+function processActionQueue(batch) {
+  var hasChanges = false;
+
+  if (batch && batch.length > 0) {
+    hasChanges = true;
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    
+    batch.forEach(function(action) {
+      var sheet = ss.getSheetByName(action.tab);
+      if (!sheet && action.type !== 'MANAGE_TAB') return;
+
+      if (action.type === 'SYNC_CELL') {
+        var targetRange = sheet.getRange(action.row, action.col);
+        if (action.val === true || action.val === "true") targetRange.insertCheckboxes().check();
+        else if (action.val === false || action.val === "false") targetRange.insertCheckboxes().uncheck();
+        else targetRange.setValue(action.val);
+      } 
+      else if (action.type === 'STRUCTURAL') {
+        if (action.action === "insertRow") sheet.insertRows(action.index, action.count);
+        if (action.action === "insertCol") sheet.insertColumns(action.index, action.count);
+        if (action.action === "deleteRow") sheet.deleteRows(action.index, action.count);
+        if (action.action === "deleteCol") sheet.deleteColumns(action.index, action.count);
+      } 
+      else if (action.type === 'MOVE') {
+        var count = action.end - action.start + 1;
+        if (action.dim === 'row') {
+          sheet.moveRows(sheet.getRange(action.start, 1, count, sheet.getMaxColumns()), action.target);
+        } else {
+          sheet.moveColumns(sheet.getRange(1, action.start, sheet.getMaxRows(), count), action.target);
+        }
+      } 
+      else if (action.type === 'FREEZE') {
+        if(action.rows !== null) sheet.setFrozenRows(action.rows);
+        if(action.cols !== null) sheet.setFrozenColumns(action.cols);
+      } 
+      else if (action.type === 'MANAGE_TAB') {
+        if (action.action === "create") ss.insertSheet(action.tab);
+        else if (action.action === "rename") { 
+          var sh = ss.getSheetByName(action.oldName); if(sh) sh.setName(action.newName);
+          var attrSh = ss.getSheetByName(action.oldName + "_attributes"); if(attrSh) attrSh.setName(action.newName + "_attributes");
+        }
+        else if (action.action === "duplicate") { 
+          var sh = ss.getSheetByName(action.oldName); if(sh) { var ns = sh.copyTo(ss); ns.setName(action.newName); } 
+          var attrSh = ss.getSheetByName(action.oldName + "_attributes"); if(attrSh) { var nas = attrSh.copyTo(ss); nas.setName(action.newName + "_attributes"); nas.hideSheet(); }
+        }
+        else if (action.action === "delete") { 
+          var sh = ss.getSheetByName(action.tab); if(sh) ss.deleteSheet(sh); 
+          var attrSh = ss.getSheetByName(action.tab + "_attributes"); if(attrSh) ss.deleteSheet(attrSh);
+        }
+      }
+      else if (action.type === 'SAVE_TAB_ATTRS') {
+        var attrTabName = action.targetTab + "_attributes";
+        var configSheet = ss.getSheetByName(attrTabName);
+        if (!configSheet) { configSheet = ss.insertSheet(attrTabName); configSheet.hideSheet(); }
+        configSheet.clear();
+        configSheet.getRange("A1").setValue(JSON.stringify(action.attributes));
+      }
+    });
+
+    SpreadsheetApp.flush(); 
+  }
+
+  // Cập nhật Dấu thời gian khi có thao tác
+  var props = PropertiesService.getScriptProperties();
+  var tokenKey = 'SYNC_TOKEN_' + SPREADSHEET_ID;
+  if (hasChanges) {
+    props.setProperty(tokenKey, new Date().getTime().toString());
+  }
+  var lastToken = props.getProperty(tokenKey) || new Date().getTime().toString();
+
+  return { success: true, syncToken: parseInt(lastToken) };
+}
