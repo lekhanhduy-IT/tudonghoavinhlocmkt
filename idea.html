@@ -19,14 +19,19 @@
         th { background: var(--gray-light); border: 0.5px solid var(--gray-border); position: sticky; top: 0; z-index: 10; font-size: 12px; user-select: none; }
         th .col-header-content { display: flex; justify-content: space-between; align-items: center; padding: 4px; }
         th.col-index { width: 40px; left: 0; z-index: 20; background: #e0e0e0; cursor: pointer; }
-        td { border: 0.5px solid var(--gray-border); padding: 0; font-size: 13px; position: relative; height: 35px; vertical-align: top; }
+        
+        /* CHÚ Ý: ĐÃ SỬA VERTICAL-ALIGN THÀNH MIDDLE */
+        td { border: 0.5px solid var(--gray-border); padding: 0; font-size: 13px; position: relative; height: 35px; vertical-align: middle; }
         td.row-index { background: var(--gray-light); text-align: center; position: sticky; left: 0; z-index: 5; font-weight: bold; color: var(--text-main); opacity: 0.7; cursor: pointer; user-select: none; }
         
         .cell-selected { outline: 1px solid var(--blue) !important; outline-offset: -1px; }
-        .cell-editor { width: 100%; height: 35px; padding: 2px 4px; outline: none; border: none; background: transparent; overflow: hidden; white-space: pre-wrap; line-height: 17px; cursor: text; display: block; resize: both; }
-        .cell-expanded { position: absolute; z-index: 100; height: auto !important; min-height: 60px; width: max-content; min-width: 100%; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 5px !important; overflow: visible; }
+        
+        /* CHÚ Ý: BỔ SUNG PADDING 9PX ĐỂ CĂN GIỮA TEXT TRONG Ô 35PX */
+        .cell-editor { width: 100%; height: 100%; min-height: 35px; padding: 9px 4px; outline: none; border: none; background: transparent; overflow: hidden; white-space: pre-wrap; line-height: 17px; cursor: text; display: block; resize: none; }
+        .cell-expanded { position: absolute; z-index: 100; height: auto !important; min-height: 60px; width: max-content; min-width: 100%; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 9px !important; overflow: visible; }
 
-        .dropdown-ui { display: flex; justify-content: space-between; align-items: center; background: #f1f3f4; border-radius: 12px; padding: 1px 8px; margin: 1px; cursor: pointer; font-size: 11px; height: 17px; }
+        /* CHÚ Ý: TĂNG CHIỀU CAO VÀ CHỈNH MARGIN ĐỂ DROPDOWN CĂN GIỮA */
+        .dropdown-ui { display: flex; justify-content: space-between; align-items: center; background: #f1f3f4; border-radius: 12px; padding: 0 10px; margin: 4px; cursor: pointer; font-size: 12px; height: 27px; }
         .dropdown-ui:hover { background: #e8eaed; }
         .dropdown-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 
@@ -52,7 +57,6 @@
         .modal-box { background: var(--white); border: 0.5px solid var(--gray-border); padding: 20px; width: 90%; max-width: 400px; border-radius: 6px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
         #syncStatus { margin-left: auto; font-size: 12px; font-weight: bold; }
 
-        /* CSS NÚT TRONG MODAL MỚI */
         .btn-modal { padding: 8px 16px; border-radius: 4px; font-weight: bold; cursor: pointer; border: none; transition: 0.2s; font-size: 13px; margin-left: 10px; outline: none; }
         .btn-blue { background: var(--blue); color: var(--white); border: 0.5px solid var(--blue); }
         .btn-blue:hover { background: #0199d3; color: var(--white); box-shadow: 0 2px 5px rgba(1,173,238,0.3); }
@@ -182,13 +186,7 @@
             isProcessingQueue = false;
         }
 
-        /* [CHÚ Ý - BẢN SỬA LỖI BUG XÓA LỘN TAB] */
-        function dispatchAction(action) { 
-            // Tuyệt đối không gắn nhầm activeTab nếu lệnh đã có sẵn đích đến (tab)
-            if(!action.tab) action.tab = activeTab; 
-            actionQueue.push(action); 
-            localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
-        }
+        function dispatchAction(action) { if(!action.tab) action.tab = activeTab; actionQueue.push(action); localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); }
 
         window.executeSearch = function(keyword) { globalSearchKeyword = keyword.toLowerCase(); renderGrid(); };
 
@@ -208,7 +206,7 @@
             head.innerHTML = ""; body.innerHTML = ""; if(mat.length === 0) return; let cols = mat[0].length;
             
             let colLefts = []; let currL = 40; for(let c=0; c<cols; c++) { let w = (attrs.colWidths && attrs.colWidths[c]) ? parseInt(attrs.colWidths[c]) : 150; colLefts.push({w: w, l: currL}); currL += w; }
-            let rowTops = []; let currT = 21; for(let r=0; r<mat.length; r++) { let h = (attrs.rowHeights && attrs.rowHeights[r]) ? parseInt(attrs.rowHeights[r]) : 21; rowTops.push({h: h, t: currT}); currT += h; }
+            let rowTops = []; let currT = 35; for(let r=0; r<mat.length; r++) { let h = (attrs.rowHeights && attrs.rowHeights[r]) ? parseInt(attrs.rowHeights[r]) : 35; rowTops.push({h: h, t: currT}); currT += h; }
 
             let trH = document.createElement("tr"); let th0 = document.createElement("th"); th0.className = "col-index"; th0.innerText = "#";
             th0.style.position = 'sticky'; th0.style.left = '0'; th0.style.top = '0'; th0.style.zIndex = 20; th0.onclick = () => selectRange(0, 0, mat.length-1, cols-1, true, true); trH.appendChild(th0);
@@ -250,11 +248,13 @@
                     if (type === "dropdown") {
                         let opts = (attrs.dropdownChoices && attrs.dropdownChoices[c]) ? attrs.dropdownChoices[c] : ["Mục 1"]; let arr = val ? String(val).split(",").map(s=>s.trim()).filter(Boolean) : []; let ui = document.createElement("div"); ui.className = "dropdown-ui"; ui.innerHTML = `<div class="dropdown-text">${arr.length ? arr.join(", ") : "<span style='color:#999; font-style:italic;'>Trống...</span>"}</div> <i style="color:var(--text-main); opacity:0.5;" class="fas fa-caret-down"></i>`; ui.ondblclick = (e) => { e.stopPropagation(); openDropdownEditorDirect(c); }; ui.onclick = (e) => { e.stopPropagation(); selectRange(r, c, r, c); openDropdownMenu(e, r, c, arr, opts); }; td.appendChild(ui);
                     } else if (type === "checkbox") {
-                        let chk = document.createElement("input"); chk.type = "checkbox"; chk.checked = (val === "true" || val === true); chk.style.margin = "4px"; chk.onchange = () => updateCell(r, c, chk.checked); td.appendChild(chk);
+                        // CHÚ Ý: Chỉnh margin checkbox để nằm giữa trục dọc ngang tự nhiên
+                        let chk = document.createElement("input"); chk.type = "checkbox"; chk.checked = (val === "true" || val === true); chk.style.margin = "0 8px"; chk.style.cursor = "pointer"; chk.style.verticalAlign = "middle"; chk.onchange = () => updateCell(r, c, chk.checked); td.appendChild(chk);
                     } else if (type === "link") {
-                        let str = String(val); if (str.startsWith("http")) td.innerHTML = `<a href="${str}" target="_blank" style="color:var(--blue); font-weight:bold; padding:4px;">Link</a>`; else td.appendChild(createEditor(r, c, val));
+                        // CHÚ Ý: Bỏ thẻ div block đi, sử dụng inline-block để td tự đẩy text ra giữa
+                        let str = String(val); if (str.startsWith("http")) td.innerHTML = `<a href="${str}" target="_blank" style="color:var(--blue); font-weight:bold; margin:0 4px; text-decoration:none;">Link</a>`; else td.appendChild(createEditor(r, c, val));
                     } else {
-                        let str = String(val); if (r !== 0 && str.startsWith("<") && str.indexOf(">") !== -1) { let div = document.createElement("div"); div.style.padding = "2px"; div.innerHTML = str; td.appendChild(div); td.ondblclick = (e) => { td.innerHTML = ""; let ed = createEditor(r, c, str); td.appendChild(ed); ed.classList.add("cell-expanded"); ed.focus(); }; } else td.appendChild(createEditor(r, c, val));
+                        let str = String(val); if (r !== 0 && str.startsWith("<") && str.indexOf(">") !== -1) { let div = document.createElement("div"); div.style.padding = "0 4px"; div.innerHTML = str; td.appendChild(div); td.ondblclick = (e) => { td.innerHTML = ""; let ed = createEditor(r, c, str); td.appendChild(ed); ed.classList.add("cell-expanded"); ed.focus(); }; } else td.appendChild(createEditor(r, c, val));
                     }
                     td.onclick = (e) => { if(e.target.tagName !== 'A' && e.target.tagName !== 'INPUT') selectRange(r, c, r, c, false, false, e.shiftKey); }; td.oncontextmenu = (e) => { if(!isInRange(r, c)) selectRange(r, c, r, c); showGridMenu(e, r, c); }; tr.appendChild(td);
                 });
