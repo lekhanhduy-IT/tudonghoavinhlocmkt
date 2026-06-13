@@ -388,9 +388,10 @@
         <div class="menu-item" onclick="window.tblAction('addColLeft')"><i class="fas fa-arrow-left"></i> Thêm cột trái</div>
         <div class="menu-item" onclick="window.tblAction('addColRight')"><i class="fas fa-arrow-right"></i> Thêm cột phải</div>
         <div class="divider"></div>
-        <div class="menu-item" id="menuMergeCells" onclick="window.tblAction('mergeCells')" style="display:none; color:var(--blue);"><i class="fas fa-compress-arrows-alt"></i> Gộp các ô đã bôi đen</div>
-<div class="menu-item" id="menuSplitCells" onclick="window.tblAction('splitCells')" style="display:none; color:var(--blue);"><i class="fas fa-expand-arrows-alt"></i> Tách ô (Hủy gộp)</div>
-<div class="divider" id="menuMergeDivider" style="display:none;"></div>
+        <div class="divider"></div>
+        <div class="menu-item" id="menuMergeCells" onclick="window.tblAction('mergeCells')" style="display:none; color:var(--blue);"><i class="fas fa-compress-arrows-alt"></i> Gộp Mega (Merge)</div>
+        <div class="menu-item" id="menuSplitCells" onclick="window.tblAction('splitCells')" style="display:none; color:var(--blue);"><i class="fas fa-expand-arrows-alt"></i> Tách Mega (Split)</div>
+        <div class="divider" id="menuMergeDivider" style="display:none;"></div>
         <div class="menu-item" onclick="window.tblAction('alignLeft')"><i class="fas fa-align-left"></i> Căn trái bảng</div>
         <div class="menu-item" onclick="window.tblAction('alignCenter')"><i class="fas fa-align-center"></i> Căn giữa bảng</div>
         <div class="menu-item" onclick="window.tblAction('alignRight')"><i class="fas fa-align-right"></i> Căn phải bảng</div>
@@ -596,21 +597,19 @@
                 });
 
                 document.getElementById('postContent').addEventListener('mousedown', (e) => {
-    if(isPreviewMode) return;
-    let td = e.target.closest('td, th');
-    if (td && document.getElementById('postContent').contains(td)) {
-        isTblSelecting = true;
-        tblStartCell = td;
-        document.getElementById('postContent').classList.add('table-selecting'); // Thêm class chống bôi đen text
-        
-        if(!e.shiftKey) {
-            document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
-        }
-        td.classList.add('selected-td');
-    } else {
-        document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
-    }
-});
+                    if(isPreviewMode) return;
+                    let td = e.target.closest('td, th');
+                    if (td && document.getElementById('postContent').contains(td)) {
+                        isTblSelecting = true;
+                        tblStartCell = td;
+                        if(!e.shiftKey) {
+                            document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
+                        }
+                        td.classList.add('selected-td');
+                    } else {
+                        document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
+                    }
+                });
 
                 document.getElementById('postContent').addEventListener('mouseover', (e) => {
                     if (!isTblSelecting || !tblStartCell || isPreviewMode) return;
@@ -620,51 +619,44 @@
                     }
                 });
 
-                document.addEventListener('mouseup', () => { 
-    isTblSelecting = false; 
-    let editor = document.getElementById('postContent');
-    if(editor) editor.classList.remove('table-selecting'); // Bỏ class khi nhả chuột
-});
+                document.addEventListener('mouseup', () => { isTblSelecting = false; });
 
                 document.getElementById('postContent').addEventListener('contextmenu', (e) => {
-    if(isPreviewMode) return;
-    let td = e.target.closest('td, th');
-    if(td && document.getElementById('postContent').contains(td)) {
-        e.preventDefault();
-        activeTblCell = td;
-        activeTbl = td.closest('table');
-        
-        let menu = document.getElementById('tableContextMenu');
-        menu.style.display = 'block';
-        
-        let mergeBtn = document.getElementById('menuMergeCells');
-        let splitBtn = document.getElementById('menuSplitCells');
-        let mergeDiv = document.getElementById('menuMergeDivider');
-        
-        let selected = document.querySelectorAll('.selected-td');
-        
-        // Hiển thị nút Gộp/Tách thông minh
-        if (selected.length > 1) {
-            mergeBtn.style.display = 'flex';
-            splitBtn.style.display = 'none';
-            mergeDiv.style.display = 'block';
-        } else if (td.rowSpan > 1 || td.colSpan > 1) {
-            mergeBtn.style.display = 'none';
-            splitBtn.style.display = 'flex';
-            mergeDiv.style.display = 'block';
-        } else {
-            mergeBtn.style.display = 'none';
-            splitBtn.style.display = 'none';
-            mergeDiv.style.display = 'none';
-        }
+                    if(isPreviewMode) return;
+                    let td = e.target.closest('td, th');
+                    if(td && document.getElementById('postContent').contains(td)) {
+                        e.preventDefault();
+                        activeTblCell = td;
+                        activeTbl = td.closest('table');
+                        
+                        let menu = document.getElementById('tableContextMenu');
+                        menu.style.display = 'block';
+                        
+                        let mergeBtn = document.getElementById('menuMergeCells');
+                        let splitBtn = document.getElementById('menuSplitCells');
+                        let mergeDiv = document.getElementById('menuMergeDivider');
+                        
+                        let showDivider = false;
+                        if (document.querySelectorAll('.selected-td').length > 1) {
+                            mergeBtn.style.display = 'flex'; showDivider = true;
+                        } else {
+                            mergeBtn.style.display = 'none';
+                        }
 
-        let x = e.clientX, y = e.clientY + 15;
-        if(x + menu.offsetWidth > window.innerWidth) x = window.innerWidth - menu.offsetWidth - 5;
-        if(y + menu.offsetHeight > window.innerHeight) y = window.innerHeight - menu.offsetHeight - 5;
-        menu.style.left = x + 'px';
-        menu.style.top = y + 'px';
-    }
-});
+                        if (td.rowSpan > 1 || td.colSpan > 1) {
+                            splitBtn.style.display = 'flex'; showDivider = true;
+                        } else {
+                            splitBtn.style.display = 'none';
+                        }
+                        mergeDiv.style.display = showDivider ? 'block' : 'none';
+
+                        let x = e.clientX, y = e.clientY + 15;
+                        if(x + menu.offsetWidth > window.innerWidth) x = window.innerWidth - menu.offsetWidth - 5;
+                        if(y + menu.offsetHeight > window.innerHeight) y = window.innerHeight - menu.offsetHeight - 5;
+                        menu.style.left = x + 'px';
+                        menu.style.top = y + 'px';
+                    }
+                });
 
             } catch (err) { console.error("Lỗi gắn sự kiện:", err); }
         }
@@ -836,6 +828,7 @@
                 newTr.querySelectorAll('td,th').forEach(c => { c.innerHTML = '&nbsp;'; c.style.backgroundColor = ''; c.removeAttribute('rowspan'); c.removeAttribute('colspan'); });
                 tr.parentNode.insertBefore(newTr, tr);
             }
+
             else if (action === 'addRowDown') {
                 let newTr = tr.cloneNode(true);
                 newTr.querySelectorAll('td,th').forEach(c => { c.innerHTML = '&nbsp;'; c.style.backgroundColor = ''; c.removeAttribute('rowspan'); c.removeAttribute('colspan'); });
@@ -881,6 +874,27 @@
                     }
                 });
                 document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
+            }
+            else if (action === 'splitCells') {
+                let rSpan = activeTblCell.rowSpan;
+                let cSpan = activeTblCell.colSpan;
+                let startR = activeTblCell.closest('tr').rowIndex;
+                
+                activeTblCell.rowSpan = 1;
+                activeTblCell.colSpan = 1;
+
+                // Trả lại các ô đã bị gộp
+                for (let i = 0; i < rSpan; i++) {
+                    let row = activeTbl.rows[startR + i];
+                    if (!row) continue;
+                    for (let j = 0; j < cSpan; j++) {
+                        if (i === 0 && j === 0) continue; 
+                        let newTd = document.createElement(activeTblCell.tagName);
+                        newTd.innerHTML = '&nbsp;';
+                        if(i === 0) activeTblCell.after(newTd);
+                        else row.appendChild(newTd); 
+                    }
+                }
             }
             else if (action === 'alignLeft') { activeTbl.style.margin = '0 auto 0 0'; }
             else if (action === 'alignCenter') { activeTbl.style.margin = '0 auto'; }
