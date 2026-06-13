@@ -199,12 +199,30 @@ setInterval(processQueueAndSync, 4000);
                 let res = await fetch(API_URL + "?t=" + new Date().getTime(), { method: "GET", redirect: "follow", cache: "no-store" });
                 let json = await res.json();
                 if(json.success) {
-                    let localFilters = sysData.filters; sysData = json.data; sysData.filters = localFilters || {}; currentSyncToken = sysData.syncToken;
-                    localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); if(!activeTab || !sysData.tabOrder.includes(activeTab)) activeTab = sysData.tabOrder[0];
+                    let localFilters = sysData.filters; 
+                    sysData = json.data; 
+                    sysData.filters = localFilters || {}; 
+                    currentSyncToken = sysData.syncToken;
+                    localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
                     
-                    // CHỈ RENDER NẾU NGƯỜI DÙNG KHÔNG GÕ CHỮ
-                    if (!checkIsEditing()) {
-                        renderTabs(); renderGrid(); setSyncStatus("✅ Sẵn sàng", "#27ae60");
+                    // ===== BƯỚC 1: TỰ ĐỘNG TÌM TAB HỢP LỆ ĐỂ HIỂN THỊ =====
+                    // Quét tìm tab đầu tiên KHÔNG có đuôi _hidden và KHÔNG bị ẩn trong cấu hình
+                    let firstVisibleTab = sysData.tabOrder.find(t => !t.endsWith('_hidden') && !(sysData.attributes[t] || {}).hidden);
+                    
+                    // Kiểm tra: Nếu chưa chọn tab, hoặc tab đang chọn bị xóa, hoặc nó là một tab ẩn -> Ép sang tab hợp lệ vừa tìm được
+                    if(!activeTab || !sysData.tabOrder.includes(activeTab) || activeTab.endsWith('_hidden') || (sysData.attributes[activeTab] || {}).hidden) {
+                        activeTab = firstVisibleTab || sysData.tabOrder[0];
+                    }
+                    
+                    // ===== BƯỚC 2: ÉP HIỂN THỊ NGAY LẬP TỨC =====
+                    // Nhận diện lần đầu tiên truy cập (lưới bảng đang trống trơn)
+                    let isGridEmpty = document.getElementById("dataHead").innerHTML === "";
+                    
+                    // Nếu là lần đầu truy cập HOẶC người dùng không đang gõ chữ -> Vẽ ngay dữ liệu ra
+                    if (isGridEmpty || !checkIsEditing()) {
+                        renderTabs(); 
+                        renderGrid(); 
+                        setSyncStatus("✅ Sẵn sàng", "#27ae60");
                     } else {
                         setSyncStatus("⚠️ Có dữ liệu mới (Chờ render)", "#f39c12");
                     }
