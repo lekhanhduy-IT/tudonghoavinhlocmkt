@@ -10,30 +10,24 @@
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
         body { background: var(--gray-light); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-        /* Toolbar Header */
         .toolbar { height: 45px; background: var(--white); border-bottom: 1px solid var(--gray-border); display: flex; align-items: center; padding: 0 15px; justify-content: space-between; z-index: 100; flex-shrink: 0; }
         .tool-btn { background: var(--white); border: 1px solid var(--gray-border); color: var(--blue); padding: 5px 12px; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 3px; display: inline-flex; align-items: center; gap: 5px; transition: 0.2s; outline: none; }
         .tool-btn:hover { background: var(--blue); color: var(--white); border-color: var(--blue); }
         .save-btn { background: var(--blue); color: var(--white); border-color: var(--blue); }
         .save-btn:hover { background: #0199d3; }
 
-        /* === BỐ CỤC 3 CỘT === */
         .workspace { display: flex; width: 100%; height: calc(100vh - 45px); overflow: hidden; background: var(--gray-light); }
 
-        /* Bảng Trái & Phải */
         .side-panel { width: 260px; min-width: 50px; max-width: 800px; background: var(--white); display: flex; flex-direction: column; height: 100%; z-index: 10; flex-shrink: 0; }
         .panel-header { padding: 12px 15px; background: var(--gray-light); border-bottom: 1px solid var(--gray-border); font-weight: bold; font-size: 13px; color: var(--blue); }
         .panel-content { flex: 1; overflow-y: auto; padding: 15px; font-size: 13px; }
 
-        /* Thanh Kéo Giãn Width */
         .panel-resizer { width: 6px; background: #f1f3f4; cursor: col-resize; z-index: 20; flex-shrink: 0; border-left: 1px solid var(--gray-border); border-right: 1px solid var(--gray-border); transition: background 0.2s; }
         .panel-resizer:hover, .panel-resizer.active { background: var(--blue); border-color: var(--blue); }
 
-        /* Vùng Soạn Thảo Ở Giữa (Giãn Hết Cỡ) */
         .main-editor-area { flex: 1; height: 100%; background: var(--white); position: relative; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; }
         .editor-container { width: 100%; padding: 30px 40px 80px 40px; margin: 0; border: none; box-shadow: none; position: relative; display: flex; flex-direction: column; flex: 1; }
         
-        /* CÂY THƯỚC (RULER) */
         .ruler-container { display: none; position: sticky; top: 0; z-index: 50; background: #fff; height: 24px; border-bottom: 1px solid var(--gray-border); width: 100%; box-shadow: 0 2px 5px rgba(0,0,0,0.05); flex-shrink: 0;}
         .ruler-h { position: relative; height: 100%; margin: 0 40px; background-image: repeating-linear-gradient(90deg, transparent, transparent 9px, #ccc 9px, #ccc 10px), repeating-linear-gradient(90deg, transparent, transparent 49px, #555 49px, #555 50px); }
         .ruler-marker { position: absolute; top: 0; width: 14px; height: 100%; cursor: ew-resize; z-index: 20; display: flex; justify-content: center; }
@@ -42,7 +36,6 @@
         #markerLeft { left: 0px; transform: translateX(-7px); } 
         #markerRight { right: 0px; transform: translateX(7px); }
 
-        /* Rich Text Inputs */
         .rich-input { padding: 15px 20px; outline: none; border-bottom: 1px dashed var(--gray-border); width: 100%; line-height: 1.6; position: relative; transition: padding 0.1s; }
         .rich-input:empty:before { content: attr(data-placeholder); color: #aaa; pointer-events: none; display: block; }
         
@@ -50,7 +43,6 @@
         #postSapo { font-size: 16px; font-style: italic; color: #555; background: #fdfdfd; }
         #postContent { font-size: 15px; display: block; flex: 1; border-bottom: none; padding-bottom: 80px; cursor: text; outline: none;}
         
-        /* Chỉnh lại bullet point chống tràn lề */
         #postContent ul, #postContent ol { padding-left: 30px; margin-top: 5px; margin-bottom: 10px; }
         #postContent li { margin-bottom: 5px; }
 
@@ -58,7 +50,6 @@
         .cover-input { width: 100%; padding: 6px 10px; border: 1px solid var(--gray-border); outline: none; font-size: 12px; border-radius: 2px; margin-bottom: 5px; color: var(--blue); }
         .cover-preview { width: 100%; max-height: 400px; object-fit: contain; display: none; border: 1px solid var(--gray-border); margin-top: 5px; }
 
-        /* Custom HTML Blocks */
         .custom-html-block { position: relative; border: 1px dashed transparent; margin: 10px 0; transition: 0.2s; }
         .custom-html-block:hover, .custom-html-block.active { border: 1px dashed rgba(1, 173, 238, 0.5); }
         .block-content { min-height: 20px; font-size: initial; font-weight: normal; font-style: normal; text-align: left; line-height: normal; }
@@ -75,7 +66,6 @@
         .custom-html-block:hover .block-del-btn { display: flex; }
         .del-top { top: -10px; } .del-bot { bottom: -10px; }
 
-        /* Khung Panel Riêng Lẻ */
         .data-row { margin-bottom: 8px; border: 1px solid var(--gray-border); overflow: hidden; }
         .data-label { background: var(--gray-light); padding: 4px 8px; font-weight: bold; border-bottom: 1px solid var(--gray-border); font-size: 11px; color: var(--text-main); }
         .data-val { padding: 6px 8px; background: var(--white); word-wrap: break-word; font-size: 12px; }
@@ -86,7 +76,6 @@
         .ptab-content { display: none; }
         .ptab-content.active { display: block; }
 
-        /* Tools Định dạng */
         .tool-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 12px; }
         .fmt-btn { background: var(--white); border: 1px solid var(--gray-border); padding: 6px 0; text-align: center; cursor: pointer; color: var(--text-main); font-size: 13px; transition: 0.2s; outline: none; border-radius: 3px; }
         .fmt-btn:hover { background: var(--gray-light); color: var(--blue); border-color: var(--blue); }
@@ -96,7 +85,6 @@
         .tool-input:focus { border-color: var(--blue); }
         .tool-label { font-size: 11px; color: #777; width: 60px; flex-shrink: 0;}
 
-        /* Bộ Chọn Cỡ Chữ & Dãn Dòng */
         .size-controller { display: flex; align-items: center; border: 1px solid var(--gray-border); border-radius: 3px; overflow: hidden; flex: 1; }
         .size-btn { width: 25px; height: 26px; background: var(--gray-light); border: none; font-weight: bold; cursor: pointer; color: var(--text-main); display: flex; justify-content: center; align-items: center; outline: none;}
         .size-btn:hover { background: #e0e0e0; color: var(--blue); }
@@ -105,7 +93,6 @@
         .quick-color { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 1px solid var(--gray-border); box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: 0.1s; }
         .quick-color:hover { transform: scale(1.2); }
 
-        /* Templates */
         .mega-row-cat { background: var(--blue); color: var(--white); padding: 8px 10px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; margin-top: 10px; border: 1px solid var(--blue); border-radius: 3px;}
         .cat-content { border: 1px solid var(--gray-border); border-top: none; padding: 5px; display: none; }
         .cat-content.open { display: block; background: #fdfdfd; }
@@ -198,8 +185,8 @@
                 <span><i class="fas fa-toolbox"></i> Bộ Công Cụ</span>
             </div>
             <div class="panel-tabs">
-                <div class="ptab-btn active" onmousedown="event.preventDefault(); switchRightTab('tabFormat', this)">Định Dạng</div>
-                <div class="ptab-btn" onmousedown="event.preventDefault(); switchRightTab('tabBlocks', this)">Khối & Mẫu</div>
+                <div class="ptab-btn active" onmousedown="event.preventDefault(); window.switchRightTab('tabFormat', this)">Định Dạng</div>
+                <div class="ptab-btn" onmousedown="event.preventDefault(); window.switchRightTab('tabBlocks', this)">Khối & Mẫu</div>
             </div>
             <div class="panel-content">
                 
@@ -315,7 +302,6 @@
 
     </div>
 
-    <!-- CODE HTML MODAL -->
     <div class="modal-overlay" id="htmlModal">
         <div class="modal-box" style="width: 700px;">
             <div class="modal-header">
@@ -332,7 +318,6 @@
         </div>
     </div>
 
-    <!-- ALERT MODALS -->
     <div class="modal-overlay" id="customAlert">
         <div class="modal-box custom-alert">
             <div class="alert-title" id="alertTitle">Thông báo</div>
@@ -352,7 +337,6 @@
         </div>
     </div>
 
-    <!-- ==================== TABLE UI COMPONENTS ==================== -->
     <div id="tableHoverUI">
         <button onclick="window.delHoverTable()" title="Xóa toàn bộ Bảng"><i class="fas fa-times"></i></button>
     </div>
@@ -380,7 +364,6 @@
         // ==========================================
         const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
         
-        // Khởi tạo cứng sysData để tránh JS Crash
         let sysData = { sheets: {} }; 
         let draftData = null;
         let actionQueue = [];
@@ -400,6 +383,16 @@
         let tblStartCell = null;
 
         // ==========================================
+        // CÁC HÀM XỬ LÝ TAB (ĐÃ BỔ SUNG LẠI)
+        // ==========================================
+        window.switchRightTab = function(tabId, btn) {
+            document.querySelectorAll('.ptab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.ptab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active'); 
+            document.getElementById(tabId).classList.add('active');
+        };
+
+        // ==========================================
         // KHỞI TẠO AN TOÀN KHI LOAD TRANG
         // ==========================================
         window.onload = async () => {
@@ -413,8 +406,6 @@
             } catch (err) {
                 console.error("Lỗi khởi tạo hệ thống:", err);
             }
-            
-            // Gắn các sự kiện lõi (Bọc try-catch chống sập)
             attachCoreEvents();
         };
 
@@ -457,7 +448,6 @@
                     }
                 });
 
-                // Nút tạo khoảng trống góc HTML Block
                 document.getElementById('postContent').addEventListener('click', function(e) {
                     let block = e.target.closest('.custom-html-block');
                     if(block) {
@@ -472,7 +462,6 @@
                     }
                 });
 
-                // Đồng bộ gõ nội dung -> Popup HTML
                 document.getElementById('postContent').addEventListener('input', function(e) {
                     if(activeHtmlBlock && activeHtmlBlock.contains(e.target)) {
                         let ta = document.getElementById('htmlEditorTextarea');
@@ -481,7 +470,6 @@
                     }
                 });
 
-                // Ẩn Menu
                 document.addEventListener('click', (e) => {
                     let menu = document.getElementById('tableContextMenu');
                     if(menu && menu.style.display === 'block' && !menu.contains(e.target)) {
@@ -489,9 +477,6 @@
                     }
                 });
 
-                // ==========================================
-                // SỰ KIỆN TABLE CHUYÊN SÂU
-                // ==========================================
                 document.addEventListener('mousemove', (e) => {
                     let tbl = e.target.closest('table');
                     let ui = document.getElementById('tableHoverUI');
@@ -561,9 +546,6 @@
             } catch (err) { console.error("Lỗi gắn sự kiện:", err); }
         }
 
-        // ==========================================
-        // XỬ LÝ HÀNH ĐỘNG TABLE 
-        // ==========================================
         function highlightTableBox(startTd, endTd) {
             let table = startTd.closest('table');
             document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
@@ -585,10 +567,10 @@
 
         window.delHoverTable = function() {
             if(hoverTbl) {
-                // Sync to modal if open
                 if (activeHtmlBlock && activeHtmlBlock.contains(hoverTbl)) {
                     hoverTbl.remove();
-                    document.getElementById('htmlEditorTextarea').value = activeHtmlBlock.querySelector('.block-content').innerHTML;
+                    let ta = document.getElementById('htmlEditorTextarea');
+                    if(ta) ta.value = activeHtmlBlock.querySelector('.block-content').innerHTML;
                     window.updateLineNumbers();
                 } else {
                     hoverTbl.remove();
@@ -659,7 +641,6 @@
             else if (action === 'alignCenter') { activeTbl.style.margin = '0 auto'; }
             else if (action === 'alignRight') { activeTbl.style.margin = '0 0 0 auto'; }
 
-            // Cập nhật realtime cho Popup HTML
             if (activeHtmlBlock && activeHtmlBlock.contains(activeTbl)) {
                 let ta = document.getElementById('htmlEditorTextarea');
                 if (ta) ta.value = activeHtmlBlock.querySelector('.block-content').innerHTML;
@@ -667,9 +648,6 @@
             }
         }
 
-        // ==========================================
-        // BẬT TẮT SIDEBARS (FULL WIDTH)
-        // ==========================================
         window.togglePanel = function(side) {
             if(side === 'left') {
                 let p = document.getElementById('panelLeft'); let r = document.getElementById('resizerLeft');
@@ -710,9 +688,6 @@
             });
         }
 
-        // ==========================================
-        // FORMAT CƠ BẢN & BẢNG MÀU
-        // ==========================================
         function initSizeSelects() {
             let fs = document.getElementById('fontSizeSel');
             let lh = document.getElementById('lineHeightSel');
@@ -756,7 +731,6 @@
         }
 
         function formatDoc(cmd, value=null) {
-            // Xử lý thông minh nếu đang bôi đen ô trong bảng
             let selectedCells = document.querySelectorAll('.selected-td');
             if (selectedCells.length > 0 && (cmd === 'foreColor' || cmd === 'hiliteColor')) {
                 selectedCells.forEach(td => {
@@ -764,7 +738,6 @@
                     if (cmd === 'hiliteColor') td.style.backgroundColor = value;
                 });
                 
-                // Đồng bộ popup realtime
                 if (activeHtmlBlock && activeHtmlBlock.contains(selectedCells[0])) {
                     let ta = document.getElementById('htmlEditorTextarea');
                     if(ta) ta.value = activeHtmlBlock.querySelector('.block-content').innerHTML;
@@ -779,9 +752,6 @@
             setTimeout(() => { syncGlobalFormat(); detectFormatting(); }, 50);
         }
 
-        // ==========================================
-        // AUTO DETECT & GLOBAL SYNC (AN TOÀN)
-        // ==========================================
         function detectFormatting() {
             try {
                 let sel = window.getSelection();
@@ -860,7 +830,6 @@
                     block = block.parentNode;
                 }
                 
-                // CHỈ SYNC HEADINGS ĐỂ KHÔNG PHÁ HTML & BẢNG
                 if (block && block.tagName && ['H1','H2','H3','H4','H5','H6'].includes(block.tagName.toUpperCase())) {
                     let tag = block.tagName.toUpperCase();
                     let innerNode = node.nodeType === 3 ? node.parentNode : node;
@@ -902,11 +871,11 @@
                 });
             });
 
-            // Đồng bộ Popup code
             let sel = window.getSelection();
             if(sel && sel.rangeCount) {
                 let node = sel.anchorNode;
-                let containerBlock = node.nodeType === 3 ? node.parentNode.closest('.custom-html-block') : node.closest('.custom-html-block');
+                let element = node.nodeType === 3 ? node.parentNode : node;
+                let containerBlock = element.closest ? element.closest('.custom-html-block') : null;
                 if(containerBlock && activeHtmlBlock === containerBlock && document.getElementById('htmlModal').style.display === 'flex') {
                     document.getElementById('htmlEditorTextarea').value = containerBlock.querySelector('.block-content').innerHTML;
                     window.updateLineNumbers();
@@ -914,9 +883,15 @@
             }
         }
 
-        // ==========================================
-        // ALERTS & FETCH
-        // ==========================================
+        function applyCustomFont(fontValue) {
+            restoreSelection();
+            document.execCommand('fontName', false, 'VLCustomFontName');
+            let rootContent = document.getElementById('workspaceArea');
+            let fonts = rootContent.querySelectorAll('font[face="VLCustomFontName"]');
+            fonts.forEach(f => { f.removeAttribute('face'); f.style.fontFamily = fontValue; });
+            setTimeout(() => { syncGlobalFormat(); detectFormatting(); }, 50);
+        }
+
         function showAlert(msg, isError = false) {
             document.getElementById('alertMsg').innerHTML = msg;
             document.getElementById('alertTitle').style.color = isError ? "var(--red)" : "var(--blue)";
@@ -949,14 +924,8 @@
                 console.log("Offline mode"); 
                 document.getElementById('syncStatus').innerText = "⚠️ Mất mạng"; 
                 document.getElementById('syncStatus').style.color = "var(--red)";
-                
                 let cached = localStorage.getItem("MKT_DATA");
-                if(cached) {
-                    try {
-                        let p = JSON.parse(cached);
-                        if(p.sheets) sysData = p;
-                    } catch(err){}
-                }
+                if(cached) { try { let p = JSON.parse(cached); if(p.sheets) sysData = p; } catch(err){} }
             }
         }
 
@@ -977,9 +946,6 @@
             } catch(e) {}
         }
 
-        // ==========================================
-        // CÁC TÍNH NĂNG NHỎ (RULER, LINK, THUMBNAIL)
-        // ==========================================
         function restoreSelection() {
             if (savedSelectionRange) { 
                 let sel = window.getSelection(); 
@@ -1036,9 +1002,6 @@
         function stopDragRuler() { isDraggingRuler = false; document.onmousemove = null; document.onmouseup = null; }
         function toggleRulers() { let r = document.getElementById('rulerContainer'); r.style.display = (r.style.display === 'block') ? 'none' : 'block'; }
 
-        // ==========================================
-        // GOOGLE FONTS
-        // ==========================================
         function loadGoogleFonts() {
             if (!sysData || !sysData.sheets) return;
             let fontsTab = sysData.sheets["Google Fonts_hidden"];
@@ -1100,9 +1063,6 @@
             } else showAlert("Không tìm thấy tên font (family=...) trong link.", true);
         }
 
-        // ==========================================
-        // INSERT HTML CHUYÊN MÔN (ĐÃ FIX CHÈN CHUẨN XÁC)
-        // ==========================================
         window.updateLineNumbers = function() {
             let ta = document.getElementById('htmlEditorTextarea');
             if(!ta) return;
@@ -1142,10 +1102,7 @@
             } catch(e) { console.error("Open modal error:", e); }
         };
 
-        window.closeHtmlModal = function() { 
-            document.getElementById('htmlModal').style.display = 'none'; 
-            activeHtmlBlock = null; 
-        };
+        window.closeHtmlModal = function() { document.getElementById('htmlModal').style.display = 'none'; activeHtmlBlock = null; };
 
         window.syncCodeToEditor = function() { 
             if (activeHtmlBlock) {
@@ -1160,7 +1117,6 @@
                 let html = ta ? ta.value : "";
                 if(!html) { window.closeHtmlModal(); return; }
                 
-                // Nếu đang chỉnh sửa khối cũ, đã tự sync -> đóng popup là xong
                 if (activeHtmlBlock) { 
                     window.closeHtmlModal(); 
                     return; 
@@ -1170,7 +1126,6 @@
                 window.closeHtmlModal();
             } catch (err) {
                 showAlert("Lỗi hệ thống khi chèn HTML: " + err.message, true);
-                console.error(err);
             }
         };
 
@@ -1189,14 +1144,12 @@
                 }
             }
 
-            // --- NẾU CON TRỎ NẰM TRONG KHỐI HTML ---
             if (isInsideCustom) {
                 document.execCommand('insertHTML', false, html);
                 if (sel.rangeCount > 0) savedSelectionRange = sel.getRangeAt(0).cloneRange();
                 return;
             }
 
-            // --- NẾU Ở NGOÀI -> TẠO KHỐI MỚI ---
             let block = document.createElement("div");
             block.className = "custom-html-block";
             let htmlWithInnerP = html + '<p><br></p>';
@@ -1233,13 +1186,11 @@
                 editor.appendChild(block);
             }
 
-            // Tạo dòng trống thoát khối
             if (block.parentNode) {
                 let outerEmptyP = document.createElement('p'); outerEmptyP.innerHTML = "<br>";
                 block.parentNode.insertBefore(outerEmptyP, block.nextSibling);
             }
             
-            // Focus vào dòng p<br> TẬN CÙNG CỦA MÃ VỪA CHÈN
             let insideEmptyP = block.querySelector('.block-content').lastElementChild;
             if (insideEmptyP) {
                 let newRange = document.createRange();
@@ -1251,9 +1202,6 @@
             }
         };
 
-        // ==========================================
-        // TEMPLATES & LƯU BÀI
-        // ==========================================
         function loadTemplates() {
             if (!sysData || !sysData.sheets) return;
             let tplTab = sysData.sheets["Mẫu html_hidden"];
