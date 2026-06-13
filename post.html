@@ -1596,11 +1596,20 @@ else if (action === 'splitCells') {
             .catch(e => { s.innerText = "⚠️ Mất mạng"; s.style.color = "var(--red)"; });
         }
 // ==========================================
-// XỬ LÝ DÁN (PASTE) DỮ LIỆU VÀO BẢNG CHUẨN XÁC
+// SỬA LỖI DÁN (PASTE) TỪ CHATGPT / EXCEL VÀO BẢNG
 // ==========================================
 document.getElementById('postContent').addEventListener('paste', function(e) {
+    // 1. TÌM Ô ĐÍCH (Bắt chính xác kể cả khi chỉ có viền xanh, không có con trỏ chuột)
     let td = e.target.closest('td, th');
-    if (!td) return; // Nếu không dán vào bảng thì giữ nguyên hành vi mặc định
+    if (!td) {
+        let selected = document.querySelector('.selected-td');
+        if (selected && document.getElementById('postContent').contains(selected)) {
+            td = selected;
+        }
+    }
+    
+    // Nếu vẫn không phải dán vào bảng, cho phép dán text bình thường
+    if (!td) return; 
 
     let clipData = e.clipboardData || window.clipboardData;
     if (!clipData) return;
@@ -1609,7 +1618,7 @@ document.getElementById('postContent').addEventListener('paste', function(e) {
     let textData = clipData.getData('text/plain');
     let sourceMatrix = [];
 
-    // 1. CHUYỂN DỮ LIỆU COPY THÀNH MA TRẬN 2D (GIẢI MÃ COLSPAN/ROWSPAN CỦA NGUỒN)
+    // 2. PHÂN TÍCH DỮ LIỆU TỪ CHATGPT / EXCEL THÀNH MA TRẬN
     if (htmlData && htmlData.match(/<table/i)) {
         let tempDiv = document.createElement('div');
         tempDiv.innerHTML = htmlData;
@@ -1622,40 +1631,39 @@ document.getElementById('postContent').addEventListener('paste', function(e) {
                 let cIdx = 0;
                 for (let c = 0; c < rows[r].cells.length; c++) {
                     let cell = rows[r].cells[c];
-                    
-                    // Tìm vị trí cột trống tiếp theo (bỏ qua các ô đã bị chiếm bởi rowspan/colspan trước đó)
                     while (sourceMatrix[r][cIdx] !== undefined) cIdx++;
                     
                     let rs = cell.rowSpan || 1;
                     let cs = cell.colSpan || 1;
-                    let val = cell.innerHTML; // Lấy nội dung HTML của ô
+                    
+                    // Lọc bỏ thẻ <p> thừa bọc ngoài do ChatGPT sinh ra để text đỡ bị giãn cách xấu
+                    let val = cell.innerHTML.replace(/^<p[^>]*>/i, '').replace(/<\/p>$/i, '').trim(); 
 
-                    // Lấp đầy ma trận theo kích thước gộp của ô
                     for (let i = 0; i < rs; i++) {
                         for (let j = 0; j < cs; j++) {
                             if (!sourceMatrix[r + i]) sourceMatrix[r + i] = [];
-                            // Chỉ điền dữ liệu vào ô trên cùng bên trái, các ô mở rộng điền null
                             sourceMatrix[r + i][cIdx + j] = (i === 0 && j === 0) ? val : null;
                         }
                     }
                 }
             }
         }
-    } else if (textData && textData.includes('\t')) {
-        // Xử lý dán từ Excel / Google Sheets
-        let rows = textData.replace(/\r/g, '').split('\n');
-        // Xóa dòng trống cuối cùng do Excel thường thêm ký tự xuống dòng khi copy
-        if (rows[rows.length - 1] === "") rows.pop(); 
-        
-        rows.forEach((row, rIdx) => {
-            sourceMatrix[rIdx] = row.split('\t');
-        });
+    } else if (textData) {
+        let rows = textData.trim().split('\n');
+        // Chỉ kích hoạt ma trận nếu copy nhiều dòng hoặc có chứa tab (chuẩn Excel)
+        if (rows.length > 1 || textData.includes('\t')) {
+            rows.forEach((row, rIdx) => {
+                sourceMatrix[rIdx] = row.split('\t');
+            });
+        }
     }
 
-    if (sourceMatrix.length === 0) return; // Không có dữ liệu bảng, thoát để dán text bình thường
-    e.preventDefault(); // Chặn hành vi dán mặc định
+    if (sourceMatrix.length === 0) return;
+    
+    // Đã nhận diện được dữ liệu bảng => Chặn dán mặc định để tự chia ô
+    e.preventDefault(); 
 
-    // 2. LẬP BẢN ĐỒ TỌA ĐỘ CHO BẢNG ĐÍCH (ĐANG CHỈNH SỬA)
+    // 3. LẬP BẢN ĐỒ TỌA ĐỘ BẢNG HIỆN TẠI
     let targetTable = td.closest('table');
     let targetMap = [];
     let tRows = targetTable.rows;
@@ -1672,18 +1680,16 @@ document.getElementById('postContent').addEventListener('paste', function(e) {
             for (let i = 0; i < rs; i++) {
                 for (let j = 0; j < cs; j++) {
                     if (!targetMap[r + i]) targetMap[r + i] = [];
-                    targetMap[r + i][cIdx + j] = cell; // Tham chiếu đến ô HTML thực tế
+                    targetMap[r + i][cIdx + j] = cell;
                 }
             }
         }
     }
 
-    // 3. XÁC ĐỊNH TỌA ĐỘ BẮT ĐẦU DÁN (Ưu tiên vùng đang bôi đen)
+    // 4. TÌM VỊ TRÍ ĐÍCH CHUẨN XÁC ĐỂ BẮT ĐẦU DÁN
     let startTd = td;
     let selectedCells = document.querySelectorAll('.selected-td');
-    
     if (selectedCells.length > 0) {
-        // Nếu có bôi đen, tìm ô nằm ở góc trên cùng bên trái của vùng bôi đen
         let minR = 9999, minC = 9999;
         for (let r = 0; r < targetMap.length; r++) {
             for (let c = 0; c < targetMap[r].length; c++) {
@@ -1707,18 +1713,16 @@ document.getElementById('postContent').addEventListener('paste', function(e) {
         if (found) break;
     }
 
-    // 4. PHÂN BỔ DỮ LIỆU VÀO BẢNG
-    let updatedCells = new Set(); // Tránh ghi đè nhiều lần vào 1 ô bị gộp (colspan/rowspan lớn)
-
+    // 5. RẢI DỮ LIỆU TỪ CHATGPT VÀO BẢNG MẪU CỦA BẠN
+    let updatedCells = new Set();
     for (let r = 0; r < sourceMatrix.length; r++) {
         let trIdx = startR + r;
         
-        // Nếu bảng đích thiếu hàng -> Tạo thêm hàng mới
+        // Tự động thêm dòng nếu dữ liệu copy dài hơn bảng gốc
         if (trIdx >= targetMap.length) {
             let newRow = targetTable.insertRow(-1);
             targetMap[trIdx] = [];
-            // Lấy số lượng cột dựa theo hàng ngay phía trên nó
-            let colCount = targetMap[trIdx - 1] ? targetMap[trIdx - 1].length : sourceMatrix[r].length;
+            let colCount = targetMap[0] ? targetMap[0].length : sourceMatrix[r].length;
             for (let i = 0; i < colCount; i++) {
                 let newCell = newRow.insertCell(-1);
                 newCell.style.border = "1px solid var(--gray-border)";
@@ -1729,14 +1733,14 @@ document.getElementById('postContent').addEventListener('paste', function(e) {
 
         for (let c = 0; c < sourceMatrix[r].length; c++) {
             let val = sourceMatrix[r][c];
-            if (val === null) continue; // Bỏ qua mảng rỗng do colspan/rowspan của bảng nguồn tạo ra
+            if (val === null || val === undefined) continue;
 
             let tcIdx = startC + c;
             
-            // Nếu bảng đích thiếu cột -> Thêm cột vào cuối hàng đó
+            // Tự động thêm cột nếu dữ liệu copy rộng hơn bảng gốc
             if (tcIdx >= targetMap[trIdx].length) {
                  let actualRow = targetTable.rows[trIdx];
-                 if(actualRow) {
+                 if (actualRow) {
                      let newCell = actualRow.insertCell(-1);
                      newCell.style.border = "1px solid var(--gray-border)";
                      newCell.style.padding = "8px";
@@ -1747,16 +1751,16 @@ document.getElementById('postContent').addEventListener('paste', function(e) {
             let targetCell = targetMap[trIdx][tcIdx];
             if (targetCell && !updatedCells.has(targetCell)) {
                 targetCell.innerHTML = val;
-                updatedCells.add(targetCell); // Đánh dấu ô này đã được dán nội dung
+                updatedCells.add(targetCell);
             }
         }
     }
 
-    // Đồng bộ lại code HTML nếu bạn đang chỉnh sửa trong một Khối Custom HTML
+    // 6. CẬP NHẬT LẠI CODE HTML BLOCK (Đồng bộ)
     if (activeHtmlBlock && activeHtmlBlock.contains(targetTable)) {
         let ta = document.getElementById('htmlEditorTextarea');
         if (ta) ta.value = activeHtmlBlock.querySelector('.block-content').innerHTML;
-        window.updateLineNumbers();
+        if (typeof window.updateLineNumbers === 'function') window.updateLineNumbers();
     }
 });
     </script>
