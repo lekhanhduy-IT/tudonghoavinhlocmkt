@@ -11,25 +11,31 @@
         body { background: var(--gray-light); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
         /* Toolbar Header */
-        .toolbar { height: 45px; background: var(--white); border-bottom: 0.5px solid var(--gray-border); display: flex; align-items: center; padding: 0 15px; justify-content: space-between; z-index: 100; flex-shrink: 0; }
-        .tool-btn { background: var(--white); border: 0.5px solid var(--gray-border); color: var(--blue); padding: 5px 12px; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 3px; display: inline-flex; align-items: center; gap: 5px; transition: 0.2s; outline: none; }
+        .toolbar { height: 45px; background: var(--white); border-bottom: 1px solid var(--gray-border); display: flex; align-items: center; padding: 0 15px; justify-content: space-between; z-index: 100; flex-shrink: 0; }
+        .tool-btn { background: var(--white); border: 1px solid var(--gray-border); color: var(--blue); padding: 5px 12px; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 3px; display: inline-flex; align-items: center; gap: 5px; transition: 0.2s; outline: none; }
         .tool-btn:hover { background: var(--blue); color: var(--white); border-color: var(--blue); }
         .save-btn { background: var(--blue); color: var(--white); border-color: var(--blue); }
         .save-btn:hover { background: #0199d3; }
 
-        /* Workspace (Tự dãn độ dài) */
-        .workspace { flex: 1; position: relative; overflow-y: auto; overflow-x: hidden; display: block; padding: 40px 0 100px 0; }
-        .editor-container { width: 100%; max-width: 800px; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 5px 20px rgba(0,0,0,0.05); position: relative; display: block; margin: 20px auto 0 auto; transition: padding 0.1s; }
+        /* === BỐ CỤC 3 CỘT (MỚI) === */
+        .workspace { display: flex; width: 100%; height: calc(100vh - 45px); overflow: hidden; background: var(--gray-light); }
+
+        /* Bảng Trái & Phải (Cố định, không trôi) */
+        .side-panel { width: 300px; min-width: 200px; max-width: 600px; background: var(--white); display: flex; flex-direction: column; height: 100%; z-index: 10; flex-shrink: 0; }
+        .panel-header { padding: 12px 15px; background: var(--gray-light); border-bottom: 1px solid var(--gray-border); font-weight: bold; font-size: 13px; color: var(--blue); }
+        .panel-content { flex: 1; overflow-y: auto; padding: 15px; font-size: 13px; }
+
+        /* Thanh Kéo Giãn Width */
+        .panel-resizer { width: 6px; background: #f1f3f4; cursor: col-resize; z-index: 20; flex-shrink: 0; border-left: 1px solid var(--gray-border); border-right: 1px solid var(--gray-border); transition: background 0.2s; }
+        .panel-resizer:hover, .panel-resizer.active { background: var(--blue); border-color: var(--blue); }
+
+        /* Vùng Soạn Thảo Ở Giữa (Cuộn độc lập) */
+        .main-editor-area { flex: 1; height: 100%; background: var(--white); position: relative; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; }
+        .editor-container { width: 100%; padding: 40px 60px 100px 60px; margin: 0; border: none; box-shadow: none; position: relative; flex: 1; }
         
-        /* CÂY THƯỚC (RULER) CHUẨN MS WORD */
-        .ruler-container { display: none; }
-        .ruler-h { position: absolute; top: -22px; left: 0; right: 0; height: 22px; background: #fff; border: 1px solid var(--gray-border); border-bottom: none; z-index: 10; 
-                   background-image: repeating-linear-gradient(90deg, transparent, transparent 9px, #ccc 9px, #ccc 10px), 
-                                     repeating-linear-gradient(90deg, transparent, transparent 49px, #555 49px, #555 50px); }
-        .ruler-v { position: absolute; top: 0; left: -22px; bottom: 0; width: 22px; background: #fff; border: 1px solid var(--gray-border); border-right: none; 
-                   background-image: repeating-linear-gradient(180deg, transparent, transparent 9px, #ccc 9px, #ccc 10px), 
-                                     repeating-linear-gradient(180deg, transparent, transparent 49px, #555 49px, #555 50px); }
-        
+        /* CÂY THƯỚC (RULER) */
+        .ruler-container { display: none; position: sticky; top: 0; z-index: 50; background: #fff; height: 24px; border-bottom: 1px solid var(--gray-border); width: 100%; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .ruler-h { position: relative; height: 100%; margin: 0 60px; background-image: repeating-linear-gradient(90deg, transparent, transparent 9px, #ccc 9px, #ccc 10px), repeating-linear-gradient(90deg, transparent, transparent 49px, #555 49px, #555 50px); }
         .ruler-marker { position: absolute; top: 0; width: 14px; height: 100%; cursor: ew-resize; z-index: 20; display: flex; justify-content: center; }
         .ruler-marker::before { content: ''; width: 2px; height: 100%; background: var(--blue); }
         .ruler-marker::after { content: ''; position: absolute; top: 100%; border-width: 6px 6px 0 6px; border-style: solid; border-color: var(--blue) transparent transparent transparent; }
@@ -37,16 +43,16 @@
         #markerRight { right: 0px; transform: translateX(7px); }
 
         /* Rich Text Inputs */
-        .rich-input { padding: 15px 20px; outline: none; border-bottom: 0.5px dashed var(--gray-border); width: 100%; line-height: 1.6; position: relative; transition: padding 0.1s; }
+        .rich-input { padding: 15px 20px; outline: none; border-bottom: 1px dashed var(--gray-border); width: 100%; line-height: 1.6; position: relative; transition: padding 0.1s; }
         .rich-input:empty:before { content: attr(data-placeholder); color: #aaa; pointer-events: none; display: block; }
         
-        #postTitle { font-size: 48px; font-weight: bold; color: var(--blue); margin: 0; line-height: 1.3; } /* Cập nhật H1 & 48px */
+        #postTitle { font-size: 48px; font-weight: bold; color: var(--blue); margin: 0; line-height: 1.3; } 
         #postSapo { font-size: 16px; font-style: italic; color: #555; background: #fdfdfd; }
         #postContent { font-size: 15px; display: block; height: auto; min-height: 500px; border-bottom: none; padding-bottom: 80px; }
         
-        .cover-area { padding: 10px 20px; border-bottom: 0.5px dashed var(--gray-border); background: var(--white); }
-        .cover-input { width: 100%; padding: 6px 10px; border: 0.5px solid var(--gray-border); outline: none; font-size: 12px; border-radius: 2px; margin-bottom: 5px; color: var(--blue); }
-        .cover-preview { width: 100%; max-height: 400px; object-fit: contain; display: none; border: 0.5px solid var(--gray-border); margin-top: 5px; }
+        .cover-area { padding: 10px 20px; border-bottom: 1px dashed var(--gray-border); background: var(--white); }
+        .cover-input { width: 100%; padding: 6px 10px; border: 1px solid var(--gray-border); outline: none; font-size: 12px; border-radius: 2px; margin-bottom: 5px; color: var(--blue); }
+        .cover-preview { width: 100%; max-height: 400px; object-fit: contain; display: none; border: 1px solid var(--gray-border); margin-top: 5px; }
 
         /* Custom HTML Blocks */
         .custom-html-block { position: relative; border: 1px dashed transparent; margin: 10px 0; transition: 0.2s; }
@@ -65,62 +71,58 @@
         .custom-html-block:hover .block-del-btn { display: flex; }
         .del-top { top: -10px; } .del-bot { bottom: -10px; }
 
-        /* Floating Panels */
-        .floating-panel { position: absolute; width: 300px; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 5px 20px rgba(0,0,0,0.1); display: flex; flex-direction: column; max-height: 85vh; z-index: 50; transition: box-shadow 0.2s; }
-        .panel-header { padding: 8px 12px; background: var(--gray-light); border-bottom: 0.5px solid var(--gray-border); font-weight: bold; font-size: 12px; cursor: move; user-select: none; display: flex; justify-content: space-between; align-items: center; color: var(--blue); }
-        .panel-content { flex: 1; overflow-y: auto; padding: 10px; font-size: 13px; }
-
-        .data-row { margin-bottom: 8px; border: 0.5px solid var(--gray-border); overflow: hidden; }
-        .data-label { background: var(--gray-light); padding: 4px 8px; font-weight: bold; border-bottom: 0.5px solid var(--gray-border); font-size: 11px; color: var(--text-main); }
+        /* Khung Panel Riêng Lẻ */
+        .data-row { margin-bottom: 8px; border: 1px solid var(--gray-border); overflow: hidden; }
+        .data-label { background: var(--gray-light); padding: 4px 8px; font-weight: bold; border-bottom: 1px solid var(--gray-border); font-size: 11px; color: var(--text-main); }
         .data-val { padding: 6px 8px; background: var(--white); word-wrap: break-word; font-size: 12px; }
 
-        .panel-tabs { display: flex; border-bottom: 0.5px solid var(--gray-border); }
-        .ptab-btn { flex: 1; text-align: center; padding: 8px; cursor: pointer; font-size: 11px; font-weight: bold; color: #777; transition: 0.2s; border-bottom: 1px solid transparent; }
-        .ptab-btn.active { color: var(--blue); border-bottom: 1px solid var(--blue); background: var(--white); }
+        .panel-tabs { display: flex; border-bottom: 1px solid var(--gray-border); }
+        .ptab-btn { flex: 1; text-align: center; padding: 10px; cursor: pointer; font-size: 11px; font-weight: bold; color: #777; transition: 0.2s; border-bottom: 2px solid transparent; }
+        .ptab-btn.active { color: var(--blue); border-bottom: 2px solid var(--blue); background: var(--white); }
         .ptab-content { display: none; }
         .ptab-content.active { display: block; }
 
         /* Tools Định dạng */
         .tool-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 12px; }
-        .fmt-btn { background: var(--white); border: 0.5px solid var(--gray-border); padding: 5px 0; text-align: center; cursor: pointer; color: var(--text-main); font-size: 13px; transition: 0.2s; outline: none; }
+        .fmt-btn { background: var(--white); border: 1px solid var(--gray-border); padding: 6px 0; text-align: center; cursor: pointer; color: var(--text-main); font-size: 13px; transition: 0.2s; outline: none; border-radius: 3px; }
         .fmt-btn:hover { background: var(--gray-light); color: var(--blue); border-color: var(--blue); }
         
         .tool-row { display: flex; gap: 5px; margin-bottom: 8px; align-items: center; justify-content: space-between; }
-        .tool-input { flex: 1; width: 100%; border: 0.5px solid var(--gray-border); padding: 5px 8px; font-size: 12px; outline: none; color: var(--text-main); }
+        .tool-input { flex: 1; width: 100%; border: 1px solid var(--gray-border); padding: 6px 8px; font-size: 12px; outline: none; color: var(--text-main); border-radius: 3px; }
         .tool-input:focus { border-color: var(--blue); }
         .tool-label { font-size: 11px; color: #777; width: 60px; flex-shrink: 0;}
 
         /* Bộ Chọn Cỡ Chữ & Dãn Dòng */
-        .size-controller { display: flex; align-items: center; border: 0.5px solid var(--gray-border); border-radius: 3px; overflow: hidden; flex: 1; }
+        .size-controller { display: flex; align-items: center; border: 1px solid var(--gray-border); border-radius: 3px; overflow: hidden; flex: 1; }
         .size-btn { width: 25px; height: 26px; background: var(--gray-light); border: none; font-weight: bold; cursor: pointer; color: var(--text-main); display: flex; justify-content: center; align-items: center; outline: none;}
         .size-btn:hover { background: #e0e0e0; color: var(--blue); }
-        .size-select { flex: 1; height: 26px; border: none; outline: none; text-align: center; font-size: 12px; border-left: 0.5px solid var(--gray-border); border-right: 0.5px solid var(--gray-border); cursor: pointer;}
+        .size-select { flex: 1; height: 26px; border: none; outline: none; text-align: center; font-size: 12px; border-left: 1px solid var(--gray-border); border-right: 1px solid var(--gray-border); cursor: pointer;}
         
         .quick-color { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 1px solid var(--gray-border); box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: 0.1s; }
         .quick-color:hover { transform: scale(1.2); }
 
         /* Templates */
-        .mega-row-cat { background: var(--blue); color: var(--white); padding: 6px 10px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; margin-top: 10px; border: 0.5px solid var(--blue); border-radius: 2px;}
-        .cat-content { border: 0.5px solid var(--gray-border); border-top: none; padding: 5px; display: none; }
+        .mega-row-cat { background: var(--blue); color: var(--white); padding: 8px 10px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; margin-top: 10px; border: 1px solid var(--blue); border-radius: 3px;}
+        .cat-content { border: 1px solid var(--gray-border); border-top: none; padding: 5px; display: none; }
         .cat-content.open { display: block; background: #fdfdfd; }
         
-        .template-item { cursor: pointer; border: 0.5px solid var(--gray-border); margin-bottom: 5px; background: var(--white); transition: 0.2s; position: relative; overflow: hidden; padding: 5px; font-size: 12px;}
+        .template-item { cursor: pointer; border: 1px solid var(--gray-border); margin-bottom: 5px; background: var(--white); transition: 0.2s; position: relative; overflow: hidden; padding: 5px; font-size: 12px; border-radius: 3px;}
         .template-item:hover { border-color: var(--blue); box-shadow: 0 2px 5px rgba(1, 173, 238, 0.2); }
         .template-preview-box { zoom: 0.6; pointer-events: none; max-height: none; overflow: visible; }
 
         /* Modals */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: none; justify-content: center; align-items: center; }
-        .modal-box { background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: flex; flex-direction: column; border-radius: 4px; overflow: hidden; }
-        .modal-header { padding: 10px 15px; background: var(--gray-light); border-bottom: 0.5px solid var(--gray-border); font-weight: bold; display: flex; justify-content: space-between; font-size: 13px; color: var(--blue); }
+        .modal-box { background: var(--white); border: 1px solid var(--gray-border); box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: flex; flex-direction: column; border-radius: 4px; overflow: hidden; }
+        .modal-header { padding: 10px 15px; background: var(--gray-light); border-bottom: 1px solid var(--gray-border); font-weight: bold; display: flex; justify-content: space-between; font-size: 13px; color: var(--blue); }
         
-        .code-container { display: flex; height: 350px; border-bottom: 0.5px solid var(--gray-border); background: #1e1e1e; }
-        .line-numbers { width: 35px; background: #252526; color: #858585; text-align: right; padding: 10px 5px; font-family: monospace; font-size: 13px; overflow: hidden; border-right: 0.5px solid #444; line-height: 1.5; }
+        .code-container { display: flex; height: 350px; border-bottom: 1px solid var(--gray-border); background: #1e1e1e; }
+        .line-numbers { width: 35px; background: #252526; color: #858585; text-align: right; padding: 10px 5px; font-family: monospace; font-size: 13px; overflow: hidden; border-right: 1px solid #444; line-height: 1.5; }
         .html-textarea { flex: 1; background: transparent; color: #d4d4d4; border: none; outline: none; padding: 10px; font-family: monospace; font-size: 13px; resize: none; line-height: 1.5; white-space: pre; overflow: auto; }
 
         .custom-alert { width: 350px; text-align: center; padding: 20px; }
         .alert-title { font-size: 16px; margin-bottom: 10px; color: var(--blue); font-weight: bold;}
         .alert-msg { font-size: 13px; margin-bottom: 20px; line-height: 1.5; color: var(--text-main);}
-        .custom-prompt-input { width: 100%; border: 0.5px solid var(--gray-border); padding: 8px; outline: none; margin-bottom: 15px; font-size: 13px; }
+        .custom-prompt-input { width: 100%; border: 1px solid var(--gray-border); padding: 8px; outline: none; margin-bottom: 15px; font-size: 13px; border-radius: 3px; }
     </style>
 </head>
 <body>
@@ -135,20 +137,51 @@
 
     <div class="workspace" id="workspaceArea">
         
-        <div class="floating-panel" id="panelLeft" style="left: 20px; top: 60px;">
-            <div class="panel-header" onmousedown="dragElement(event, 'panelLeft')">
+        <!-- PANEL LEFT -->
+        <div class="side-panel" id="panelLeft">
+            <div class="panel-header">
                 <span><i class="fas fa-database"></i> Dữ Liệu Kế Hoạch</span>
-                <i class="fas fa-arrows-alt"></i>
             </div>
             <div class="panel-content" id="sourceDataContainer">
                 <div style="color: #999; text-align: center; margin-top: 20px; font-style: italic;">Chưa có dữ liệu từ Kế Hoạch.</div>
             </div>
         </div>
 
-        <div class="floating-panel" id="panelRight" style="right: 20px; top: 60px;">
-            <div class="panel-header" onmousedown="dragElement(event, 'panelRight')">
+        <!-- RESIZER LEFT -->
+        <div class="panel-resizer" id="resizerLeft"></div>
+
+        <!-- MAIN EDITOR AREA -->
+        <div class="main-editor-area" id="mainEditorArea">
+            
+            <!-- THƯỚC CĂN LỀ -->
+            <div class="ruler-container" id="rulerContainer">
+                <div class="ruler-h" id="rulerH">
+                    <div class="ruler-marker" id="markerLeft" onmousedown="startDragRuler(event, 'left')"></div>
+                    <div class="ruler-marker" id="markerRight" onmousedown="startDragRuler(event, 'right')"></div>
+                </div>
+            </div>
+
+            <!-- VÙNG SOẠN THẢO -->
+            <div class="editor-container" id="editorContainer">
+                <h1 class="rich-input" contenteditable="true" id="postTitle" data-placeholder="Nhập Tiêu đề bài viết tại đây..."></h1>
+                <div class="rich-input" contenteditable="true" id="postSapo" data-placeholder="Nhập Sapo (Đoạn tóm tắt) tại đây..."></div>
+                
+                <div class="cover-area">
+                    <input type="text" id="coverUrlInput" class="cover-input" placeholder="Dán URL ảnh bìa (Thumbnail) vào đây..." oninput="updateCoverPreview()">
+                    <img id="coverPreview" class="cover-preview">
+                </div>
+
+                <div class="rich-input" contenteditable="true" id="postContent" data-placeholder="Soạn thảo nội dung chi tiết bài viết..."></div>
+            </div>
+        </div>
+
+        <!-- RESIZER RIGHT -->
+        <div class="panel-resizer" id="resizerRight"></div>
+
+        <!-- PANEL RIGHT -->
+        <div class="side-panel" id="panelRight">
+            <div class="panel-header">
                 <span><i class="fas fa-toolbox"></i> Bộ Công Cụ</span>
-                <i class="fas fa-arrows-alt"></i>
             </div>
             <div class="panel-tabs">
                 <div class="ptab-btn active" onmousedown="event.preventDefault(); switchRightTab('tabFormat', this)">Định Dạng</div>
@@ -220,12 +253,12 @@
                         </div>
                     </div>
 
-                    <hr style="border-bottom: 0.5px dashed var(--gray-border); margin: 15px 0;">
+                    <hr style="border-bottom: 1px dashed var(--gray-border); margin: 15px 0;">
                     
                     <div style="font-weight: bold; margin-bottom: 8px; color: var(--blue); font-size: 12px;"><i class="fab fa-google"></i> Google Fonts:</div>
                     <div class="tool-row">
                         <input type="text" id="fontLink" class="tool-input" placeholder="Dán thẻ <link>...">
-                        <button class="tool-btn" style="margin: 0; padding: 4px 8px;" onclick="addGoogleFont()"><i class="fas fa-plus"></i></button>
+                        <button class="tool-btn" style="margin: 0; padding: 4px 10px;" onclick="addGoogleFont()"><i class="fas fa-plus"></i></button>
                     </div>
                     <select id="fontSelect" class="tool-input" style="margin-top: 5px;" onchange="applyCustomFont(this.value); this.style.fontFamily = this.value;">
                         <option value="Segoe UI, sans-serif" style="font-family: 'Segoe UI', sans-serif">Mặc định (Segoe UI)</option>
@@ -241,10 +274,10 @@
                         <i class="fas fa-code"></i> Viết Mã HTML
                     </button>
                     
-                    <hr style="border-bottom: 0.5px dashed var(--gray-border); margin: 15px 0;">
+                    <hr style="border-bottom: 1px dashed var(--gray-border); margin: 15px 0;">
                     <div style="font-weight: bold; margin-bottom: 8px; color: var(--red); font-size: 12px;"><i class="fas fa-box"></i> Lưu Mẫu HTML Mới:</div>
                     
-                    <div style="border: 0.5px solid var(--gray-border); padding: 8px; background: #fdfdfd; margin-bottom: 15px;">
+                    <div style="border: 1px solid var(--gray-border); padding: 8px; background: #fdfdfd; margin-bottom: 15px; border-radius: 3px;">
                         <select id="catSelect" class="tool-input" style="margin-bottom: 5px;" onchange="checkNewCategory(this)">
                             <option value="">-- Chọn Loại Khối --</option>
                             <option value="NEW" style="color: var(--blue); font-weight: bold;">+ Thêm Loại Mới...</option>
@@ -252,7 +285,7 @@
                         <textarea id="tplHtmlInput" class="tool-input" style="height: 60px; resize: none; margin-bottom: 5px; font-family: monospace;" placeholder="Dán mã HTML mẫu vào đây..."></textarea>
                         
                         <div style="font-size:11px; margin-bottom:5px; color:#555;">Xem trước (Preview):</div>
-                        <div id="tplPreview" style="border:0.5px dashed var(--gray-border); padding:5px; margin-bottom:5px; min-height:20px; font-size:12px; background:#fff; overflow:hidden;"></div>
+                        <div id="tplPreview" style="border:1px dashed var(--gray-border); padding:5px; margin-bottom:5px; min-height:20px; font-size:12px; background:#fff; overflow:hidden;"></div>
 
                         <button class="tool-btn" style="width: 100%; justify-content: center;" onclick="saveTemplate()"><i class="fas fa-save"></i> Lưu Mẫu</button>
                     </div>
@@ -264,28 +297,9 @@
             </div>
         </div>
 
-        <div class="editor-container" id="editorContainer">
-            <div class="ruler-container" id="rulerContainer">
-                <div class="ruler-h" id="rulerH">
-                    <div class="ruler-marker" id="markerLeft" onmousedown="startDragRuler(event, 'left')"></div>
-                    <div class="ruler-marker" id="markerRight" onmousedown="startDragRuler(event, 'right')"></div>
-                </div>
-                <div class="ruler-v" id="rulerV"></div>
-            </div>
-
-            <h1 class="rich-input" contenteditable="true" id="postTitle" data-placeholder="Nhập Tiêu đề bài viết tại đây..."></h1>
-            <div class="rich-input" contenteditable="true" id="postSapo" data-placeholder="Nhập Sapo (Đoạn tóm tắt) tại đây..."></div>
-            
-            <div class="cover-area">
-                <input type="text" id="coverUrlInput" class="cover-input" placeholder="Dán URL ảnh bìa (Thumbnail) vào đây..." oninput="updateCoverPreview()">
-                <img id="coverPreview" class="cover-preview">
-            </div>
-
-            <div class="rich-input" contenteditable="true" id="postContent" data-placeholder="Soạn thảo nội dung chi tiết bài viết..."></div>
-        </div>
-
     </div>
 
+    <!-- CODE HTML MODAL -->
     <div class="modal-overlay" id="htmlModal">
         <div class="modal-box" style="width: 700px;">
             <div class="modal-header">
@@ -296,12 +310,13 @@
                 <div class="line-numbers" id="lineNumbers">1</div>
                 <textarea id="htmlEditorTextarea" class="html-textarea" wrap="off" oninput="syncCodeToEditor(); updateLineNumbers()" onscroll="syncScroll()"></textarea>
             </div>
-            <div style="padding: 10px 15px; text-align: right; background: var(--gray-light); border-top: 0.5px solid var(--gray-border);">
+            <div style="padding: 10px 15px; text-align: right; background: var(--gray-light); border-top: 1px solid var(--gray-border);">
                 <button class="tool-btn save-btn" onclick="insertHtmlBlock()"><i class="fas fa-check"></i> Áp dụng & Đóng</button>
             </div>
         </div>
     </div>
 
+    <!-- ALERT & PROMPT MODALS -->
     <div class="modal-overlay" id="customAlert">
         <div class="modal-box custom-alert">
             <div class="alert-title" id="alertTitle">Thông báo</div>
@@ -338,6 +353,7 @@
 
         window.onload = async () => {
             initSizeSelects();
+            initResizers();
             await fetchAllData();
             loadDraftData();
             loadGoogleFonts();
@@ -385,6 +401,37 @@
         };
 
         // ==========================================
+        // KÉO GIÃN WIDTH (PANEL RESIZING)
+        // ==========================================
+        function initResizers() {
+            let currentResizer = null;
+            document.getElementById('resizerLeft').addEventListener('mousedown', function(e) {
+                currentResizer = 'left'; document.body.style.cursor = 'col-resize'; this.classList.add('active'); e.preventDefault();
+            });
+            document.getElementById('resizerRight').addEventListener('mousedown', function(e) {
+                currentResizer = 'right'; document.body.style.cursor = 'col-resize'; this.classList.add('active'); e.preventDefault();
+            });
+            document.addEventListener('mousemove', function(e) {
+                if (!currentResizer) return;
+                if (currentResizer === 'left') {
+                    let newWidth = e.clientX;
+                    if(newWidth > 200 && newWidth < 600) document.getElementById('panelLeft').style.width = newWidth + 'px';
+                } else if (currentResizer === 'right') {
+                    let newWidth = window.innerWidth - e.clientX;
+                    if(newWidth > 200 && newWidth < 600) document.getElementById('panelRight').style.width = newWidth + 'px';
+                }
+            });
+            document.addEventListener('mouseup', function(e) {
+                if (currentResizer) {
+                    document.body.style.cursor = 'default';
+                    document.getElementById('resizerLeft').classList.remove('active');
+                    document.getElementById('resizerRight').classList.remove('active');
+                    currentResizer = null;
+                }
+            });
+        }
+
+        // ==========================================
         // AUTO DETECT FORMAT & GLOBAL SYNC
         // ==========================================
         function detectFormatting() {
@@ -414,9 +461,7 @@
             if (size) {
                 let sizeVal = Math.round(parseFloat(size));
                 let sizeSel = document.getElementById('fontSizeSel');
-                if(Array.from(sizeSel.options).some(o => o.value == sizeVal)) {
-                    sizeSel.value = sizeVal;
-                }
+                if(Array.from(sizeSel.options).some(o => o.value == sizeVal)) sizeSel.value = sizeVal;
             }
         }
 
@@ -508,7 +553,7 @@
         function initSizeSelects() {
             let fs = document.getElementById('fontSizeSel');
             let lh = document.getElementById('lineHeightSel');
-            for(let i=2; i<=40; i++) {
+            for(let i=2; i<=60; i++) {
                 fs.add(new Option(i + 'px', i));
                 lh.add(new Option(i + 'px', i));
             }
@@ -519,7 +564,7 @@
             let select = document.getElementById(type === 'font' ? 'fontSizeSel' : 'lineHeightSel');
             let cur = parseInt(select.value);
             let next = cur + step;
-            if(next >= 2 && next <= 40) {
+            if(next >= 2 && next <= 60) {
                 select.value = next;
                 applySize(type);
             }
@@ -547,11 +592,8 @@
                     if (block.id === 'postContent' || block.classList?.contains('rich-input')) break;
                     block = block.parentNode;
                 }
-                if (block) {
-                    block.style.lineHeight = val + 'px';
-                }
+                if (block) block.style.lineHeight = val + 'px';
             }
-            
             setTimeout(() => { syncGlobalFormat(); detectFormatting(); }, 50);
         }
 
@@ -559,7 +601,6 @@
             restoreSelection(); 
             if(value) document.execCommand(cmd, false, value);
             else document.execCommand(cmd);
-            
             setTimeout(() => { syncGlobalFormat(); detectFormatting(); }, 50);
         }
 
@@ -568,15 +609,12 @@
             document.execCommand('fontName', false, 'VLCustomFontName');
             let rootContent = document.getElementById('workspaceArea');
             let fonts = rootContent.querySelectorAll('font[face="VLCustomFontName"]');
-            fonts.forEach(f => {
-                f.removeAttribute('face');
-                f.style.fontFamily = fontValue;
-            });
+            fonts.forEach(f => { f.removeAttribute('face'); f.style.fontFamily = fontValue; });
             setTimeout(() => { syncGlobalFormat(); detectFormatting(); }, 50);
         }
 
         // ==========================================
-        // ALERTS / KÉO THẢ
+        // ALERTS / TAB CHUYỂN
         // ==========================================
         function showAlert(msg, isError = false) {
             document.getElementById('alertMsg').innerHTML = msg;
@@ -595,33 +633,6 @@
                 document.getElementById('customPrompt').style.display='none';
                 if(promptCallback) promptCallback(document.getElementById('promptInput').value);
             };
-        }
-
-        function dragElement(e, panelId) {
-            e.preventDefault();
-            let panel = document.getElementById(panelId);
-            let pos1 = 0, pos2 = 0, pos3 = e.clientX, pos4 = e.clientY;
-            let rect = panel.getBoundingClientRect();
-            panel.style.position = 'fixed'; panel.style.top = rect.top + 'px'; panel.style.left = rect.left + 'px'; panel.style.right = 'auto'; 
-
-            document.onmouseup = closeDragElement; document.onmousemove = elementDrag;
-
-            function elementDrag(ev) {
-                ev.preventDefault();
-                pos1 = pos3 - ev.clientX; pos2 = pos4 - ev.clientY;
-                pos3 = ev.clientX; pos4 = ev.clientY;
-                let newTop = panel.offsetTop - pos2; let newLeft = panel.offsetLeft - pos1;
-                if(newTop < 45) newTop = 45; 
-                panel.style.top = newTop + "px"; panel.style.left = newLeft + "px";
-            }
-            function closeDragElement() {
-                document.onmouseup = null; document.onmousemove = null;
-                if (panel.offsetTop < 120 && (panel.offsetLeft < 100 || window.innerWidth - panel.offsetLeft < 350)) {
-                    panel.style.position = 'absolute';
-                    if (panelId === 'panelRight') { panel.style.right = '20px'; panel.style.left = 'auto'; panel.style.top = '60px'; } 
-                    else { panel.style.left = '20px'; panel.style.top = '60px'; }
-                }
-            }
         }
 
         function switchRightTab(tabId, btn) {
