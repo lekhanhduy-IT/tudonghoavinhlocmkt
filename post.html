@@ -29,7 +29,7 @@
         .panel-resizer { width: 6px; background: #f1f3f4; cursor: col-resize; z-index: 20; flex-shrink: 0; border-left: 1px solid var(--gray-border); border-right: 1px solid var(--gray-border); transition: background 0.2s; }
         .panel-resizer:hover, .panel-resizer.active { background: var(--blue); border-color: var(--blue); }
 
-        /* Vùng Soạn Thảo Ở Giữa (Giãn Hết Cỡ) */
+        /* Vùng Soạn Thảo Ở Giữa */
         .main-editor-area { flex: 1; height: 100%; background: var(--white); position: relative; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; }
         .editor-container { width: 100%; padding: 30px 40px 80px 40px; margin: 0; border: none; box-shadow: none; position: relative; display: flex; flex-direction: column; flex: 1; }
         
@@ -46,6 +46,7 @@
         .rich-input { padding: 15px 20px; outline: none; border-bottom: 1px dashed var(--gray-border); width: 100%; line-height: 1.6; position: relative; transition: padding 0.1s; }
         .rich-input:empty:before { content: attr(data-placeholder); color: #aaa; pointer-events: none; display: block; }
         
+        /* Chuyển Tiêu đề thành thẻ H1 và Cỡ chữ 48px */
         #postTitle { font-size: 48px; font-weight: bold; color: var(--blue); margin: 0; line-height: 1.3; } 
         #postSapo { font-size: 16px; font-style: italic; color: #555; background: #fdfdfd; }
         #postContent { font-size: 15px; display: block; flex: 1; border-bottom: none; padding-bottom: 80px; cursor: text; outline: none;}
@@ -307,7 +308,7 @@
                 <textarea id="htmlEditorTextarea" class="html-textarea" wrap="off" oninput="syncCodeToEditor(); updateLineNumbers()" onscroll="syncScroll()"></textarea>
             </div>
             <div style="padding: 10px 15px; text-align: right; background: var(--gray-light); border-top: 1px solid var(--gray-border);">
-                <button class="tool-btn save-btn" onclick="insertHtmlBlock()"><i class="fas fa-check"></i> Áp dụng & Đóng</button>
+                <button type="button" class="tool-btn save-btn" onclick="window.insertHtmlBlock()" style="position: relative; z-index: 100; cursor: pointer;"><i class="fas fa-check"></i> Áp dụng & Đóng</button>
             </div>
         </div>
     </div>
@@ -341,7 +342,8 @@
         let activeHtmlBlock = null;     
         let promptCallback = null;
         
-        const DEFAULT_HTML_BLOCK = `<style>\n  @import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,700;1,400&display=swap');\n\n  @media screen and (min-width: 1024px) {\n    .desktop-spacing {\n      margin-left: 100px !important;\n      margin-right: 100px !important;\n    }\n  }\n</style>\n\n<div class="desktop-spacing" style="text-align:justify;font-family:'Nunito', Arial, sans-serif !important;font-size:16px;line-height:1.5;color:#333333;max-width:100%;">\n\n<p style="font-weight: normal; margin-bottom: 12px;">\nDán nội dung của bạn\n</p>\n\n<strong>@Mã bài viết</strong>\n</div>`;
+        // SỬ DỤNG VAR ĐỂ TRÁNH LỖI SCOPE INLINE HTML Ở CÁC TRÌNH DUYỆT
+        var DEFAULT_HTML_BLOCK = `<style>\n  @import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,700;1,400&display=swap');\n\n  @media screen and (min-width: 1024px) {\n    .desktop-spacing {\n      margin-left: 100px !important;\n      margin-right: 100px !important;\n    }\n  }\n</style>\n\n<div class="desktop-spacing" style="text-align:justify;font-family:'Nunito', Arial, sans-serif !important;font-size:16px;line-height:1.5;color:#333333;max-width:100%;">\n\n<p style="font-weight: normal; margin-bottom: 12px;">\nDán nội dung của bạn\n</p>\n\n<strong>@Mã bài viết</strong>\n</div>`;
 
         let globalTagFormats = { 'H1': null, 'H2': null, 'H3': null, 'H4': null, 'P': null };
 
@@ -372,7 +374,6 @@
                 }
             });
 
-            // Tự động focus nội dung khi ấn vào khoảng trắng bên dưới
             document.getElementById('editorContainer').addEventListener('click', function(e) {
                 if (e.target === this) {
                     let editor = document.getElementById('postContent');
@@ -382,8 +383,7 @@
                         range.selectNodeContents(editor);
                         range.collapse(false);
                         let sel = window.getSelection();
-                        sel.removeAllRanges();
-                        sel.addRange(range);
+                        sel.removeAllRanges(); sel.addRange(range);
                     }
                 }
             });
@@ -427,9 +427,6 @@
             }
         };
 
-        // ==========================================
-        // KÉO GIÃN WIDTH (PANEL RESIZING)
-        // ==========================================
         function initResizers() {
             let currentResizer = null;
             document.getElementById('resizerLeft').addEventListener('mousedown', function(e) {
@@ -478,9 +475,7 @@
                 if(curBlock.id === 'postContent' || curBlock.classList.contains('rich-input')) break;
                 curBlock = curBlock.parentNode;
             }
-            if (curBlock && ['H1','H2','H3','H4','H5','H6','P'].includes(curBlock.tagName)) {
-                tagName = curBlock.tagName;
-            }
+            if (curBlock && ['H1','H2','H3','H4','H5','H6','P'].includes(curBlock.tagName)) tagName = curBlock.tagName;
             document.getElementById('formatSelect').value = tagName;
 
             let innerComputed = window.getComputedStyle(block);
@@ -497,9 +492,8 @@
             restoreSelection();
             document.execCommand('formatBlock', false, tagName);
             
-            if (globalTagFormats[tagName]) {
-                applyFormatToAllTags(tagName);
-            } else {
+            if (globalTagFormats[tagName]) { applyFormatToAllTags(tagName); } 
+            else {
                 let existingTag = document.getElementById('postContent').querySelector(tagName);
                 if (existingTag) {
                     let computed = window.getComputedStyle(existingTag);
@@ -538,7 +532,6 @@
                     lineHeight: block.style.lineHeight || blockComputed.lineHeight,
                     textAlign: block.style.textAlign || blockComputed.textAlign
                 };
-
                 applyFormatToAllTags(tag);
             }
         }
@@ -591,10 +584,7 @@
             let select = document.getElementById(type === 'font' ? 'fontSizeSel' : 'lineHeightSel');
             let cur = parseInt(select.value);
             let next = cur + step;
-            if(next >= 2 && next <= 60) {
-                select.value = next;
-                applySize(type);
-            }
+            if(next >= 2 && next <= 60) { select.value = next; applySize(type); }
         }
 
         function applySize(type) {
@@ -605,10 +595,7 @@
                 document.execCommand('fontSize', false, '7');
                 let rootContent = document.getElementById('workspaceArea');
                 let fonts = rootContent.querySelectorAll('font[size="7"]');
-                fonts.forEach(f => {
-                    f.removeAttribute('size');
-                    f.style.fontSize = val + 'px';
-                });
+                fonts.forEach(f => { f.removeAttribute('size'); f.style.fontSize = val + 'px'; });
             } else if (type === 'line') {
                 let sel = window.getSelection();
                 if(!sel.rangeCount) return;
@@ -804,7 +791,7 @@
         }
 
         // ==========================================
-        // KHỐI HTML TÙY CHỈNH
+        // KHỐI HTML TÙY CHỈNH CHUẨN XÁC
         // ==========================================
         function updateLineNumbers() {
             let ta = document.getElementById('htmlEditorTextarea');
@@ -813,28 +800,58 @@
         }
         function syncScroll() { document.getElementById('lineNumbers').scrollTop = document.getElementById('htmlEditorTextarea').scrollTop; }
 
-        function openHtmlModal(preFill = "") {
+        window.openHtmlModal = function(preFill = "") {
             restoreSelection();
-            let sel = window.getSelection(); let ta = document.getElementById('htmlEditorTextarea'); activeHtmlBlock = null;
+            let sel = window.getSelection(); 
+            let ta = document.getElementById('htmlEditorTextarea'); 
+            activeHtmlBlock = null;
 
             if(sel.rangeCount) {
                 let node = sel.anchorNode;
                 let block = node.nodeType === 3 ? node.parentNode : node;
-                while (block && !block.classList?.contains('custom-html-block') && block.id !== 'postContent') block = block.parentNode;
-                if(block && block.classList.contains('custom-html-block')) { activeHtmlBlock = block; ta.value = block.querySelector('.block-content').innerHTML; } 
-                else ta.value = preFill; 
+                while (block && !block.classList?.contains('custom-html-block') && block.id !== 'postContent') {
+                    block = block.parentNode;
+                }
+                if(block && block.classList && block.classList.contains('custom-html-block')) { 
+                    activeHtmlBlock = block; 
+                    ta.value = block.querySelector('.block-content').innerHTML; 
+                } else ta.value = preFill; 
             } else ta.value = preFill;
-            updateLineNumbers(); document.getElementById('htmlModal').style.display = 'flex';
-        }
-        function closeHtmlModal() { document.getElementById('htmlModal').style.display = 'none'; activeHtmlBlock = null; }
-        function syncCodeToEditor() { if (activeHtmlBlock) activeHtmlBlock.querySelector('.block-content').innerHTML = document.getElementById('htmlEditorTextarea').value; }
+            
+            updateLineNumbers(); 
+            document.getElementById('htmlModal').style.display = 'flex';
+        };
 
-        function insertHtmlBlock() {
-            let html = document.getElementById('htmlEditorTextarea').value;
-            if(!html) { closeHtmlModal(); return; }
-            if (activeHtmlBlock) { closeHtmlModal(); return; } 
-            insertDirectHtmlBlock(html); closeHtmlModal();
-        }
+        window.closeHtmlModal = function() { 
+            document.getElementById('htmlModal').style.display = 'none'; 
+            activeHtmlBlock = null; 
+        };
+
+        window.syncCodeToEditor = function() { 
+            if (activeHtmlBlock) activeHtmlBlock.querySelector('.block-content').innerHTML = document.getElementById('htmlEditorTextarea').value; 
+        };
+
+        // Hàm gốc gắn trực tiếp vào Window để không bao giờ bị lỗi undefine
+        window.insertHtmlBlock = function() {
+            try {
+                let html = document.getElementById('htmlEditorTextarea').value;
+                if(!html) { window.closeHtmlModal(); return; }
+                
+                // Nếu đang chỉnh sửa khối CŨ, thao tác nhập code đã tự động sync realtime
+                // Nên chỉ cần đóng modal là xong.
+                if (activeHtmlBlock) { 
+                    window.closeHtmlModal(); 
+                    return; 
+                } 
+                
+                // Tạo mới nếu chưa có khối nào
+                insertDirectHtmlBlock(html); 
+                window.closeHtmlModal();
+            } catch (err) {
+                showAlert("Lỗi hệ thống khi chèn HTML: " + err.message, true);
+                console.error(err);
+            }
+        };
 
         function insertDirectHtmlBlock(html) {
             if(!html) return;
@@ -842,23 +859,7 @@
             restoreSelection();
             let sel = window.getSelection();
             
-            if(sel.rangeCount && editor.contains(sel.anchorNode)) {
-                let node = sel.anchorNode;
-                let parentBlock = node.nodeType === 3 ? node.parentNode : node;
-                while (parentBlock && !parentBlock.classList?.contains('custom-html-block') && parentBlock.id !== 'postContent') parentBlock = parentBlock.parentNode;
-                
-                if(parentBlock && parentBlock.classList.contains('custom-html-block')) {
-                    let blockContent = parentBlock.querySelector('.block-content');
-                    let tempDiv = document.createElement('div'); tempDiv.innerHTML = html;
-                    while(tempDiv.firstChild) blockContent.appendChild(tempDiv.firstChild);
-                    
-                    let innerP = document.createElement('p'); innerP.innerHTML = "<br>"; blockContent.appendChild(innerP);
-                    let newRange = document.createRange(); newRange.setStart(innerP, 0); newRange.collapse(true);
-                    sel.removeAllRanges(); sel.addRange(newRange); savedSelectionRange = newRange.cloneRange();
-                    return; 
-                }
-            }
-
+            // Xử lý chèn
             let block = document.createElement("div");
             block.className = "custom-html-block";
             let htmlWithInnerP = html + '<p><br></p>';
@@ -869,7 +870,7 @@
                 <button class="block-del-btn del-bot" contenteditable="false" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>
             `;
             
-            if(sel.rangeCount && editor.contains(sel.anchorNode)) {
+            if(sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
                 let currentNode = sel.anchorNode;
                 let topLevelNode = currentNode.nodeType === 3 ? currentNode.parentNode : currentNode;
                 
@@ -889,11 +890,16 @@
             let outerEmptyP = document.createElement('p'); outerEmptyP.innerHTML = "<br>";
             block.parentNode.insertBefore(outerEmptyP, block.nextSibling);
             
+            // Tự động focus vào dòng trống bên trong khối
             let insideEmptyP = block.querySelector('.block-content').lastElementChild;
-            let newRange = document.createRange();
-            newRange.setStart(insideEmptyP, 0); newRange.collapse(true);
-            sel.removeAllRanges(); sel.addRange(newRange);
-            savedSelectionRange = newRange.cloneRange();
+            if (insideEmptyP) {
+                let newRange = document.createRange();
+                newRange.setStart(insideEmptyP, 0);
+                newRange.collapse(true);
+                sel.removeAllRanges(); 
+                sel.addRange(newRange);
+                savedSelectionRange = newRange.cloneRange();
+            }
         }
 
         // ==========================================
