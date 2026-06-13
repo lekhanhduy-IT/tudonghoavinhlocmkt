@@ -429,23 +429,38 @@
         // ==========================================
         // KHỞI TẠO AN TOÀN KHI LOAD TRANG
         // ==========================================
-        window.onload = async () => {
+        // ==========================================
+        // KHỞI TẠO SIÊU TỐC TỪ CACHE & TẢI NGẦM
+        // ==========================================
+        window.onload = () => {
+            // 1. TẢI NGAY LẬP TỨC TỪ BỘ NHỚ TẠM (0 Giây)
             try {
-                // Set default width for panels on load
-                document.getElementById('panelLeft').style.width = '10vw';
-                document.getElementById('panelRight').style.width = '10vw';
-
+                let cached = localStorage.getItem("MKT_DATA");
+                if(cached) {
+                    let parsedCache = JSON.parse(cached);
+                    if(parsedCache && parsedCache.sheets) {
+                        sysData = parsedCache;
+                        document.getElementById('syncStatus').innerHTML = "⚡ Chế độ nhanh (Local)";
+                    }
+                }
+                
+                // Nạp luôn UI dựa trên Cache (hoặc dữ liệu mặc định)
                 initSizeSelects();
                 initResizers();
-                await fetchAllData();
                 loadDraftData();
                 loadGoogleFonts();
                 loadTemplates();
                 window.loadEmojis(); 
+
             } catch (err) {
-                console.error("Lỗi khởi tạo hệ thống:", err);
+                console.error("Lỗi khởi tạo UI từ Cache:", err);
             }
+            
+            // Gắn sự kiện lõi để gõ được ngay
             attachCoreEvents();
+
+            // 2. KÍCH HOẠT QUÁ TRÌNH TẢI NGẦM TỪ SERVER (Background Fetch)
+            fetchAllDataBackground();
         };
 
         function attachCoreEvents() {
@@ -1113,7 +1128,7 @@
             };
         }
 
-        async function fetchAllData() {
+ async function fetchAllDataBackground() {
             try {
                 let res = await fetch(API_URL + "?t=" + new Date().getTime(), { method: "GET" });
                 let json = await res.json();
@@ -1121,13 +1136,19 @@
                     sysData = json.data; 
                     if(!sysData.sheets) sysData.sheets = {};
                     localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
+                    
+                    // Âm thầm cập nhật lại các Dropdown/Panel nếu có dữ liệu mới từ người khác thêm vào
+                    loadGoogleFonts();
+                    loadTemplates();
+                    window.loadEmojis();
+
+                    document.getElementById('syncStatus').innerText = "✅ Dữ liệu mới nhất"; 
+                    document.getElementById('syncStatus').style.color = "#27ae60";
                 }
             } catch(e) { 
-                console.log("Offline mode"); 
-                document.getElementById('syncStatus').innerText = "⚠️ Mất mạng"; 
+                console.log("Sử dụng hoàn toàn Offline"); 
+                document.getElementById('syncStatus').innerText = "⚠️ Dùng bản lưu Offline"; 
                 document.getElementById('syncStatus').style.color = "var(--red)";
-                let cached = localStorage.getItem("MKT_DATA");
-                if(cached) { try { let p = JSON.parse(cached); if(p.sheets) sysData = p; } catch(err){} }
             }
         }
 
