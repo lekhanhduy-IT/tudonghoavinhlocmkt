@@ -29,7 +29,7 @@
         .panel-resizer { width: 6px; background: #f1f3f4; cursor: col-resize; z-index: 20; flex-shrink: 0; border-left: 1px solid var(--gray-border); border-right: 1px solid var(--gray-border); transition: background 0.2s; }
         .panel-resizer:hover, .panel-resizer.active { background: var(--blue); border-color: var(--blue); }
 
-        /* Vùng Soạn Thảo Ở Giữa */
+        /* Vùng Soạn Thảo Ở Giữa (Giãn Hết Cỡ) */
         .main-editor-area { flex: 1; height: 100%; background: var(--white); position: relative; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; }
         .editor-container { width: 100%; padding: 30px 40px 80px 40px; margin: 0; border: none; box-shadow: none; position: relative; display: flex; flex-direction: column; flex: 1; }
         
@@ -46,7 +46,6 @@
         .rich-input { padding: 15px 20px; outline: none; border-bottom: 1px dashed var(--gray-border); width: 100%; line-height: 1.6; position: relative; transition: padding 0.1s; }
         .rich-input:empty:before { content: attr(data-placeholder); color: #aaa; pointer-events: none; display: block; }
         
-        /* Chuyển Tiêu đề thành thẻ H1 và Cỡ chữ 48px */
         #postTitle { font-size: 48px; font-weight: bold; color: var(--blue); margin: 0; line-height: 1.3; } 
         #postSapo { font-size: 16px; font-style: italic; color: #555; background: #fdfdfd; }
         #postContent { font-size: 15px; display: block; flex: 1; border-bottom: none; padding-bottom: 80px; cursor: text; outline: none;}
@@ -342,7 +341,6 @@
         let activeHtmlBlock = null;     
         let promptCallback = null;
         
-        // SỬ DỤNG VAR ĐỂ TRÁNH LỖI SCOPE INLINE HTML Ở CÁC TRÌNH DUYỆT
         var DEFAULT_HTML_BLOCK = `<style>\n  @import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,700;1,400&display=swap');\n\n  @media screen and (min-width: 1024px) {\n    .desktop-spacing {\n      margin-left: 100px !important;\n      margin-right: 100px !important;\n    }\n  }\n</style>\n\n<div class="desktop-spacing" style="text-align:justify;font-family:'Nunito', Arial, sans-serif !important;font-size:16px;line-height:1.5;color:#333333;max-width:100%;">\n\n<p style="font-weight: normal; margin-bottom: 12px;">\nDán nội dung của bạn\n</p>\n\n<strong>@Mã bài viết</strong>\n</div>`;
 
         let globalTagFormats = { 'H1': null, 'H2': null, 'H3': null, 'H4': null, 'P': null };
@@ -791,7 +789,7 @@
         }
 
         // ==========================================
-        // KHỐI HTML TÙY CHỈNH CHUẨN XÁC
+        // KHỐI HTML TÙY CHỈNH (ĐÃ FIX LỖI CHÈN MỚI)
         // ==========================================
         function updateLineNumbers() {
             let ta = document.getElementById('htmlEditorTextarea');
@@ -831,20 +829,17 @@
             if (activeHtmlBlock) activeHtmlBlock.querySelector('.block-content').innerHTML = document.getElementById('htmlEditorTextarea').value; 
         };
 
-        // Hàm gốc gắn trực tiếp vào Window để không bao giờ bị lỗi undefine
+        // Hàm gốc gắn trực tiếp vào Window để tránh bị lỗi undefined
         window.insertHtmlBlock = function() {
             try {
                 let html = document.getElementById('htmlEditorTextarea').value;
                 if(!html) { window.closeHtmlModal(); return; }
                 
-                // Nếu đang chỉnh sửa khối CŨ, thao tác nhập code đã tự động sync realtime
-                // Nên chỉ cần đóng modal là xong.
                 if (activeHtmlBlock) { 
                     window.closeHtmlModal(); 
                     return; 
                 } 
                 
-                // Tạo mới nếu chưa có khối nào
                 insertDirectHtmlBlock(html); 
                 window.closeHtmlModal();
             } catch (err) {
@@ -859,7 +854,27 @@
             restoreSelection();
             let sel = window.getSelection();
             
-            // Xử lý chèn
+            // Xử lý chèn khối CŨ
+            if(sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
+                let node = sel.anchorNode;
+                let parentBlock = node.nodeType === 3 ? node.parentNode : node;
+                while (parentBlock && !parentBlock.classList?.contains('custom-html-block') && parentBlock !== editor) {
+                    parentBlock = parentBlock.parentNode;
+                }
+                
+                if(parentBlock && parentBlock.classList && parentBlock.classList.contains('custom-html-block')) {
+                    let blockContent = parentBlock.querySelector('.block-content');
+                    let tempDiv = document.createElement('div'); tempDiv.innerHTML = html;
+                    while(tempDiv.firstChild) blockContent.appendChild(tempDiv.firstChild);
+                    
+                    let innerP = document.createElement('p'); innerP.innerHTML = "<br>"; blockContent.appendChild(innerP);
+                    let newRange = document.createRange(); newRange.setStart(innerP, 0); newRange.collapse(true);
+                    sel.removeAllRanges(); sel.addRange(newRange); savedSelectionRange = newRange.cloneRange();
+                    return; 
+                }
+            }
+
+            // TẠO KHỐI MỚI VÀ ÉP RA NGOÀI (CHỐNG LÂY NHIỄM)
             let block = document.createElement("div");
             block.className = "custom-html-block";
             let htmlWithInnerP = html + '<p><br></p>';
@@ -870,31 +885,45 @@
                 <button class="block-del-btn del-bot" contenteditable="false" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>
             `;
             
+            // LOGIC XÁC ĐỊNH VỊ TRÍ CHÈN MỚI (CHỐNG LỖI)
             if(sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
                 let currentNode = sel.anchorNode;
-                let topLevelNode = currentNode.nodeType === 3 ? currentNode.parentNode : currentNode;
                 
-                while(topLevelNode && topLevelNode.parentNode && topLevelNode.parentNode.id !== 'postContent') {
-                    topLevelNode = topLevelNode.parentNode;
-                }
-                
-                if (topLevelNode && topLevelNode.id !== 'postContent') {
-                    topLevelNode.parentNode.insertBefore(block, topLevelNode.nextSibling);
-                } else {
+                if (currentNode === editor) {
                     editor.appendChild(block);
+                } else {
+                    let topLevelNode = currentNode.nodeType === 3 ? currentNode.parentNode : currentNode;
+                    
+                    // Chỉ lùi lên đến khi gặp thẻ con trực tiếp của editor
+                    while(topLevelNode && topLevelNode.parentNode !== editor && topLevelNode !== editor) {
+                        topLevelNode = topLevelNode.parentNode;
+                    }
+                    
+                    if (topLevelNode && topLevelNode.parentNode === editor) {
+                        if (topLevelNode.nextSibling) {
+                            editor.insertBefore(block, topLevelNode.nextSibling);
+                        } else {
+                            editor.appendChild(block);
+                        }
+                    } else {
+                        editor.appendChild(block);
+                    }
                 }
             } else {
                 editor.appendChild(block);
             }
 
-            let outerEmptyP = document.createElement('p'); outerEmptyP.innerHTML = "<br>";
-            block.parentNode.insertBefore(outerEmptyP, block.nextSibling);
+            // Tạo dòng trống an toàn bọc ngoài
+            if (block.parentNode) {
+                let outerEmptyP = document.createElement('p'); outerEmptyP.innerHTML = "<br>";
+                block.parentNode.insertBefore(outerEmptyP, block.nextSibling);
+            }
             
-            // Tự động focus vào dòng trống bên trong khối
+            // Focus vào dòng trống bên trong khối
             let insideEmptyP = block.querySelector('.block-content').lastElementChild;
             if (insideEmptyP) {
                 let newRange = document.createRange();
-                newRange.setStart(insideEmptyP, 0);
+                newRange.setStart(insideEmptyP, 0); 
                 newRange.collapse(true);
                 sel.removeAllRanges(); 
                 sel.addRange(newRange);
