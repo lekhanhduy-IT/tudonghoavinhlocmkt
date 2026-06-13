@@ -12,8 +12,10 @@
 
         .toolbar { height: 40px; background: var(--white); border-bottom: 0.5px solid var(--gray-border); display: flex; align-items: center; padding: 0 10px; flex-shrink: 0; overflow-x: auto; white-space: nowrap; }
         .tool-btn { background: var(--white); border: 0.5px solid var(--gray-border); color: var(--blue); padding: 4px 10px; margin-right: 5px; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 3px; display: inline-flex; align-items: center; gap: 4px;}
-        .tool-btn:hover { background: var(--blue); color: db1010rtant; border: 0.5px solid var(--blue); }
-        
+        .tool-btn:hover { background: var(--blue); color: var(--white) !important; border: 0.5px solid var(--blue); }
+        /* Hiệu ứng nút Xóa Lọc màu đỏ */
+        .btn-clear-filter { background: var(--white) !important; color: var(--text-main) !important; }
+        .btn-clear-filter:hover { color: var(--red) !important; border-color: var(--red) !important; background: #fffaf9 !important; }
         .scroll-area { flex: 1; overflow: auto; position: relative; background: #f9f9f9; }
         table { border-collapse: collapse; table-layout: fixed; width: max-content; background: var(--white); }
         th { background: var(--gray-light); border: 0.5px solid var(--gray-border); position: sticky; top: 0; z-index: 10; font-size: 12px; user-select: none; height: 35px; /* Ép cứng 35px chống hở */ }
@@ -112,7 +114,7 @@
         <div id="filterListArea" style="max-height:200px; overflow-y:auto; padding:5px;"></div>
         <div style="display:flex; gap:5px; padding:8px; border-top:0.5px solid var(--gray-border);">
             <button class="tool-btn" style="flex:1; margin:0;" onclick="applyFilter()">Lọc</button>
-            <button class="tool-btn" style="flex:1; margin:0; background:var(--white); color:var(--text-main);" onclick="clearFilter()">Xóa Lọc</button>
+            <button class="tool-btn btn-clear-filter0; background:var(--white); color:var(--text-main);" onclick="clearFilter()">Xóa Lọc</button>
         </div>
     </div>
 
