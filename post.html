@@ -18,7 +18,7 @@
 
         .workspace { display: flex; width: 100%; height: calc(100vh - 45px); overflow: hidden; background: var(--gray-light); }
 
-        .side-panel { width: 10vw; min-width: 150px; max-width: 800px; background: var(--white); display: flex; flex-direction: column; height: 100%; z-index: 10; flex-shrink: 0; transition: width 0.3s ease-out; }
+        .side-panel { width: 10vw; min-width: 180px; max-width: 800px; background: var(--white); display: flex; flex-direction: column; height: 100%; z-index: 10; flex-shrink: 0; transition: width 0.3s ease-out; }
         .panel-header { padding: 12px 15px; background: var(--gray-light); border-bottom: 1px solid var(--gray-border); font-weight: bold; font-size: 13px; color: var(--blue); }
         .panel-content { flex: 1; overflow-y: auto; padding: 15px; font-size: 13px; }
 
@@ -120,7 +120,6 @@
         .alert-msg { font-size: 13px; margin-bottom: 20px; line-height: 1.5; color: var(--text-main);}
         .custom-prompt-input { width: 100%; border: 1px solid var(--gray-border); padding: 8px; outline: none; margin-bottom: 15px; font-size: 13px; border-radius: 3px; }
 
-        /* Bảng CSS */
         .selected-td { outline: 2px solid var(--blue) !important; outline-offset: -2px; background-color: rgba(1,173,238,0.1) !important; }
         .popup-menu { position: absolute; background: var(--white); border: 1px solid var(--gray-border); box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 9999; display: none; border-radius: 4px; overflow: hidden; min-width: 180px; max-width: 320px; }
         .menu-item { padding: 8px 15px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; color: var(--text-main); font-weight: 500; }
@@ -147,8 +146,11 @@
     </div>
 
     <div class="workspace" id="workspaceArea">
+        
         <div class="side-panel" id="panelLeft">
-            <div class="panel-header"><span><i class="fas fa-database"></i> Dữ Liệu Kế Hoạch</span></div>
+            <div class="panel-header">
+                <span><i class="fas fa-database"></i> Dữ Liệu Kế Hoạch</span>
+            </div>
             <div class="panel-content" id="sourceDataContainer">
                 <div style="color: #999; text-align: center; margin-top: 20px; font-style: italic;">Chưa có dữ liệu từ Kế Hoạch.</div>
             </div>
@@ -180,7 +182,9 @@
         <div class="panel-resizer" id="resizerRight"></div>
 
         <div class="side-panel" id="panelRight">
-            <div class="panel-header"><span><i class="fas fa-toolbox"></i> Bộ Công Cụ</span></div>
+            <div class="panel-header">
+                <span><i class="fas fa-toolbox"></i> Bộ Công Cụ</span>
+            </div>
             <div class="panel-tabs">
                 <div class="ptab-btn active" onclick="window.switchRightTab('tabFormat', this)">Định Dạng</div>
                 <div class="ptab-btn" onclick="window.switchRightTab('tabBlocks', this)">Khối & Mẫu</div>
@@ -213,8 +217,8 @@
                         <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="formatDoc('insertUnorderedList')" title="Bullet Mặc định"><i class="fas fa-list-ul"></i></button>
                         <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="formatDoc('insertOrderedList')" title="Number list"><i class="fas fa-list-ol"></i></button>
                         
-                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="event.stopPropagation(); window.showPopupSafe(document.getElementById('charBulletMenu'), this)" title="Bullet Ký tự"><i class="fas fa-list"></i> <i class="fas fa-caret-down" style="font-size:10px;"></i></button>
-                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="event.stopPropagation(); window.showPopupSafe(document.getElementById('emojiBulletMenu'), this)" title="Bullet Emoji"><i class="far fa-smile"></i> <i class="fas fa-caret-down" style="font-size:10px;"></i></button>
+                        <button class="fmt-btn" onclick="event.stopPropagation(); window.showPopupSafe(document.getElementById('charBulletMenu'), this)" title="Bullet Ký tự"><i class="fas fa-list"></i> <i class="fas fa-caret-down" style="font-size:10px;"></i></button>
+                        <button class="fmt-btn" onclick="event.stopPropagation(); window.showPopupSafe(document.getElementById('emojiBulletMenu'), this)" title="Bullet Emoji"><i class="far fa-smile"></i> <i class="fas fa-caret-down" style="font-size:10px;"></i></button>
                         
                         <button class="fmt-btn" style="grid-column: span 2;" onmousedown="event.preventDefault();" onclick="insertLink()" title="Chèn Link URL"><i class="fas fa-link"></i></button>
                         <button class="fmt-btn" style="grid-column: span 2;" onmousedown="event.preventDefault();" onclick="formatDoc('removeFormat')" title="Xóa định dạng"><i class="fas fa-eraser"></i></button>
@@ -268,13 +272,13 @@
                         <option value="Segoe UI, sans-serif" style="font-family: 'Segoe UI', sans-serif">Mặc định (Segoe UI)</option>
                     </select>
 
-                    <button class="tool-btn" style="width: 100%; justify-content: center; margin-top: 15px;" onmousedown="event.preventDefault();" onclick="toggleRulers()">
+                    <button class="tool-btn" style="width: 100%; justify-content: center; margin-top: 15px;" onclick="toggleRulers()">
                         <i class="fas fa-ruler-combined"></i> Bật / Tắt Thước Đo
                     </button>
                 </div>
 
                 <div id="tabBlocks" class="ptab-content">
-                    <button class="tool-btn" style="width: 100%; justify-content: center; background: var(--blue); color: var(--white); margin-bottom: 15px;" onmousedown="event.preventDefault();" onclick="window.openHtmlModal(DEFAULT_HTML_BLOCK)">
+                    <button class="tool-btn" style="width: 100%; justify-content: center; background: var(--blue); color: var(--white); margin-bottom: 15px;" onclick="window.openDefaultHtmlModal()">
                         <i class="fas fa-code"></i> Viết Mã HTML
                     </button>
                     
@@ -505,7 +509,7 @@
                     if (!sel || !sel.rangeCount) return;
                     
                     let node = sel.anchorNode;
-                    let td = node.nodeType === 3 ? node.parentNode.closest('td, th') : node.closest('td, th');
+                    let td = node.nodeType === 3 ? node.parentNode.closest('td, th') : (node.closest ? node.closest('td, th') : null);
                     let selectedCells = document.querySelectorAll('.selected-td');
                     
                     if (selectedCells.length > 0) {
@@ -540,7 +544,7 @@
                             rows.forEach(r => { if(r.trim() !== '') matrix.push(r.split('\t')); });
                         }
 
-                        if (matrix.length > 0) {
+                        if (matrix.length > 0 && matrix[0].length > 1) { 
                             e.preventDefault(); 
                             let table = td.closest('table');
                             let startR = td.closest('tr').rowIndex;
@@ -551,10 +555,12 @@
                                 if (!targetRow) {
                                     targetRow = table.insertRow();
                                     let refRow = table.rows[startR + i - 1] || table.rows[0];
-                                    for(let k = 0; k < refRow.cells.length; k++){
-                                        let newCell = targetRow.insertCell();
-                                        newCell.style.cssText = refRow.cells[k].style.cssText;
-                                        newCell.innerHTML = '&nbsp;';
+                                    if(refRow) {
+                                        for(let k = 0; k < refRow.cells.length; k++){
+                                            let newCell = targetRow.insertCell();
+                                            newCell.style.cssText = refRow.cells[k].style.cssText;
+                                            newCell.innerHTML = '&nbsp;';
+                                        }
                                     }
                                 }
                                 for (let j = 0; j < matrix[i].length; j++) {
@@ -587,6 +593,9 @@
                     }
                 });
 
+                // ==========================================
+                // BẮT SỰ KIỆN SHIFT + ENTER (Reset định dạng)
+                // ==========================================
                 document.getElementById('postContent').addEventListener('keydown', function(e) {
                     if (e.key === 'Enter' && e.shiftKey) {
                         e.preventDefault();
@@ -1382,6 +1391,136 @@
         }
         
         window.syncScroll = function() { document.getElementById('lineNumbers').scrollTop = document.getElementById('htmlEditorTextarea').scrollTop; }
+
+        window.openHtmlModal = function(preFill = "") {
+            try {
+                restoreSelection();
+                let sel = window.getSelection(); 
+                let ta = document.getElementById('htmlEditorTextarea'); 
+                activeHtmlBlock = null;
+
+                if(sel && sel.rangeCount) {
+                    let node = sel.anchorNode;
+                    let block = node.nodeType === 3 ? node.parentNode : node;
+                    while (block && block !== document.body) {
+                        if (block.classList && block.classList.contains('custom-html-block')) break;
+                        if (block.id === 'postContent') break;
+                        block = block.parentNode;
+                    }
+                    if(block && block.classList && block.classList.contains('custom-html-block')) { 
+                        activeHtmlBlock = block; 
+                        ta.value = block.querySelector('.block-content').innerHTML; 
+                    } else {
+                        ta.value = preFill; 
+                    }
+                } else {
+                    ta.value = preFill;
+                }
+                
+                window.updateLineNumbers(); 
+                document.getElementById('htmlModal').style.display = 'flex';
+            } catch(e) { console.error("Open modal error:", e); }
+        };
+
+        window.closeHtmlModal = function() { document.getElementById('htmlModal').style.display = 'none'; activeHtmlBlock = null; };
+
+        window.syncCodeToEditor = function() { 
+            if (activeHtmlBlock) {
+                let ta = document.getElementById('htmlEditorTextarea');
+                if(ta) activeHtmlBlock.querySelector('.block-content').innerHTML = ta.value; 
+            }
+        };
+
+        window.insertHtmlBlock = function() {
+            try {
+                let ta = document.getElementById('htmlEditorTextarea');
+                let html = ta ? ta.value : "";
+                if(!html) { window.closeHtmlModal(); return; }
+                
+                if (activeHtmlBlock) { 
+                    window.closeHtmlModal(); 
+                    return; 
+                } 
+                
+                window.insertDirectHtmlBlock(html); 
+                window.closeHtmlModal();
+            } catch (err) {
+                showAlert("Lỗi hệ thống khi chèn HTML: " + err.message, true);
+            }
+        };
+
+        window.insertDirectHtmlBlock = function(html) {
+            if(!html) return;
+            let editor = document.getElementById('postContent');
+            restoreSelection(); 
+            let sel = window.getSelection();
+            
+            let isInsideCustom = false;
+            if(sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
+                let node = sel.anchorNode;
+                let element = node.nodeType === 3 ? node.parentNode : node;
+                if(element.closest && element.closest('.custom-html-block')) {
+                    isInsideCustom = true;
+                }
+            }
+
+            if (isInsideCustom) {
+                document.execCommand('insertHTML', false, html);
+                if (sel.rangeCount > 0) savedSelectionRange = sel.getRangeAt(0).cloneRange();
+                return;
+            }
+
+            let block = document.createElement("div");
+            block.className = "custom-html-block";
+            let htmlWithInnerP = html + '<p><br></p>';
+
+            block.innerHTML = `
+                <button class="block-del-btn del-top" contenteditable="false" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>
+                <div class="block-content">${htmlWithInnerP}</div>
+                <button class="block-del-btn del-bot" contenteditable="false" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>
+            `;
+            
+            if(sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
+                let currentNode = sel.anchorNode;
+                
+                if (currentNode === editor) {
+                    editor.appendChild(block);
+                } else {
+                    let topLevelNode = currentNode.nodeType === 3 ? currentNode.parentNode : currentNode;
+                    
+                    while(topLevelNode && topLevelNode.parentNode !== editor && topLevelNode !== editor) {
+                        topLevelNode = topLevelNode.parentNode;
+                    }
+                    
+                    if (topLevelNode && topLevelNode.parentNode === editor) {
+                        if (topLevelNode.nextSibling) {
+                            editor.insertBefore(block, topLevelNode.nextSibling);
+                        } else {
+                            editor.appendChild(block);
+                        }
+                    } else {
+                        editor.appendChild(block);
+                    }
+                }
+            } else {
+                editor.appendChild(block);
+            }
+
+            if (block.parentNode) {
+                let outerEmptyP = document.createElement('p'); outerEmptyP.innerHTML = "<br>";
+                block.parentNode.insertBefore(outerEmptyP, block.nextSibling);
+            }
+            
+            let insideEmptyP = block.querySelector('.block-content').lastElementChild;
+            if (insideEmptyP) {
+                let newRange = document.createRange();
+                newRange.setStart(insideEmptyP, 0); 
+                newRange.collapse(true);
+                sel.removeAllRanges(); 
+                sel.addRange(newRange);
+                savedSelectionRange = newRange.cloneRange();
+            }
+        };
 
         function loadTemplates() {
             if (!sysData || !sysData.sheets) return;
