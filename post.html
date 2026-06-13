@@ -1618,23 +1618,28 @@ else if (action === 'splitCells') {
 // ==========================================
 // TRÙM CUỐI: XỬ LÝ DÁN BẢNG TỪ CHATGPT / NGUỒN KHÁC VÀO TEMPLATE HTML
 // ==========================================
-document.addEventListener('paste', function(e) {
+// ==========================================
+// VƯỢT MẶT CÁC SCRIPT CỦA POST.HTML (SỬ DỤNG EVENT CAPTURING)
+// ==========================================
+window.addEventListener('paste', function(e) {
     if (typeof isPreviewMode !== 'undefined' && isPreviewMode) return;
 
-    // 1. TÌM Ô ĐÍCH CHUẨN XÁC (Khắc phục lỗi click vào text/node trống gây sập JS)
+    // 1. TÌM CHÍNH XÁC Ô ĐANG ĐƯỢC CHỌN
     let targetNode = e.target;
-    if (targetNode && targetNode.nodeType === 3) {
-        targetNode = targetNode.parentNode; 
-    }
+    if (targetNode && targetNode.nodeType === 3) targetNode = targetNode.parentNode;
     let td = (targetNode && targetNode.closest) ? targetNode.closest('td, th') : null;
     
     let selectedCells = document.querySelectorAll('.selected-td');
-    if (!td && selectedCells.length > 0) {
-        td = selectedCells[0];
-    }
+    if (!td && selectedCells.length > 0) td = selectedCells[0];
 
     let editor = document.getElementById('postContent');
-    if (!td || !editor || !editor.contains(td)) return; // Bỏ qua nếu không dán vào bảng trong trình soạn thảo
+    
+    // NẾU KHÔNG NẰM TRONG BẢNG: Trả lại quyền dán cho post.html xử lý block bình thường
+    if (!td || !editor || !editor.contains(td)) return; 
+
+    // --- NẾU NẰM TRONG BẢNG: CƯỚP QUYỀN ƯU TIÊN VÀ CHẶN CÁC SCRIPT KHÁC CỦA POST.HTML ---
+    e.preventDefault();
+    e.stopImmediatePropagation(); 
 
     let clipData = e.clipboardData || window.clipboardData || (e.originalEvent && e.originalEvent.clipboardData);
     if (!clipData) return;
@@ -1644,7 +1649,7 @@ document.addEventListener('paste', function(e) {
     let sourceMatrix = [];
     let hasTableData = false;
 
-    // 2. PHÂN TÍCH HTML NGUỒN (CHỐNG LỖI CỤT THẺ DO COPY TỪ CHATGPT/WEB)
+    // 2. PHÂN TÍCH HTML (XỬ LÝ DỮ LIỆU TỪ CHATGPT)
     if (htmlData) {
         let parseHtml = htmlData;
         if (!parseHtml.match(/<table/i)) {
@@ -1669,8 +1674,6 @@ document.addEventListener('paste', function(e) {
                     
                     let rs = cell.rowSpan || 1;
                     let cs = cell.colSpan || 1;
-                    
-                    // Giữ nội dung nhưng dọn dẹp các thẻ <p> thừa bọc ngoài
                     let val = cell.innerHTML.trim().replace(/^<p[^>]*>/i, '').replace(/<\/p>$/i, '').trim(); 
 
                     for (let i = 0; i < rs; i++) {
@@ -1684,7 +1687,7 @@ document.addEventListener('paste', function(e) {
         }
     }
 
-    // 3. XỬ LÝ DỮ LIỆU EXCEL/WORD NẾU KHÔNG CÓ HTML
+    // 3. XỬ LÝ TEXT (EXCEL) NẾU KHÔNG CÓ HTML
     if (!hasTableData && textData) {
         let rows = textData.replace(/\r/g, '').trim().split('\n');
         if (rows.length > 1 || textData.includes('\t')) {
@@ -1697,22 +1700,16 @@ document.addEventListener('paste', function(e) {
 
     if (!hasTableData || sourceMatrix.length === 0) return;
 
-    // --- XÁC NHẬN LÀ BẢNG -> CHẶN HÀNH VI DÁN MẶC ĐỊNH GÂY VỠ GIAO DIỆN ---
-    e.preventDefault();
-    e.stopPropagation();
-
-    // 4. LẬP BẢN ĐỒ TỌA ĐỘ BẢNG ĐÍCH TRONG BÀI VIẾT
+    // 4. LẬP BẢN ĐỒ TỌA ĐỘ BẢNG TRONG BÀI VIẾT
     let targetTable = td.closest('table');
     let targetMap = [];
     let tRows = targetTable.rows;
-    
     for (let r = 0; r < tRows.length; r++) {
         if (!targetMap[r]) targetMap[r] = [];
         let cIdx = 0;
         for (let c = 0; c < tRows[r].cells.length; c++) {
             let cell = tRows[r].cells[c];
             while (targetMap[r][cIdx] !== undefined) cIdx++;
-            
             let rs = cell.rowSpan || 1;
             let cs = cell.colSpan || 1;
             for (let i = 0; i < rs; i++) {
@@ -1724,7 +1721,7 @@ document.addEventListener('paste', function(e) {
         }
     }
 
-    // 5. TÌM VỊ TRÍ ĐÍCH & KÍCH HOẠT DÁN THÔNG MINH
+    // 5. TÌM TỌA ĐỘ ĐÍCH
     let startTd = td;
     if (selectedCells.length > 0) {
         let minR = 9999, minC = 9999;
@@ -1750,25 +1747,21 @@ document.addEventListener('paste', function(e) {
         if (found) break;
     }
 
-    // LÔ-GIC THÔNG MINH CHO TEMPLATE CỦA BẠN:
-    // Nếu bạn dán vào Cột 2 của Template 2 cột, và bảng nguồn copy cũng có 2 cột (vd: Copy từ ChatGPT).
-    // Hệ thống sẽ tự động BỎ QUA cột tiêu đề của nguồn, chỉ lấy dữ liệu để dán vào Cột 2 của bạn.
+    // LOGIC DÁN BỎ QUA CỘT TIÊU ĐỀ NGUỒN NẾU ĐANG CHỌN CỘT 2 CỦA BẢNG 2 CỘT
     let isPastingRightColumn = (startC === 1 && sourceMatrix.length > 0 && sourceMatrix[0].length >= 2 && targetMap[0].length === 2);
     let colOffsetToRead = isPastingRightColumn ? 1 : 0; 
 
-    // 6. RẢI DỮ LIỆU VÀO BẢNG ĐÍCH
+    // 6. RẢI DỮ LIỆU VÀO ĐÚNG TỌA ĐỘ
     let updatedCells = new Set();
     for (let r = 0; r < sourceMatrix.length; r++) {
         let trIdx = startR + r;
         
-        // Thêm hàng mới nếu dữ liệu copy dài hơn Template
         if (trIdx >= targetMap.length) {
             let newRow = targetTable.insertRow(-1);
             targetMap[trIdx] = [];
             let colCount = targetMap[0] ? targetMap[0].length : (sourceMatrix[r].length - colOffsetToRead);
             for (let i = 0; i < colCount; i++) {
                 let newCell = newRow.insertCell(-1);
-                // Áp dụng định dạng cơ bản để hàng mới tạo không bị vỡ khung
                 newCell.style.border = "1px solid #d9d9d9";
                 newCell.style.padding = "10px";
                 newCell.style.color = "#333333";
@@ -1781,8 +1774,6 @@ document.addEventListener('paste', function(e) {
             if (val === null || val === undefined) continue;
 
             let tcIdx = startC + (c - colOffsetToRead);
-            
-            // Thêm cột mới nếu cần
             if (tcIdx >= targetMap[trIdx].length) {
                  let actualRow = targetTable.rows[trIdx];
                  if (actualRow) {
@@ -1801,13 +1792,13 @@ document.addEventListener('paste', function(e) {
         }
     }
 
-    // 7. LƯU LẠI VÀO KHỐI MÃ HTML
     if (typeof activeHtmlBlock !== 'undefined' && activeHtmlBlock && activeHtmlBlock.contains(targetTable)) {
         let ta = document.getElementById('htmlEditorTextarea');
         if (ta) ta.value = activeHtmlBlock.querySelector('.block-content').innerHTML;
         if (typeof window.updateLineNumbers === 'function') window.updateLineNumbers();
     }
-});
+
+}, true); // <<< CHỮ "true" NÀY CHÍNH LÀ CHÌA KHÓA VÀNG BẮT SỰ KIỆN TỪ NGOÀI VÀO (CAPTURE)
     </script>
 </body>
 </html>
