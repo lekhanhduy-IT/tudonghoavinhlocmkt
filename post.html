@@ -1428,6 +1428,7 @@ Google Fonts:</div>
             } catch(e) {}
         }
 // Hàm tìm và nạp dữ liệu bài viết vào khung soạn thảo
+// Hàm tìm và nạp dữ liệu bài viết vào khung soạn thảo
 function loadPostIntoEditor(postId) {
     if (!postId || !sysData || !sysData.sheets || !sysData.sheets["Bài viết_hidden"]) return;
 
@@ -1454,8 +1455,26 @@ function loadPostIntoEditor(postId) {
         tempDiv.innerHTML = targetRow[4] || "";
         let postBody = tempDiv.querySelector('.post-body');
 
-        // Nạp nội dung vào editor
-        document.getElementById('postContent').innerHTML = postBody ? postBody.innerHTML : "";
+        if (postBody) {
+            // KHÔI PHỤC LẠI GIAO DIỆN CỦA CÁC KHỐI HTML CUSTOM (Viền xanh & Nút xóa)
+            postBody.querySelectorAll('.custom-html-block').forEach(block => {
+                // 1. Phục hồi CSS (xóa style ẩn viền do hàm savePostToSheet tạo ra)
+                block.style.border = "";
+                block.style.margin = "";
+
+                // 2. Dọn dẹp nút xóa cũ (nếu có sót lại để tránh bị đúp nút)
+                block.querySelectorAll('.block-del-btn').forEach(btn => btn.remove());
+
+                // 3. Thêm lại mã HTML của 2 nút xóa (trên và dưới)
+                block.insertAdjacentHTML('afterbegin', '<button class="block-del-btn del-top" contenteditable="false" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>');
+                block.insertAdjacentHTML('beforeend', '<button class="block-del-btn del-bot" contenteditable="false" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>');
+            });
+
+            // Nạp nội dung đã khôi phục xong vào editor
+            document.getElementById('postContent').innerHTML = postBody.innerHTML;
+        } else {
+            document.getElementById('postContent').innerHTML = "";
+        }
         
         console.log("Đã nạp bài viết: ", postId);
     }
