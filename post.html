@@ -18,7 +18,7 @@
 
         .workspace { display: flex; width: 100%; height: calc(100vh - 45px); overflow: hidden; background: var(--gray-light); }
 
-        .side-panel { width: 260px; min-width: 50px; max-width: 800px; background: var(--white); display: flex; flex-direction: column; height: 100%; z-index: 10; flex-shrink: 0; }
+        .side-panel { width: 10vw; min-width: 50px; max-width: 800px; background: var(--white); display: flex; flex-direction: column; height: 100%; z-index: 10; flex-shrink: 0; transition: width 0.3s ease-out; }
         .panel-header { padding: 12px 15px; background: var(--gray-light); border-bottom: 1px solid var(--gray-border); font-weight: bold; font-size: 13px; color: var(--blue); }
         .panel-content { flex: 1; overflow-y: auto; padding: 15px; font-size: 13px; }
 
@@ -26,7 +26,7 @@
         .panel-resizer:hover, .panel-resizer.active { background: var(--blue); border-color: var(--blue); }
 
         .main-editor-area { flex: 1; height: 100%; background: var(--white); position: relative; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; }
-        .editor-container { width: 100%; padding: 30px 40px 80px 40px; margin: 0; border: none; box-shadow: none; position: relative; display: flex; flex-direction: column; flex: 1; }
+        .editor-container { width: 100%; padding: 30px 40px 80px 40px; margin: 0; border: none; box-shadow: none; position: relative; display: flex; flex-direction: column; flex: 1; transition: padding 0.3s; }
         
         .ruler-container { display: none; position: sticky; top: 0; z-index: 50; background: #fff; height: 24px; border-bottom: 1px solid var(--gray-border); width: 100%; box-shadow: 0 2px 5px rgba(0,0,0,0.05); flex-shrink: 0;}
         .ruler-h { position: relative; height: 100%; margin: 0 40px; background-image: repeating-linear-gradient(90deg, transparent, transparent 9px, #ccc 9px, #ccc 10px), repeating-linear-gradient(90deg, transparent, transparent 49px, #555 49px, #555 50px); }
@@ -36,17 +36,17 @@
         #markerLeft { left: 0px; transform: translateX(-7px); } 
         #markerRight { right: 0px; transform: translateX(7px); }
 
-        .rich-input { padding: 15px 20px; outline: none; border-bottom: 1px dashed var(--gray-border); width: 100%; line-height: 1.6; position: relative; transition: padding 0.1s; }
+        .rich-input { padding: 15px 20px; outline: none; border-bottom: 1px dashed var(--gray-border); width: 100%; line-height: 1.6; position: relative; transition: border 0.3s; }
         .rich-input:empty:before { content: attr(data-placeholder); color: #aaa; pointer-events: none; display: block; }
         
-        #postTitle { font-size: 38px; font-weight: bold; color: var(--blue); margin: 0; line-height: 1.3; } 
+        #postTitle { font-size: 48px; font-weight: bold; color: var(--blue); margin: 0; line-height: 1.3; } 
         #postSapo { font-size: 16px; font-style: italic; color: #555; background: #fdfdfd; }
         #postContent { font-size: 15px; display: block; flex: 1; border-bottom: none; padding-bottom: 80px; cursor: text; outline: none;}
         
         #postContent ul, #postContent ol { padding-left: 30px; margin-top: 5px; margin-bottom: 10px; }
         #postContent li { margin-bottom: 5px; }
 
-        .cover-area { padding: 10px 20px; border-bottom: 1px dashed var(--gray-border); background: var(--white); }
+        .cover-area { padding: 10px 20px; border-bottom: 1px dashed var(--gray-border); background: var(--white); transition: border 0.3s; }
         .cover-input { width: 100%; padding: 6px 10px; border: 1px solid var(--gray-border); outline: none; font-size: 12px; border-radius: 2px; margin-bottom: 5px; color: var(--blue); }
         .cover-preview { width: 100%; max-height: 400px; object-fit: contain; display: none; border: 1px solid var(--gray-border); margin-top: 5px; }
 
@@ -54,14 +54,8 @@
         .custom-html-block:hover, .custom-html-block.active { border: 1px dashed rgba(1, 173, 238, 0.5); }
         .block-content { min-height: 20px; font-size: initial; font-weight: normal; font-style: normal; text-align: left; line-height: normal; }
 
-        .custom-html-block::before {
-            content: '↵'; position: absolute; top: 0; left: 0; background: var(--blue); color: #fff;
-            width: 22px; height: 22px; display: none; align-items: center; justify-content: center;
-            font-size: 14px; font-weight: bold; cursor: pointer; z-index: 15; border-bottom-right-radius: 4px; box-shadow: 1px 1px 3px rgba(0,0,0,0.2);
-            font-family: monospace;
-        }
+        .custom-html-block::before { content: '↵'; position: absolute; top: 0; left: 0; background: var(--blue); color: #fff; width: 22px; height: 22px; display: none; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; cursor: pointer; z-index: 15; border-bottom-right-radius: 4px; box-shadow: 1px 1px 3px rgba(0,0,0,0.2); font-family: monospace; }
         .custom-html-block:hover::before { display: flex; }
-
         .block-del-btn { position: absolute; left: 50%; transform: translateX(-50%); width: 20px; height: 20px; background: var(--red); color: var(--white); border-radius: 50%; display: none; justify-content: center; align-items: center; font-size: 11px; cursor: pointer; z-index: 10; border: none; box-shadow: 0 2px 5px rgba(0,0,0,0.2);}
         .custom-html-block:hover .block-del-btn { display: flex; }
         .del-top { top: -10px; } .del-bot { bottom: -10px; }
@@ -77,7 +71,7 @@
         .ptab-content.active { display: block; }
 
         .tool-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 12px; }
-        .fmt-btn { background: var(--white); border: 1px solid var(--gray-border); padding: 6px 0; text-align: center; cursor: pointer; color: var(--text-main); font-size: 13px; transition: 0.2s; outline: none; border-radius: 3px; }
+        .fmt-btn { background: var(--white); border: 1px solid var(--gray-border); padding: 6px 0; text-align: center; cursor: pointer; color: var(--text-main); font-size: 13px; transition: 0.2s; outline: none; border-radius: 3px; display:flex; align-items:center; justify-content:center; gap:2px; }
         .fmt-btn:hover { background: var(--gray-light); color: var(--blue); border-color: var(--blue); }
         
         .tool-row { display: flex; gap: 5px; margin-bottom: 8px; align-items: center; justify-content: space-between; }
@@ -101,8 +95,19 @@
         .template-item:hover { border-color: var(--blue); box-shadow: 0 2px 5px rgba(1, 173, 238, 0.2); }
         .template-preview-box { zoom: 0.6; pointer-events: none; max-height: none; overflow: visible; }
 
+        /* Nút Toggle Preview Góc Dưới Phải */
+        .btn-toggle-preview { position: fixed; bottom: 20px; right: 20px; z-index: 9999; padding: 10px 20px; border-radius: 30px; font-weight: bold; font-size: 13px; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.2); border: 2px solid var(--blue); background: var(--blue); color: var(--white); transition: all 0.3s ease; }
+        .btn-toggle-preview:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
+
+        /* Emoji Grid & Char Menu */
+        .emoji-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; padding: 5px; }
+        .emoji-item { cursor: pointer; font-size: 18px; text-align: center; padding: 4px; border-radius: 4px; }
+        .emoji-item:hover { background: var(--gray-light); transform: scale(1.2); }
+        .char-item { cursor: pointer; font-size: 16px; padding: 6px 15px; display: block; text-align: center; }
+        .char-item:hover { background: var(--gray-light); color: var(--blue); font-weight: bold;}
+
         /* Modals & Popups */
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: none; justify-content: center; align-items: center; }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: none; justify-content: center; align-items: center; }
         .modal-box { background: var(--white); border: 1px solid var(--gray-border); box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: flex; flex-direction: column; border-radius: 4px; overflow: hidden; }
         .modal-header { padding: 10px 15px; background: var(--gray-light); border-bottom: 1px solid var(--gray-border); font-weight: bold; display: flex; justify-content: space-between; font-size: 13px; color: var(--blue); }
         
@@ -115,12 +120,8 @@
         .alert-msg { font-size: 13px; margin-bottom: 20px; line-height: 1.5; color: var(--text-main);}
         .custom-prompt-input { width: 100%; border: 1px solid var(--gray-border); padding: 8px; outline: none; margin-bottom: 15px; font-size: 13px; border-radius: 3px; }
 
-        /* ==========================================
-           UI CHỈNH SỬA TABLE 
-           ========================================== */
         .selected-td { outline: 2px solid var(--blue) !important; outline-offset: -2px; background-color: rgba(1,173,238,0.1) !important; }
-        
-        .popup-menu { position: absolute; background: var(--white); border: 1px solid var(--gray-border); box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 9999; display: none; border-radius: 4px; overflow: hidden; min-width: 180px; }
+        .popup-menu { position: absolute; background: var(--white); border: 1px solid var(--gray-border); box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 9999; display: none; border-radius: 4px; overflow: hidden; min-width: 180px; max-width: 300px; }
         .menu-item { padding: 8px 15px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; color: var(--text-main); font-weight: 500; }
         .menu-item:hover { background: #f1f3f4; color: var(--blue); }
         .divider { border-bottom: 1px solid var(--gray-border); margin: 4px 0; }
@@ -169,7 +170,7 @@
                 <h1 class="rich-input" contenteditable="true" id="postTitle" data-placeholder="Nhập Tiêu đề bài viết tại đây..."></h1>
                 <div class="rich-input" contenteditable="true" id="postSapo" data-placeholder="Nhập Sapo (Đoạn tóm tắt) tại đây..."></div>
                 
-                <div class="cover-area">
+                <div class="cover-area" id="coverArea">
                     <input type="text" id="coverUrlInput" class="cover-input" placeholder="Dán URL ảnh bìa (Thumbnail) vào đây..." oninput="updateCoverPreview()">
                     <img id="coverPreview" class="cover-preview">
                 </div>
@@ -213,10 +214,14 @@
                         <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('justifyRight')" title="Căn phải"><i class="fas fa-align-right"></i></button>
                         <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('justifyFull')" title="Căn đều"><i class="fas fa-align-justify"></i></button>
 
-                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('insertUnorderedList')" title="Bullet list"><i class="fas fa-list-ul"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('insertUnorderedList')" title="Bullet Mặc định"><i class="fas fa-list-ul"></i></button>
                         <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('insertOrderedList')" title="Number list"><i class="fas fa-list-ol"></i></button>
-                        <button class="fmt-btn" onmousedown="event.preventDefault(); insertLink()" title="Chèn Link URL"><i class="fas fa-link"></i></button>
-                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('removeFormat')" title="Xóa định dạng"><i class="fas fa-eraser"></i></button>
+                        
+                        <button class="fmt-btn" onmousedown="event.preventDefault(); showPopupSafe(document.getElementById('charBulletMenu'), event)" title="Bullet Ký tự"><i class="fas fa-list"></i> <i class="fas fa-caret-down" style="font-size:10px;"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault(); showPopupSafe(document.getElementById('emojiBulletMenu'), event)" title="Bullet Emoji"><i class="far fa-smile"></i> <i class="fas fa-caret-down" style="font-size:10px;"></i></button>
+                        
+                        <button class="fmt-btn" style="grid-column: span 2;" onmousedown="event.preventDefault(); insertLink()" title="Chèn Link URL"><i class="fas fa-link"></i> Chèn Link</button>
+                        <button class="fmt-btn" style="grid-column: span 2;" onmousedown="event.preventDefault(); formatDoc('removeFormat')" title="Xóa định dạng"><i class="fas fa-eraser"></i> Xóa Đ.Dạng</button>
                     </div>
 
                     <div class="tool-row">
@@ -299,7 +304,28 @@
 
             </div>
         </div>
+    </div>
 
+    <button id="btnTogglePreview" class="btn-toggle-preview" onclick="window.togglePreviewMode()">
+        <i class="fas fa-eye"></i> Xem trước
+    </button>
+
+    <div class="popup-menu" id="charBulletMenu" style="display:none; padding:5px;">
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
+            <span class="char-item" onclick="window.applyCustomBullet('-')">-</span>
+            <span class="char-item" onclick="window.applyCustomBullet('+')">+</span>
+            <span class="char-item" onclick="window.applyCustomBullet('•')">•</span>
+            <span class="char-item" onclick="window.applyCustomBullet('➢')">➢</span>
+            <span class="char-item" onclick="window.applyCustomBullet('➤')">➤</span>
+            <span class="char-item" onclick="window.applyCustomBullet('★')">★</span>
+            <span class="char-item" onclick="window.applyCustomBullet('✦')">✦</span>
+            <span class="char-item" onclick="window.applyCustomBullet('✽')">✽</span>
+            <span class="char-item" onclick="window.applyCustomBullet('→')">→</span>
+        </div>
+    </div>
+
+    <div class="popup-menu" id="emojiBulletMenu" style="display:none; padding:5px; max-width: 250px;">
+        <div class="emoji-grid" id="emojiGrid"></div>
     </div>
 
     <div class="modal-overlay" id="htmlModal">
@@ -367,12 +393,12 @@
         let sysData = { sheets: {} }; 
         let draftData = null;
         let actionQueue = [];
+        let isPreviewMode = false; // Trạng thái xem trước
         
         let savedSelectionRange = null; 
         let activeHtmlBlock = null;     
         let promptCallback = null;
         
-        // MÃ CẬP NHẬT THEO YÊU CẦU MỚI: BỎ ĐOẠN TABLE
         var DEFAULT_HTML_BLOCK = `<style>\n  @import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,700;1,400&display=swap');\n\n  @media screen and (min-width: 1024px) {\n    .desktop-spacing {\n      margin-left: 100px !important;\n      margin-right: 100px !important;\n    }\n  }\n</style>\n\n<div class="desktop-spacing" style="text-align:justify;font-family:'Nunito', Arial, sans-serif !important;font-size:16px;line-height:1.5;color:#333333;max-width:100%;">\n\n<p style="font-weight: normal; margin-bottom: 12px;">\nDán nội dung của bạn\n</p>\n\n</div>`;
 
         let globalTagFormats = { 'H1': null, 'H2': null, 'H3': null, 'H4': null, 'H5': null, 'H6': null };
@@ -384,7 +410,7 @@
         let tblStartCell = null;
 
         // ==========================================
-        // CÁC HÀM XỬ LÝ TAB (ĐÃ BỔ SUNG LẠI)
+        // CÁC HÀM XỬ LÝ TAB
         // ==========================================
         window.switchRightTab = function(tabId, btn) {
             document.querySelectorAll('.ptab-btn').forEach(b => b.classList.remove('active'));
@@ -398,12 +424,17 @@
         // ==========================================
         window.onload = async () => {
             try {
+                // Set default width for panels on load
+                document.getElementById('panelLeft').style.width = '10vw';
+                document.getElementById('panelRight').style.width = '10vw';
+
                 initSizeSelects();
                 initResizers();
                 await fetchAllData();
                 loadDraftData();
                 loadGoogleFonts();
                 loadTemplates();
+                loadEmojis(); // Nạp Emoji mới
             } catch (err) {
                 console.error("Lỗi khởi tạo hệ thống:", err);
             }
@@ -436,7 +467,7 @@
                 });
 
                 document.getElementById('editorContainer').addEventListener('click', function(e) {
-                    if (e.target === this) {
+                    if (e.target === this && !isPreviewMode) {
                         let editor = document.getElementById('postContent');
                         editor.focus();
                         if (typeof window.getSelection !== 'undefined' && typeof document.createRange !== 'undefined') {
@@ -450,6 +481,7 @@
                 });
 
                 document.getElementById('postContent').addEventListener('click', function(e) {
+                    if(isPreviewMode) return;
                     let block = e.target.closest('.custom-html-block');
                     if(block) {
                         let rect = block.getBoundingClientRect();
@@ -471,14 +503,52 @@
                     }
                 });
 
-                document.addEventListener('click', (e) => {
-                    let menu = document.getElementById('tableContextMenu');
-                    if(menu && menu.style.display === 'block' && !menu.contains(e.target)) {
-                        menu.style.display = 'none';
+                // ==========================================
+                // BẮT SỰ KIỆN SHIFT + ENTER (Reset định dạng)
+                // ==========================================
+                document.getElementById('postContent').addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' && e.shiftKey) {
+                        e.preventDefault();
+                        let cleanP = document.createElement('p');
+                        cleanP.innerHTML = '<br>';
+                        cleanP.style.cssText = "font-weight:normal; font-style:normal; text-decoration:none; color:#333333; font-size:15px;";
+                        
+                        let sel = window.getSelection();
+                        if (!sel || !sel.rangeCount) return;
+                        let range = sel.getRangeAt(0);
+                        
+                        let block = range.startContainer;
+                        if(block.nodeType === 3) block = block.parentNode;
+                        let topBlock = block.closest('p, h1, h2, h3, h4, h5, h6, div');
+                        
+                        if (topBlock && topBlock.id !== 'postContent') {
+                            topBlock.parentNode.insertBefore(cleanP, topBlock.nextSibling);
+                        } else {
+                            this.appendChild(cleanP);
+                        }
+                        
+                        range.setStart(cleanP, 0);
+                        range.collapse(true);
+                        sel.removeAllRanges();
+                        sel.addRange(range);
+                        savedSelectionRange = range.cloneRange();
+                        
+                        // Cố gắng xóa định dạng thừa
+                        document.execCommand('removeFormat', false, null);
                     }
                 });
 
+                document.addEventListener('click', (e) => {
+                    document.querySelectorAll('.popup-menu, .popup-box').forEach(el => {
+                        if(el.id !== 'htmlModal' && el.id !== 'customAlert' && el.id !== 'customPrompt') {
+                            if(!el.contains(e.target)) el.style.display = 'none';
+                        }
+                    });
+                });
+
+                // TABLE EVENTS
                 document.addEventListener('mousemove', (e) => {
+                    if(isPreviewMode) return;
                     let tbl = e.target.closest('table');
                     let ui = document.getElementById('tableHoverUI');
                     if (tbl && document.getElementById('postContent').contains(tbl)) {
@@ -495,6 +565,7 @@
                 });
 
                 document.getElementById('postContent').addEventListener('mousedown', (e) => {
+                    if(isPreviewMode) return;
                     let td = e.target.closest('td, th');
                     if (td && document.getElementById('postContent').contains(td)) {
                         isTblSelecting = true;
@@ -509,7 +580,7 @@
                 });
 
                 document.getElementById('postContent').addEventListener('mouseover', (e) => {
-                    if (!isTblSelecting || !tblStartCell) return;
+                    if (!isTblSelecting || !tblStartCell || isPreviewMode) return;
                     let td = e.target.closest('td, th');
                     if (td && td.closest('table') === tblStartCell.closest('table')) {
                         highlightTableBox(tblStartCell, td);
@@ -519,6 +590,7 @@
                 document.addEventListener('mouseup', () => { isTblSelecting = false; });
 
                 document.getElementById('postContent').addEventListener('contextmenu', (e) => {
+                    if(isPreviewMode) return;
                     let td = e.target.closest('td, th');
                     if(td && document.getElementById('postContent').contains(td)) {
                         e.preventDefault();
@@ -547,6 +619,116 @@
             } catch (err) { console.error("Lỗi gắn sự kiện:", err); }
         }
 
+        // ==========================================
+        // TOGGLE PREVIEW MODE
+        // ==========================================
+        window.togglePreviewMode = function() {
+            isPreviewMode = !isPreviewMode;
+            let leftP = document.getElementById('panelLeft');
+            let rightP = document.getElementById('panelRight');
+            let resL = document.getElementById('resizerLeft');
+            let resR = document.getElementById('resizerRight');
+            let btn = document.getElementById('btnTogglePreview');
+            let editorCont = document.getElementById('editorContainer');
+            let coverArea = document.getElementById('coverArea');
+            let richInputs = document.querySelectorAll('.rich-input');
+            
+            if (isPreviewMode) {
+                // Sang chế độ xem
+                leftP.style.display = 'none'; rightP.style.display = 'none';
+                resL.style.display = 'none'; resR.style.display = 'none';
+                
+                btn.innerHTML = '<i class="fas fa-edit"></i> Chỉnh sửa';
+                btn.style.background = "var(--white)";
+                btn.style.color = "var(--blue)";
+                
+                editorCont.style.padding = "20px 100px";
+                coverArea.style.border = "none";
+                richInputs.forEach(i => {
+                    i.style.border = "none";
+                    i.contentEditable = "false";
+                });
+            } else {
+                // Về chỉnh sửa
+                leftP.style.display = 'flex'; rightP.style.display = 'flex';
+                resL.style.display = 'block'; resR.style.display = 'block';
+                
+                btn.innerHTML = '<i class="fas fa-eye"></i> Xem trước';
+                btn.style.background = "var(--blue)";
+                btn.style.color = "var(--white)";
+                
+                editorCont.style.padding = "30px 40px 80px 40px";
+                coverArea.style.borderBottom = "1px dashed var(--gray-border)";
+                richInputs.forEach(i => {
+                    if(i.id !== 'postContent') i.style.borderBottom = "1px dashed var(--gray-border)";
+                    i.contentEditable = "true";
+                });
+            }
+        };
+
+        // ==========================================
+        // BULLET KÝ TỰ & EMOJI
+        // ==========================================
+        window.loadEmojis = function() {
+            let emojiMenu = document.getElementById('emojiGrid');
+            if(!emojiMenu) return;
+            emojiMenu.innerHTML = '';
+            
+            let emojis = [];
+            if (sysData.sheets && sysData.sheets["emoji_hidden"]) {
+                let sheet = sysData.sheets["emoji_hidden"];
+                for(let i=1; i<sheet.length; i++) {
+                    if(sheet[i][0]) emojis.push(sheet[i][0]);
+                }
+            }
+            
+            // Khởi tạo mặc định nếu Sheet trống
+            if (emojis.length === 0) {
+                emojis = ['😀','😂','🥰','😎','🤔','👍','🙌','❤️','🔥','✨','🎉','🌟','✅','❌','💡','👉','👇','🔴','🟢','🔵'];
+            }
+            
+            emojis.forEach(emo => {
+                let d = document.createElement('div');
+                d.className = "emoji-item";
+                d.innerText = emo;
+                d.onclick = (e) => { e.stopPropagation(); window.applyCustomBullet(emo); };
+                emojiMenu.appendChild(d);
+            });
+        };
+
+        window.applyCustomBullet = function(charValue) {
+            restoreSelection();
+            let sel = window.getSelection();
+            if(!sel || !sel.rangeCount) return;
+            
+            let node = sel.anchorNode;
+            let currentLi = node.nodeType === 3 ? node.parentNode.closest('li') : node.closest('li');
+
+            if (!currentLi) {
+                // Chưa có list thì tạo UL mới
+                document.execCommand('insertUnorderedList', false, null);
+                sel = window.getSelection();
+                node = sel.anchorNode;
+                let newUl = node.nodeType === 3 ? node.parentNode.closest('ul') : node.closest('ul');
+                if (newUl) newUl.style.listStyleType = `"${charValue} "`;
+            } else {
+                let currentUl = currentLi.closest('ul');
+                // Nếu đang đứng trong UL mà click chọn Icon khác -> Thụt lề cấp thấp hơn (Sub-list)
+                if (currentUl && currentUl.style.listStyleType !== `"${charValue} "`) {
+                    document.execCommand('indent', false, null);
+                    sel = window.getSelection();
+                    node = sel.anchorNode;
+                    let subUl = node.nodeType === 3 ? node.parentNode.closest('ul') : node.closest('ul');
+                    if (subUl) subUl.style.listStyleType = `"${charValue} "`;
+                }
+            }
+            document.getElementById('charBulletMenu').style.display = 'none';
+            document.getElementById('emojiBulletMenu').style.display = 'none';
+        };
+
+        // ==========================================
+        // XỬ LÝ HÀNH ĐỘNG TABLE 
+        // ==========================================
         function highlightTableBox(startTd, endTd) {
             let table = startTd.closest('table');
             document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
@@ -891,6 +1073,13 @@
             let fonts = rootContent.querySelectorAll('font[face="VLCustomFontName"]');
             fonts.forEach(f => { f.removeAttribute('face'); f.style.fontFamily = fontValue; });
             setTimeout(() => { syncGlobalFormat(); detectFormatting(); }, 50);
+        }
+
+        window.showPopupSafe = function(menu, e) { 
+            menu.style.display = "block"; let x = e.clientX, y = e.clientY + 15; 
+            if(x + menu.offsetWidth > window.innerWidth) x = window.innerWidth - menu.offsetWidth - 5; 
+            if(y + menu.offsetHeight > window.innerHeight) y = window.innerHeight - menu.offsetHeight - 5; 
+            menu.style.left = x + "px"; menu.style.top = y + "px"; 
         }
 
         function showAlert(msg, isError = false) {
