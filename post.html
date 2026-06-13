@@ -18,8 +18,8 @@
 
         .workspace { display: flex; width: 100%; height: calc(100vh - 45px); overflow: hidden; background: var(--gray-light); }
 
-        /* Panel Trái/Phải chỉ 10vw */
-        .side-panel { width: 10vw; min-width: 150px; max-width: 800px; background: var(--white); display: flex; flex-direction: column; height: 100%; z-index: 10; flex-shrink: 0; transition: width 0.3s ease-out; }
+        /* Panel Trái/Phải mặc định 10vw */
+        .side-panel { width: 10vw; min-width: 180px; max-width: 800px; background: var(--white); display: flex; flex-direction: column; height: 100%; z-index: 10; flex-shrink: 0; transition: width 0.3s ease-out; }
         .panel-header { padding: 12px 15px; background: var(--gray-light); border-bottom: 1px solid var(--gray-border); font-weight: bold; font-size: 13px; color: var(--blue); }
         .panel-content { flex: 1; overflow-y: auto; padding: 15px; font-size: 13px; }
 
@@ -85,7 +85,8 @@
         .size-btn:hover { background: #e0e0e0; color: var(--blue); }
         .size-select { flex: 1; height: 26px; border: none; outline: none; text-align: center; font-size: 12px; border-left: 1px solid var(--gray-border); border-right: 1px solid var(--gray-border); -webkit-appearance: none; -moz-appearance: none; appearance: none; cursor: pointer;}
         
-        .quick-color { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 1px solid var(--gray-border); box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: 0.1s; }
+        /* Chuyển Quick Color thành thẻ Button an toàn */
+        .quick-color { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 1px solid var(--gray-border); box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: 0.1s; padding: 0; outline: none; }
         .quick-color:hover { transform: scale(1.2); }
 
         .mega-row-cat { background: var(--blue); color: var(--white); padding: 8px 10px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; margin-top: 10px; border: 1px solid var(--blue); border-radius: 3px;}
@@ -96,7 +97,7 @@
         .template-item:hover { border-color: var(--blue); box-shadow: 0 2px 5px rgba(1, 173, 238, 0.2); }
         .template-preview-box { zoom: 0.6; pointer-events: none; max-height: none; overflow: visible; }
 
-        /* Vùng Toggle Chỉnh sửa | Xem trước (Dính sát góc dưới phải) */
+        /* Vùng Toggle Chỉnh sửa | Xem trước (Vuông vức, dính sát góc) */
         .bottom-right-toggle { position: fixed; bottom: 0; right: 0; display: flex; z-index: 9999; border-top: 1px solid var(--gray-border); border-left: 1px solid var(--gray-border); background: var(--white); box-shadow: -2px -2px 10px rgba(0,0,0,0.05); }
         .br-btn { padding: 12px 25px; font-size: 13px; font-weight: bold; cursor: pointer; color: #777; background: #f1f3f4; transition: 0.2s; text-transform: uppercase; }
         .br-btn:hover { color: var(--blue); }
@@ -125,7 +126,7 @@
         .custom-prompt-input { width: 100%; border: 1px solid var(--gray-border); padding: 8px; outline: none; margin-bottom: 15px; font-size: 13px; border-radius: 3px; }
 
         .selected-td { outline: 2px solid var(--blue) !important; outline-offset: -2px; background-color: rgba(1,173,238,0.1) !important; }
-        .popup-menu { position: absolute; background: var(--white); border: 1px solid var(--gray-border); box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 9999; display: none; border-radius: 4px; overflow: hidden; min-width: 180px; max-width: 300px; }
+        .popup-menu { position: absolute; background: var(--white); border: 1px solid var(--gray-border); box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 9999; display: none; border-radius: 4px; overflow: hidden; min-width: 180px; max-width: 320px; }
         .menu-item { padding: 8px 15px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; color: var(--text-main); font-weight: 500; }
         .menu-item:hover { background: #f1f3f4; color: var(--blue); }
         .divider { border-bottom: 1px solid var(--gray-border); margin: 4px 0; }
@@ -145,13 +146,13 @@
         <div style="display: flex; align-items: center;">
             <span id="syncStatus" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60;">✅ Khởi tạo...</span>
             <button class="tool-btn" onclick="togglePanel('right')" title="Bật/Tắt Công Cụ" style="margin-right: 10px;"><i class="fas fa-toolbox"></i></button>
-            <button class="tool-btn save-btn" onmousedown="event.preventDefault(); savePostToSheet()"><i class="fas fa-save"></i> Lưu bài viết</button>
+            <button class="tool-btn save-btn" onclick="savePostToSheet()"><i class="fas fa-save"></i> Lưu bài viết</button>
         </div>
     </div>
 
     <div class="workspace" id="workspaceArea">
         
-        <div class="side-panel" id="panelLeft" style="width: 10vw;">
+        <div class="side-panel" id="panelLeft">
             <div class="panel-header">
                 <span><i class="fas fa-database"></i> Dữ Liệu Kế Hoạch</span>
             </div>
@@ -185,13 +186,13 @@
 
         <div class="panel-resizer" id="resizerRight"></div>
 
-        <div class="side-panel" id="panelRight" style="width: 10vw;">
+        <div class="side-panel" id="panelRight">
             <div class="panel-header">
                 <span><i class="fas fa-toolbox"></i> Bộ Công Cụ</span>
             </div>
             <div class="panel-tabs">
-                <div class="ptab-btn active" onmousedown="event.preventDefault(); window.switchRightTab('tabFormat', this)">Định Dạng</div>
-                <div class="ptab-btn" onmousedown="event.preventDefault(); window.switchRightTab('tabBlocks', this)">Khối & Mẫu</div>
+                <div class="ptab-btn active" onclick="window.switchRightTab('tabFormat', this)">Định Dạng</div>
+                <div class="ptab-btn" onclick="window.switchRightTab('tabBlocks', this)">Khối & Mẫu</div>
             </div>
             <div class="panel-content">
                 
@@ -221,8 +222,8 @@
                         <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="formatDoc('insertUnorderedList')" title="Bullet Mặc định"><i class="fas fa-list-ul"></i></button>
                         <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="formatDoc('insertOrderedList')" title="Number list"><i class="fas fa-list-ol"></i></button>
                         
-                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="event.stopPropagation(); window.showPopupSafe(document.getElementById('charBulletMenu'), event)" title="Bullet Ký tự"><i class="fas fa-list"></i> <i class="fas fa-caret-down" style="font-size:10px;"></i></button>
-                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="event.stopPropagation(); window.showPopupSafe(document.getElementById('emojiBulletMenu'), event)" title="Bullet Emoji"><i class="far fa-smile"></i> <i class="fas fa-caret-down" style="font-size:10px;"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="event.stopPropagation(); window.showPopupSafe(document.getElementById('charBulletMenu'), this)" title="Bullet Ký tự"><i class="fas fa-list"></i> <i class="fas fa-caret-down" style="font-size:10px;"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="event.stopPropagation(); window.showPopupSafe(document.getElementById('emojiBulletMenu'), this)" title="Bullet Emoji"><i class="far fa-smile"></i> <i class="fas fa-caret-down" style="font-size:10px;"></i></button>
                         
                         <button class="fmt-btn" style="grid-column: span 2;" onmousedown="event.preventDefault();" onclick="insertLink()" title="Chèn Link URL"><i class="fas fa-link"></i></button>
                         <button class="fmt-btn" style="grid-column: span 2;" onmousedown="event.preventDefault();" onclick="formatDoc('removeFormat')" title="Xóa định dạng"><i class="fas fa-eraser"></i></button>
@@ -231,36 +232,36 @@
                     <div class="tool-row">
                         <span class="tool-label">Cỡ chữ:</span>
                         <div class="size-controller">
-                            <button class="size-btn" onmousedown="event.preventDefault(); updateSize('font', -1)"><i class="fas fa-minus"></i></button>
+                            <button class="size-btn" onmousedown="event.preventDefault();" onclick="updateSize('font', -1)"><i class="fas fa-minus"></i></button>
                             <select id="fontSizeSel" class="size-select" onchange="applySize('font')"></select>
-                            <button class="size-btn" onmousedown="event.preventDefault(); updateSize('font', 1)"><i class="fas fa-plus"></i></button>
+                            <button class="size-btn" onmousedown="event.preventDefault();" onclick="updateSize('font', 1)"><i class="fas fa-plus"></i></button>
                         </div>
                     </div>
                     
                     <div class="tool-row">
                         <span class="tool-label">Dãn dòng:</span>
                         <div class="size-controller">
-                            <button class="size-btn" onmousedown="event.preventDefault(); updateSize('line', -1)"><i class="fas fa-minus"></i></button>
+                            <button class="size-btn" onmousedown="event.preventDefault();" onclick="updateSize('line', -1)"><i class="fas fa-minus"></i></button>
                             <select id="lineHeightSel" class="size-select" onchange="applySize('line')"></select>
-                            <button class="size-btn" onmousedown="event.preventDefault(); updateSize('line', 1)"><i class="fas fa-plus"></i></button>
+                            <button class="size-btn" onmousedown="event.preventDefault();" onclick="updateSize('line', 1)"><i class="fas fa-plus"></i></button>
                         </div>
                     </div>
 
                     <div class="tool-row">
                         <span class="tool-label">Màu chữ:</span>
                         <div style="display:flex; gap: 5px; align-items: center; flex: 1;">
-                            <div class="quick-color" style="background:#ffffff;" title="Trắng" onclick="formatDoc('foreColor', '#ffffff')"></div>
-                            <div class="quick-color" style="background:#01adee;" title="Xanh" onclick="formatDoc('foreColor', '#01adee')"></div>
-                            <div class="quick-color" style="background:#db1010;" title="Đỏ" onclick="formatDoc('foreColor', '#db1010')"></div>
+                            <button class="quick-color" style="background:#ffffff;" title="Trắng" onmousedown="event.preventDefault();" onclick="formatDoc('foreColor', '#ffffff')"></button>
+                            <button class="quick-color" style="background:#01adee;" title="Xanh" onmousedown="event.preventDefault();" onclick="formatDoc('foreColor', '#01adee')"></button>
+                            <button class="quick-color" style="background:#db1010;" title="Đỏ" onmousedown="event.preventDefault();" onclick="formatDoc('foreColor', '#db1010')"></button>
                             <input type="color" class="tool-input" style="padding: 0; height: 26px; flex:1;" onchange="formatDoc('foreColor', this.value)">
                         </div>
                     </div>
                     <div class="tool-row">
                         <span class="tool-label">Màu nền:</span>
                         <div style="display:flex; gap: 5px; align-items: center; flex: 1;">
-                            <div class="quick-color" style="background:#ffffff;" title="Trắng" onclick="formatDoc('hiliteColor', '#ffffff')"></div>
-                            <div class="quick-color" style="background:#01adee;" title="Xanh" onclick="formatDoc('hiliteColor', '#01adee')"></div>
-                            <div class="quick-color" style="background:#db1010;" title="Đỏ" onclick="formatDoc('hiliteColor', '#db1010')"></div>
+                            <button class="quick-color" style="background:#ffffff;" title="Trắng" onmousedown="event.preventDefault();" onclick="formatDoc('hiliteColor', '#ffffff')"></button>
+                            <button class="quick-color" style="background:#01adee;" title="Xanh" onmousedown="event.preventDefault();" onclick="formatDoc('hiliteColor', '#01adee')"></button>
+                            <button class="quick-color" style="background:#db1010;" title="Đỏ" onmousedown="event.preventDefault();" onclick="formatDoc('hiliteColor', '#db1010')"></button>
                             <input type="color" class="tool-input" style="padding: 0; height: 26px; flex:1;" onchange="formatDoc('hiliteColor', this.value)">
                         </div>
                     </div>
@@ -276,13 +277,13 @@
                         <option value="Segoe UI, sans-serif" style="font-family: 'Segoe UI', sans-serif">Mặc định (Segoe UI)</option>
                     </select>
 
-                    <button class="tool-btn" style="width: 100%; justify-content: center; margin-top: 15px;" onmousedown="event.preventDefault(); toggleRulers()">
+                    <button class="tool-btn" style="width: 100%; justify-content: center; margin-top: 15px;" onmousedown="event.preventDefault();" onclick="toggleRulers()">
                         <i class="fas fa-ruler-combined"></i> Bật / Tắt Thước Đo
                     </button>
                 </div>
 
                 <div id="tabBlocks" class="ptab-content">
-                    <button class="tool-btn" style="width: 100%; justify-content: center; background: var(--blue); color: var(--white); margin-bottom: 15px;" onmousedown="event.preventDefault(); window.openHtmlModal(DEFAULT_HTML_BLOCK)">
+                    <button class="tool-btn" style="width: 100%; justify-content: center; background: var(--blue); color: var(--white); margin-bottom: 15px;" onmousedown="event.preventDefault();" onclick="window.openHtmlModal(DEFAULT_HTML_BLOCK)">
                         <i class="fas fa-code"></i> Viết Mã HTML
                     </button>
                     
@@ -330,7 +331,7 @@
         </div>
     </div>
 
-    <div class="popup-menu" id="emojiBulletMenu" style="display:none; padding:5px; max-width: 250px;">
+    <div class="popup-menu" id="emojiBulletMenu" style="display:none; padding:5px; max-width: 280px;">
         <div class="emoji-grid" id="emojiGrid"></div>
     </div>
 
@@ -416,11 +417,21 @@
         let tblStartCell = null;
 
         // ==========================================
+        // CÁC HÀM XỬ LÝ TAB
+        // ==========================================
+        window.switchRightTab = function(tabId, btn) {
+            document.querySelectorAll('.ptab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.ptab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active'); 
+            document.getElementById(tabId).classList.add('active');
+        };
+
+        // ==========================================
         // KHỞI TẠO AN TOÀN KHI LOAD TRANG
         // ==========================================
         window.onload = async () => {
             try {
-                // Ép cứng width mặc định 10vw cho 2 bên khi khởi tạo
+                // Set default width for panels on load
                 document.getElementById('panelLeft').style.width = '10vw';
                 document.getElementById('panelRight').style.width = '10vw';
 
@@ -616,7 +627,7 @@
         }
 
         // ==========================================
-        // XỬ LÝ CHẾ ĐỘ XEM TRƯỚC / CHỈNH SỬA
+        // TOGGLE PREVIEW MODE
         // ==========================================
         window.setMode = function(mode) {
             let leftP = document.getElementById('panelLeft');
@@ -640,7 +651,10 @@
                 
                 editorCont.style.padding = "20px 100px";
                 if(coverArea) coverArea.style.border = "none";
-                richInputs.forEach(i => { i.style.border = "none"; i.contentEditable = "false"; });
+                richInputs.forEach(i => {
+                    i.style.border = "none";
+                    i.contentEditable = "false";
+                });
             } else {
                 isPreviewMode = false;
                 leftP.style.display = 'flex'; rightP.style.display = 'flex';
@@ -659,8 +673,21 @@
         };
 
         // ==========================================
-        // BULLET KÝ TỰ & EMOJI THÔNG MINH
+        // BULLET KÝ TỰ & EMOJI (HIỂN THỊ CHUẨN MENU)
         // ==========================================
+        window.showPopupSafe = function(menu, btn) { 
+            menu.style.display = "block"; 
+            let rect = btn.getBoundingClientRect();
+            let x = rect.left; 
+            let y = rect.bottom + 5; 
+            
+            if(x + menu.offsetWidth > window.innerWidth) x = window.innerWidth - menu.offsetWidth - 5; 
+            if(y + menu.offsetHeight > window.innerHeight) y = window.innerHeight - menu.offsetHeight - 5; 
+            
+            menu.style.left = x + "px"; 
+            menu.style.top = y + "px"; 
+        };
+
         window.loadEmojis = function() {
             let emojiMenu = document.getElementById('emojiGrid');
             if(!emojiMenu) return;
@@ -674,6 +701,7 @@
                 }
             }
             
+            // Khởi tạo mặc định nếu Sheet trống
             if (emojis.length === 0) {
                 emojis = ['😀','😂','🥰','😎','🤔','👍','🙌','❤️','🔥','✨','🎉','🌟','✅','❌','💡','👉','👇','🔴','🟢','🔵'];
             }
@@ -696,7 +724,7 @@
             let currentLi = node.nodeType === 3 ? node.parentNode.closest('li') : node.closest('li');
 
             if (!currentLi) {
-                // Tạo list mới
+                // Chưa có list thì tạo UL mới
                 document.execCommand('insertUnorderedList', false, null);
                 sel = window.getSelection();
                 node = sel.anchorNode;
@@ -704,7 +732,7 @@
                 if (newUl) newUl.style.listStyleType = `"${charValue} "`;
             } else {
                 let currentUl = currentLi.closest('ul');
-                // Chuyển loại icon thì lùi vào trong làm list con
+                // Nếu đang đứng trong UL mà chọn Icon khác -> Thụt lề cấp thấp hơn (Sub-list)
                 if (currentUl && currentUl.style.listStyleType !== `"${charValue} "`) {
                     document.execCommand('indent', false, null);
                     sel = window.getSelection();
@@ -718,7 +746,7 @@
         };
 
         // ==========================================
-        // XỬ LÝ BẢNG (TABLE)
+        // XỬ LÝ HÀNH ĐỘNG TABLE 
         // ==========================================
         function highlightTableBox(startTd, endTd) {
             let table = startTd.closest('table');
@@ -822,9 +850,6 @@
             }
         }
 
-        // ==========================================
-        // CÁC CHỨC NĂNG CÒN LẠI (GIỮ NGUYÊN)
-        // ==========================================
         window.togglePanel = function(side) {
             if(side === 'left') {
                 let p = document.getElementById('panelLeft'); let r = document.getElementById('resizerLeft');
@@ -1067,13 +1092,6 @@
             let fonts = rootContent.querySelectorAll('font[face="VLCustomFontName"]');
             fonts.forEach(f => { f.removeAttribute('face'); f.style.fontFamily = fontValue; });
             setTimeout(() => { syncGlobalFormat(); detectFormatting(); }, 50);
-        }
-
-        window.showPopupSafe = function(menu, e) { 
-            menu.style.display = "block"; let x = e.clientX, y = e.clientY + 15; 
-            if(x + menu.offsetWidth > window.innerWidth) x = window.innerWidth - menu.offsetWidth - 5; 
-            if(y + menu.offsetHeight > window.innerHeight) y = window.innerHeight - menu.offsetHeight - 5; 
-            menu.style.left = x + "px"; menu.style.top = y + "px"; 
         }
 
         function showAlert(msg, isError = false) {
@@ -1457,9 +1475,9 @@
             let planId = draftData ? draftData.data[1] : "POST_" + new Date().getTime(); 
 
             if(!sysData.sheets["Bài viết_hidden"]) {
-                sysData.tabOrder.push("Bài viết_hidden"); sysData.sheets["Bài viết_hidden"] = [["ID Kế Hoạch", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML"]];
+                sysData.tabOrder.push("Bài viết_hidden"); sysData.sheets["Bài viết_hidden"] = [["ID Kế hoạch", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML"]];
                 pushQueue({type:'MANAGE_TAB', action:'create', tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "ID Kế Hoạch", tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "ID Kế hoạch", tab: "Bài viết_hidden"});
                 pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Tiêu đề", tab: "Bài viết_hidden"});
                 pushQueue({type:'SYNC_CELL', row: 1, col: 3, val: "Sapo", tab: "Bài viết_hidden"});
                 pushQueue({type:'SYNC_CELL', row: 1, col: 4, val: "Ảnh Bìa", tab: "Bài viết_hidden"});
