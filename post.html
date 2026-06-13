@@ -133,6 +133,13 @@
         #tableHoverUI { position: absolute; z-index: 150; display: none; pointer-events: none; }
         #tableHoverUI button { pointer-events: auto; width: 22px; height: 22px; border-radius: 50%; border: none; background: var(--red); color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 11px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
         #tableHoverUI button:hover { transform: scale(1.1); }
+        /* Giao diện Kéo thả & Chỉnh sửa cho Panel Dữ Liệu */
+.data-row { cursor: grab; transition: background 0.2s, opacity 0.2s; position: relative; }
+.data-row:active { cursor: grabbing; }
+.data-label { display: flex; align-items: center; gap: 8px; cursor: grab; }
+.data-val.editable { cursor: text; outline: none; transition: 0.2s; position: relative; }
+.data-val.editable:hover { background: #f0f8ff; box-shadow: inset 0 0 0 1px rgba(1,173,238,0.3); }
+.data-val.editable:focus { background: #ffffff; box-shadow: inset 0 0 0 1px var(--blue); }
     </style>
 </head>
 <body>
@@ -1447,12 +1454,166 @@ Google Fonts:</div>
                 
                 let container = document.getElementById("sourceDataContainer");
                 container.innerHTML = "";
+
+                // 1. Xác định tab nguồn (Giả sử draftData.sourceTab hoặc lấy tên mặc định)
+                let tabName = draftData.tabName || draftData.sourceTab || "Kế Hoạch";
+
+                // 2. Tìm thứ tự đã lưu từ sheet thutuHeader_hidden
+                let orderArray = [];
+                if(sysData && sysData.sheets && sysData.sheets["thutuHeader_hidden"]) {
+                    let ttSheet = sysData.sheets["thutuHeader_hidden"];
+                    for(let r = 1; r < ttSheet.length; r++) {
+                        if(ttSheet[r][0] === tabName) {
+                            try { orderArray = JSON.parse(ttSheet[r][1]); } catch(e){}
+                            break;
+                        }
+                    }
+                }
+
+                // 3. Phân loại header theo mảng thứ tự (Header mới chưa có trong mảng sẽ bị đẩy xuống cuối)
+                let sortedIndices = [];
+                orderArray.forEach(headerName => {
+                    let idx = draftData.headers.indexOf(headerName);
+                    if(idx !== -1) sortedIndices.push(idx);
+                });
                 draftData.headers.forEach((h, i) => {
+                    if(!sortedIndices.includes(i)) sortedIndices.push(i);
+                });
+
+                // 4. Render HTML với thuộc tính draggable và contenteditable
+                sortedIndices.forEach(i => {
+                    let h = draftData.headers[i];
                     let val = draftData.data[i] || "";
                     if(typeof val === 'string') val = val.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                    container.innerHTML += `<div class="data-row"><div class="data-label">${h}</div><div class="data-val">${val || "<i style='color:#ccc'>Trống</i>"}</div></div>`;
+                    
+                    container.innerHTML += `
+                        <div class="data-row" draggable="true" data-header="${h}">
+                            <div class="data-label"><i class="fas fa-grip-vertical" style="color:#bbb;"></i> ${h}</div>
+                            <div class="data-val editable" contenteditable="true" spellcheck="false" onblur="updateDraftValue('${h}', this)">${val || "<i style='color:#ccc'>Trống</i>"}</div>
+                        </div>`;
                 });
-            } catch(e) {}
+
+                initDragDropLeftPanel(); // Kích hoạt sự kiện kéo thả
+
+            } catch(e) { console.error("Lỗi nạp Draft Data:", e); }
+        }
+
+        // --- HÀM 1: KHỞI TẠO CƠ CHẾ KÉO THẢ ---
+        function initDragDropLeftPanel() {
+            let container = document.getElementById("sourceDataContainer");
+            if(container.dataset.dndInit) return; // Chặn gắn event nhiều lần
+            container.dataset.dndInit = "true";
+
+            let draggedItem = null;
+
+            container.addEventListener('dragstart', function(e) {
+                let row = e.target.closest('.data-row');
+                if(!row) return;
+                draggedItem = row;
+                e.dataTransfer.effectAllowed = 'move';
+                setTimeout(() => row.style.opacity = '0.4', 0);
+            });
+
+            container.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                let targetRow = e.target.closest('.data-row');
+                if(!targetRow || targetRow === draggedItem) return;
+
+                let rect = targetRow.getBoundingClientRect();
+                let next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+                container.insertBefore(draggedItem, next && targetRow.nextSibling || targetRow);
+            });
+
+            container.addEventListener('dragend', function(e) {
+                if(draggedItem) draggedItem.style.opacity = '1';
+                draggedItem = null;
+                savePlanDataOrder(); // Gọi hàm lưu thứ tự
+            });
+        }
+
+        // --- HÀM 2: LƯU THỨ TỰ PANEL LÊN SHEET thutuHeader_hidden ---
+        function savePlanDataOrder() {
+            if(!draftData) return;
+            let container = document.getElementById("sourceDataContainer");
+            let newOrder = [];
+            container.querySelectorAll('.data-row').forEach(row => newOrder.push(row.dataset.header));
+
+            let tabName = draftData.tabName || draftData.sourceTab || "Kế Hoạch";
+            let orderJson = JSON.stringify(newOrder);
+
+            if(!sysData.sheets["thutuHeader_hidden"]) {
+                sysData.tabOrder.push("thutuHeader_hidden"); 
+                sysData.sheets["thutuHeader_hidden"] = [["Tên tab sheet", "Thứ tự tiêu đề"]];
+                pushQueue({type:'MANAGE_TAB', action:'create', tab: "thutuHeader_hidden"});
+                pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "Tên tab sheet", tab: "thutuHeader_hidden"});
+                pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Thứ tự tiêu đề", tab: "thutuHeader_hidden"});
+            }
+
+            let ttSheet = sysData.sheets["thutuHeader_hidden"];
+            let targetRow = -1;
+            for(let r = 1; r < ttSheet.length; r++) {
+                if(ttSheet[r][0] === tabName) { targetRow = r; break; }
+            }
+
+            if(targetRow !== -1) {
+                ttSheet[targetRow][1] = orderJson;
+                pushQueue({type:'SYNC_CELL', row: targetRow + 1, col: 2, val: orderJson, tab: "thutuHeader_hidden"});
+            } else {
+                targetRow = ttSheet.length;
+                ttSheet.push([tabName, orderJson]);
+                pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow + 1, count: 1, tab: "thutuHeader_hidden"});
+                pushQueue({type:'SYNC_CELL', row: targetRow + 1, col: 1, val: tabName, tab: "thutuHeader_hidden"});
+                pushQueue({type:'SYNC_CELL', row: targetRow + 1, col: 2, val: orderJson, tab: "thutuHeader_hidden"});
+            }
+        }
+
+        // --- HÀM 3: SỬA DỮ LIỆU ĐỒNG BỘ NGƯỢC VỀ SHEET GỐC ---
+        function updateDraftValue(headerName, el) {
+            if(!draftData || !draftData.headers) return;
+            let hIndex = draftData.headers.indexOf(headerName);
+            if(hIndex === -1) return;
+
+            let cleanVal = el.innerText.trim();
+            if(cleanVal === "Trống" && el.querySelector('i')) cleanVal = ""; // Xóa chữ Trống ảo
+            
+            let oldVal = draftData.data[hIndex] || "";
+            if(cleanVal === oldVal.trim()) return; // Không đổi thì bỏ qua
+
+            // 1. Cập nhật dữ liệu đệm local
+            draftData.data[hIndex] = cleanVal;
+            localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
+
+            // 2. Tìm dòng kế hoạch trên sheet để bắn dữ liệu lên
+            let tabName = draftData.tabName || draftData.sourceTab || "Kế Hoạch"; 
+            let planId = draftData.data[1]; // ID kế hoạch thường nằm ở index 1 theo cấu trúc cũ
+            
+            if(!sysData.sheets[tabName]) {
+                el.style.backgroundColor = "#fff9c4"; // Vàng: Chỉ lưu local, ko thấy sheet
+                setTimeout(() => el.style.backgroundColor = "", 1000);
+                return;
+            }
+
+            let srcSheet = sysData.sheets[tabName];
+            let targetRow = -1;
+            // Dò tìm dòng chứa ID kế hoạch
+            for(let r = 1; r < srcSheet.length; r++) {
+                if(srcSheet[r][1] == planId || srcSheet[r][0] == planId) {
+                    targetRow = r; break;
+                }
+            }
+
+            if(targetRow !== -1) {
+                srcSheet[targetRow][hIndex] = cleanVal; 
+                pushQueue({type: 'SYNC_CELL', row: targetRow + 1, col: hIndex + 1, val: cleanVal, tab: tabName});
+                
+                // Hiệu ứng chớp nháy màu xanh lá báo thành công
+                el.style.backgroundColor = "#e8f5e9"; 
+                setTimeout(() => el.style.backgroundColor = "", 1000);
+            } else {
+                // Đỏ: Không tìm ra ID để ghi
+                el.style.backgroundColor = "#ffcdd2"; 
+                setTimeout(() => el.style.backgroundColor = "", 1000); 
+            }
         }
 // Hàm tìm và nạp dữ liệu bài viết vào khung soạn thảo
 // Hàm tìm và nạp dữ liệu bài viết vào khung soạn thảo
