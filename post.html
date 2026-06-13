@@ -1596,35 +1596,49 @@ else if (action === 'splitCells') {
             .catch(e => { s.innerText = "⚠️ Mất mạng"; s.style.color = "var(--red)"; });
         }
 // ==========================================
-// SỬA LỖI DÁN (PASTE) TỪ CHATGPT / EXCEL VÀO BẢNG
+// TRÙM CUỐI: XỬ LÝ DÁN BẢNG TỪ CHATGPT / NGUỒN KHÁC VÀO TEMPLATE HTML
 // ==========================================
-document.getElementById('postContent').addEventListener('paste', function(e) {
-    // 1. TÌM Ô ĐÍCH (Bắt chính xác kể cả khi chỉ có viền xanh, không có con trỏ chuột)
-    let td = e.target.closest('td, th');
-    if (!td) {
-        let selected = document.querySelector('.selected-td');
-        if (selected && document.getElementById('postContent').contains(selected)) {
-            td = selected;
-        }
-    }
-    
-    // Nếu vẫn không phải dán vào bảng, cho phép dán text bình thường
-    if (!td) return; 
+document.addEventListener('paste', function(e) {
+    if (typeof isPreviewMode !== 'undefined' && isPreviewMode) return;
 
-    let clipData = e.clipboardData || window.clipboardData;
+    // 1. TÌM Ô ĐÍCH CHUẨN XÁC (Khắc phục lỗi click vào text/node trống gây sập JS)
+    let targetNode = e.target;
+    if (targetNode && targetNode.nodeType === 3) {
+        targetNode = targetNode.parentNode; 
+    }
+    let td = (targetNode && targetNode.closest) ? targetNode.closest('td, th') : null;
+    
+    let selectedCells = document.querySelectorAll('.selected-td');
+    if (!td && selectedCells.length > 0) {
+        td = selectedCells[0];
+    }
+
+    let editor = document.getElementById('postContent');
+    if (!td || !editor || !editor.contains(td)) return; // Bỏ qua nếu không dán vào bảng trong trình soạn thảo
+
+    let clipData = e.clipboardData || window.clipboardData || (e.originalEvent && e.originalEvent.clipboardData);
     if (!clipData) return;
 
     let htmlData = clipData.getData('text/html');
     let textData = clipData.getData('text/plain');
     let sourceMatrix = [];
+    let hasTableData = false;
 
-    // 2. PHÂN TÍCH DỮ LIỆU TỪ CHATGPT / EXCEL THÀNH MA TRẬN
-    if (htmlData && htmlData.match(/<table/i)) {
+    // 2. PHÂN TÍCH HTML NGUỒN (CHỐNG LỖI CỤT THẺ DO COPY TỪ CHATGPT/WEB)
+    if (htmlData) {
+        let parseHtml = htmlData;
+        if (!parseHtml.match(/<table/i)) {
+            if (!parseHtml.match(/<tr/i)) parseHtml = '<tr>' + parseHtml + '</tr>';
+            if (!parseHtml.match(/<tbody/i)) parseHtml = '<tbody>' + parseHtml + '</tbody>';
+            parseHtml = '<table>' + parseHtml + '</table>';
+        }
+        
         let tempDiv = document.createElement('div');
-        tempDiv.innerHTML = htmlData;
+        tempDiv.innerHTML = parseHtml;
         let pastedTable = tempDiv.querySelector('table');
         
-        if (pastedTable) {
+        if (pastedTable && pastedTable.rows.length > 0) {
+            hasTableData = true;
             let rows = pastedTable.rows;
             for (let r = 0; r < rows.length; r++) {
                 if (!sourceMatrix[r]) sourceMatrix[r] = [];
@@ -1636,8 +1650,8 @@ document.getElementById('postContent').addEventListener('paste', function(e) {
                     let rs = cell.rowSpan || 1;
                     let cs = cell.colSpan || 1;
                     
-                    // Lọc bỏ thẻ <p> thừa bọc ngoài do ChatGPT sinh ra để text đỡ bị giãn cách xấu
-                    let val = cell.innerHTML.replace(/^<p[^>]*>/i, '').replace(/<\/p>$/i, '').trim(); 
+                    // Giữ nội dung nhưng dọn dẹp các thẻ <p> thừa bọc ngoài
+                    let val = cell.innerHTML.trim().replace(/^<p[^>]*>/i, '').replace(/<\/p>$/i, '').trim(); 
 
                     for (let i = 0; i < rs; i++) {
                         for (let j = 0; j < cs; j++) {
@@ -1648,22 +1662,26 @@ document.getElementById('postContent').addEventListener('paste', function(e) {
                 }
             }
         }
-    } else if (textData) {
-        let rows = textData.trim().split('\n');
-        // Chỉ kích hoạt ma trận nếu copy nhiều dòng hoặc có chứa tab (chuẩn Excel)
+    }
+
+    // 3. XỬ LÝ DỮ LIỆU EXCEL/WORD NẾU KHÔNG CÓ HTML
+    if (!hasTableData && textData) {
+        let rows = textData.replace(/\r/g, '').trim().split('\n');
         if (rows.length > 1 || textData.includes('\t')) {
+            hasTableData = true;
             rows.forEach((row, rIdx) => {
                 sourceMatrix[rIdx] = row.split('\t');
             });
         }
     }
 
-    if (sourceMatrix.length === 0) return;
-    
-    // Đã nhận diện được dữ liệu bảng => Chặn dán mặc định để tự chia ô
-    e.preventDefault(); 
+    if (!hasTableData || sourceMatrix.length === 0) return;
 
-    // 3. LẬP BẢN ĐỒ TỌA ĐỘ BẢNG HIỆN TẠI
+    // --- XÁC NHẬN LÀ BẢNG -> CHẶN HÀNH VI DÁN MẶC ĐỊNH GÂY VỠ GIAO DIỆN ---
+    e.preventDefault();
+    e.stopPropagation();
+
+    // 4. LẬP BẢN ĐỒ TỌA ĐỘ BẢNG ĐÍCH TRONG BÀI VIẾT
     let targetTable = td.closest('table');
     let targetMap = [];
     let tRows = targetTable.rows;
@@ -1686,9 +1704,8 @@ document.getElementById('postContent').addEventListener('paste', function(e) {
         }
     }
 
-    // 4. TÌM VỊ TRÍ ĐÍCH CHUẨN XÁC ĐỂ BẮT ĐẦU DÁN
+    // 5. TÌM VỊ TRÍ ĐÍCH & KÍCH HOẠT DÁN THÔNG MINH
     let startTd = td;
-    let selectedCells = document.querySelectorAll('.selected-td');
     if (selectedCells.length > 0) {
         let minR = 9999, minC = 9999;
         for (let r = 0; r < targetMap.length; r++) {
@@ -1713,37 +1730,45 @@ document.getElementById('postContent').addEventListener('paste', function(e) {
         if (found) break;
     }
 
-    // 5. RẢI DỮ LIỆU TỪ CHATGPT VÀO BẢNG MẪU CỦA BẠN
+    // LÔ-GIC THÔNG MINH CHO TEMPLATE CỦA BẠN:
+    // Nếu bạn dán vào Cột 2 của Template 2 cột, và bảng nguồn copy cũng có 2 cột (vd: Copy từ ChatGPT).
+    // Hệ thống sẽ tự động BỎ QUA cột tiêu đề của nguồn, chỉ lấy dữ liệu để dán vào Cột 2 của bạn.
+    let isPastingRightColumn = (startC === 1 && sourceMatrix.length > 0 && sourceMatrix[0].length >= 2 && targetMap[0].length === 2);
+    let colOffsetToRead = isPastingRightColumn ? 1 : 0; 
+
+    // 6. RẢI DỮ LIỆU VÀO BẢNG ĐÍCH
     let updatedCells = new Set();
     for (let r = 0; r < sourceMatrix.length; r++) {
         let trIdx = startR + r;
         
-        // Tự động thêm dòng nếu dữ liệu copy dài hơn bảng gốc
+        // Thêm hàng mới nếu dữ liệu copy dài hơn Template
         if (trIdx >= targetMap.length) {
             let newRow = targetTable.insertRow(-1);
             targetMap[trIdx] = [];
-            let colCount = targetMap[0] ? targetMap[0].length : sourceMatrix[r].length;
+            let colCount = targetMap[0] ? targetMap[0].length : (sourceMatrix[r].length - colOffsetToRead);
             for (let i = 0; i < colCount; i++) {
                 let newCell = newRow.insertCell(-1);
-                newCell.style.border = "1px solid var(--gray-border)";
-                newCell.style.padding = "8px";
+                // Áp dụng định dạng cơ bản để hàng mới tạo không bị vỡ khung
+                newCell.style.border = "1px solid #d9d9d9";
+                newCell.style.padding = "10px";
+                newCell.style.color = "#333333";
                 targetMap[trIdx][i] = newCell;
             }
         }
 
-        for (let c = 0; c < sourceMatrix[r].length; c++) {
+        for (let c = colOffsetToRead; c < sourceMatrix[r].length; c++) {
             let val = sourceMatrix[r][c];
             if (val === null || val === undefined) continue;
 
-            let tcIdx = startC + c;
+            let tcIdx = startC + (c - colOffsetToRead);
             
-            // Tự động thêm cột nếu dữ liệu copy rộng hơn bảng gốc
+            // Thêm cột mới nếu cần
             if (tcIdx >= targetMap[trIdx].length) {
                  let actualRow = targetTable.rows[trIdx];
                  if (actualRow) {
                      let newCell = actualRow.insertCell(-1);
-                     newCell.style.border = "1px solid var(--gray-border)";
-                     newCell.style.padding = "8px";
+                     newCell.style.border = "1px solid #d9d9d9";
+                     newCell.style.padding = "10px";
                      targetMap[trIdx][tcIdx] = newCell;
                  }
             }
@@ -1756,8 +1781,8 @@ document.getElementById('postContent').addEventListener('paste', function(e) {
         }
     }
 
-    // 6. CẬP NHẬT LẠI CODE HTML BLOCK (Đồng bộ)
-    if (activeHtmlBlock && activeHtmlBlock.contains(targetTable)) {
+    // 7. LƯU LẠI VÀO KHỐI MÃ HTML
+    if (typeof activeHtmlBlock !== 'undefined' && activeHtmlBlock && activeHtmlBlock.contains(targetTable)) {
         let ta = document.getElementById('htmlEditorTextarea');
         if (ta) ta.value = activeHtmlBlock.querySelector('.block-content').innerHTML;
         if (typeof window.updateLineNumbers === 'function') window.updateLineNumbers();
