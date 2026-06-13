@@ -595,13 +595,14 @@
                     }
                 });
 
-                document.getElementById('postContent').addEventListener('mousedown', (e) => {
+  // Thay thế sự kiện mousedown cũ
+document.getElementById('postContent').addEventListener('mousedown', (e) => {
     if(isPreviewMode) return;
     let td = e.target.closest('td, th');
     if (td && document.getElementById('postContent').contains(td)) {
         isTblSelecting = true;
         tblStartCell = td;
-        document.getElementById('postContent').classList.add('table-selecting'); // Thêm class chống bôi đen text
+        document.getElementById('postContent').classList.add('table-selecting'); // Thêm class chống bôi đen
         
         if(!e.shiftKey) {
             document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
@@ -612,6 +613,30 @@
     }
 });
 
+// Thay thế sự kiện mouseup cũ bằng đoạn này (Trọng tâm vá lỗi)
+document.addEventListener('mouseup', (e) => { 
+    let editor = document.getElementById('postContent');
+    if(editor) editor.classList.remove('table-selecting'); // Bỏ class chống bôi đen ngay lập tức
+    
+    if (isTblSelecting) {
+        isTblSelecting = false;
+        
+        // BÍ QUYẾT: Ép trình duyệt đặt lại con trỏ nhấp nháy vào ô để nhận lệnh Ctrl+V
+        let selected = document.querySelectorAll('.selected-td');
+        if (selected.length > 0 && !e.shiftKey) {
+            let targetTd = selected[selected.length - 1]; // Lấy ô cuối cùng được click
+            try {
+                let range = document.createRange();
+                let sel = window.getSelection();
+                range.selectNodeContents(targetTd);
+                range.collapse(false); // Dịch con trỏ về cuối ô
+                sel.removeAllRanges();
+                sel.addRange(range);
+                if(editor) editor.focus();
+            } catch(err) { console.error("Lỗi đặt con trỏ:", err); }
+        }
+    }
+});
                 document.getElementById('postContent').addEventListener('mouseover', (e) => {
                     if (!isTblSelecting || !tblStartCell || isPreviewMode) return;
                     let td = e.target.closest('td, th');
@@ -620,11 +645,6 @@
                     }
                 });
 
-                document.addEventListener('mouseup', () => { 
-    isTblSelecting = false; 
-    let editor = document.getElementById('postContent');
-    if(editor) editor.classList.remove('table-selecting'); // Bỏ class khi nhả chuột
-});
 
                 document.getElementById('postContent').addEventListener('contextmenu', (e) => {
     if(isPreviewMode) return;
