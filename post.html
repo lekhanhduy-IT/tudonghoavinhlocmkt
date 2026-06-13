@@ -595,14 +595,13 @@
                     }
                 });
 
-  // Thay thế sự kiện mousedown cũ
-document.getElementById('postContent').addEventListener('mousedown', (e) => {
+                document.getElementById('postContent').addEventListener('mousedown', (e) => {
     if(isPreviewMode) return;
     let td = e.target.closest('td, th');
     if (td && document.getElementById('postContent').contains(td)) {
         isTblSelecting = true;
         tblStartCell = td;
-        document.getElementById('postContent').classList.add('table-selecting'); // Thêm class chống bôi đen
+        document.getElementById('postContent').classList.add('table-selecting'); // Thêm class chống bôi đen text
         
         if(!e.shiftKey) {
             document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
@@ -613,30 +612,6 @@ document.getElementById('postContent').addEventListener('mousedown', (e) => {
     }
 });
 
-// Thay thế sự kiện mouseup cũ bằng đoạn này (Trọng tâm vá lỗi)
-document.addEventListener('mouseup', (e) => { 
-    let editor = document.getElementById('postContent');
-    if(editor) editor.classList.remove('table-selecting'); // Bỏ class chống bôi đen ngay lập tức
-    
-    if (isTblSelecting) {
-        isTblSelecting = false;
-        
-        // BÍ QUYẾT: Ép trình duyệt đặt lại con trỏ nhấp nháy vào ô để nhận lệnh Ctrl+V
-        let selected = document.querySelectorAll('.selected-td');
-        if (selected.length > 0 && !e.shiftKey) {
-            let targetTd = selected[selected.length - 1]; // Lấy ô cuối cùng được click
-            try {
-                let range = document.createRange();
-                let sel = window.getSelection();
-                range.selectNodeContents(targetTd);
-                range.collapse(false); // Dịch con trỏ về cuối ô
-                sel.removeAllRanges();
-                sel.addRange(range);
-                if(editor) editor.focus();
-            } catch(err) { console.error("Lỗi đặt con trỏ:", err); }
-        }
-    }
-});
                 document.getElementById('postContent').addEventListener('mouseover', (e) => {
                     if (!isTblSelecting || !tblStartCell || isPreviewMode) return;
                     let td = e.target.closest('td, th');
@@ -645,6 +620,11 @@ document.addEventListener('mouseup', (e) => {
                     }
                 });
 
+                document.addEventListener('mouseup', () => { 
+    isTblSelecting = false; 
+    let editor = document.getElementById('postContent');
+    if(editor) editor.classList.remove('table-selecting'); // Bỏ class khi nhả chuột
+});
 
                 document.getElementById('postContent').addEventListener('contextmenu', (e) => {
     if(isPreviewMode) return;
@@ -902,40 +882,6 @@ document.addEventListener('mouseup', (e) => {
                 });
                 document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
             }
-            // Thêm khối này vào bên trong hàm window.tblAction
-else if (action === 'splitCells') {
-    let td = activeTblCell;
-    let rs = td.rowSpan || 1;
-    let cs = td.colSpan || 1;
-    
-    if (rs === 1 && cs === 1) return; // Không phải ô gộp
-
-    td.removeAttribute('rowspan');
-    td.removeAttribute('colspan');
-
-    let tr = td.closest('tr');
-    let rIdx = tr.rowIndex;
-
-    for (let r = 0; r < rs; r++) {
-        let targetRow = activeTbl.rows[rIdx + r];
-        if (!targetRow) continue;
-        
-        for (let c = 0; c < cs; c++) {
-            if (r === 0 && c === 0) continue; // Bỏ qua ô gốc
-            
-            let newTd = document.createElement('td');
-            newTd.innerHTML = '&nbsp;';
-            newTd.style.border = "1px solid var(--gray-border)";
-            newTd.style.padding = "8px";
-            
-            if (r === 0) {
-                targetRow.insertBefore(newTd, td.nextSibling);
-            } else {
-                targetRow.appendChild(newTd);
-            }
-        }
-    }
-}
             else if (action === 'alignLeft') { activeTbl.style.margin = '0 auto 0 0'; }
             else if (action === 'alignCenter') { activeTbl.style.margin = '0 auto'; }
             else if (action === 'alignRight') { activeTbl.style.margin = '0 0 0 auto'; }
@@ -1615,190 +1561,6 @@ else if (action === 'splitCells') {
             .then(res => res.json()).then(json => { if(json.success) { s.innerText = "✅ Đã lưu"; s.style.color = "#27ae60"; } })
             .catch(e => { s.innerText = "⚠️ Mất mạng"; s.style.color = "var(--red)"; });
         }
-// ==========================================
-// TRÙM CUỐI: XỬ LÝ DÁN BẢNG TỪ CHATGPT / NGUỒN KHÁC VÀO TEMPLATE HTML
-// ==========================================
-// ==========================================
-// VƯỢT MẶT CÁC SCRIPT CỦA POST.HTML (SỬ DỤNG EVENT CAPTURING)
-// ==========================================
-window.addEventListener('paste', function(e) {
-    if (typeof isPreviewMode !== 'undefined' && isPreviewMode) return;
-
-    // 1. TÌM CHÍNH XÁC Ô ĐANG ĐƯỢC CHỌN
-    let targetNode = e.target;
-    if (targetNode && targetNode.nodeType === 3) targetNode = targetNode.parentNode;
-    let td = (targetNode && targetNode.closest) ? targetNode.closest('td, th') : null;
-    
-    let selectedCells = document.querySelectorAll('.selected-td');
-    if (!td && selectedCells.length > 0) td = selectedCells[0];
-
-    let editor = document.getElementById('postContent');
-    
-    // NẾU KHÔNG NẰM TRONG BẢNG: Trả lại quyền dán cho post.html xử lý block bình thường
-    if (!td || !editor || !editor.contains(td)) return; 
-
-    // --- NẾU NẰM TRONG BẢNG: CƯỚP QUYỀN ƯU TIÊN VÀ CHẶN CÁC SCRIPT KHÁC CỦA POST.HTML ---
-    e.preventDefault();
-    e.stopImmediatePropagation(); 
-
-    let clipData = e.clipboardData || window.clipboardData || (e.originalEvent && e.originalEvent.clipboardData);
-    if (!clipData) return;
-
-    let htmlData = clipData.getData('text/html');
-    let textData = clipData.getData('text/plain');
-    let sourceMatrix = [];
-    let hasTableData = false;
-
-    // 2. PHÂN TÍCH HTML (XỬ LÝ DỮ LIỆU TỪ CHATGPT)
-    if (htmlData) {
-        let parseHtml = htmlData;
-        if (!parseHtml.match(/<table/i)) {
-            if (!parseHtml.match(/<tr/i)) parseHtml = '<tr>' + parseHtml + '</tr>';
-            if (!parseHtml.match(/<tbody/i)) parseHtml = '<tbody>' + parseHtml + '</tbody>';
-            parseHtml = '<table>' + parseHtml + '</table>';
-        }
-        
-        let tempDiv = document.createElement('div');
-        tempDiv.innerHTML = parseHtml;
-        let pastedTable = tempDiv.querySelector('table');
-        
-        if (pastedTable && pastedTable.rows.length > 0) {
-            hasTableData = true;
-            let rows = pastedTable.rows;
-            for (let r = 0; r < rows.length; r++) {
-                if (!sourceMatrix[r]) sourceMatrix[r] = [];
-                let cIdx = 0;
-                for (let c = 0; c < rows[r].cells.length; c++) {
-                    let cell = rows[r].cells[c];
-                    while (sourceMatrix[r][cIdx] !== undefined) cIdx++;
-                    
-                    let rs = cell.rowSpan || 1;
-                    let cs = cell.colSpan || 1;
-                    let val = cell.innerHTML.trim().replace(/^<p[^>]*>/i, '').replace(/<\/p>$/i, '').trim(); 
-
-                    for (let i = 0; i < rs; i++) {
-                        for (let j = 0; j < cs; j++) {
-                            if (!sourceMatrix[r + i]) sourceMatrix[r + i] = [];
-                            sourceMatrix[r + i][cIdx + j] = (i === 0 && j === 0) ? val : null;
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 3. XỬ LÝ TEXT (EXCEL) NẾU KHÔNG CÓ HTML
-    if (!hasTableData && textData) {
-        let rows = textData.replace(/\r/g, '').trim().split('\n');
-        if (rows.length > 1 || textData.includes('\t')) {
-            hasTableData = true;
-            rows.forEach((row, rIdx) => {
-                sourceMatrix[rIdx] = row.split('\t');
-            });
-        }
-    }
-
-    if (!hasTableData || sourceMatrix.length === 0) return;
-
-    // 4. LẬP BẢN ĐỒ TỌA ĐỘ BẢNG TRONG BÀI VIẾT
-    let targetTable = td.closest('table');
-    let targetMap = [];
-    let tRows = targetTable.rows;
-    for (let r = 0; r < tRows.length; r++) {
-        if (!targetMap[r]) targetMap[r] = [];
-        let cIdx = 0;
-        for (let c = 0; c < tRows[r].cells.length; c++) {
-            let cell = tRows[r].cells[c];
-            while (targetMap[r][cIdx] !== undefined) cIdx++;
-            let rs = cell.rowSpan || 1;
-            let cs = cell.colSpan || 1;
-            for (let i = 0; i < rs; i++) {
-                for (let j = 0; j < cs; j++) {
-                    if (!targetMap[r + i]) targetMap[r + i] = [];
-                    targetMap[r + i][cIdx + j] = cell;
-                }
-            }
-        }
-    }
-
-    // 5. TÌM TỌA ĐỘ ĐÍCH
-    let startTd = td;
-    if (selectedCells.length > 0) {
-        let minR = 9999, minC = 9999;
-        for (let r = 0; r < targetMap.length; r++) {
-            for (let c = 0; c < targetMap[r].length; c++) {
-                if (Array.from(selectedCells).includes(targetMap[r][c])) {
-                    if (r < minR || (r === minR && c < minC)) {
-                        minR = r; minC = c; startTd = targetMap[r][c];
-                    }
-                }
-            }
-        }
-    }
-
-    let startR = 0, startC = 0;
-    let found = false;
-    for (let r = 0; r < targetMap.length; r++) {
-        for (let c = 0; c < targetMap[r].length; c++) {
-            if (targetMap[r][c] === startTd) {
-                startR = r; startC = c; found = true; break;
-            }
-        }
-        if (found) break;
-    }
-
-    // LOGIC DÁN BỎ QUA CỘT TIÊU ĐỀ NGUỒN NẾU ĐANG CHỌN CỘT 2 CỦA BẢNG 2 CỘT
-    let isPastingRightColumn = (startC === 1 && sourceMatrix.length > 0 && sourceMatrix[0].length >= 2 && targetMap[0].length === 2);
-    let colOffsetToRead = isPastingRightColumn ? 1 : 0; 
-
-    // 6. RẢI DỮ LIỆU VÀO ĐÚNG TỌA ĐỘ
-    let updatedCells = new Set();
-    for (let r = 0; r < sourceMatrix.length; r++) {
-        let trIdx = startR + r;
-        
-        if (trIdx >= targetMap.length) {
-            let newRow = targetTable.insertRow(-1);
-            targetMap[trIdx] = [];
-            let colCount = targetMap[0] ? targetMap[0].length : (sourceMatrix[r].length - colOffsetToRead);
-            for (let i = 0; i < colCount; i++) {
-                let newCell = newRow.insertCell(-1);
-                newCell.style.border = "1px solid #d9d9d9";
-                newCell.style.padding = "10px";
-                newCell.style.color = "#333333";
-                targetMap[trIdx][i] = newCell;
-            }
-        }
-
-        for (let c = colOffsetToRead; c < sourceMatrix[r].length; c++) {
-            let val = sourceMatrix[r][c];
-            if (val === null || val === undefined) continue;
-
-            let tcIdx = startC + (c - colOffsetToRead);
-            if (tcIdx >= targetMap[trIdx].length) {
-                 let actualRow = targetTable.rows[trIdx];
-                 if (actualRow) {
-                     let newCell = actualRow.insertCell(-1);
-                     newCell.style.border = "1px solid #d9d9d9";
-                     newCell.style.padding = "10px";
-                     targetMap[trIdx][tcIdx] = newCell;
-                 }
-            }
-
-            let targetCell = targetMap[trIdx][tcIdx];
-            if (targetCell && !updatedCells.has(targetCell)) {
-                targetCell.innerHTML = val;
-                updatedCells.add(targetCell);
-            }
-        }
-    }
-
-    if (typeof activeHtmlBlock !== 'undefined' && activeHtmlBlock && activeHtmlBlock.contains(targetTable)) {
-        let ta = document.getElementById('htmlEditorTextarea');
-        if (ta) ta.value = activeHtmlBlock.querySelector('.block-content').innerHTML;
-        if (typeof window.updateLineNumbers === 'function') window.updateLineNumbers();
-    }
-
-}, true); // <<< CHỮ "true" NÀY CHÍNH LÀ CHÌA KHÓA VÀNG BẮT SỰ KIỆN TỪ NGOÀI VÀO (CAPTURE)
     </script>
 </body>
 </html>
