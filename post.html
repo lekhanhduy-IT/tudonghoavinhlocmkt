@@ -422,30 +422,39 @@ Google Fonts:</div>
         };
 
         window.onload = async () => {
-            try {
-                let cached = localStorage.getItem("MKT_DATA");
-                if(cached) {
-                    let parsedCache = JSON.parse(cached);
-                    if(parsedCache && parsedCache.sheets) {
-                        sysData = parsedCache;
-                        document.getElementById('syncStatus').innerHTML = "⚡ Chế độ nhanh (Local)";
-                    }
-                }
-                
-                initSizeSelects();
-                initResizers();
-                loadDraftData();
-                loadGoogleFonts();
-                loadTemplates();
-                window.loadEmojis(); 
-
-            } catch (err) {
-                console.error("Lỗi khởi tạo UI từ Cache:", err);
+    try {
+        let cached = localStorage.getItem("MKT_DATA");
+        if(cached) {
+            let parsedCache = JSON.parse(cached);
+            if(parsedCache && parsedCache.sheets) {
+                sysData = parsedCache;
+                document.getElementById('syncStatus').innerHTML = "⚡ Chế độ nhanh (Local)";
             }
-            
-            attachCoreEvents();
-            fetchAllDataBackground();
-        };
+        }
+        
+        initSizeSelects();
+        initResizers();
+        loadDraftData(); // Nạp dữ liệu panel trái trước
+        
+        // CƠ CHẾ NẠP BÀI VIẾT TỪ CACHE (Siêu tốc)
+        // Ưu tiên lấy ID từ URL (VD: ?id=POST_123), nếu không có mới lấy từ Draft Kế hoạch
+        let urlParams = new URLSearchParams(window.location.search);
+        let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[1] : null);
+        if (postIdToLoad) {
+            loadPostIntoEditor(postIdToLoad);
+        }
+
+        loadGoogleFonts();
+        loadTemplates();
+        window.loadEmojis(); 
+
+    } catch (err) {
+        console.error("Lỗi khởi tạo UI từ Cache:", err);
+    }
+    
+    attachCoreEvents();
+    fetchAllDataBackground(); // Gọi fetch ngầm
+};
 
         // Lấy tọa độ Ma Trận chuẩn 100% (Khắc phục lỗi lệch cột rowspan/colspan)
         function getTableMap(table) {
@@ -1373,27 +1382,34 @@ Google Fonts:</div>
         }
 
         async function fetchAllDataBackground() {
-            try {
-                let res = await fetch(API_URL + "?t=" + new Date().getTime(), { method: "GET" });
-                let json = await res.json();
-                if(json.success) { 
-                    sysData = json.data; 
-                    if(!sysData.sheets) sysData.sheets = {};
-                    localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
-                    
-                    loadGoogleFonts();
-                    loadTemplates();
-                    window.loadEmojis();
-
-                    document.getElementById('syncStatus').innerText = "✅ Dữ liệu mới nhất"; 
-                    document.getElementById('syncStatus').style.color = "#27ae60";
-                }
-            } catch(e) { 
-                console.log("Sử dụng hoàn toàn Offline"); 
-                document.getElementById('syncStatus').innerText = "⚠️ Dùng bản lưu Offline"; 
-                document.getElementById('syncStatus').style.color = "var(--red)";
+    try {
+        let res = await fetch(API_URL + "?t=" + new Date().getTime(), { method: "GET" });
+        let json = await res.json();
+        if(json.success) { 
+            sysData = json.data; 
+            if(!sysData.sheets) sysData.sheets = {};
+            localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
+            
+            // CẬP NHẬT LẠI DỮ LIỆU NẾU TRÊN SERVER CÓ SỰ THAY ĐỔI
+            let urlParams = new URLSearchParams(window.location.search);
+            let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[1] : null);
+            if (postIdToLoad) {
+                loadPostIntoEditor(postIdToLoad);
             }
+
+            loadGoogleFonts();
+            loadTemplates();
+            window.loadEmojis();
+
+            document.getElementById('syncStatus').innerText = "✅ Dữ liệu mới nhất"; 
+            document.getElementById('syncStatus').style.color = "#27ae60";
         }
+    } catch(e) { 
+        console.log("Sử dụng hoàn toàn Offline"); 
+        document.getElementById('syncStatus').innerText = "⚠️ Dùng bản lưu Offline"; 
+        document.getElementById('syncStatus').style.color = "var(--red)";
+    }
+}
 
         function loadDraftData() {
             let draftStr = localStorage.getItem("DRAFT_POST_DATA");
@@ -1411,7 +1427,39 @@ Google Fonts:</div>
                 });
             } catch(e) {}
         }
+// Hàm tìm và nạp dữ liệu bài viết vào khung soạn thảo
+function loadPostIntoEditor(postId) {
+    if (!postId || !sysData || !sysData.sheets || !sysData.sheets["Bài viết_hidden"]) return;
 
+    let bvTab = sysData.sheets["Bài viết_hidden"];
+    let targetRow = null;
+
+    // Tìm dòng chứa bài viết dựa vào ID
+    for (let r = 1; r < bvTab.length; r++) {
+        if (bvTab[r][0] == postId) {
+            targetRow = bvTab[r];
+            break;
+        }
+    }
+
+    // Nếu tìm thấy, đổ dữ liệu lên UI
+    if (targetRow) {
+        document.getElementById('postTitle').innerHTML = targetRow[1] || "";
+        document.getElementById('postSapo').innerHTML = targetRow[2] || "";
+        document.getElementById('coverUrlInput').value = targetRow[3] || "";
+        updateCoverPreview(); // Cập nhật ảnh xem trước
+
+        // Bóc tách nội dung HTML gốc từ cột finalHtml (cột 5 - index 4)
+        let tempDiv = document.createElement('div');
+        tempDiv.innerHTML = targetRow[4] || "";
+        let postBody = tempDiv.querySelector('.post-body');
+
+        // Nạp nội dung vào editor
+        document.getElementById('postContent').innerHTML = postBody ? postBody.innerHTML : "";
+        
+        console.log("Đã nạp bài viết: ", postId);
+    }
+}
         function restoreSelection() {
             if (savedSelectionRange) { 
                 let sel = window.getSelection(); 
