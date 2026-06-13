@@ -18,7 +18,8 @@
 
         .workspace { display: flex; width: 100%; height: calc(100vh - 45px); overflow: hidden; background: var(--gray-light); }
 
-        .side-panel { width: 10vw; min-width: 50px; max-width: 800px; background: var(--white); display: flex; flex-direction: column; height: 100%; z-index: 10; flex-shrink: 0; transition: width 0.3s ease-out; }
+        /* Panel Trái/Phải chỉ 10vw */
+        .side-panel { width: 10vw; min-width: 150px; max-width: 800px; background: var(--white); display: flex; flex-direction: column; height: 100%; z-index: 10; flex-shrink: 0; transition: width 0.3s ease-out; }
         .panel-header { padding: 12px 15px; background: var(--gray-light); border-bottom: 1px solid var(--gray-border); font-weight: bold; font-size: 13px; color: var(--blue); }
         .panel-content { flex: 1; overflow-y: auto; padding: 15px; font-size: 13px; }
 
@@ -95,9 +96,12 @@
         .template-item:hover { border-color: var(--blue); box-shadow: 0 2px 5px rgba(1, 173, 238, 0.2); }
         .template-preview-box { zoom: 0.6; pointer-events: none; max-height: none; overflow: visible; }
 
-        /* Nút Toggle Preview Góc Dưới Phải */
-        .btn-toggle-preview { position: fixed; bottom: 20px; right: 20px; z-index: 9999; padding: 10px 20px; border-radius: 30px; font-weight: bold; font-size: 13px; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.2); border: 2px solid var(--blue); background: var(--blue); color: var(--white); transition: all 0.3s ease; }
-        .btn-toggle-preview:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
+        /* Vùng Toggle Chỉnh sửa | Xem trước (Dính sát góc dưới phải) */
+        .bottom-right-toggle { position: fixed; bottom: 0; right: 0; display: flex; z-index: 9999; border-top: 1px solid var(--gray-border); border-left: 1px solid var(--gray-border); background: var(--white); box-shadow: -2px -2px 10px rgba(0,0,0,0.05); }
+        .br-btn { padding: 12px 25px; font-size: 13px; font-weight: bold; cursor: pointer; color: #777; background: #f1f3f4; transition: 0.2s; text-transform: uppercase; }
+        .br-btn:hover { color: var(--blue); }
+        .br-btn.active { color: var(--white); background: var(--blue); }
+        .br-divider { width: 1px; background: var(--gray-border); }
 
         /* Emoji Grid & Char Menu */
         .emoji-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; padding: 5px; }
@@ -147,7 +151,7 @@
 
     <div class="workspace" id="workspaceArea">
         
-        <div class="side-panel" id="panelLeft">
+        <div class="side-panel" id="panelLeft" style="width: 10vw;">
             <div class="panel-header">
                 <span><i class="fas fa-database"></i> Dữ Liệu Kế Hoạch</span>
             </div>
@@ -181,7 +185,7 @@
 
         <div class="panel-resizer" id="resizerRight"></div>
 
-        <div class="side-panel" id="panelRight">
+        <div class="side-panel" id="panelRight" style="width: 10vw;">
             <div class="panel-header">
                 <span><i class="fas fa-toolbox"></i> Bộ Công Cụ</span>
             </div>
@@ -204,24 +208,24 @@
                     </select>
 
                     <div class="tool-grid">
-                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('bold')" title="In đậm"><b>B</b></button>
-                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('italic')" title="In nghiêng"><i>I</i></button>
-                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('underline')" title="Gạch chân"><u>U</u></button>
-                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('strikeThrough')" title="Gạch ngang"><strike>S</strike></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="formatDoc('bold')" title="In đậm"><b>B</b></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="formatDoc('italic')" title="In nghiêng"><i>I</i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="formatDoc('underline')" title="Gạch chân"><u>U</u></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="formatDoc('strikeThrough')" title="Gạch ngang"><strike>S</strike></button>
                         
-                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('justifyLeft')" title="Căn trái"><i class="fas fa-align-left"></i></button>
-                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('justifyCenter')" title="Căn giữa"><i class="fas fa-align-center"></i></button>
-                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('justifyRight')" title="Căn phải"><i class="fas fa-align-right"></i></button>
-                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('justifyFull')" title="Căn đều"><i class="fas fa-align-justify"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="formatDoc('justifyLeft')" title="Căn trái"><i class="fas fa-align-left"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="formatDoc('justifyCenter')" title="Căn giữa"><i class="fas fa-align-center"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="formatDoc('justifyRight')" title="Căn phải"><i class="fas fa-align-right"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="formatDoc('justifyFull')" title="Căn đều"><i class="fas fa-align-justify"></i></button>
 
-                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('insertUnorderedList')" title="Bullet Mặc định"><i class="fas fa-list-ul"></i></button>
-                        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('insertOrderedList')" title="Number list"><i class="fas fa-list-ol"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="formatDoc('insertUnorderedList')" title="Bullet Mặc định"><i class="fas fa-list-ul"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="formatDoc('insertOrderedList')" title="Number list"><i class="fas fa-list-ol"></i></button>
                         
-                        <button class="fmt-btn" onmousedown="event.preventDefault(); showPopupSafe(document.getElementById('charBulletMenu'), event)" title="Bullet Ký tự"><i class="fas fa-list"></i> <i class="fas fa-caret-down" style="font-size:10px;"></i></button>
-                        <button class="fmt-btn" onmousedown="event.preventDefault(); showPopupSafe(document.getElementById('emojiBulletMenu'), event)" title="Bullet Emoji"><i class="far fa-smile"></i> <i class="fas fa-caret-down" style="font-size:10px;"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="event.stopPropagation(); window.showPopupSafe(document.getElementById('charBulletMenu'), event)" title="Bullet Ký tự"><i class="fas fa-list"></i> <i class="fas fa-caret-down" style="font-size:10px;"></i></button>
+                        <button class="fmt-btn" onmousedown="event.preventDefault();" onclick="event.stopPropagation(); window.showPopupSafe(document.getElementById('emojiBulletMenu'), event)" title="Bullet Emoji"><i class="far fa-smile"></i> <i class="fas fa-caret-down" style="font-size:10px;"></i></button>
                         
-                        <button class="fmt-btn" style="grid-column: span 2;" onmousedown="event.preventDefault(); insertLink()" title="Chèn Link URL"><i class="fas fa-link"></i> Chèn Link</button>
-                        <button class="fmt-btn" style="grid-column: span 2;" onmousedown="event.preventDefault(); formatDoc('removeFormat')" title="Xóa định dạng"><i class="fas fa-eraser"></i> Xóa Đ.Dạng</button>
+                        <button class="fmt-btn" style="grid-column: span 2;" onmousedown="event.preventDefault();" onclick="insertLink()" title="Chèn Link URL"><i class="fas fa-link"></i></button>
+                        <button class="fmt-btn" style="grid-column: span 2;" onmousedown="event.preventDefault();" onclick="formatDoc('removeFormat')" title="Xóa định dạng"><i class="fas fa-eraser"></i></button>
                     </div>
 
                     <div class="tool-row">
@@ -306,9 +310,11 @@
         </div>
     </div>
 
-    <button id="btnTogglePreview" class="btn-toggle-preview" onclick="window.togglePreviewMode()">
-        <i class="fas fa-eye"></i> Xem trước
-    </button>
+    <div class="bottom-right-toggle">
+        <div class="br-btn active" id="btnEditMode" onclick="window.setMode('edit')">Chỉnh sửa</div>
+        <div class="br-divider"></div>
+        <div class="br-btn" id="btnPreviewMode" onclick="window.setMode('preview')">Xem trước</div>
+    </div>
 
     <div class="popup-menu" id="charBulletMenu" style="display:none; padding:5px;">
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
@@ -393,7 +399,7 @@
         let sysData = { sheets: {} }; 
         let draftData = null;
         let actionQueue = [];
-        let isPreviewMode = false; // Trạng thái xem trước
+        let isPreviewMode = false;
         
         let savedSelectionRange = null; 
         let activeHtmlBlock = null;     
@@ -410,21 +416,11 @@
         let tblStartCell = null;
 
         // ==========================================
-        // CÁC HÀM XỬ LÝ TAB
-        // ==========================================
-        window.switchRightTab = function(tabId, btn) {
-            document.querySelectorAll('.ptab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.ptab-content').forEach(c => c.classList.remove('active'));
-            btn.classList.add('active'); 
-            document.getElementById(tabId).classList.add('active');
-        };
-
-        // ==========================================
         // KHỞI TẠO AN TOÀN KHI LOAD TRANG
         // ==========================================
         window.onload = async () => {
             try {
-                // Set default width for panels on load
+                // Ép cứng width mặc định 10vw cho 2 bên khi khởi tạo
                 document.getElementById('panelLeft').style.width = '10vw';
                 document.getElementById('panelRight').style.width = '10vw';
 
@@ -434,7 +430,7 @@
                 loadDraftData();
                 loadGoogleFonts();
                 loadTemplates();
-                loadEmojis(); // Nạp Emoji mới
+                window.loadEmojis(); 
             } catch (err) {
                 console.error("Lỗi khởi tạo hệ thống:", err);
             }
@@ -533,11 +529,11 @@
                         sel.addRange(range);
                         savedSelectionRange = range.cloneRange();
                         
-                        // Cố gắng xóa định dạng thừa
                         document.execCommand('removeFormat', false, null);
                     }
                 });
 
+                // Xử lý đóng menu an toàn
                 document.addEventListener('click', (e) => {
                     document.querySelectorAll('.popup-menu, .popup-box').forEach(el => {
                         if(el.id !== 'htmlModal' && el.id !== 'customAlert' && el.id !== 'customPrompt') {
@@ -620,45 +616,41 @@
         }
 
         // ==========================================
-        // TOGGLE PREVIEW MODE
+        // XỬ LÝ CHẾ ĐỘ XEM TRƯỚC / CHỈNH SỬA
         // ==========================================
-        window.togglePreviewMode = function() {
-            isPreviewMode = !isPreviewMode;
+        window.setMode = function(mode) {
             let leftP = document.getElementById('panelLeft');
             let rightP = document.getElementById('panelRight');
             let resL = document.getElementById('resizerLeft');
             let resR = document.getElementById('resizerRight');
-            let btn = document.getElementById('btnTogglePreview');
             let editorCont = document.getElementById('editorContainer');
             let coverArea = document.getElementById('coverArea');
             let richInputs = document.querySelectorAll('.rich-input');
             
-            if (isPreviewMode) {
-                // Sang chế độ xem
+            let btnEdit = document.getElementById('btnEditMode');
+            let btnPreview = document.getElementById('btnPreviewMode');
+
+            if (mode === 'preview') {
+                isPreviewMode = true;
                 leftP.style.display = 'none'; rightP.style.display = 'none';
                 resL.style.display = 'none'; resR.style.display = 'none';
                 
-                btn.innerHTML = '<i class="fas fa-edit"></i> Chỉnh sửa';
-                btn.style.background = "var(--white)";
-                btn.style.color = "var(--blue)";
+                btnEdit.classList.remove('active');
+                btnPreview.classList.add('active');
                 
                 editorCont.style.padding = "20px 100px";
-                coverArea.style.border = "none";
-                richInputs.forEach(i => {
-                    i.style.border = "none";
-                    i.contentEditable = "false";
-                });
+                if(coverArea) coverArea.style.border = "none";
+                richInputs.forEach(i => { i.style.border = "none"; i.contentEditable = "false"; });
             } else {
-                // Về chỉnh sửa
+                isPreviewMode = false;
                 leftP.style.display = 'flex'; rightP.style.display = 'flex';
                 resL.style.display = 'block'; resR.style.display = 'block';
                 
-                btn.innerHTML = '<i class="fas fa-eye"></i> Xem trước';
-                btn.style.background = "var(--blue)";
-                btn.style.color = "var(--white)";
+                btnPreview.classList.remove('active');
+                btnEdit.classList.add('active');
                 
                 editorCont.style.padding = "30px 40px 80px 40px";
-                coverArea.style.borderBottom = "1px dashed var(--gray-border)";
+                if(coverArea) coverArea.style.borderBottom = "1px dashed var(--gray-border)";
                 richInputs.forEach(i => {
                     if(i.id !== 'postContent') i.style.borderBottom = "1px dashed var(--gray-border)";
                     i.contentEditable = "true";
@@ -667,7 +659,7 @@
         };
 
         // ==========================================
-        // BULLET KÝ TỰ & EMOJI
+        // BULLET KÝ TỰ & EMOJI THÔNG MINH
         // ==========================================
         window.loadEmojis = function() {
             let emojiMenu = document.getElementById('emojiGrid');
@@ -682,7 +674,6 @@
                 }
             }
             
-            // Khởi tạo mặc định nếu Sheet trống
             if (emojis.length === 0) {
                 emojis = ['😀','😂','🥰','😎','🤔','👍','🙌','❤️','🔥','✨','🎉','🌟','✅','❌','💡','👉','👇','🔴','🟢','🔵'];
             }
@@ -705,7 +696,7 @@
             let currentLi = node.nodeType === 3 ? node.parentNode.closest('li') : node.closest('li');
 
             if (!currentLi) {
-                // Chưa có list thì tạo UL mới
+                // Tạo list mới
                 document.execCommand('insertUnorderedList', false, null);
                 sel = window.getSelection();
                 node = sel.anchorNode;
@@ -713,7 +704,7 @@
                 if (newUl) newUl.style.listStyleType = `"${charValue} "`;
             } else {
                 let currentUl = currentLi.closest('ul');
-                // Nếu đang đứng trong UL mà click chọn Icon khác -> Thụt lề cấp thấp hơn (Sub-list)
+                // Chuyển loại icon thì lùi vào trong làm list con
                 if (currentUl && currentUl.style.listStyleType !== `"${charValue} "`) {
                     document.execCommand('indent', false, null);
                     sel = window.getSelection();
@@ -727,7 +718,7 @@
         };
 
         // ==========================================
-        // XỬ LÝ HÀNH ĐỘNG TABLE 
+        // XỬ LÝ BẢNG (TABLE)
         // ==========================================
         function highlightTableBox(startTd, endTd) {
             let table = startTd.closest('table');
@@ -831,6 +822,9 @@
             }
         }
 
+        // ==========================================
+        // CÁC CHỨC NĂNG CÒN LẠI (GIỮ NGUYÊN)
+        // ==========================================
         window.togglePanel = function(side) {
             if(side === 'left') {
                 let p = document.getElementById('panelLeft'); let r = document.getElementById('resizerLeft');
