@@ -151,7 +151,7 @@
             <span style="font-weight: bold; color: var(--blue); font-size: 14px; margin-left: 5px;"><i class="fas fa-edit"></i> Trình Soạn Thảo Blog</span>
         </div>
         <div style="display: flex; align-items: center;">
-            <span id="syncStatus" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60;">✅ Hệ thống kết nối</span>
+            <span id="syncStatus" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60;">✅ Khởi tạo...</span>
             <button class="tool-btn" onclick="togglePanel('right')" title="Bật/Tắt Công Cụ" style="margin-right: 10px;"><i class="fas fa-toolbox"></i></button>
             <button class="tool-btn save-btn" onmousedown="event.preventDefault(); savePostToSheet()"><i class="fas fa-save"></i> Lưu bài viết</button>
         </div>
@@ -286,7 +286,7 @@
                 </div>
 
                 <div id="tabBlocks" class="ptab-content">
-                    <button class="tool-btn" style="width: 100%; justify-content: center; background: var(--blue); color: var(--white); margin-bottom: 15px;" onmousedown="event.preventDefault(); openHtmlModal(DEFAULT_HTML_BLOCK)">
+                    <button class="tool-btn" style="width: 100%; justify-content: center; background: var(--blue); color: var(--white); margin-bottom: 15px;" onmousedown="event.preventDefault(); window.openHtmlModal(DEFAULT_HTML_BLOCK)">
                         <i class="fas fa-code"></i> Viết Mã HTML
                     </button>
                     
@@ -320,11 +320,11 @@
         <div class="modal-box" style="width: 700px;">
             <div class="modal-header">
                 <span><i class="fas fa-code"></i> Mã HTML của Khối</span>
-                <i class="fas fa-times" style="cursor: pointer; color: var(--red);" onclick="closeHtmlModal()"></i>
+                <i class="fas fa-times" style="cursor: pointer; color: var(--red);" onclick="window.closeHtmlModal()"></i>
             </div>
             <div class="code-container">
                 <div class="line-numbers" id="lineNumbers">1</div>
-                <textarea id="htmlEditorTextarea" class="html-textarea" wrap="off" oninput="syncCodeToEditor(); updateLineNumbers()" onscroll="syncScroll()"></textarea>
+                <textarea id="htmlEditorTextarea" class="html-textarea" wrap="off" oninput="window.syncCodeToEditor(); window.updateLineNumbers()" onscroll="window.syncScroll()"></textarea>
             </div>
             <div style="padding: 10px 15px; text-align: right; background: var(--gray-light); border-top: 1px solid var(--gray-border);">
                 <button type="button" class="tool-btn save-btn" onclick="window.insertHtmlBlock()" style="position: relative; z-index: 100; cursor: pointer;"><i class="fas fa-check"></i> Áp dụng & Đóng</button>
@@ -354,29 +354,34 @@
 
     <!-- ==================== TABLE UI COMPONENTS ==================== -->
     <div id="tableHoverUI">
-        <button onclick="delHoverTable()" title="Xóa toàn bộ Bảng"><i class="fas fa-times"></i></button>
+        <button onclick="window.delHoverTable()" title="Xóa toàn bộ Bảng"><i class="fas fa-times"></i></button>
     </div>
 
     <div class="popup-menu" id="tableContextMenu">
-        <div class="menu-item" onclick="tblAction('addRowUp')"><i class="fas fa-arrow-up"></i> Thêm hàng trên</div>
-        <div class="menu-item" onclick="tblAction('addRowDown')"><i class="fas fa-arrow-down"></i> Thêm hàng dưới</div>
-        <div class="menu-item" onclick="tblAction('addColLeft')"><i class="fas fa-arrow-left"></i> Thêm cột trái</div>
-        <div class="menu-item" onclick="tblAction('addColRight')"><i class="fas fa-arrow-right"></i> Thêm cột phải</div>
+        <div class="menu-item" onclick="window.tblAction('addRowUp')"><i class="fas fa-arrow-up"></i> Thêm hàng trên</div>
+        <div class="menu-item" onclick="window.tblAction('addRowDown')"><i class="fas fa-arrow-down"></i> Thêm hàng dưới</div>
+        <div class="menu-item" onclick="window.tblAction('addColLeft')"><i class="fas fa-arrow-left"></i> Thêm cột trái</div>
+        <div class="menu-item" onclick="window.tblAction('addColRight')"><i class="fas fa-arrow-right"></i> Thêm cột phải</div>
         <div class="divider"></div>
-        <div class="menu-item" id="menuMergeCells" onclick="tblAction('mergeCells')" style="display:none; color:var(--blue);"><i class="fas fa-compress-arrows-alt"></i> Gộp các ô đã bôi đen</div>
+        <div class="menu-item" id="menuMergeCells" onclick="window.tblAction('mergeCells')" style="display:none; color:var(--blue);"><i class="fas fa-compress-arrows-alt"></i> Gộp các ô đã bôi đen</div>
         <div class="divider" id="menuMergeDivider" style="display:none;"></div>
-        <div class="menu-item" onclick="tblAction('alignLeft')"><i class="fas fa-align-left"></i> Căn trái bảng</div>
-        <div class="menu-item" onclick="tblAction('alignCenter')"><i class="fas fa-align-center"></i> Căn giữa bảng</div>
-        <div class="menu-item" onclick="tblAction('alignRight')"><i class="fas fa-align-right"></i> Căn phải bảng</div>
+        <div class="menu-item" onclick="window.tblAction('alignLeft')"><i class="fas fa-align-left"></i> Căn trái bảng</div>
+        <div class="menu-item" onclick="window.tblAction('alignCenter')"><i class="fas fa-align-center"></i> Căn giữa bảng</div>
+        <div class="menu-item" onclick="window.tblAction('alignRight')"><i class="fas fa-align-right"></i> Căn phải bảng</div>
         <div class="divider"></div>
-        <div class="menu-item" style="color:var(--red);" onclick="tblAction('delRow')"><i class="fas fa-minus"></i> Xóa hàng này</div>
-        <div class="menu-item" style="color:var(--red);" onclick="tblAction('delCol')"><i class="fas fa-minus"></i> Xóa cột này</div>
-        <div class="menu-item" style="color:var(--red);" onclick="tblAction('delTable')"><i class="fas fa-trash"></i> Xóa toàn bộ bảng</div>
+        <div class="menu-item" style="color:var(--red);" onclick="window.tblAction('delRow')"><i class="fas fa-minus"></i> Xóa hàng này</div>
+        <div class="menu-item" style="color:var(--red);" onclick="window.tblAction('delCol')"><i class="fas fa-minus"></i> Xóa cột này</div>
+        <div class="menu-item" style="color:var(--red);" onclick="window.tblAction('delTable')"><i class="fas fa-trash"></i> Xóa toàn bộ bảng</div>
     </div>
 
     <script>
+        // ==========================================
+        // KHAI BÁO BIẾN TOÀN CỤC AN TOÀN
+        // ==========================================
         const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
-        let sysData = {};
+        
+        // Khởi tạo cứng sysData để tránh JS Crash
+        let sysData = { sheets: {} }; 
         let draftData = null;
         let actionQueue = [];
         
@@ -388,161 +393,173 @@
 
         let globalTagFormats = { 'H1': null, 'H2': null, 'H3': null, 'H4': null, 'H5': null, 'H6': null };
 
-        // Biến toàn cục cho Table
         let activeTblCell = null;
         let activeTbl = null;
         let hoverTbl = null;
         let isTblSelecting = false;
         let tblStartCell = null;
 
+        // ==========================================
+        // KHỞI TẠO AN TOÀN KHI LOAD TRANG
+        // ==========================================
         window.onload = async () => {
-            initSizeSelects();
-            initResizers();
-            await fetchAllData();
-            loadDraftData();
-            loadGoogleFonts();
-            loadTemplates();
+            try {
+                initSizeSelects();
+                initResizers();
+                await fetchAllData();
+                loadDraftData();
+                loadGoogleFonts();
+                loadTemplates();
+            } catch (err) {
+                console.error("Lỗi khởi tạo hệ thống:", err);
+            }
             
-            document.getElementById('tplHtmlInput').addEventListener('input', function() {
-                document.getElementById('tplPreview').innerHTML = this.value;
-            });
+            // Gắn các sự kiện lõi (Bọc try-catch chống sập)
+            attachCoreEvents();
+        };
 
-            // GHI NHẬN SỰ KIỆN CLICK / BÔI ĐEN CHỐNG LỖI
-            document.addEventListener('selectionchange', () => {
-                try {
-                    let sel = window.getSelection();
-                    if (sel.rangeCount > 0) {
-                        let r = sel.getRangeAt(0);
-                        let content = document.getElementById('postContent');
-                        let title = document.getElementById('postTitle');
-                        let sapo = document.getElementById('postSapo');
-                        
-                        if(content.contains(r.commonAncestorContainer) || title.contains(r.commonAncestorContainer) || sapo.contains(r.commonAncestorContainer)) {
-                            savedSelectionRange = r.cloneRange();
-                            detectFormatting();
+        function attachCoreEvents() {
+            try {
+                document.getElementById('tplHtmlInput').addEventListener('input', function() {
+                    document.getElementById('tplPreview').innerHTML = this.value;
+                });
+
+                document.addEventListener('selectionchange', () => {
+                    try {
+                        let sel = window.getSelection();
+                        if (sel.rangeCount > 0) {
+                            let r = sel.getRangeAt(0);
+                            let content = document.getElementById('postContent');
+                            let title = document.getElementById('postTitle');
+                            let sapo = document.getElementById('postSapo');
+                            
+                            if((content && content.contains(r.commonAncestorContainer)) || 
+                               (title && title.contains(r.commonAncestorContainer)) || 
+                               (sapo && sapo.contains(r.commonAncestorContainer))) {
+                                savedSelectionRange = r.cloneRange();
+                                detectFormatting();
+                            }
+                        }
+                    } catch(e) {}
+                });
+
+                document.getElementById('editorContainer').addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        let editor = document.getElementById('postContent');
+                        editor.focus();
+                        if (typeof window.getSelection !== 'undefined' && typeof document.createRange !== 'undefined') {
+                            let range = document.createRange();
+                            range.selectNodeContents(editor);
+                            range.collapse(false);
+                            let sel = window.getSelection();
+                            sel.removeAllRanges(); sel.addRange(range);
                         }
                     }
-                } catch(e) { console.error(e); }
-            });
+                });
 
-            document.getElementById('editorContainer').addEventListener('click', function(e) {
-                if (e.target === this) {
-                    let editor = document.getElementById('postContent');
-                    editor.focus();
-                    if (typeof window.getSelection !== 'undefined' && typeof document.createRange !== 'undefined') {
-                        let range = document.createRange();
-                        range.selectNodeContents(editor);
-                        range.collapse(false);
-                        let sel = window.getSelection();
-                        sel.removeAllRanges(); sel.addRange(range);
+                // Nút tạo khoảng trống góc HTML Block
+                document.getElementById('postContent').addEventListener('click', function(e) {
+                    let block = e.target.closest('.custom-html-block');
+                    if(block) {
+                        let rect = block.getBoundingClientRect();
+                        if(e.clientX - rect.left <= 22 && e.clientY - rect.top <= 22) {
+                            let p = document.createElement('p'); p.innerHTML = '<br>';
+                            block.parentNode.insertBefore(p, block);
+                            let sel = window.getSelection(); let range = document.createRange();
+                            range.setStart(p, 0); range.collapse(true); sel.removeAllRanges(); sel.addRange(range);
+                            e.stopPropagation();
+                        }
                     }
-                }
-            });
+                });
 
-            document.getElementById('postContent').addEventListener('click', function(e) {
-                let block = e.target.closest('.custom-html-block');
-                if(block) {
-                    let rect = block.getBoundingClientRect();
-                    if(e.clientX - rect.left <= 22 && e.clientY - rect.top <= 22) {
-                        let p = document.createElement('p'); p.innerHTML = '<br>';
-                        block.parentNode.insertBefore(p, block);
-                        let sel = window.getSelection(); let range = document.createRange();
-                        range.setStart(p, 0); range.collapse(true); sel.removeAllRanges(); sel.addRange(range);
-                        e.stopPropagation();
+                // Đồng bộ gõ nội dung -> Popup HTML
+                document.getElementById('postContent').addEventListener('input', function(e) {
+                    if(activeHtmlBlock && activeHtmlBlock.contains(e.target)) {
+                        let ta = document.getElementById('htmlEditorTextarea');
+                        if (ta) ta.value = activeHtmlBlock.querySelector('.block-content').innerHTML;
+                        window.updateLineNumbers();
                     }
-                }
-            });
+                });
 
-            document.getElementById('postContent').addEventListener('input', function(e) {
-                if(activeHtmlBlock && activeHtmlBlock.contains(e.target)) {
-                    document.getElementById('htmlEditorTextarea').value = activeHtmlBlock.querySelector('.block-content').innerHTML;
-                    updateLineNumbers();
-                }
-            });
+                // Ẩn Menu
+                document.addEventListener('click', (e) => {
+                    let menu = document.getElementById('tableContextMenu');
+                    if(menu && menu.style.display === 'block' && !menu.contains(e.target)) {
+                        menu.style.display = 'none';
+                    }
+                });
 
-            // Ẩn Popups khi click ra ngoài
-            document.addEventListener('click', (e) => {
-                let menu = document.getElementById('tableContextMenu');
-                if(menu && menu.style.display === 'block' && !menu.contains(e.target)) {
-                    menu.style.display = 'none';
-                }
-            });
+                // ==========================================
+                // SỰ KIỆN TABLE CHUYÊN SÂU
+                // ==========================================
+                document.addEventListener('mousemove', (e) => {
+                    let tbl = e.target.closest('table');
+                    let ui = document.getElementById('tableHoverUI');
+                    if (tbl && document.getElementById('postContent').contains(tbl)) {
+                        hoverTbl = tbl;
+                        let rect = tbl.getBoundingClientRect();
+                        ui.style.display = 'block';
+                        ui.style.top = (rect.top + window.scrollY - 10) + 'px';
+                        ui.style.left = (rect.left + window.scrollX - 10) + 'px';
+                    } else {
+                        if(e.target.closest('#tableHoverUI')) return;
+                        ui.style.display = 'none';
+                        hoverTbl = null;
+                    }
+                });
 
-            // ==========================================
-            // TABLE HOVER EVENTS (Nút Xóa)
-            // ==========================================
-            document.addEventListener('mousemove', (e) => {
-                let tbl = e.target.closest('table');
-                let ui = document.getElementById('tableHoverUI');
-                if (tbl && document.getElementById('postContent').contains(tbl)) {
-                    hoverTbl = tbl;
-                    let rect = tbl.getBoundingClientRect();
-                    ui.style.display = 'block';
-                    ui.style.top = (rect.top + window.scrollY - 10) + 'px';
-                    ui.style.left = (rect.left + window.scrollX - 10) + 'px';
-                } else {
-                    if(e.target.closest('#tableHoverUI')) return;
-                    ui.style.display = 'none';
-                    hoverTbl = null;
-                }
-            });
-
-            // ==========================================
-            // TABLE SELECTION (BÔI ĐEN Ô ĐỂ TÔ MÀU / GỘP)
-            // ==========================================
-            document.getElementById('postContent').addEventListener('mousedown', (e) => {
-                let td = e.target.closest('td, th');
-                if (td && document.getElementById('postContent').contains(td)) {
-                    isTblSelecting = true;
-                    tblStartCell = td;
-                    if(!e.shiftKey) {
+                document.getElementById('postContent').addEventListener('mousedown', (e) => {
+                    let td = e.target.closest('td, th');
+                    if (td && document.getElementById('postContent').contains(td)) {
+                        isTblSelecting = true;
+                        tblStartCell = td;
+                        if(!e.shiftKey) {
+                            document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
+                        }
+                        td.classList.add('selected-td');
+                    } else {
                         document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
                     }
-                    td.classList.add('selected-td');
-                } else {
-                    document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
-                }
-            });
+                });
 
-            document.getElementById('postContent').addEventListener('mouseover', (e) => {
-                if (!isTblSelecting || !tblStartCell) return;
-                let td = e.target.closest('td, th');
-                if (td && td.closest('table') === tblStartCell.closest('table')) {
-                    highlightTableBox(tblStartCell, td);
-                }
-            });
-
-            document.addEventListener('mouseup', () => { isTblSelecting = false; });
-
-            // ==========================================
-            // TABLE CONTEXT MENU (Chuột phải vào bảng)
-            // ==========================================
-            document.getElementById('postContent').addEventListener('contextmenu', (e) => {
-                let td = e.target.closest('td, th');
-                if(td && document.getElementById('postContent').contains(td)) {
-                    e.preventDefault();
-                    activeTblCell = td;
-                    activeTbl = td.closest('table');
-                    
-                    let menu = document.getElementById('tableContextMenu');
-                    menu.style.display = 'block';
-                    
-                    let mergeBtn = document.getElementById('menuMergeCells');
-                    let mergeDiv = document.getElementById('menuMergeDivider');
-                    if (document.querySelectorAll('.selected-td').length > 1) {
-                        mergeBtn.style.display = 'flex'; mergeDiv.style.display = 'block';
-                    } else {
-                        mergeBtn.style.display = 'none'; mergeDiv.style.display = 'none';
+                document.getElementById('postContent').addEventListener('mouseover', (e) => {
+                    if (!isTblSelecting || !tblStartCell) return;
+                    let td = e.target.closest('td, th');
+                    if (td && td.closest('table') === tblStartCell.closest('table')) {
+                        highlightTableBox(tblStartCell, td);
                     }
+                });
 
-                    let x = e.clientX, y = e.clientY + 15;
-                    if(x + menu.offsetWidth > window.innerWidth) x = window.innerWidth - menu.offsetWidth - 5;
-                    if(y + menu.offsetHeight > window.innerHeight) y = window.innerHeight - menu.offsetHeight - 5;
-                    menu.style.left = x + 'px';
-                    menu.style.top = y + 'px';
-                }
-            });
-        };
+                document.addEventListener('mouseup', () => { isTblSelecting = false; });
+
+                document.getElementById('postContent').addEventListener('contextmenu', (e) => {
+                    let td = e.target.closest('td, th');
+                    if(td && document.getElementById('postContent').contains(td)) {
+                        e.preventDefault();
+                        activeTblCell = td;
+                        activeTbl = td.closest('table');
+                        
+                        let menu = document.getElementById('tableContextMenu');
+                        menu.style.display = 'block';
+                        
+                        let mergeBtn = document.getElementById('menuMergeCells');
+                        let mergeDiv = document.getElementById('menuMergeDivider');
+                        if (document.querySelectorAll('.selected-td').length > 1) {
+                            mergeBtn.style.display = 'flex'; mergeDiv.style.display = 'block';
+                        } else {
+                            mergeBtn.style.display = 'none'; mergeDiv.style.display = 'none';
+                        }
+
+                        let x = e.clientX, y = e.clientY + 15;
+                        if(x + menu.offsetWidth > window.innerWidth) x = window.innerWidth - menu.offsetWidth - 5;
+                        if(y + menu.offsetHeight > window.innerHeight) y = window.innerHeight - menu.offsetHeight - 5;
+                        menu.style.left = x + 'px';
+                        menu.style.top = y + 'px';
+                    }
+                });
+
+            } catch (err) { console.error("Lỗi gắn sự kiện:", err); }
+        }
 
         // ==========================================
         // XỬ LÝ HÀNH ĐỘNG TABLE 
@@ -568,11 +585,11 @@
 
         window.delHoverTable = function() {
             if(hoverTbl) {
-                // Đồng bộ code popup nếu đang mở
+                // Sync to modal if open
                 if (activeHtmlBlock && activeHtmlBlock.contains(hoverTbl)) {
                     hoverTbl.remove();
                     document.getElementById('htmlEditorTextarea').value = activeHtmlBlock.querySelector('.block-content').innerHTML;
-                    updateLineNumbers();
+                    window.updateLineNumbers();
                 } else {
                     hoverTbl.remove();
                 }
@@ -642,10 +659,11 @@
             else if (action === 'alignCenter') { activeTbl.style.margin = '0 auto'; }
             else if (action === 'alignRight') { activeTbl.style.margin = '0 0 0 auto'; }
 
-            // Sync lại popup html
+            // Cập nhật realtime cho Popup HTML
             if (activeHtmlBlock && activeHtmlBlock.contains(activeTbl)) {
-                document.getElementById('htmlEditorTextarea').value = activeHtmlBlock.querySelector('.block-content').innerHTML;
-                updateLineNumbers();
+                let ta = document.getElementById('htmlEditorTextarea');
+                if (ta) ta.value = activeHtmlBlock.querySelector('.block-content').innerHTML;
+                window.updateLineNumbers();
             }
         }
 
@@ -693,143 +711,12 @@
         }
 
         // ==========================================
-        // AUTO DETECT FORMAT & GLOBAL SYNC (SAFE)
-        // ==========================================
-        function detectFormatting() {
-            try {
-                let sel = window.getSelection();
-                if (!sel.rangeCount) return;
-                let node = sel.anchorNode;
-                if(!node) return;
-                
-                let postContent = document.getElementById('postContent');
-                let postTitle = document.getElementById('postTitle');
-                let postSapo = document.getElementById('postSapo');
-                if (!postContent.contains(node) && !postTitle.contains(node) && !postSapo.contains(node)) return;
-
-                let block = node.nodeType === 3 ? node.parentNode : node;
-                let curBlock = block;
-                let tagName = "P";
-                
-                // Lùi an toàn tránh null
-                while (curBlock && curBlock !== document.body) {
-                    if (curBlock.tagName && ['H1','H2','H3','H4','H5','H6','P'].includes(curBlock.tagName.toUpperCase())) {
-                        tagName = curBlock.tagName.toUpperCase();
-                        break;
-                    }
-                    if (curBlock.id === 'postContent' || (curBlock.classList && curBlock.classList.contains('rich-input'))) break;
-                    curBlock = curBlock.parentNode;
-                }
-                
-                let formatSelect = document.getElementById('formatSelect');
-                if (formatSelect) formatSelect.value = tagName;
-
-                if (block && block.nodeType === 1) {
-                    let innerComputed = window.getComputedStyle(block);
-                    let size = innerComputed.fontSize;
-                    if (size) {
-                        let sizeVal = Math.round(parseFloat(size));
-                        let sizeSel = document.getElementById('fontSizeSel');
-                        if (sizeSel && Array.from(sizeSel.options).some(o => o.value == sizeVal)) {
-                            sizeSel.value = sizeVal;
-                        }
-                    }
-                }
-            } catch(e) { console.error("Detect format error:", e); }
-        }
-
-        function changeBlockType(tagName) {
-            if(!tagName) return;
-            restoreSelection();
-            document.execCommand('formatBlock', false, tagName);
-            
-            if (globalTagFormats[tagName]) { applyFormatToAllTags(tagName); } 
-            else {
-                let existingTag = document.getElementById('postContent').querySelector(tagName);
-                if (existingTag) {
-                    let computed = window.getComputedStyle(existingTag);
-                    globalTagFormats[tagName] = {
-                        color: existingTag.style.color || computed.color,
-                        fontSize: existingTag.style.fontSize || computed.fontSize,
-                        lineHeight: existingTag.style.lineHeight || computed.lineHeight,
-                        textAlign: existingTag.style.textAlign || computed.textAlign
-                    };
-                    applyFormatToAllTags(tagName);
-                }
-            }
-            setTimeout(detectFormatting, 50);
-        }
-
-        function syncGlobalFormat() {
-            try {
-                let sel = window.getSelection();
-                if (!sel.rangeCount) return;
-                let node = sel.anchorNode;
-                let block = node.nodeType === 3 ? node.parentNode : node;
-                
-                while (block && block !== document.body) {
-                    if (block.tagName && ['H1','H2','H3','H4','H5','H6'].includes(block.tagName.toUpperCase())) break;
-                    if (block.id === 'postContent' || (block.classList && block.classList.contains('rich-input'))) break;
-                    block = block.parentNode;
-                }
-                
-                // CHỈ SYNC HEADINGS ĐỂ TRÁNH PHÁ VỠ CẤU TRÚC KHỐI HTML VÀ TABLE
-                if (block && block.tagName && ['H1','H2','H3','H4','H5','H6'].includes(block.tagName.toUpperCase())) {
-                    let tag = block.tagName.toUpperCase();
-                    let innerNode = node.nodeType === 3 ? node.parentNode : node;
-                    let innerComputed = window.getComputedStyle(innerNode);
-                    let blockComputed = window.getComputedStyle(block);
-                    
-                    globalTagFormats[tag] = {
-                        color: innerNode.style.color || innerComputed.color,
-                        fontSize: innerNode.style.fontSize || innerComputed.fontSize,
-                        lineHeight: block.style.lineHeight || blockComputed.lineHeight,
-                        textAlign: block.style.textAlign || blockComputed.textAlign
-                    };
-                    applyFormatToAllTags(tag);
-                }
-            } catch(e) { console.error("Sync error:", e); }
-        }
-
-        function applyFormatToAllTags(tag) {
-            if (!globalTagFormats[tag]) return;
-            let format = globalTagFormats[tag];
-            let allTags = document.getElementById('postContent').querySelectorAll(tag);
-            let titleEl = document.getElementById('postTitle');
-            if (tag === 'H1') allTags = [...allTags, titleEl]; 
-            
-            allTags.forEach(el => {
-                if(!el) return;
-                if (format.color) el.style.color = format.color;
-                if (format.fontSize) el.style.fontSize = format.fontSize;
-                if (format.lineHeight) el.style.lineHeight = format.lineHeight;
-                if (format.textAlign) el.style.textAlign = format.textAlign;
-                
-                el.querySelectorAll('span, font').forEach(child => {
-                    if (format.color) child.style.color = format.color;
-                    if (format.fontSize) child.style.fontSize = format.fontSize;
-                });
-            });
-
-            // Nếu đang mở popup code, cập nhật realtime code
-            let sel = window.getSelection();
-            if(sel.rangeCount) {
-                let node = sel.anchorNode;
-                let element = node.nodeType === 3 ? node.parentNode : node;
-                let containerBlock = element.closest ? element.closest('.custom-html-block') : null;
-                if(containerBlock && activeHtmlBlock === containerBlock && document.getElementById('htmlModal').style.display === 'flex') {
-                    document.getElementById('htmlEditorTextarea').value = containerBlock.querySelector('.block-content').innerHTML;
-                    updateLineNumbers();
-                }
-            }
-        }
-
-        // ==========================================
-        // FORMAT CƠ BẢN & BẢNG MÀU THÔNG MINH
+        // FORMAT CƠ BẢN & BẢNG MÀU
         // ==========================================
         function initSizeSelects() {
             let fs = document.getElementById('fontSizeSel');
             let lh = document.getElementById('lineHeightSel');
+            if(!fs || !lh) return;
             for(let i=2; i<=60; i++) {
                 fs.add(new Option(i + 'px', i));
                 lh.add(new Option(i + 'px', i));
@@ -877,10 +764,11 @@
                     if (cmd === 'hiliteColor') td.style.backgroundColor = value;
                 });
                 
-                // Đồng bộ popup
+                // Đồng bộ popup realtime
                 if (activeHtmlBlock && activeHtmlBlock.contains(selectedCells[0])) {
-                    document.getElementById('htmlEditorTextarea').value = activeHtmlBlock.querySelector('.block-content').innerHTML;
-                    updateLineNumbers();
+                    let ta = document.getElementById('htmlEditorTextarea');
+                    if(ta) ta.value = activeHtmlBlock.querySelector('.block-content').innerHTML;
+                    window.updateLineNumbers();
                 }
                 return; 
             }
@@ -891,17 +779,143 @@
             setTimeout(() => { syncGlobalFormat(); detectFormatting(); }, 50);
         }
 
-        function applyCustomFont(fontValue) {
+        // ==========================================
+        // AUTO DETECT & GLOBAL SYNC (AN TOÀN)
+        // ==========================================
+        function detectFormatting() {
+            try {
+                let sel = window.getSelection();
+                if (!sel || !sel.rangeCount) return;
+                let node = sel.anchorNode;
+                if(!node) return;
+                
+                let postContent = document.getElementById('postContent');
+                let postTitle = document.getElementById('postTitle');
+                let postSapo = document.getElementById('postSapo');
+                if (!postContent || !postTitle || !postSapo) return; 
+                if (!postContent.contains(node) && !postTitle.contains(node) && !postSapo.contains(node)) return;
+
+                let block = node.nodeType === 3 ? node.parentNode : node;
+                let curBlock = block;
+                let tagName = "P";
+                
+                while (curBlock && curBlock !== document.body) {
+                    if (curBlock.tagName && ['H1','H2','H3','H4','H5','H6','P'].includes(curBlock.tagName.toUpperCase())) {
+                        tagName = curBlock.tagName.toUpperCase();
+                        break;
+                    }
+                    if (curBlock.id === 'postContent' || (curBlock.classList && curBlock.classList.contains('rich-input'))) break;
+                    curBlock = curBlock.parentNode;
+                }
+                
+                let formatSelect = document.getElementById('formatSelect');
+                if (formatSelect) formatSelect.value = tagName;
+
+                if (block && block.nodeType === 1) {
+                    let innerComputed = window.getComputedStyle(block);
+                    let size = innerComputed.fontSize;
+                    if (size) {
+                        let sizeVal = Math.round(parseFloat(size));
+                        let sizeSel = document.getElementById('fontSizeSel');
+                        if (sizeSel && Array.from(sizeSel.options).some(o => o.value == sizeVal)) {
+                            sizeSel.value = sizeVal;
+                        }
+                    }
+                }
+            } catch(e) { }
+        }
+
+        function changeBlockType(tagName) {
+            if(!tagName) return;
             restoreSelection();
-            document.execCommand('fontName', false, 'VLCustomFontName');
-            let rootContent = document.getElementById('workspaceArea');
-            let fonts = rootContent.querySelectorAll('font[face="VLCustomFontName"]');
-            fonts.forEach(f => { f.removeAttribute('face'); f.style.fontFamily = fontValue; });
-            setTimeout(() => { syncGlobalFormat(); detectFormatting(); }, 50);
+            document.execCommand('formatBlock', false, tagName);
+            
+            if (globalTagFormats[tagName]) { applyFormatToAllTags(tagName); } 
+            else {
+                let existingTag = document.getElementById('postContent').querySelector(tagName);
+                if (existingTag) {
+                    let computed = window.getComputedStyle(existingTag);
+                    globalTagFormats[tagName] = {
+                        color: existingTag.style.color || computed.color,
+                        fontSize: existingTag.style.fontSize || computed.fontSize,
+                        lineHeight: existingTag.style.lineHeight || computed.lineHeight,
+                        textAlign: existingTag.style.textAlign || computed.textAlign
+                    };
+                    applyFormatToAllTags(tagName);
+                }
+            }
+            setTimeout(detectFormatting, 50);
+        }
+
+        function syncGlobalFormat() {
+            try {
+                let sel = window.getSelection();
+                if (!sel || !sel.rangeCount) return;
+                let node = sel.anchorNode;
+                let block = node.nodeType === 3 ? node.parentNode : node;
+                
+                while (block && block !== document.body) {
+                    if (block.tagName && ['H1','H2','H3','H4','H5','H6'].includes(block.tagName.toUpperCase())) break;
+                    if (block.id === 'postContent' || (block.classList && block.classList.contains('rich-input'))) break;
+                    block = block.parentNode;
+                }
+                
+                // CHỈ SYNC HEADINGS ĐỂ KHÔNG PHÁ HTML & BẢNG
+                if (block && block.tagName && ['H1','H2','H3','H4','H5','H6'].includes(block.tagName.toUpperCase())) {
+                    let tag = block.tagName.toUpperCase();
+                    let innerNode = node.nodeType === 3 ? node.parentNode : node;
+                    let innerComputed = window.getComputedStyle(innerNode);
+                    let blockComputed = window.getComputedStyle(block);
+                    
+                    globalTagFormats[tag] = {
+                        color: innerNode.style.color || innerComputed.color,
+                        fontSize: innerNode.style.fontSize || innerComputed.fontSize,
+                        lineHeight: block.style.lineHeight || blockComputed.lineHeight,
+                        textAlign: block.style.textAlign || blockComputed.textAlign
+                    };
+                    applyFormatToAllTags(tag);
+                }
+            } catch(e) { }
+        }
+
+        function applyFormatToAllTags(tag) {
+            if (!globalTagFormats[tag]) return;
+            let format = globalTagFormats[tag];
+            
+            let postContent = document.getElementById('postContent');
+            if(!postContent) return;
+            
+            let allTags = Array.from(postContent.querySelectorAll(tag));
+            let titleEl = document.getElementById('postTitle');
+            if (tag === 'H1' && titleEl) allTags.push(titleEl); 
+            
+            allTags.forEach(el => {
+                if(!el) return;
+                if (format.color) el.style.color = format.color;
+                if (format.fontSize) el.style.fontSize = format.fontSize;
+                if (format.lineHeight) el.style.lineHeight = format.lineHeight;
+                if (format.textAlign) el.style.textAlign = format.textAlign;
+                
+                el.querySelectorAll('span, font').forEach(child => {
+                    if (format.color) child.style.color = format.color;
+                    if (format.fontSize) child.style.fontSize = format.fontSize;
+                });
+            });
+
+            // Đồng bộ Popup code
+            let sel = window.getSelection();
+            if(sel && sel.rangeCount) {
+                let node = sel.anchorNode;
+                let containerBlock = node.nodeType === 3 ? node.parentNode.closest('.custom-html-block') : node.closest('.custom-html-block');
+                if(containerBlock && activeHtmlBlock === containerBlock && document.getElementById('htmlModal').style.display === 'flex') {
+                    document.getElementById('htmlEditorTextarea').value = containerBlock.querySelector('.block-content').innerHTML;
+                    window.updateLineNumbers();
+                }
+            }
         }
 
         // ==========================================
-        // ALERTS & FETCH & KHÁC
+        // ALERTS & FETCH
         // ==========================================
         function showAlert(msg, isError = false) {
             document.getElementById('alertMsg').innerHTML = msg;
@@ -926,28 +940,55 @@
             try {
                 let res = await fetch(API_URL + "?t=" + new Date().getTime(), { method: "GET" });
                 let json = await res.json();
-                if(json.success) { sysData = json.data; localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); }
-            } catch(e) { console.log("Offline mode"); }
+                if(json.success) { 
+                    sysData = json.data; 
+                    if(!sysData.sheets) sysData.sheets = {};
+                    localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
+                }
+            } catch(e) { 
+                console.log("Offline mode"); 
+                document.getElementById('syncStatus').innerText = "⚠️ Mất mạng"; 
+                document.getElementById('syncStatus').style.color = "var(--red)";
+                
+                let cached = localStorage.getItem("MKT_DATA");
+                if(cached) {
+                    try {
+                        let p = JSON.parse(cached);
+                        if(p.sheets) sysData = p;
+                    } catch(err){}
+                }
+            }
         }
 
         function loadDraftData() {
             let draftStr = localStorage.getItem("DRAFT_POST_DATA");
             if (!draftStr) return;
-            draftData = JSON.parse(draftStr);
-            let container = document.getElementById("sourceDataContainer");
-            container.innerHTML = "";
-            draftData.headers.forEach((h, i) => {
-                let val = draftData.data[i] || "";
-                if(typeof val === 'string') val = val.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                container.innerHTML += `<div class="data-row"><div class="data-label">${h}</div><div class="data-val">${val || "<i style='color:#ccc'>Trống</i>"}</div></div>`;
-            });
+            try {
+                draftData = JSON.parse(draftStr);
+                if(!draftData || !draftData.headers) return;
+                
+                let container = document.getElementById("sourceDataContainer");
+                container.innerHTML = "";
+                draftData.headers.forEach((h, i) => {
+                    let val = draftData.data[i] || "";
+                    if(typeof val === 'string') val = val.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    container.innerHTML += `<div class="data-row"><div class="data-label">${h}</div><div class="data-val">${val || "<i style='color:#ccc'>Trống</i>"}</div></div>`;
+                });
+            } catch(e) {}
         }
 
         // ==========================================
         // CÁC TÍNH NĂNG NHỎ (RULER, LINK, THUMBNAIL)
         // ==========================================
         function restoreSelection() {
-            if (savedSelectionRange) { let sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(savedSelectionRange); }
+            if (savedSelectionRange) { 
+                let sel = window.getSelection(); 
+                sel.removeAllRanges(); 
+                sel.addRange(savedSelectionRange); 
+            } else {
+                let editor = document.getElementById('postContent');
+                if(editor) editor.focus();
+            }
         }
 
         function insertLink() {
@@ -967,6 +1008,7 @@
             let container = document.getElementById('editorContainer');
             let rect = container.getBoundingClientRect();
             let targetEl = document.getElementById('postContent');
+            
             if(savedSelectionRange) {
                 let node = savedSelectionRange.startContainer;
                 let t = node.nodeType === 3 ? node.parentNode : node;
@@ -998,17 +1040,18 @@
         // GOOGLE FONTS
         // ==========================================
         function loadGoogleFonts() {
+            if (!sysData || !sysData.sheets) return;
             let fontsTab = sysData.sheets["Google Fonts_hidden"];
-            if(fontsTab) {
-                let select = document.getElementById('fontSelect');
-                for(let r=1; r<fontsTab.length; r++) {
-                    let link = fontsTab[r][0]; let fontName = fontsTab[r][1];
-                    if(fontName && link) {
-                        let temp = document.createElement('div'); temp.innerHTML = link;
-                        temp.querySelectorAll('link').forEach(t => { let newLink = document.createElement('link'); newLink.rel = "stylesheet"; newLink.href = t.href; document.head.appendChild(newLink); });
-                        if(!Array.from(select.options).some(opt => opt.text === fontName)) {
-                            let opt = document.createElement('option'); opt.value = `'${fontName}', sans-serif`; opt.innerText = fontName; opt.style.fontFamily = `'${fontName}', sans-serif`; select.appendChild(opt);
-                        }
+            if(!fontsTab) return;
+            
+            let select = document.getElementById('fontSelect');
+            for(let r=1; r<fontsTab.length; r++) {
+                let link = fontsTab[r][0]; let fontName = fontsTab[r][1];
+                if(fontName && link) {
+                    let temp = document.createElement('div'); temp.innerHTML = link;
+                    temp.querySelectorAll('link').forEach(t => { let newLink = document.createElement('link'); newLink.rel = "stylesheet"; newLink.href = t.href; document.head.appendChild(newLink); });
+                    if(!Array.from(select.options).some(opt => opt.text === fontName)) {
+                        let opt = document.createElement('option'); opt.value = `'${fontName}', sans-serif`; opt.innerText = fontName; opt.style.fontFamily = `'${fontName}', sans-serif`; select.appendChild(opt);
                     }
                 }
             }
@@ -1058,14 +1101,16 @@
         }
 
         // ==========================================
-        // INSERT HTML (BỌC SAFE THÔNG MINH, CHÈN VỊ TRÍ)
+        // INSERT HTML CHUYÊN MÔN (ĐÃ FIX CHÈN CHUẨN XÁC)
         // ==========================================
-        function updateLineNumbers() {
+        window.updateLineNumbers = function() {
             let ta = document.getElementById('htmlEditorTextarea');
+            if(!ta) return;
             let lines = ta.value.split('\n').length;
             document.getElementById('lineNumbers').innerHTML = Array(lines).fill(0).map((_, i) => i + 1).join('<br>');
         }
-        function syncScroll() { document.getElementById('lineNumbers').scrollTop = document.getElementById('htmlEditorTextarea').scrollTop; }
+        
+        window.syncScroll = function() { document.getElementById('lineNumbers').scrollTop = document.getElementById('htmlEditorTextarea').scrollTop; }
 
         window.openHtmlModal = function(preFill = "") {
             try {
@@ -1074,7 +1119,7 @@
                 let ta = document.getElementById('htmlEditorTextarea'); 
                 activeHtmlBlock = null;
 
-                if(sel.rangeCount) {
+                if(sel && sel.rangeCount) {
                     let node = sel.anchorNode;
                     let block = node.nodeType === 3 ? node.parentNode : node;
                     while (block && block !== document.body) {
@@ -1092,21 +1137,34 @@
                     ta.value = preFill;
                 }
                 
-                updateLineNumbers(); 
+                window.updateLineNumbers(); 
                 document.getElementById('htmlModal').style.display = 'flex';
             } catch(e) { console.error("Open modal error:", e); }
         };
 
-        window.closeHtmlModal = function() { document.getElementById('htmlModal').style.display = 'none'; activeHtmlBlock = null; };
+        window.closeHtmlModal = function() { 
+            document.getElementById('htmlModal').style.display = 'none'; 
+            activeHtmlBlock = null; 
+        };
 
-        window.syncCodeToEditor = function() { if (activeHtmlBlock) activeHtmlBlock.querySelector('.block-content').innerHTML = document.getElementById('htmlEditorTextarea').value; };
+        window.syncCodeToEditor = function() { 
+            if (activeHtmlBlock) {
+                let ta = document.getElementById('htmlEditorTextarea');
+                if(ta) activeHtmlBlock.querySelector('.block-content').innerHTML = ta.value; 
+            }
+        };
 
         window.insertHtmlBlock = function() {
             try {
-                let html = document.getElementById('htmlEditorTextarea').value;
+                let ta = document.getElementById('htmlEditorTextarea');
+                let html = ta ? ta.value : "";
                 if(!html) { window.closeHtmlModal(); return; }
                 
-                if (activeHtmlBlock) { window.closeHtmlModal(); return; } 
+                // Nếu đang chỉnh sửa khối cũ, đã tự sync -> đóng popup là xong
+                if (activeHtmlBlock) { 
+                    window.closeHtmlModal(); 
+                    return; 
+                } 
                 
                 window.insertDirectHtmlBlock(html); 
                 window.closeHtmlModal();
@@ -1131,14 +1189,14 @@
                 }
             }
 
-            // NẾU ĐANG Ở TRONG KHỐI CŨ -> CHÈN ĐÚNG NGAY TẠI CON TRỎ (Đảm bảo Table insert)
+            // --- NẾU CON TRỎ NẰM TRONG KHỐI HTML ---
             if (isInsideCustom) {
                 document.execCommand('insertHTML', false, html);
                 if (sel.rangeCount > 0) savedSelectionRange = sel.getRangeAt(0).cloneRange();
                 return;
             }
 
-            // TẠO KHỐI MỚI BÊN NGOÀI
+            // --- NẾU Ở NGOÀI -> TẠO KHỐI MỚI ---
             let block = document.createElement("div");
             block.className = "custom-html-block";
             let htmlWithInnerP = html + '<p><br></p>';
@@ -1151,12 +1209,12 @@
             
             if(sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
                 let currentNode = sel.anchorNode;
+                
                 if (currentNode === editor) {
                     editor.appendChild(block);
                 } else {
                     let topLevelNode = currentNode.nodeType === 3 ? currentNode.parentNode : currentNode;
                     
-                    // Đi lùi lên cho tới khi node cha là postContent
                     while(topLevelNode && topLevelNode.parentNode !== editor && topLevelNode !== editor) {
                         topLevelNode = topLevelNode.parentNode;
                     }
@@ -1175,13 +1233,13 @@
                 editor.appendChild(block);
             }
 
-            // Dòng dự phòng ngoài block
+            // Tạo dòng trống thoát khối
             if (block.parentNode) {
                 let outerEmptyP = document.createElement('p'); outerEmptyP.innerHTML = "<br>";
                 block.parentNode.insertBefore(outerEmptyP, block.nextSibling);
             }
             
-            // Focus vào dòng trong block
+            // Focus vào dòng p<br> TẬN CÙNG CỦA MÃ VỪA CHÈN
             let insideEmptyP = block.querySelector('.block-content').lastElementChild;
             if (insideEmptyP) {
                 let newRange = document.createRange();
@@ -1197,9 +1255,12 @@
         // TEMPLATES & LƯU BÀI
         // ==========================================
         function loadTemplates() {
+            if (!sysData || !sysData.sheets) return;
             let tplTab = sysData.sheets["Mẫu html_hidden"];
             if(!tplTab) return;
+            
             let cats = {}; let catSelect = document.getElementById('catSelect');
+            if(!catSelect) return;
             while(catSelect.options.length > 2) catSelect.remove(2);
 
             for(let r=1; r<tplTab.length; r++) {
