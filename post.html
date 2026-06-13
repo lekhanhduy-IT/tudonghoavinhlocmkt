@@ -1595,113 +1595,168 @@ else if (action === 'splitCells') {
             .then(res => res.json()).then(json => { if(json.success) { s.innerText = "✅ Đã lưu"; s.style.color = "#27ae60"; } })
             .catch(e => { s.innerText = "⚠️ Mất mạng"; s.style.color = "var(--red)"; });
         }
-        // Bắt sự kiện Paste để xử lý dán dữ liệu bảng
+// ==========================================
+// XỬ LÝ DÁN (PASTE) DỮ LIỆU VÀO BẢNG CHUẨN XÁC
+// ==========================================
 document.getElementById('postContent').addEventListener('paste', function(e) {
     let td = e.target.closest('td, th');
-    if (!td) return; // Nếu không dán vào bảng, giữ nguyên hành vi mặc định
+    if (!td) return; // Nếu không dán vào bảng thì giữ nguyên hành vi mặc định
 
     let clipData = e.clipboardData || window.clipboardData;
     if (!clipData) return;
 
     let htmlData = clipData.getData('text/html');
     let textData = clipData.getData('text/plain');
-    let matrix = [];
+    let sourceMatrix = [];
 
-    // Phân tích dữ liệu Copy
-    if (htmlData && htmlData.includes('<table')) {
+    // 1. CHUYỂN DỮ LIỆU COPY THÀNH MA TRẬN 2D (GIẢI MÃ COLSPAN/ROWSPAN CỦA NGUỒN)
+    if (htmlData && htmlData.match(/<table/i)) {
         let tempDiv = document.createElement('div');
         tempDiv.innerHTML = htmlData;
         let pastedTable = tempDiv.querySelector('table');
+        
         if (pastedTable) {
-            Array.from(pastedTable.rows).forEach(row => {
-                let rowData = [];
-                Array.from(row.cells).forEach(cell => rowData.push(cell.innerHTML));
-                matrix.push(rowData);
-            });
-        }
-    } else if (textData && textData.includes('\t')) {
-        // Xử lý dán từ Excel (Tab-separated values)
-        let rows = textData.trim().split('\n');
-        rows.forEach(row => matrix.push(row.split('\t')));
-    }
+            let rows = pastedTable.rows;
+            for (let r = 0; r < rows.length; r++) {
+                if (!sourceMatrix[r]) sourceMatrix[r] = [];
+                let cIdx = 0;
+                for (let c = 0; c < rows[r].cells.length; c++) {
+                    let cell = rows[r].cells[c];
+                    
+                    // Tìm vị trí cột trống tiếp theo (bỏ qua các ô đã bị chiếm bởi rowspan/colspan trước đó)
+                    while (sourceMatrix[r][cIdx] !== undefined) cIdx++;
+                    
+                    let rs = cell.rowSpan || 1;
+                    let cs = cell.colSpan || 1;
+                    let val = cell.innerHTML; // Lấy nội dung HTML của ô
 
-    // Nếu nhận diện được dạng bảng, ghi đè hành vi dán mặc định
-    if (matrix.length > 0) {
-        e.preventDefault(); 
-        
-        let targetTable = td.closest('table');
-        
-        // Tạo lưới mapping để tính chính xác tọa độ (kể cả khi bảng có rowspan/colspan)
-        let gridMap = [];
-        for (let r = 0; r < targetTable.rows.length; r++) {
-            if(!gridMap[r]) gridMap[r] = [];
-            let cIdx = 0;
-            for (let i = 0; i < targetTable.rows[r].cells.length; i++) {
-                let cell = targetTable.rows[r].cells[i];
-                while(gridMap[r][cIdx]) cIdx++; 
-                for(let rs = 0; rs < (cell.rowSpan||1); rs++) {
-                    for(let cs = 0; cs < (cell.colSpan||1); cs++) {
-                        if(!gridMap[r+rs]) gridMap[r+rs] = [];
-                        gridMap[r+rs][cIdx+cs] = cell;
+                    // Lấp đầy ma trận theo kích thước gộp của ô
+                    for (let i = 0; i < rs; i++) {
+                        for (let j = 0; j < cs; j++) {
+                            if (!sourceMatrix[r + i]) sourceMatrix[r + i] = [];
+                            // Chỉ điền dữ liệu vào ô trên cùng bên trái, các ô mở rộng điền null
+                            sourceMatrix[r + i][cIdx + j] = (i === 0 && j === 0) ? val : null;
+                        }
                     }
                 }
             }
         }
+    } else if (textData && textData.includes('\t')) {
+        // Xử lý dán từ Excel / Google Sheets
+        let rows = textData.replace(/\r/g, '').split('\n');
+        // Xóa dòng trống cuối cùng do Excel thường thêm ký tự xuống dòng khi copy
+        if (rows[rows.length - 1] === "") rows.pop(); 
+        
+        rows.forEach((row, rIdx) => {
+            sourceMatrix[rIdx] = row.split('\t');
+        });
+    }
 
-        // Tìm tọa độ bắt đầu của ô được chọn
-        let startR = 0, startC = 0;
-        let found = false;
-        for (let r = 0; r < gridMap.length; r++) {
-            for (let c = 0; c < gridMap[r].length; c++) {
-                if (gridMap[r][c] === td) {
-                    startR = r; startC = c; found = true; break;
-                }
-            }
-            if (found) break;
-        }
+    if (sourceMatrix.length === 0) return; // Không có dữ liệu bảng, thoát để dán text bình thường
+    e.preventDefault(); // Chặn hành vi dán mặc định
 
-        // Điền dữ liệu vào bảng
-        for (let r = 0; r < matrix.length; r++) {
-            let targetRowIdx = startR + r;
-            let targetRow = targetTable.rows[targetRowIdx];
+    // 2. LẬP BẢN ĐỒ TỌA ĐỘ CHO BẢNG ĐÍCH (ĐANG CHỈNH SỬA)
+    let targetTable = td.closest('table');
+    let targetMap = [];
+    let tRows = targetTable.rows;
+    
+    for (let r = 0; r < tRows.length; r++) {
+        if (!targetMap[r]) targetMap[r] = [];
+        let cIdx = 0;
+        for (let c = 0; c < tRows[r].cells.length; c++) {
+            let cell = tRows[r].cells[c];
+            while (targetMap[r][cIdx] !== undefined) cIdx++;
             
-            // Nếu thiếu hàng, tạo thêm hàng mới
-            if (!targetRow) {
-                targetRow = targetTable.insertRow(-1);
-                let colCount = gridMap[0].length;
-                for(let i=0; i<colCount; i++) {
-                    let newCell = targetRow.insertCell(-1);
-                    newCell.style.border = "1px solid var(--gray-border)";
-                    newCell.style.padding = "8px";
-                }
-                // Cập nhật lại gridMap cho hàng mới
-                gridMap[targetRowIdx] = Array.from(targetRow.cells);
-            }
-
-            for (let c = 0; c < matrix[r].length; c++) {
-                let targetColIdx = startC + c;
-                let targetCell = gridMap[targetRowIdx] ? gridMap[targetRowIdx][targetColIdx] : null;
-                
-                if (targetCell) {
-                    targetCell.innerHTML = matrix[r][c] || '';
-                } else {
-                    // Nếu thiếu cột, chèn thêm cột vào hàng hiện tại
-                    let newCell = targetRow.insertCell(-1);
-                    newCell.style.border = "1px solid var(--gray-border)";
-                    newCell.style.padding = "8px";
-                    newCell.innerHTML = matrix[r][c] || '';
-                    if(!gridMap[targetRowIdx]) gridMap[targetRowIdx] = [];
-                    gridMap[targetRowIdx][targetColIdx] = newCell;
+            let rs = cell.rowSpan || 1;
+            let cs = cell.colSpan || 1;
+            for (let i = 0; i < rs; i++) {
+                for (let j = 0; j < cs; j++) {
+                    if (!targetMap[r + i]) targetMap[r + i] = [];
+                    targetMap[r + i][cIdx + j] = cell; // Tham chiếu đến ô HTML thực tế
                 }
             }
         }
+    }
 
-        // Đồng bộ lại code HTML nếu đang chỉnh sửa khối Custom HTML
-        if (activeHtmlBlock && activeHtmlBlock.contains(targetTable)) {
-            let ta = document.getElementById('htmlEditorTextarea');
-            if (ta) ta.value = activeHtmlBlock.querySelector('.block-content').innerHTML;
-            window.updateLineNumbers();
+    // 3. XÁC ĐỊNH TỌA ĐỘ BẮT ĐẦU DÁN (Ưu tiên vùng đang bôi đen)
+    let startTd = td;
+    let selectedCells = document.querySelectorAll('.selected-td');
+    
+    if (selectedCells.length > 0) {
+        // Nếu có bôi đen, tìm ô nằm ở góc trên cùng bên trái của vùng bôi đen
+        let minR = 9999, minC = 9999;
+        for (let r = 0; r < targetMap.length; r++) {
+            for (let c = 0; c < targetMap[r].length; c++) {
+                if (Array.from(selectedCells).includes(targetMap[r][c])) {
+                    if (r < minR || (r === minR && c < minC)) {
+                        minR = r; minC = c; startTd = targetMap[r][c];
+                    }
+                }
+            }
         }
+    }
+
+    let startR = 0, startC = 0;
+    let found = false;
+    for (let r = 0; r < targetMap.length; r++) {
+        for (let c = 0; c < targetMap[r].length; c++) {
+            if (targetMap[r][c] === startTd) {
+                startR = r; startC = c; found = true; break;
+            }
+        }
+        if (found) break;
+    }
+
+    // 4. PHÂN BỔ DỮ LIỆU VÀO BẢNG
+    let updatedCells = new Set(); // Tránh ghi đè nhiều lần vào 1 ô bị gộp (colspan/rowspan lớn)
+
+    for (let r = 0; r < sourceMatrix.length; r++) {
+        let trIdx = startR + r;
+        
+        // Nếu bảng đích thiếu hàng -> Tạo thêm hàng mới
+        if (trIdx >= targetMap.length) {
+            let newRow = targetTable.insertRow(-1);
+            targetMap[trIdx] = [];
+            // Lấy số lượng cột dựa theo hàng ngay phía trên nó
+            let colCount = targetMap[trIdx - 1] ? targetMap[trIdx - 1].length : sourceMatrix[r].length;
+            for (let i = 0; i < colCount; i++) {
+                let newCell = newRow.insertCell(-1);
+                newCell.style.border = "1px solid var(--gray-border)";
+                newCell.style.padding = "8px";
+                targetMap[trIdx][i] = newCell;
+            }
+        }
+
+        for (let c = 0; c < sourceMatrix[r].length; c++) {
+            let val = sourceMatrix[r][c];
+            if (val === null) continue; // Bỏ qua mảng rỗng do colspan/rowspan của bảng nguồn tạo ra
+
+            let tcIdx = startC + c;
+            
+            // Nếu bảng đích thiếu cột -> Thêm cột vào cuối hàng đó
+            if (tcIdx >= targetMap[trIdx].length) {
+                 let actualRow = targetTable.rows[trIdx];
+                 if(actualRow) {
+                     let newCell = actualRow.insertCell(-1);
+                     newCell.style.border = "1px solid var(--gray-border)";
+                     newCell.style.padding = "8px";
+                     targetMap[trIdx][tcIdx] = newCell;
+                 }
+            }
+
+            let targetCell = targetMap[trIdx][tcIdx];
+            if (targetCell && !updatedCells.has(targetCell)) {
+                targetCell.innerHTML = val;
+                updatedCells.add(targetCell); // Đánh dấu ô này đã được dán nội dung
+            }
+        }
+    }
+
+    // Đồng bộ lại code HTML nếu bạn đang chỉnh sửa trong một Khối Custom HTML
+    if (activeHtmlBlock && activeHtmlBlock.contains(targetTable)) {
+        let ta = document.getElementById('htmlEditorTextarea');
+        if (ta) ta.value = activeHtmlBlock.querySelector('.block-content').innerHTML;
+        window.updateLineNumbers();
     }
 });
     </script>
