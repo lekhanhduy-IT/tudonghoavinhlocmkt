@@ -420,8 +420,38 @@ setInterval(processQueueAndSync, 4000);
         function toggleSingleFlt(el) { let cb = el.querySelector('input'); cb.checked = !cb.checked; }
         function applyFilter() { let cbs = document.querySelectorAll(".flt-cb"); let sel = []; let all = true; cbs.forEach(cb => { if(cb.checked) sel.push(cb.value); else all = false; }); sysData.filters[activeTab] = sysData.filters[activeTab] || {}; if(all) delete sysData.filters[activeTab][activeFilterCol]; else sysData.filters[activeTab][activeFilterCol] = sel; document.getElementById("filterPopup").style.display = "none"; renderGrid(); }
         function clearFilter() { if(sysData.filters[activeTab]) delete sysData.filters[activeTab][activeFilterCol]; document.getElementById("filterPopup").style.display = "none"; renderGrid(); }
-        function isRowFilteredOut(r, matrix) { let flts = sysData.filters[activeTab]; if(!flts) return false; for(let c in flts) { if(flts[c].indexOf(String(matrix[r][c] || "").trim()) === -1) return true; } return false; }
+function isRowFilteredOut(r, matrix) { 
+            let flts = sysData.filters[activeTab]; 
+            if(!flts) return false; 
+            
+            let attrs = sysData.attributes[activeTab] || {};
+            let types = attrs.columnTypes || {};
 
+            for(let c in flts) { 
+                let cellVal = String(matrix[r][c] || "").trim();
+                let type = types[c] || "text";
+
+                // NẾU LÀ CỘT DROPDOWN -> XỬ LÝ LỌC CHỨA BÊN TRONG (MULTI-SELECT)
+                if (type === "dropdown") {
+                    // Tách các giá trị ra thành mảng theo dấu phẩy
+                    let cellItems = cellVal.split(",").map(v => v.trim()).filter(Boolean);
+                    
+                    if (cellItems.length === 0) {
+                        // Nếu ô trống, kiểm tra xem người dùng có đang tick chọn "(Trống)" không
+                        if (!flts[c].includes("")) return true; 
+                    } else {
+                        // Nếu có dữ liệu, xem có ít nhất 1 mục nào nằm trong danh sách đang lọc không
+                        let hasMatch = cellItems.some(item => flts[c].includes(item));
+                        if (!hasMatch) return true; // Không chứa mục nào -> Lọc đi
+                    }
+                } 
+                // CÁC CỘT KHÁC -> YÊU CẦU KHỚP CHÍNH XÁC NHƯ CŨ
+                else {
+                    if(flts[c].indexOf(cellVal) === -1) return true; 
+                }
+            } 
+            return false; 
+        }
         function showGridMenu(e, r, c) { e.preventDefault(); e.stopPropagation(); let menu = document.getElementById("contextMenu"); menu.innerHTML = ` <div class="menu-item" onclick="execCmd('insertRowAbove')"><i class="fas fa-arrow-up"></i> Thêm hàng trên</div> <div class="menu-item" onclick="execCmd('insertRowBelow')"><i class="fas fa-arrow-down"></i> Thêm hàng dưới</div> <div class="divider"></div> <div class="menu-item" onclick="execCmd('insertColLeft')"><i class="fas fa-arrow-left"></i> Thêm cột trái</div> <div class="menu-item" onclick="execCmd('insertColRight')"><i class="fas fa-arrow-right"></i> Thêm cột phải</div> <div class="divider"></div> <div class="menu-item" style="color:var(--red);" onclick="execCmd('delRow')"><i class="fas fa-trash"></i> Xóa hàng/dãy</div> <div class="menu-item" style="color:var(--red);" onclick="execCmd('delCol')"><i class="fas fa-trash"></i> Xóa cột/dãy</div> <div class="divider"></div> <div class="menu-item" onclick="setType('dropdown')"><i class="fas fa-list"></i> Loại: Dropdown</div> <div class="menu-item" onclick="setType('checkbox')"><i class="fas fa-check-square"></i> Loại: Checkbox</div> <div class="menu-item" onclick="setType('link')"><i class="fas fa-link"></i> Loại: Link</div> <div class="menu-item" onclick="setType('text')"><i class="fas fa-font"></i> Loại: Văn bản</div> <div class="divider"></div> <div class="menu-item" style="color:var(--blue);" onclick="execCmd('freeze')"><i class="fas fa-snowflake"></i> Cố định tới đây</div> <div class="menu-item" onclick="execCmd('unfreeze')"><i class="fas fa-ban"></i> Bỏ cố định</div><div class="divider"></div><div class="menu-item" style="color:var(--blue);" onclick="openSchedulePopup()"><i class="fas fa-calendar-plus"></i> Lên lịch</div> `; showPopupSafe(menu, e); }
         function execCmd(cmd) { document.getElementById("contextMenu").style.display = "none"; let minR = Math.min(selStart.r, selEnd.r), maxR = Math.max(selStart.r, selEnd.r), countR = maxR - minR + 1; let minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c), countC = maxC - minC + 1; let mat = sysData.sheets[activeTab]; if(cmd === 'insertRowAbove') { for(let i=0;i<countR;i++) mat.splice(minR, 0, Array(mat[0].length).fill("")); dispatchAction({type:'STRUCTURAL', action:'insertRow', index:minR+1, count:countR}); } if(cmd === 'insertRowBelow') { for(let i=0;i<countR;i++) mat.splice(maxR+1, 0, Array(mat[0].length).fill("")); dispatchAction({type:'STRUCTURAL', action:'insertRow', index:maxR+2, count:countR}); } if(cmd === 'insertColLeft') { mat.forEach(row => { for(let i=0;i<countC;i++) row.splice(minC, 0, ""); }); dispatchAction({type:'STRUCTURAL', action:'insertCol', index:minC+1, count:countC}); } if(cmd === 'insertColRight') { mat.forEach(row => { for(let i=0;i<countC;i++) row.splice(maxC+1, 0, ""); }); dispatchAction({type:'STRUCTURAL', action:'insertCol', index:maxC+2, count:countC}); } if(cmd === 'delRow') { mat.splice(minR, countR); if(mat.length===0) mat.push([""]); dispatchAction({type:'STRUCTURAL', action:'deleteRow', index:minR+1, count:countR}); } if(cmd === 'delCol') { mat.forEach(row => row.splice(minC, countC)); dispatchAction({type:'STRUCTURAL', action:'deleteCol', index:minC+1, count:countC}); } if(cmd === 'freeze' || cmd === 'unfreeze') { let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; attrs.frozenRows = cmd === 'freeze' ? minR + 1 : 0; attrs.frozenCols = cmd === 'freeze' ? minC + 1 : 0; dispatchAction({type:'FREEZE', rows: attrs.frozenRows, cols: attrs.frozenCols}); dispatchAction({type: 'SAVE_TAB_ATTRS', targetTab: activeTab, attributes: attrs}); } renderGrid(); }
         function setType(type) { document.getElementById("contextMenu").style.display = "none"; let attrs = sysData.attributes[activeTab] = sysData.attributes[activeTab] || {}; attrs.columnTypes = attrs.columnTypes || {}; let minC = Math.min(selStart.c, selEnd.c), maxC = Math.max(selStart.c, selEnd.c); for(let c=minC; c<=maxC; c++) attrs.columnTypes[c] = type; dispatchAction({type: 'SAVE_TAB_ATTRS', targetTab: activeTab, attributes: attrs}); renderGrid(); }
