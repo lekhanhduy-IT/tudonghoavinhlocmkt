@@ -50,6 +50,18 @@
         #postSapo { font-size: 16px; font-style: italic; color: #555; background: #fdfdfd; }
         #postContent { font-size: 15px; display: block; flex: 1; border-bottom: none; padding-bottom: 80px; cursor: text; outline: none;}
         
+        /* Fix lỗi bullet point bị tràn ra ngoài lề */
+.rich-input ul, 
+.rich-input ol {
+    padding-left: 30px; /* Trả lại lề trái cho danh sách */
+    margin-top: 5px;
+    margin-bottom: 10px;
+}
+
+.rich-input li {
+    margin-bottom: 5px; /* Tạo khoảng cách cho các dòng dễ nhìn hơn */
+}
+
         .cover-area { padding: 10px 20px; border-bottom: 1px dashed var(--gray-border); background: var(--white); }
         .cover-input { width: 100%; padding: 6px 10px; border: 1px solid var(--gray-border); outline: none; font-size: 12px; border-radius: 2px; margin-bottom: 5px; color: var(--blue); }
         .cover-preview { width: 100%; max-height: 400px; object-fit: contain; display: none; border: 1px solid var(--gray-border); margin-top: 5px; }
