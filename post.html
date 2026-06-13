@@ -120,7 +120,7 @@
         .alert-msg { font-size: 13px; margin-bottom: 20px; line-height: 1.5; color: var(--text-main);}
         .custom-prompt-input { width: 100%; border: 1px solid var(--gray-border); padding: 8px; outline: none; margin-bottom: 15px; font-size: 13px; border-radius: 3px; }
 
-        /* Ngăn chặn hiệu ứng bôi đen xanh mặc định của trình duyệt để không xung đột */
+        /* BẢNG CSS - NGĂN BÔI ĐEN NGOÀI VÙNG CHUẨN */
         .table-selecting-mode { user-select: none; }
         .selected-td { outline: 2px solid var(--blue) !important; outline-offset: -2px; background-color: rgba(1,173,238,0.1) !important; }
         
@@ -323,7 +323,6 @@
             <span class="char-item" onclick="window.applyCustomBullet('→')">→</span>
         </div>
     </div>
-
     <div class="popup-menu" id="emojiBulletMenu" style="display:none; padding:5px; max-width: 280px;">
         <div class="emoji-grid" id="emojiGrid"></div>
     </div>
@@ -440,6 +439,7 @@
             fetchAllDataBackground();
         };
 
+        // Lấy tọa độ Ma Trận chuẩn 100% (Khắc phục lỗi lệch cột rowspan/colspan)
         function getTableMap(table) {
             let map = []; let rows = table.rows;
             for (let r = 0; r < rows.length; r++) {
@@ -537,18 +537,19 @@
                 });
 
                 // ==========================================
-                // BẮT SỰ KIỆN PASTE TÙY CHỈNH (CTRL+V DÀNH CHO BẢNG)
-                // Đã Fix hoàn toàn ma trận Paste
+                // PASTE CTRL+V VÀO BẢNG SIÊU THÔNG MINH
                 // ==========================================
                 document.getElementById('postContent').addEventListener('paste', function(e) {
                     if(isPreviewMode) return;
                     
                     let sel = window.getSelection();
                     let td = null;
+                    let startR = -1, startC = -1;
+                    let table = null;
 
                     let selectedCells = document.querySelectorAll('.selected-td');
                     if (selectedCells.length > 0) {
-                        let table = selectedCells[0].closest('table');
+                        table = selectedCells[0].closest('table');
                         let map = getTableMap(table);
                         let minR = 9999, minC = 9999;
                         selectedCells.forEach(c => {
@@ -560,69 +561,88 @@
                                 }
                             }
                         });
+                        startR = minR; startC = minC;
                     } else if (sel && sel.rangeCount > 0) {
                         let node = sel.anchorNode;
                         td = node.nodeType === 3 ? node.parentNode.closest('td, th') : (node.closest ? node.closest('td, th') : null);
-                    }
-
-                    if (td && document.getElementById('postContent').contains(td)) {
-                        let textData = (e.clipboardData || window.clipboardData).getData('text/plain');
-                        if (!textData) return;
-
-                        let matrix = [];
-                        let rows = textData.trim().split(/\r?\n/);
-                        rows.forEach(r => {
-                            matrix.push(r.split('\t'));
-                        });
-
-                        // Nếu là dữ liệu mảng (copy từ Excel/ChatGPT...)
-                        if (matrix.length > 1 || (matrix.length === 1 && matrix[0].length > 1) || selectedCells.length > 0) {
-                            e.preventDefault();
-                            let table = td.closest('table');
+                        if (td && document.getElementById('postContent').contains(td)) {
+                            table = td.closest('table');
                             let map = getTableMap(table);
-
-                            let startR = -1, startC = -1;
                             for(let r=0; r<map.length; r++) {
                                 for(let c=0; c<map[r].length; c++) {
                                     if(map[r][c] === td) { startR = r; startC = c; break; }
                                 }
                                 if(startR !== -1) break;
                             }
+                        }
+                    }
 
-                            if (startR === -1 || startC === -1) return;
+                    if (table && startR !== -1 && startC !== -1) {
+                        let htmlData = (e.clipboardData || window.clipboardData).getData('text/html');
+                        let textData = (e.clipboardData || window.clipboardData).getData('text/plain');
+                        
+                        let matrix = [];
+                        if (htmlData && htmlData.indexOf('<table') !== -1) {
+                            let temp = document.createElement('div');
+                            temp.innerHTML = htmlData;
+                            let tables = temp.querySelectorAll('table');
+                            let sourceTable = tables[tables.length - 1]; 
+                            if (sourceTable) {
+                                Array.from(sourceTable.rows).forEach(row => {
+                                    let rowData = [];
+                                    Array.from(row.cells).forEach(cell => { rowData.push(cell.innerHTML); });
+                                    matrix.push(rowData);
+                                });
+                            }
+                        }
+                        if (matrix.length === 0 && textData) {
+                            let rows = textData.trim().split(/\r?\n/);
+                            rows.forEach(r => { matrix.push(r.split('\t')); });
+                        }
 
-                            for (let i = 0; i < matrix.length; i++) {
-                                let targetR = startR + i;
-
-                                if (!table.rows[targetR]) {
-                                    let newRow = table.insertRow();
-                                    let refRow = table.rows[targetR - 1] || table.rows[0];
-                                    if (refRow) {
-                                        for (let k = 0; k < refRow.cells.length; k++) {
-                                            let newCell = newRow.insertCell();
-                                            newCell.style.cssText = refRow.cells[k].style.cssText;
-                                            newCell.innerHTML = '&nbsp;';
-                                        }
-                                    }
-                                    map = getTableMap(table);
-                                }
-
-                                for (let j = 0; j < matrix[i].length; j++) {
-                                    let targetC = startC + j;
-
-                                    if (!map[targetR] || !map[targetR][targetC]) {
-                                        let newCell = table.rows[targetR].insertCell();
-                                        let refCell = table.rows[targetR].cells[0];
-                                        if(refCell) newCell.style.cssText = refCell.style.cssText;
-                                        newCell.innerHTML = matrix[i][j].trim() || '&nbsp;';
-                                        map = getTableMap(table); 
-                                    } else {
-                                        let cellToUpdate = map[targetR][targetC];
-                                        cellToUpdate.innerHTML = matrix[i][j].trim() || '&nbsp;';
+                        if (matrix.length > 1 || (matrix.length === 1 && matrix[0].length > 1) || selectedCells.length > 0) { 
+                            e.preventDefault(); 
+                            
+                            // Tạo đủ số hàng nếu thiếu
+                            let requiredRows = startR + matrix.length;
+                            while (table.rows.length < requiredRows) {
+                                let newRow = table.insertRow();
+                                let refRow = table.rows[table.rows.length - 2] || table.rows[0];
+                                if(refRow) {
+                                    for(let k = 0; k < refRow.cells.length; k++){
+                                        let newCell = newRow.insertCell();
+                                        newCell.style.cssText = refRow.cells[k].style.cssText;
+                                        newCell.innerHTML = '&nbsp;';
                                     }
                                 }
                             }
+                            
+                            let map = getTableMap(table);
 
+                            for (let i = 0; i < matrix.length; i++) {
+                                for (let j = 0; j < matrix[i].length; j++) {
+                                    let r = startR + i;
+                                    let c = startC + j;
+                                    
+                                    if(!map[r] || !map[r][c]) {
+                                        // Sinh thêm cột nếu thiếu
+                                        let rowObj = table.rows[r];
+                                        if (rowObj) {
+                                            let newCell = rowObj.insertCell();
+                                            let refCell = rowObj.cells[0];
+                                            if(refCell) newCell.style.cssText = refCell.style.cssText;
+                                            newCell.innerHTML = matrix[i][j] || '&nbsp;';
+                                            map = getTableMap(table); 
+                                        }
+                                    } else {
+                                        let targetCell = map[r][c];
+                                        if(targetCell) {
+                                            targetCell.innerHTML = matrix[i][j] || '&nbsp;';
+                                        }
+                                    }
+                                }
+                            }
+                            
                             document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
                             
                             let customBlock = table.closest('.custom-html-block');
@@ -631,23 +651,46 @@
                                 if (ta) ta.value = customBlock.querySelector('.block-content').innerHTML;
                                 window.updateLineNumbers();
                             }
+                            return;
                         }
                     }
                 });
 
                 // ==========================================
-                // BẮT SỰ KIỆN XÓA (BACKSPACE) - ĐÃ BẢO VỆ
+                // XÓA BACKSPACE AN TOÀN TRONG BẢNG
                 // ==========================================
                 document.getElementById('postContent').addEventListener('keydown', function(e) {
                     
                     if (e.key === 'Backspace' || e.key === 'Delete') {
                         let selectedCells = document.querySelectorAll('.selected-td');
+                        let sel = window.getSelection();
                         
-                        if (selectedCells.length > 0) {
-                            e.preventDefault(); // Chặn Browser tự xóa HTML
-                            selectedCells.forEach(td => td.innerHTML = '&nbsp;'); // Chỉ làm rỗng Text
+                        let spansMultipleNative = false;
+                        let nativeCells = new Set();
+                        if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+                            let range = sel.getRangeAt(0);
+                            let container = range.commonAncestorContainer;
+                            if (container.nodeType === 3) container = container.parentNode;
+                            if (container.closest && container.closest('table')) {
+                                let startTd = range.startContainer.nodeType === 3 ? range.startContainer.parentNode.closest('td, th') : range.startContainer.closest('td, th');
+                                let endTd = range.endContainer.nodeType === 3 ? range.endContainer.parentNode.closest('td, th') : range.endContainer.closest('td, th');
+                                if (startTd && endTd && startTd !== endTd) {
+                                    spansMultipleNative = true;
+                                    let allTds = container.querySelectorAll('td, th');
+                                    allTds.forEach(td => { if (sel.containsNode(td, true)) nativeCells.add(td); });
+                                }
+                            }
+                        }
+
+                        if (selectedCells.length > 1 || spansMultipleNative) {
+                            e.preventDefault();
+                            if (selectedCells.length > 1) {
+                                selectedCells.forEach(td => td.innerHTML = '&nbsp;');
+                            } else if (spansMultipleNative) {
+                                nativeCells.forEach(td => td.innerHTML = '&nbsp;');
+                            }
                             
-                            let block = selectedCells[0].closest('.custom-html-block');
+                            let block = (selectedCells.length > 0 ? selectedCells[0] : Array.from(nativeCells)[0]).closest('.custom-html-block');
                             if (block && activeHtmlBlock === block) {
                                 let ta = document.getElementById('htmlEditorTextarea');
                                 if (ta) ta.value = block.querySelector('.block-content').innerHTML;
@@ -695,7 +738,7 @@
                     });
                 });
 
-                // TABLE EVENTS (Quét Ma Trận Chống Kéo Loạn Cột)
+                // HIỂN THỊ NÚT XÓA BẢNG
                 document.addEventListener('mousemove', (e) => {
                     if(isPreviewMode) return;
                     let tbl = e.target.closest('table');
@@ -713,13 +756,19 @@
                     }
                 });
 
+                // ==========================================
+                // BÔI ĐEN BẢNG THEO CHUẨN MA TRẬN
+                // ==========================================
                 document.getElementById('postContent').addEventListener('mousedown', (e) => {
                     if(isPreviewMode) return;
                     let td = e.target.closest('td, th');
                     if (td && document.getElementById('postContent').contains(td)) {
+                        if(e.button === 2 && td.classList.contains('selected-td')) return; // Chuột phải vào chỗ đã bôi
+
                         isTblSelecting = true;
                         tblStartCell = td;
                         td.closest('table').classList.add('table-selecting-mode');
+
                         if(!e.shiftKey) {
                             document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
                         }
@@ -734,7 +783,33 @@
                     let td = e.target.closest('td, th');
                     if (td && td !== tblStartCell && td.closest('table') === tblStartCell.closest('table')) {
                         window.getSelection().removeAllRanges(); 
-                        highlightTableBox(tblStartCell, td);
+                        
+                        let table = tblStartCell.closest('table');
+                        let map = getTableMap(table);
+                        let r1 = -1, c1 = -1, r2 = -1, c2 = -1;
+                        
+                        for(let r=0; r<map.length; r++) {
+                            for(let c=0; c<map[r].length; c++) {
+                                if(map[r][c] === tblStartCell) { if(r1===-1) r1=r; if(c1===-1) c1=c; }
+                                if(map[r][c] === td) { r2=r; c2=c; }
+                            }
+                        }
+                        if(r1===-1 || r2===-1) return;
+                        
+                        let minR = Math.min(r1, r2); let maxR = Math.max(r1, r2);
+                        let minC = Math.min(c1, c2); let maxC = Math.max(c1, c2);
+
+                        document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
+                        let seen = new Set();
+                        for(let r=minR; r<=maxR; r++) {
+                            for(let c=minC; c<=maxC; c++) {
+                                let cell = map[r] && map[r][c];
+                                if(cell && !seen.has(cell)) {
+                                    cell.classList.add('selected-td');
+                                    seen.add(cell);
+                                }
+                            }
+                        }
                     }
                 });
 
@@ -808,10 +883,7 @@
                 
                 editorCont.style.padding = "20px 100px";
                 if(coverArea) coverArea.style.border = "none";
-                richInputs.forEach(i => {
-                    i.style.border = "none";
-                    i.contentEditable = "false";
-                });
+                richInputs.forEach(i => { i.style.border = "none"; i.contentEditable = "false"; });
             } else {
                 isPreviewMode = false;
                 leftP.style.display = 'flex'; rightP.style.display = 'flex';
@@ -852,9 +924,7 @@
                     if(sheet[i][0]) emojis.push(sheet[i][0]);
                 }
             }
-            if (emojis.length === 0) {
-                emojis = ['😀','😂','🥰','😎','🤔','👍','🙌','❤️','🔥','✨','🎉','🌟','✅','❌','💡','👉','👇','🔴','🟢','🔵'];
-            }
+            if (emojis.length === 0) emojis = ['😀','😂','🥰','😎','🤔','👍','🙌','❤️','🔥','✨','🎉','🌟','✅','❌','💡','👉','👇','🔴','🟢','🔵'];
             
             emojis.forEach(emo => {
                 let d = document.createElement('div');
@@ -893,61 +963,6 @@
             document.getElementById('emojiBulletMenu').style.display = 'none';
         };
 
-        function highlightTableBox(startTd, endTd) {
-            let table = startTd.closest('table');
-            if(!table) return;
-            document.querySelectorAll('.selected-td').forEach(c => c.classList.remove('selected-td'));
-            
-            let map = getTableMap(table);
-            let r1 = -1, c1 = -1, r2 = -1, c2 = -1;
-            
-            for(let r=0; r<map.length; r++) {
-                for(let c=0; c<map[r].length; c++) {
-                    if(map[r][c] === startTd) { if(r1===-1) r1=r; if(c1===-1) c1=c; }
-                    if(map[r][c] === endTd) { r2=r; c2=c; }
-                }
-            }
-            if(r1===-1 || r2===-1) return;
-            
-            let minR = Math.min(r1, r2); let maxR = Math.max(r1, r2);
-            let minC = Math.min(c1, c2); let maxC = Math.max(c1, c2);
-
-            let changed = true;
-            while(changed) {
-                changed = false;
-                for(let r=minR; r<=maxR; r++) {
-                    for(let c=minC; c<=maxC; c++) {
-                        let cell = map[r] && map[r][c];
-                        if(!cell) continue;
-                        let cellR1 = -1, cellC1 = -1, cellR2 = -1, cellC2 = -1;
-                        for(let rr=0; rr<map.length; rr++) {
-                            for(let cc=0; cc<map[rr].length; cc++) {
-                                if(map[rr][cc] === cell) {
-                                    if(cellR1===-1) cellR1=rr; if(cellC1===-1) cellC1=cc;
-                                    cellR2=rr; cellC2=cc;
-                                }
-                            }
-                        }
-                        if(cellR1 < minR) { minR = cellR1; changed = true; }
-                        if(cellR2 > maxR) { maxR = cellR2; changed = true; }
-                        if(cellC1 < minC) { minC = cellC1; changed = true; }
-                        if(cellC2 > maxC) { maxC = cellC2; changed = true; }
-                    }
-                }
-            }
-
-            let seen = new Set();
-            for(let r=minR; r<=maxR; r++) {
-                for(let c=minC; c<=maxC; c++) {
-                    let cell = map[r] && map[r][c];
-                    if(cell && !seen.has(cell)) {
-                        cell.classList.add('selected-td');
-                        seen.add(cell);
-                    }
-                }
-            }
-        }
-
         window.delHoverTable = function() {
             if(hoverTbl) {
                 if (activeHtmlBlock && activeHtmlBlock.contains(hoverTbl)) {
@@ -962,38 +977,49 @@
             document.getElementById('tableHoverUI').style.display = 'none';
         }
 
+        // CHÈN HÀNG/CỘT VÀ TÁCH/GỘP MEGA CHÍNH XÁC
         window.tblAction = function(action) {
             document.getElementById('tableContextMenu').style.display = 'none';
             if(!activeTbl || !activeTblCell) return;
             
             let tr = activeTblCell.parentNode;
             let cIdx = getCellRealIndex(activeTblCell);
+            let rIdx = tr.rowIndex;
+            let map = getTableMap(activeTbl);
 
-            if (action === 'addRowUp') {
-                let newTr = tr.cloneNode(true);
-                newTr.querySelectorAll('td,th').forEach(c => { c.innerHTML = '&nbsp;'; c.style.backgroundColor = ''; c.removeAttribute('rowspan'); c.removeAttribute('colspan'); });
-                tr.parentNode.insertBefore(newTr, tr);
-            }
-            else if (action === 'addRowDown') {
-                let newTr = tr.cloneNode(true);
-                newTr.querySelectorAll('td,th').forEach(c => { c.innerHTML = '&nbsp;'; c.style.backgroundColor = ''; c.removeAttribute('rowspan'); c.removeAttribute('colspan'); });
-                tr.parentNode.insertBefore(newTr, tr.nextSibling);
+            if (action === 'addRowUp' || action === 'addRowDown') {
+                let newTr = activeTbl.insertRow(action === 'addRowUp' ? rIdx : rIdx + 1);
+                let refRowCells = map[rIdx] || [];
+                let seen = new Set();
+                for(let i=0; i<refRowCells.length; i++) {
+                    let cell = refRowCells[i];
+                    if(cell && !seen.has(cell)) {
+                        seen.add(cell);
+                        let newCell = newTr.insertCell();
+                        newCell.style.cssText = cell.style.cssText; // Copy y nguyên định dạng
+                        newCell.innerHTML = '&nbsp;';
+                    }
+                }
             }
             else if (action === 'addColLeft' || action === 'addColRight') {
-                let map = getTableMap(activeTbl);
-                for(let r=0; r<activeTbl.rows.length; r++) {
+                let addedToRow = new Set();
+                for(let r=0; r<map.length; r++) {
                     let targetCell = map[r][cIdx];
-                    if(targetCell) {
-                        let newCell = targetCell.cloneNode(true);
-                        newCell.innerHTML = '&nbsp;'; newCell.style.backgroundColor = ''; newCell.removeAttribute('colspan'); newCell.removeAttribute('rowspan');
-                        if(action === 'addColLeft') targetCell.parentNode.insertBefore(newCell, targetCell);
-                        else targetCell.parentNode.insertBefore(newCell, targetCell.nextSibling);
+                    if(targetCell && !addedToRow.has(r)) {
+                        let rowObj = activeTbl.rows[r];
+                        if(rowObj) {
+                            let newCell = rowObj.insertCell(targetCell.cellIndex + (action === 'addColRight' ? 1 : 0));
+                            newCell.style.cssText = targetCell.style.cssText; // Copy y nguyên định dạng
+                            newCell.innerHTML = '&nbsp;';
+                            addedToRow.add(r);
+                            let rs = parseInt(targetCell.getAttribute('rowspan') || 1);
+                            for(let rr=1; rr<rs; rr++) addedToRow.add(r + rr);
+                        }
                     }
                 }
             }
             else if (action === 'delRow') { tr.remove(); }
             else if (action === 'delCol') {
-                let map = getTableMap(activeTbl);
                 for(let r=0; r<activeTbl.rows.length; r++) {
                     let targetCell = map[r][cIdx];
                     if(targetCell) targetCell.remove();
@@ -1004,7 +1030,6 @@
                 let selected = document.querySelectorAll('.selected-td');
                 if(selected.length < 2) return;
                 
-                let map = getTableMap(activeTbl);
                 let minR = 9999, maxR = 0, minC = 9999, maxC = 0;
                 
                 for(let r=0; r<map.length; r++) {
@@ -1035,9 +1060,6 @@
                 let rSpan = td.rowSpan || 1; let cSpan = td.colSpan || 1;
                 if (rSpan > 1 || cSpan > 1) {
                     td.removeAttribute('rowspan'); td.removeAttribute('colspan');
-                    let rIdx = tr.rowIndex; 
-                    
-                    let map = getTableMap(activeTbl);
                     let startC = -1;
                     for(let c=0; c<map[rIdx].length; c++) {
                         if(map[rIdx][c] === td) { startC = c; break; }
