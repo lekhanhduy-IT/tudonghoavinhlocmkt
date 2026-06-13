@@ -502,29 +502,31 @@ Google Fonts:</div>
 
         function attachCoreEvents() {
             try {
+                // 1. ÉP DÁN VĂN BẢN THUẦN VÀO TIÊU ĐỀ VÀ SAPO (ĐỂ CHÍNH XÁC Ở ĐÂY)
+                ['postTitle', 'postSapo'].forEach(id => {
+                    let el = document.getElementById(id);
+                    if(el) {
+                        el.addEventListener('paste', function(e) {
+                            if(isPreviewMode) return;
+                            e.preventDefault(); // Chặn hành vi dán mặc định mang theo CSS
+                            let text = (e.clipboardData || window.clipboardData).getData('text/plain');
+                            
+                            // Nếu là Tiêu đề thì không cho phép dán dính dấu xuống dòng
+                            if (id === 'postTitle') text = text.replace(/(\r\n|\n|\r)/gm, " "); 
+                            
+                            // Dán lại dưới dạng văn bản sạch
+                            document.execCommand('insertText', false, text);
+                        });
+                    }
+                });
+
+                // 2. CÁC SỰ KIỆN GỐC KHÁC GIỮ NGUYÊN BÊN DƯỚI
                 document.getElementById('tplHtmlInput').addEventListener('input', function() {
                     document.getElementById('tplPreview').innerHTML = this.value;
                 });
 
                 document.addEventListener('selectionchange', () => {
                     try {
-                        // ÉP DÁN VĂN BẢN THUẦN VÀO TIÊU ĐỀ VÀ SAPO
-        ['postTitle', 'postSapo'].forEach(id => {
-            let el = document.getElementById(id);
-            if(el) {
-                el.addEventListener('paste', function(e) {
-                    if(isPreviewMode) return;
-                    e.preventDefault(); // Chặn hành vi dán mặc định mang theo CSS
-                    let text = (e.clipboardData || window.clipboardData).getData('text/plain');
-                    
-                    // Nếu là Tiêu đề thì không cho phép dán dính dấu xuống dòng
-                    if (id === 'postTitle') text = text.replace(/(\r\n|\n|\r)/gm, " "); 
-                    
-                    // Dán lại dưới dạng văn bản sạch
-                    document.execCommand('insertText', false, text);
-                });
-            }
-        });
                         let sel = window.getSelection();
                         if (sel.rangeCount > 0) {
                             let r = sel.getRangeAt(0);
@@ -541,6 +543,8 @@ Google Fonts:</div>
                         }
                     } catch(e) {}
                 });
+
+                // ... (phần code bên dưới giữ nguyên) ...
 
                 document.getElementById('editorContainer').addEventListener('click', function(e) {
                     if (e.target === this && !isPreviewMode) {
