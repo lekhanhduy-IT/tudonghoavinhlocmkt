@@ -1572,6 +1572,7 @@ Google Fonts:</div>
         }
 
         // --- HÀM 3: SỬA DỮ LIỆU ĐỒNG BỘ NGƯỢC VỀ SHEET GỐC ---
+        // --- HÀM 3: SỬA DỮ LIỆU ĐỒNG BỘ NGƯỢC VỀ SHEET _PLAN_DATA_ ---
         function updateDraftValue(headerName, el) {
             if(!draftData || !draftData.headers) return;
             let hIndex = draftData.headers.indexOf(headerName);
@@ -1583,38 +1584,38 @@ Google Fonts:</div>
             let oldVal = draftData.data[hIndex] || "";
             if(cleanVal === oldVal.trim()) return; // Không đổi thì bỏ qua
 
-            // 1. Cập nhật dữ liệu đệm local
+            // 1. Cập nhật dữ liệu đệm local cho panel
             draftData.data[hIndex] = cleanVal;
             localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
 
-            // 2. Tìm dòng kế hoạch trên sheet để bắn dữ liệu lên
-            let tabName = draftData.tabName || draftData.sourceTab || "Kế Hoạch"; 
-            let planId = draftData.data[1]; // ID kế hoạch thường nằm ở index 1 theo cấu trúc cũ
-            
-            if(!sysData.sheets[tabName]) {
-                el.style.backgroundColor = "#fff9c4"; // Vàng: Chỉ lưu local, ko thấy sheet
-                setTimeout(() => el.style.backgroundColor = "", 1000);
-                return;
-            }
+            // 2. LƯU TRỰC TIẾP VÀO SHEET _PLAN_DATA_ ĐỂ CẬP NHẬT PLAN.HTML
+            if(!sysData.sheets["_PLAN_DATA_"]) return;
 
-            let srcSheet = sysData.sheets[tabName];
-            let targetRow = -1;
-            // Dò tìm dòng chứa ID kế hoạch
-            for(let r = 1; r < srcSheet.length; r++) {
-                if(srcSheet[r][1] == planId || srcSheet[r][0] == planId) {
-                    targetRow = r; break;
-                }
-            }
+            // Lấy vị trí dòng chính xác đã được plan.html truyền sang
+            let planRowIndex = draftData.planRowIndex; 
 
-            if(targetRow !== -1) {
-                srcSheet[targetRow][hIndex] = cleanVal; 
-                pushQueue({type: 'SYNC_CELL', row: targetRow + 1, col: hIndex + 1, val: cleanVal, tab: tabName});
+            if (planRowIndex !== undefined && sysData.sheets["_PLAN_DATA_"][planRowIndex]) {
+                // Đóng gói toàn bộ mảng data thành chuỗi JSON
+                let newJsonData = JSON.stringify(draftData.data);
+                
+                // Cập nhật dữ liệu local
+                sysData.sheets["_PLAN_DATA_"][planRowIndex][2] = newJsonData;
+                localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+
+                // Bắn lệnh lên Google Sheet (Ghi đè vào cột 3 - cột chứa chuỗi JSON)
+                pushQueue({
+                    type: 'SYNC_CELL', 
+                    row: planRowIndex + 1, 
+                    col: 3, 
+                    val: newJsonData, 
+                    tab: "_PLAN_DATA_"
+                });
                 
                 // Hiệu ứng chớp nháy màu xanh lá báo thành công
                 el.style.backgroundColor = "#e8f5e9"; 
                 setTimeout(() => el.style.backgroundColor = "", 1000);
             } else {
-                // Đỏ: Không tìm ra ID để ghi
+                // Đỏ: Lỗi không tìm thấy dòng liên kết
                 el.style.backgroundColor = "#ffcdd2"; 
                 setTimeout(() => el.style.backgroundColor = "", 1000); 
             }

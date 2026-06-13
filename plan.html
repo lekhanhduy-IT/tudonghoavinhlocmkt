@@ -192,6 +192,26 @@
 
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
+            window.onload = () => {
+           
+            
+            // ... (các hàm setInterval và EventListener có sẵn giữ nguyên) ...
+
+            // THÊM ĐOẠN NÀY VÀO CUỐI HÀM WINDOW.ONLOAD CỦA PLAN.HTML
+            // Lắng nghe sự thay đổi dữ liệu từ các tab khác (ví dụ từ post.html)
+            window.addEventListener('storage', function(e) {
+                if (e.key === "MKT_DATA") {
+                    try {
+                        let newData = JSON.parse(e.newValue);
+                        if (newData && newData.sheets) {
+                            sysData = newData;
+                            processAndRender(); // Vẽ lại bảng kế hoạch ngay lập tức
+                            console.log("Đã cập nhật dữ liệu từ Post.html");
+                        }
+                    } catch(err) {}
+                }
+            });
+        };
         };
 
         // ==========================================
