@@ -39,7 +39,7 @@
         .rich-input { padding: 15px 20px; outline: none; border-bottom: 1px dashed var(--gray-border); width: 100%; line-height: 1.6; position: relative; transition: border 0.3s; }
         .rich-input:empty:before { content: attr(data-placeholder); color: #aaa; pointer-events: none; display: block; }
         
-        #postTitle { font-size:30px; font-weight: bold; color:#000000; margin: 0; line-height: 1.3; } 
+        #postTitle { font-size: 48px; font-weight: bold; color: var(--blue); margin: 0; line-height: 1.3; } 
         #postSapo { font-size: 16px; font-style: italic; color: #555; background: #fdfdfd; }
         #postContent { font-size: 15px; display: block; flex: 1; border-bottom: none; padding-bottom: 80px; cursor: text; outline: none;}
         
@@ -120,7 +120,6 @@
         .alert-msg { font-size: 13px; margin-bottom: 20px; line-height: 1.5; color: var(--text-main);}
         .custom-prompt-input { width: 100%; border: 1px solid var(--gray-border); padding: 8px; outline: none; margin-bottom: 15px; font-size: 13px; border-radius: 3px; }
 
-        /* BẢNG CSS - NGĂN BÔI ĐEN NGOÀI VÙNG CHUẨN */
         .table-selecting-mode { user-select: none; }
         .selected-td { outline: 2px solid var(--blue) !important; outline-offset: -2px; background-color: rgba(1,173,238,0.1) !important; }
         
@@ -268,14 +267,13 @@
     <path fill="#FBBC05" d="M10.53 28.59A14.4 14.4 0 0 1 9.75 24c0-1.59.28-3.14.78-4.59l-7.98-6.19A23.94 23.94 0 0 0 0 24c0 3.87.92 7.53 2.56 10.78l7.97-6.19z"/>
     <path fill="#EA4335" d="M24 48c6.47 0 11.9-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
   </svg>
-</span>
-Google Fonts:</div>
+</span>Google Fonts:</div>
                     <div class="tool-row">
                         <input type="text" id="fontLink" class="tool-input" placeholder="Dán thẻ <link>...">
                         <button class="tool-btn" style="margin: 0; padding: 4px 10px;" onclick="addGoogleFont()"><i class="fas fa-plus"></i></button>
                     </div>
                     <select id="fontSelect" class="tool-input" style="margin-top: 5px;" onchange="applyCustomFont(this.value); this.style.fontFamily = this.value;">
-                        <option value="Segoe UI, sans-serif" style="font-family: 'Segoe UI', sans-serif">Fonts chữ</option>
+                        <option value="Segoe UI, sans-serif" style="font-family: 'Segoe UI', sans-serif">Mặc định (Segoe UI)</option>
                     </select>
 
                     <button class="tool-btn" style="width: 100%; justify-content: center; margin-top: 15px;" onclick="toggleRulers()">
@@ -331,6 +329,7 @@ Google Fonts:</div>
             <span class="char-item" onclick="window.applyCustomBullet('→')">→</span>
         </div>
     </div>
+
     <div class="popup-menu" id="emojiBulletMenu" style="display:none; padding:5px; max-width: 280px;">
         <div class="emoji-grid" id="emojiGrid"></div>
     </div>
@@ -422,41 +421,38 @@ Google Fonts:</div>
         };
 
         window.onload = async () => {
-    try {
-        let cached = localStorage.getItem("MKT_DATA");
-        if(cached) {
-            let parsedCache = JSON.parse(cached);
-            if(parsedCache && parsedCache.sheets) {
-                sysData = parsedCache;
-                document.getElementById('syncStatus').innerHTML = "⚡ Chế độ nhanh (Local)";
+            try {
+                let cached = localStorage.getItem("MKT_DATA");
+                if(cached) {
+                    let parsedCache = JSON.parse(cached);
+                    if(parsedCache && parsedCache.sheets) {
+                        sysData = parsedCache;
+                        document.getElementById('syncStatus').innerHTML = "⚡ Chế độ nhanh (Local)";
+                    }
+                }
+                
+                initSizeSelects();
+                initResizers();
+                loadDraftData(); 
+                
+                let urlParams = new URLSearchParams(window.location.search);
+                let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[1] : null);
+                if (postIdToLoad) {
+                    loadPostIntoEditor(postIdToLoad);
+                }
+
+                loadGoogleFonts();
+                loadTemplates();
+                window.loadEmojis(); 
+
+            } catch (err) {
+                console.error("Lỗi khởi tạo UI từ Cache:", err);
             }
-        }
-        
-        initSizeSelects();
-        initResizers();
-        loadDraftData(); // Nạp dữ liệu panel trái trước
-        
-        // CƠ CHẾ NẠP BÀI VIẾT TỪ CACHE (Siêu tốc)
-        // Ưu tiên lấy ID từ URL (VD: ?id=POST_123), nếu không có mới lấy từ Draft Kế hoạch
-        let urlParams = new URLSearchParams(window.location.search);
-        let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[1] : null);
-        if (postIdToLoad) {
-            loadPostIntoEditor(postIdToLoad);
-        }
+            
+            attachCoreEvents();
+            fetchAllDataBackground(); 
+        };
 
-        loadGoogleFonts();
-        loadTemplates();
-        window.loadEmojis(); 
-
-    } catch (err) {
-        console.error("Lỗi khởi tạo UI từ Cache:", err);
-    }
-    
-    attachCoreEvents();
-    fetchAllDataBackground(); // Gọi fetch ngầm
-};
-
-        // Lấy tọa độ Ma Trận chuẩn 100% (Khắc phục lỗi lệch cột rowspan/colspan)
         function getTableMap(table) {
             let map = []; let rows = table.rows;
             for (let r = 0; r < rows.length; r++) {
@@ -553,9 +549,6 @@ Google Fonts:</div>
                     }
                 });
 
-                // ==========================================
-                // PASTE CTRL+V VÀO BẢNG SIÊU THÔNG MINH
-                // ==========================================
                 document.getElementById('postContent').addEventListener('paste', function(e) {
                     if(isPreviewMode) return;
                     
@@ -617,10 +610,9 @@ Google Fonts:</div>
                             rows.forEach(r => { matrix.push(r.split('\t')); });
                         }
 
-                        if (matrix.length > 1 || (matrix.length === 1 && matrix[0].length > 1) || selectedCells.length > 0) { 
+                        if (matrix.length > 0) { 
                             e.preventDefault(); 
                             
-                            // Tạo đủ số hàng nếu thiếu
                             let requiredRows = startR + matrix.length;
                             while (table.rows.length < requiredRows) {
                                 let newRow = table.insertRow();
@@ -642,7 +634,6 @@ Google Fonts:</div>
                                     let c = startC + j;
                                     
                                     if(!map[r] || !map[r][c]) {
-                                        // Sinh thêm cột nếu thiếu
                                         let rowObj = table.rows[r];
                                         if (rowObj) {
                                             let newCell = rowObj.insertCell();
@@ -673,41 +664,16 @@ Google Fonts:</div>
                     }
                 });
 
-                // ==========================================
-                // XÓA BACKSPACE AN TOÀN TRONG BẢNG
-                // ==========================================
                 document.getElementById('postContent').addEventListener('keydown', function(e) {
                     
                     if (e.key === 'Backspace' || e.key === 'Delete') {
                         let selectedCells = document.querySelectorAll('.selected-td');
-                        let sel = window.getSelection();
                         
-                        let spansMultipleNative = false;
-                        let nativeCells = new Set();
-                        if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
-                            let range = sel.getRangeAt(0);
-                            let container = range.commonAncestorContainer;
-                            if (container.nodeType === 3) container = container.parentNode;
-                            if (container.closest && container.closest('table')) {
-                                let startTd = range.startContainer.nodeType === 3 ? range.startContainer.parentNode.closest('td, th') : range.startContainer.closest('td, th');
-                                let endTd = range.endContainer.nodeType === 3 ? range.endContainer.parentNode.closest('td, th') : range.endContainer.closest('td, th');
-                                if (startTd && endTd && startTd !== endTd) {
-                                    spansMultipleNative = true;
-                                    let allTds = container.querySelectorAll('td, th');
-                                    allTds.forEach(td => { if (sel.containsNode(td, true)) nativeCells.add(td); });
-                                }
-                            }
-                        }
-
-                        if (selectedCells.length > 1 || spansMultipleNative) {
-                            e.preventDefault();
-                            if (selectedCells.length > 1) {
-                                selectedCells.forEach(td => td.innerHTML = '&nbsp;');
-                            } else if (spansMultipleNative) {
-                                nativeCells.forEach(td => td.innerHTML = '&nbsp;');
-                            }
+                        if (selectedCells.length > 0) {
+                            e.preventDefault(); 
+                            selectedCells.forEach(td => td.innerHTML = '&nbsp;'); 
                             
-                            let block = (selectedCells.length > 0 ? selectedCells[0] : Array.from(nativeCells)[0]).closest('.custom-html-block');
+                            let block = selectedCells[0].closest('.custom-html-block');
                             if (block && activeHtmlBlock === block) {
                                 let ta = document.getElementById('htmlEditorTextarea');
                                 if (ta) ta.value = block.querySelector('.block-content').innerHTML;
@@ -744,6 +710,15 @@ Google Fonts:</div>
                         savedSelectionRange = range.cloneRange();
                         
                         document.execCommand('removeFormat', false, null);
+                        
+                        let spans = document.getElementById('postContent').querySelectorAll('span');
+                        spans.forEach(s => {
+                            if(s.innerHTML === '<br>') {
+                                let pp = document.createElement('p');
+                                pp.innerHTML = '<br>';
+                                s.parentNode.replaceChild(pp, s);
+                            }
+                        });
                     }
                 });
 
@@ -755,7 +730,6 @@ Google Fonts:</div>
                     });
                 });
 
-                // HIỂN THỊ NÚT XÓA BẢNG
                 document.addEventListener('mousemove', (e) => {
                     if(isPreviewMode) return;
                     let tbl = e.target.closest('table');
@@ -773,14 +747,11 @@ Google Fonts:</div>
                     }
                 });
 
-                // ==========================================
-                // BÔI ĐEN BẢNG THEO CHUẨN MA TRẬN
-                // ==========================================
                 document.getElementById('postContent').addEventListener('mousedown', (e) => {
                     if(isPreviewMode) return;
                     let td = e.target.closest('td, th');
                     if (td && document.getElementById('postContent').contains(td)) {
-                        if(e.button === 2 && td.classList.contains('selected-td')) return; // Chuột phải vào chỗ đã bôi
+                        if(e.button === 2 && td.classList.contains('selected-td')) return;
 
                         isTblSelecting = true;
                         tblStartCell = td;
@@ -900,7 +871,10 @@ Google Fonts:</div>
                 
                 editorCont.style.padding = "20px 100px";
                 if(coverArea) coverArea.style.border = "none";
-                richInputs.forEach(i => { i.style.border = "none"; i.contentEditable = "false"; });
+                richInputs.forEach(i => {
+                    i.style.border = "none";
+                    i.contentEditable = "false";
+                });
             } else {
                 isPreviewMode = false;
                 leftP.style.display = 'flex'; rightP.style.display = 'flex';
@@ -994,7 +968,6 @@ Google Fonts:</div>
             document.getElementById('tableHoverUI').style.display = 'none';
         }
 
-        // CHÈN HÀNG/CỘT VÀ TÁCH/GỘP MEGA CHÍNH XÁC
         window.tblAction = function(action) {
             document.getElementById('tableContextMenu').style.display = 'none';
             if(!activeTbl || !activeTblCell) return;
@@ -1013,8 +986,10 @@ Google Fonts:</div>
                     if(cell && !seen.has(cell)) {
                         seen.add(cell);
                         let newCell = newTr.insertCell();
-                        newCell.style.cssText = cell.style.cssText; // Copy y nguyên định dạng
-                        newCell.innerHTML = '&nbsp;';
+                        newCell.style.cssText = cell.style.cssText; 
+                        let span = document.createElement('span'); // Bọc span để bảo toàn font nếu rỗng
+                        span.innerHTML = '&nbsp;';
+                        newCell.appendChild(span);
                     }
                 }
             }
@@ -1026,8 +1001,10 @@ Google Fonts:</div>
                         let rowObj = activeTbl.rows[r];
                         if(rowObj) {
                             let newCell = rowObj.insertCell(targetCell.cellIndex + (action === 'addColRight' ? 1 : 0));
-                            newCell.style.cssText = targetCell.style.cssText; // Copy y nguyên định dạng
-                            newCell.innerHTML = '&nbsp;';
+                            newCell.style.cssText = targetCell.style.cssText; 
+                            let span = document.createElement('span'); 
+                            span.innerHTML = '&nbsp;';
+                            newCell.appendChild(span);
                             addedToRow.add(r);
                             let rs = parseInt(targetCell.getAttribute('rowspan') || 1);
                             for(let rr=1; rr<rs; rr++) addedToRow.add(r + rr);
@@ -1037,10 +1014,13 @@ Google Fonts:</div>
             }
             else if (action === 'delRow') { tr.remove(); }
             else if (action === 'delCol') {
-                for(let r=0; r<activeTbl.rows.length; r++) {
-                    let targetCell = map[r][cIdx];
-                    if(targetCell) targetCell.remove();
+                let map = getTableMap(activeTbl);
+                let cellsToRemove = new Set();
+                for(let r=0; r<map.length; r++) {
+                    let cell = map[r][cIdx];
+                    if(cell) cellsToRemove.add(cell);
                 }
+                cellsToRemove.forEach(c => c.remove());
             }
             else if (action === 'delTable') { activeTbl.remove(); }
             else if (action === 'mergeCells') {
@@ -1181,10 +1161,14 @@ Google Fonts:</div>
             restoreSelection(); 
             
             if (type === 'font') {
+                document.execCommand('styleWithCSS', false, true);
                 document.execCommand('fontSize', false, '7');
                 let rootContent = document.getElementById('workspaceArea');
-                let fonts = rootContent.querySelectorAll('font[size="7"]');
-                fonts.forEach(f => { f.removeAttribute('size'); f.style.fontSize = val + 'px'; });
+                let fonts = rootContent.querySelectorAll('font[size="7"], span[style*="font-size: -webkit-xxx-large"]');
+                fonts.forEach(f => { 
+                    if(f.tagName === 'FONT') f.removeAttribute('size'); 
+                    f.style.fontSize = val + 'px'; 
+                });
             } else if (type === 'line') {
                 let sel = window.getSelection();
                 if(!sel.rangeCount) return;
@@ -1192,7 +1176,7 @@ Google Fonts:</div>
                 let block = startNode.nodeType === 3 ? startNode.parentNode : startNode;
                 
                 while (block && block !== document.body && !['P','DIV','H1','H2','H3','H4','H5','H6','LI'].includes(block.tagName)) {
-                    if (block.id === 'postContent' || (block.classList && block.classList.contains('rich-input'))) break;
+                    if (block.id === 'postContent' || block.id === 'postTitle' || block.id === 'postSapo' || (block.classList && block.classList.contains('rich-input'))) break;
                     block = block.parentNode;
                 }
                 if (block && block.style) block.style.lineHeight = val + 'px';
@@ -1217,6 +1201,7 @@ Google Fonts:</div>
             }
 
             restoreSelection(); 
+            document.execCommand('styleWithCSS', false, true); // Ép dùng SPAN thay vì FONT
             if(value) document.execCommand(cmd, false, value);
             else document.execCommand(cmd);
             setTimeout(() => { syncGlobalFormat(); detectFormatting(); }, 50);
@@ -1278,6 +1263,7 @@ Google Fonts:</div>
                     globalTagFormats[tagName] = {
                         color: existingTag.style.color || computed.color,
                         fontSize: existingTag.style.fontSize || computed.fontSize,
+                        fontFamily: existingTag.style.fontFamily || computed.fontFamily,
                         lineHeight: existingTag.style.lineHeight || computed.lineHeight,
                         textAlign: existingTag.style.textAlign || computed.textAlign
                     };
@@ -1309,6 +1295,7 @@ Google Fonts:</div>
                     globalTagFormats[tag] = {
                         color: innerNode.style.color || innerComputed.color,
                         fontSize: innerNode.style.fontSize || innerComputed.fontSize,
+                        fontFamily: innerNode.style.fontFamily || innerComputed.fontFamily,
                         lineHeight: block.style.lineHeight || blockComputed.lineHeight,
                         textAlign: block.style.textAlign || blockComputed.textAlign
                     };
@@ -1332,12 +1319,14 @@ Google Fonts:</div>
                 if(!el) return;
                 if (format.color) el.style.color = format.color;
                 if (format.fontSize) el.style.fontSize = format.fontSize;
+                if (format.fontFamily) el.style.fontFamily = format.fontFamily;
                 if (format.lineHeight) el.style.lineHeight = format.lineHeight;
                 if (format.textAlign) el.style.textAlign = format.textAlign;
                 
-                el.querySelectorAll('span, font').forEach(child => {
+                el.querySelectorAll('span, font, b, i, u, strike, strong, em').forEach(child => {
                     if (format.color) child.style.color = format.color;
                     if (format.fontSize) child.style.fontSize = format.fontSize;
+                    if (format.fontFamily) child.style.fontFamily = format.fontFamily;
                 });
             });
 
@@ -1355,10 +1344,20 @@ Google Fonts:</div>
 
         function applyCustomFont(fontValue) {
             restoreSelection();
+            document.execCommand('styleWithCSS', false, true); // Ép dùng SPAN
             document.execCommand('fontName', false, 'VLCustomFontName');
             let rootContent = document.getElementById('workspaceArea');
-            let fonts = rootContent.querySelectorAll('font[face="VLCustomFontName"]');
-            fonts.forEach(f => { f.removeAttribute('face'); f.style.fontFamily = fontValue; });
+            
+            // Xử lý cả thẻ font cũ lẫn thẻ span mới (Chrome đôi khi sinh thẻ span)
+            let els = rootContent.querySelectorAll('font[face="VLCustomFontName"], span[style*="VLCustomFontName"]');
+            els.forEach(f => { 
+                let span = document.createElement('span');
+                span.innerHTML = f.innerHTML;
+                span.style.fontFamily = fontValue;
+                if(f.style.cssText) span.style.cssText += f.style.cssText;
+                span.style.fontFamily = fontValue; // Ghi đè lại 1 lần nữa cho chắc
+                f.parentNode.replaceChild(span, f);
+            });
             setTimeout(() => { syncGlobalFormat(); detectFormatting(); }, 50);
         }
 
@@ -1382,34 +1381,33 @@ Google Fonts:</div>
         }
 
         async function fetchAllDataBackground() {
-    try {
-        let res = await fetch(API_URL + "?t=" + new Date().getTime(), { method: "GET" });
-        let json = await res.json();
-        if(json.success) { 
-            sysData = json.data; 
-            if(!sysData.sheets) sysData.sheets = {};
-            localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
-            
-            // CẬP NHẬT LẠI DỮ LIỆU NẾU TRÊN SERVER CÓ SỰ THAY ĐỔI
-            let urlParams = new URLSearchParams(window.location.search);
-            let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[1] : null);
-            if (postIdToLoad) {
-                loadPostIntoEditor(postIdToLoad);
+            try {
+                let res = await fetch(API_URL + "?t=" + new Date().getTime(), { method: "GET" });
+                let json = await res.json();
+                if(json.success) { 
+                    sysData = json.data; 
+                    if(!sysData.sheets) sysData.sheets = {};
+                    localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
+                    
+                    let urlParams = new URLSearchParams(window.location.search);
+                    let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[1] : null);
+                    if (postIdToLoad) {
+                        loadPostIntoEditor(postIdToLoad);
+                    }
+
+                    loadGoogleFonts();
+                    loadTemplates();
+                    window.loadEmojis();
+
+                    document.getElementById('syncStatus').innerText = "✅ Dữ liệu mới nhất"; 
+                    document.getElementById('syncStatus').style.color = "#27ae60";
+                }
+            } catch(e) { 
+                console.log("Sử dụng hoàn toàn Offline"); 
+                document.getElementById('syncStatus').innerText = "⚠️ Dùng bản lưu Offline"; 
+                document.getElementById('syncStatus').style.color = "var(--red)";
             }
-
-            loadGoogleFonts();
-            loadTemplates();
-            window.loadEmojis();
-
-            document.getElementById('syncStatus').innerText = "✅ Dữ liệu mới nhất"; 
-            document.getElementById('syncStatus').style.color = "#27ae60";
         }
-    } catch(e) { 
-        console.log("Sử dụng hoàn toàn Offline"); 
-        document.getElementById('syncStatus').innerText = "⚠️ Dùng bản lưu Offline"; 
-        document.getElementById('syncStatus').style.color = "var(--red)";
-    }
-}
 
         function loadDraftData() {
             let draftStr = localStorage.getItem("DRAFT_POST_DATA");
@@ -1427,58 +1425,59 @@ Google Fonts:</div>
                 });
             } catch(e) {}
         }
-// Hàm tìm và nạp dữ liệu bài viết vào khung soạn thảo
-// Hàm tìm và nạp dữ liệu bài viết vào khung soạn thảo
-function loadPostIntoEditor(postId) {
-    if (!postId || !sysData || !sysData.sheets || !sysData.sheets["Bài viết_hidden"]) return;
 
-    let bvTab = sysData.sheets["Bài viết_hidden"];
-    let targetRow = null;
+        function loadPostIntoEditor(postId) {
+            if (!postId || !sysData || !sysData.sheets || !sysData.sheets["Bài viết_hidden"]) return;
 
-    // Tìm dòng chứa bài viết dựa vào ID
-    for (let r = 1; r < bvTab.length; r++) {
-        if (bvTab[r][0] == postId) {
-            targetRow = bvTab[r];
-            break;
+            let bvTab = sysData.sheets["Bài viết_hidden"];
+            let targetRow = null;
+
+            for (let r = 1; r < bvTab.length; r++) {
+                if (bvTab[r][0] == postId) { targetRow = bvTab[r]; break; }
+            }
+
+            if (targetRow) {
+                document.getElementById('coverUrlInput').value = targetRow[3] || "";
+                updateCoverPreview();
+
+                let tempDiv = document.createElement('div');
+                tempDiv.innerHTML = targetRow[4] || "";
+                
+                // Trích xuất Tiêu đề kèm Style
+                let h1 = tempDiv.querySelector('.post-title');
+                let postTitle = document.getElementById('postTitle');
+                if (h1) {
+                    postTitle.innerHTML = h1.innerHTML;
+                    postTitle.style.cssText = h1.style.cssText;
+                } else {
+                    postTitle.innerHTML = targetRow[1] || "";
+                }
+
+                // Trích xuất Sapo kèm Style
+                let sapoDiv = tempDiv.querySelector('.post-sapo');
+                let postSapo = document.getElementById('postSapo');
+                if (sapoDiv) {
+                    postSapo.innerHTML = sapoDiv.innerHTML;
+                    postSapo.style.cssText = sapoDiv.style.cssText;
+                } else {
+                    postSapo.innerHTML = targetRow[2] || "";
+                }
+
+                let postBody = tempDiv.querySelector('.post-body');
+                if (postBody) {
+                    postBody.querySelectorAll('.custom-html-block').forEach(block => {
+                        block.style.border = ""; block.style.margin = "";
+                        block.querySelectorAll('.block-del-btn').forEach(btn => btn.remove());
+                        block.insertAdjacentHTML('afterbegin', '<button class="block-del-btn del-top" contenteditable="false" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>');
+                        block.insertAdjacentHTML('beforeend', '<button class="block-del-btn del-bot" contenteditable="false" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>');
+                    });
+                    document.getElementById('postContent').innerHTML = postBody.innerHTML;
+                } else {
+                    document.getElementById('postContent').innerHTML = "";
+                }
+            }
         }
-    }
 
-    // Nếu tìm thấy, đổ dữ liệu lên UI
-    if (targetRow) {
-        document.getElementById('postTitle').innerHTML = targetRow[1] || "";
-        document.getElementById('postSapo').innerHTML = targetRow[2] || "";
-        document.getElementById('coverUrlInput').value = targetRow[3] || "";
-        updateCoverPreview(); // Cập nhật ảnh xem trước
-
-        // Bóc tách nội dung HTML gốc từ cột finalHtml (cột 5 - index 4)
-        let tempDiv = document.createElement('div');
-        tempDiv.innerHTML = targetRow[4] || "";
-        let postBody = tempDiv.querySelector('.post-body');
-
-        if (postBody) {
-            // KHÔI PHỤC LẠI GIAO DIỆN CỦA CÁC KHỐI HTML CUSTOM (Viền xanh & Nút xóa)
-            postBody.querySelectorAll('.custom-html-block').forEach(block => {
-                // 1. Phục hồi CSS (xóa style ẩn viền do hàm savePostToSheet tạo ra)
-                block.style.border = "";
-                block.style.margin = "";
-
-                // 2. Dọn dẹp nút xóa cũ (nếu có sót lại để tránh bị đúp nút)
-                block.querySelectorAll('.block-del-btn').forEach(btn => btn.remove());
-
-                // 3. Thêm lại mã HTML của 2 nút xóa (trên và dưới)
-                block.insertAdjacentHTML('afterbegin', '<button class="block-del-btn del-top" contenteditable="false" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>');
-                block.insertAdjacentHTML('beforeend', '<button class="block-del-btn del-bot" contenteditable="false" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>');
-            });
-
-            // Nạp nội dung đã khôi phục xong vào editor
-            document.getElementById('postContent').innerHTML = postBody.innerHTML;
-        } else {
-            document.getElementById('postContent').innerHTML = "";
-        }
-        
-        console.log("Đã nạp bài viết: ", postId);
-    }
-}
         function restoreSelection() {
             if (savedSelectionRange) { 
                 let sel = window.getSelection(); 
@@ -1535,239 +1534,6 @@ function loadPostIntoEditor(postId) {
         function stopDragRuler() { isDraggingRuler = false; document.onmousemove = null; document.onmouseup = null; }
         function toggleRulers() { let r = document.getElementById('rulerContainer'); r.style.display = (r.style.display === 'block') ? 'none' : 'block'; }
 
-        function loadGoogleFonts() {
-            if (!sysData || !sysData.sheets) return;
-            let fontsTab = sysData.sheets["Google Fonts_hidden"];
-            if(!fontsTab) return;
-            
-            let select = document.getElementById('fontSelect');
-            for(let r=1; r<fontsTab.length; r++) {
-                let link = fontsTab[r][0]; let fontName = fontsTab[r][1];
-                if(fontName && link) {
-                    let temp = document.createElement('div'); temp.innerHTML = link;
-                    temp.querySelectorAll('link').forEach(t => { let newLink = document.createElement('link'); newLink.rel = "stylesheet"; newLink.href = t.href; document.head.appendChild(newLink); });
-                    if(!Array.from(select.options).some(opt => opt.text === fontName)) {
-                        let opt = document.createElement('option'); opt.value = `'${fontName}', sans-serif`; opt.innerText = fontName; opt.style.fontFamily = `'${fontName}', sans-serif`; select.appendChild(opt);
-                    }
-                }
-            }
-        }
-
-        function addGoogleFont() {
-            let link = document.getElementById('fontLink').value.trim();
-            if(!link.includes('<link')) return showAlert("Vui lòng dán nguyên thẻ &lt;link&gt; lấy từ Google Fonts.", true);
-            
-            let matches = [...link.matchAll(/family=([^:&"']+)/g)];
-            if(matches.length > 0) {
-                let temp = document.createElement('div'); temp.innerHTML = link;
-                temp.querySelectorAll('link').forEach(t => { let n = document.createElement('link'); n.rel="stylesheet"; n.href=t.href; document.head.appendChild(n); });
-
-                let select = document.getElementById('fontSelect');
-                let addedFonts = [];
-
-                matches.forEach(match => {
-                    let fontName = match[1].replace(/\+/g, ' ');
-                    addedFonts.push(fontName);
-                    if(!Array.from(select.options).some(opt => opt.text === fontName)) {
-                        let opt = document.createElement('option'); opt.value = `'${fontName}', sans-serif`; opt.innerText = fontName; opt.style.fontFamily = `'${fontName}', sans-serif`; select.appendChild(opt); select.value = opt.value;
-                    }
-                });
-
-                if(addedFonts.length > 0) {
-                    applyCustomFont(select.value);
-                    select.style.fontFamily = select.value;
-                    document.getElementById('fontLink').value = "";
-                    showAlert(`Đã tải và lưu thành công ${addedFonts.length} Font!`);
-
-                    if(!sysData.sheets["Google Fonts_hidden"]) {
-                        sysData.tabOrder.push("Google Fonts_hidden"); sysData.sheets["Google Fonts_hidden"] = [["Mã Link", "Tên Font"]];
-                        pushQueue({type:'MANAGE_TAB', action:'create', tab: "Google Fonts_hidden"});
-                        pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "Mã Link", tab: "Google Fonts_hidden"});
-                        pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Tên Font", tab: "Google Fonts_hidden"});
-                    }
-                    let gfTab = sysData.sheets["Google Fonts_hidden"];
-                    addedFonts.forEach(fontName => {
-                        let newRow = gfTab.length + 1; gfTab.push([link, fontName]);
-                        pushQueue({type:'STRUCTURAL', action:'insertRow', index: newRow, count: 1, tab: "Google Fonts_hidden"});
-                        pushQueue({type:'SYNC_CELL', row: newRow, col: 1, val: link, tab: "Google Fonts_hidden"});
-                        pushQueue({type:'SYNC_CELL', row: newRow, col: 2, val: fontName, tab: "Google Fonts_hidden"});
-                    });
-                }
-            } else showAlert("Không tìm thấy tên font (family=...) trong link.", true);
-        }
-
-        window.updateLineNumbers = function() {
-            let ta = document.getElementById('htmlEditorTextarea');
-            if(!ta) return;
-            let lines = ta.value.split('\n').length;
-            document.getElementById('lineNumbers').innerHTML = Array(lines).fill(0).map((_, i) => i + 1).join('<br>');
-        }
-        
-        window.syncScroll = function() { document.getElementById('lineNumbers').scrollTop = document.getElementById('htmlEditorTextarea').scrollTop; }
-
-        window.openHtmlModal = function(preFill = "") {
-            try {
-                restoreSelection();
-                let sel = window.getSelection(); 
-                let ta = document.getElementById('htmlEditorTextarea'); 
-                activeHtmlBlock = null;
-
-                if(sel && sel.rangeCount) {
-                    let node = sel.anchorNode;
-                    let block = node.nodeType === 3 ? node.parentNode : node;
-                    while (block && block !== document.body) {
-                        if (block.classList && block.classList.contains('custom-html-block')) break;
-                        if (block.id === 'postContent') break;
-                        block = block.parentNode;
-                    }
-                    if(block && block.classList && block.classList.contains('custom-html-block')) { 
-                        activeHtmlBlock = block; 
-                        ta.value = block.querySelector('.block-content').innerHTML; 
-                    } else {
-                        ta.value = preFill; 
-                    }
-                } else {
-                    ta.value = preFill;
-                }
-                
-                window.updateLineNumbers(); 
-                document.getElementById('htmlModal').style.display = 'flex';
-            } catch(e) { console.error("Open modal error:", e); }
-        };
-
-        window.closeHtmlModal = function() { document.getElementById('htmlModal').style.display = 'none'; activeHtmlBlock = null; };
-
-        window.syncCodeToEditor = function() { 
-            if (activeHtmlBlock) {
-                let ta = document.getElementById('htmlEditorTextarea');
-                if(ta) activeHtmlBlock.querySelector('.block-content').innerHTML = ta.value; 
-            }
-        };
-
-        window.insertHtmlBlock = function() {
-            try {
-                let ta = document.getElementById('htmlEditorTextarea');
-                let html = ta ? ta.value : "";
-                if(!html) { window.closeHtmlModal(); return; }
-                
-                if (activeHtmlBlock) { 
-                    window.closeHtmlModal(); 
-                    return; 
-                } 
-                
-                window.insertDirectHtmlBlock(html); 
-                window.closeHtmlModal();
-            } catch (err) {
-                showAlert("Lỗi hệ thống khi chèn HTML: " + err.message, true);
-            }
-        };
-
-        window.insertDirectHtmlBlock = function(html) {
-            if(!html) return;
-            let editor = document.getElementById('postContent');
-            restoreSelection(); 
-            let sel = window.getSelection();
-            
-            let isInsideCustom = false;
-            if(sel && sel.rangeCount > 0 && editor.contains(sel.anchorNode)) {
-                let node = sel.anchorNode;
-                let element = node.nodeType === 3 ? node.parentNode : node;
-                if(element.closest && element.closest('.custom-html-block')) {
-                    isInsideCustom = true;
-                }
-            }
-
-            if (isInsideCustom) {
-                document.execCommand('insertHTML', false, html);
-                if (sel.rangeCount > 0) savedSelectionRange = sel.getRangeAt(0).cloneRange();
-                return;
-            }
-
-            let block = document.createElement("div");
-            block.className = "custom-html-block";
-            let htmlWithInnerP = html + '<p><br></p>';
-
-            block.innerHTML = `
-                <button class="block-del-btn del-top" contenteditable="false" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>
-                <div class="block-content">${htmlWithInnerP}</div>
-                <button class="block-del-btn del-bot" contenteditable="false" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>
-            `;
-            
-            if(sel && sel.rangeCount && editor.contains(sel.anchorNode)) {
-                let currentNode = sel.anchorNode;
-                
-                if (currentNode === editor) {
-                    editor.appendChild(block);
-                } else {
-                    let topLevelNode = currentNode.nodeType === 3 ? currentNode.parentNode : currentNode;
-                    
-                    while(topLevelNode && topLevelNode.parentNode !== editor && topLevelNode !== editor) {
-                        topLevelNode = topLevelNode.parentNode;
-                    }
-                    
-                    if (topLevelNode && topLevelNode.parentNode === editor) {
-                        if (topLevelNode.nextSibling) {
-                            editor.insertBefore(block, topLevelNode.nextSibling);
-                        } else {
-                            editor.appendChild(block);
-                        }
-                    } else {
-                        editor.appendChild(block);
-                    }
-                }
-            } else {
-                editor.appendChild(block);
-            }
-
-            if (block.parentNode) {
-                let outerEmptyP = document.createElement('p'); outerEmptyP.innerHTML = "<br>";
-                block.parentNode.insertBefore(outerEmptyP, block.nextSibling);
-            }
-            
-            let insideEmptyP = block.querySelector('.block-content').lastElementChild;
-            if (insideEmptyP) {
-                let newRange = document.createRange();
-                newRange.setStart(insideEmptyP, 0); 
-                newRange.collapse(true);
-                sel.removeAllRanges(); 
-                sel.addRange(newRange);
-                savedSelectionRange = newRange.cloneRange();
-            }
-        };
-
-        function loadTemplates() {
-            if (!sysData || !sysData.sheets) return;
-            let tplTab = sysData.sheets["Mẫu html_hidden"];
-            if(!tplTab) return;
-            
-            let cats = {}; let catSelect = document.getElementById('catSelect');
-            if(!catSelect) return;
-            while(catSelect.options.length > 2) catSelect.remove(2);
-
-            for(let r=1; r<tplTab.length; r++) {
-                let cat = tplTab[r][0]; let html = tplTab[r][1]; 
-                if(!cats[cat]) cats[cat] = []; cats[cat].push({html: html});
-                if(!Array.from(catSelect.options).some(o => o.value === cat)) catSelect.add(new Option(cat, cat));
-            }
-
-            let listHTML = "";
-            for(let c in cats) {
-                let id = 'cat_' + Math.random().toString(36).substr(2, 5);
-                listHTML += `<div class="mega-row-cat" onclick="document.getElementById('${id}').classList.toggle('open')"><span><i class="fas fa-folder-open"></i> ${c}</span> <i class="fas fa-chevron-down"></i></div><div class="cat-content" id="${id}">`;
-                cats[c].forEach(item => {
-                    listHTML += `<div class="template-item" onmousedown="event.preventDefault(); window.insertDirectHtmlBlock(this.dataset.html)" data-html="${item.html.replace(/"/g, '&quot;')}">
-                                    <div class="template-preview-box">${item.html}</div>
-                                 </div>`;
-                });
-                listHTML += `</div>`;
-            }
-            document.getElementById('templatesList').innerHTML = listHTML;
-        }
-
-        function checkNewCategory(sel) {
-            if(sel.value === "NEW") { showPrompt("Nhập tên Loại Khối mới:", "", (newCat) => { if(newCat) { let opt = new Option(newCat, newCat); sel.add(opt); sel.value = newCat; } else sel.selectedIndex = 0; }); }
-        }
-
         function saveTemplate() {
             let cat = document.getElementById('catSelect').value;
             let html = document.getElementById('tplHtmlInput').value.trim();
@@ -1792,8 +1558,14 @@ function loadPostIntoEditor(postId) {
         }
 
         function savePostToSheet() {
-            let title = document.getElementById("postTitle").innerHTML;
-            let sapo = document.getElementById("postSapo").innerHTML;
+            let titleEl = document.getElementById("postTitle");
+            let titleHtml = titleEl.innerHTML;
+            let titleStyle = titleEl.style.cssText ? ` style="${titleEl.style.cssText}"` : "";
+
+            let sapoEl = document.getElementById("postSapo");
+            let sapoHtml = sapoEl.innerHTML;
+            let sapoStyle = sapoEl.style.cssText ? ` style="${sapoEl.style.cssText}"` : "";
+
             let coverUrl = document.getElementById("coverUrlInput").value.trim();
             let content = document.getElementById("postContent").innerHTML;
             
@@ -1802,7 +1574,7 @@ function loadPostIntoEditor(postId) {
             tempDiv.querySelectorAll('.custom-html-block').forEach(el => { el.style.border = "none"; el.style.margin = "0"; });
             content = tempDiv.innerHTML;
 
-            let finalHtml = `<div class="post-wrapper">${title ? `<h1 class="post-title">${title}</h1>` : ""}${sapo ? `<div class="post-sapo">${sapo}</div>` : ""}${coverUrl ? `<img class="post-cover" src="${coverUrl}">` : ""}<div class="post-body">${content}</div></div>`;
+            let finalHtml = `<div class="post-wrapper">${titleHtml ? `<h1 class="post-title"${titleStyle}>${titleHtml}</h1>` : ""}${sapoHtml ? `<div class="post-sapo"${sapoStyle}>${sapoHtml}</div>` : ""}${coverUrl ? `<img class="post-cover" src="${coverUrl}">` : ""}<div class="post-body">${content}</div></div>`;
             let planId = draftData ? draftData.data[1] : "POST_" + new Date().getTime(); 
 
             if(!sysData.sheets["Bài viết_hidden"]) {
@@ -1820,17 +1592,17 @@ function loadPostIntoEditor(postId) {
             showAlert("Bài viết đang được lưu nền về hệ thống!");
 
             if(targetRow !== -1) {
-                bvTab[targetRow] = [planId, title, sapo, coverUrl, finalHtml];
-                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết_hidden"});
+                bvTab[targetRow] = [planId, titleHtml, sapoHtml, coverUrl, finalHtml];
+                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: titleHtml, tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapoHtml, tab: "Bài viết_hidden"});
                 pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết_hidden"});
                 pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết_hidden"});
             } else {
-                targetRow = bvTab.length; bvTab.push([planId, title, sapo, coverUrl, finalHtml]);
+                targetRow = bvTab.length; bvTab.push([planId, titleHtml, sapoHtml, coverUrl, finalHtml]);
                 pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow+1, count: 1, tab: "Bài viết_hidden"});
                 pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 1, val: planId, tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: titleHtml, tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapoHtml, tab: "Bài viết_hidden"});
                 pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết_hidden"});
                 pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết_hidden"});
             }
