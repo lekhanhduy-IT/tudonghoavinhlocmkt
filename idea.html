@@ -149,11 +149,30 @@
                 let div = document.createElement("div"); div.style.background = c; div.style.width = "20px"; div.style.height = "20px"; div.style.borderRadius = "50%"; div.style.cursor = "pointer"; div.style.border = "0.5px solid var(--gray-border)";
                 div.onclick = () => { document.getElementById("hexInput").value = c; previewColor(); applyChosenColor(); }; grid.appendChild(div);
             });
-            let cached = localStorage.getItem("MKT_DATA");
-            if (cached) { sysData = JSON.parse(cached); activeTab = sysData.tabOrder[0]; currentSyncToken = sysData.syncToken || 0; renderTabs(); renderGrid(); }
-            
-            fetchDataFromServer(); 
-            setInterval(processQueueAndSync, 4000); // Vòng lặp Queue cũ
+           // ... code khởi tạo bảng màu ở trên ...
+
+let cached = localStorage.getItem("MKT_DATA");
+let cachedActiveTab = localStorage.getItem("ACTIVE_TAB"); // Đọc tab đã lưu
+
+if (cached) { 
+    sysData = JSON.parse(cached); 
+    currentSyncToken = sysData.syncToken || 0; 
+    
+    // Khôi phục tab đang mở, hoặc lấy tab đầu tiên hợp lệ
+    if (cachedActiveTab && sysData.tabOrder.includes(cachedActiveTab)) {
+        activeTab = cachedActiveTab;
+    } else {
+        // Tìm tab đầu tiên không bị ẩn
+        activeTab = sysData.tabOrder.find(t => !t.endsWith('_hidden') && !(sysData.attributes[t] || {}).hidden) || sysData.tabOrder[0];
+    }
+    
+    renderTabs(); 
+    renderGrid(); 
+}
+
+fetchDataFromServer(); 
+setInterval(processQueueAndSync, 4000);
+// ... code còn lại ... // Vòng lặp Queue cũ
             
             // VÒNG LẶP DỰ PHÒNG: Quét tự động mỗi 20s nếu không gõ chữ
             setInterval(() => {
@@ -220,13 +239,30 @@
         window.executeSearch = function(keyword) { globalSearchKeyword = keyword.toLowerCase(); renderGrid(); };
 
         function renderTabs() {
-            let wrap = document.getElementById("tabsWrapper"); wrap.innerHTML = "";
-            sysData.tabOrder.forEach(tab => {
-                let attrs = sysData.attributes[tab] || {}; if(attrs.hidden) return;
-                let div = document.createElement("div"); div.className = "tab-item" + (tab === activeTab ? " active" : ""); div.innerText = tab; 
-                div.onclick = () => { activeTab = tab; renderGrid(); }; div.oncontextmenu = (e) => showTabMenu(e, tab); wrap.appendChild(div);
-            });
-        }
+    let wrap = document.getElementById("tabsWrapper"); 
+    wrap.innerHTML = "";
+    
+    sysData.tabOrder.forEach(tab => {
+        let attrs = sysData.attributes[tab] || {}; 
+        
+        // Điều kiện: Bỏ qua tab có thuộc tính hidden HOẶC tên kết thúc bằng _hidden
+        if (attrs.hidden || tab.endsWith('_hidden')) return;
+        
+        let div = document.createElement("div"); 
+        div.className = "tab-item" + (tab === activeTab ? " active" : ""); 
+        div.innerText = tab; 
+        
+        div.onclick = () => { 
+            activeTab = tab; 
+            localStorage.setItem("ACTIVE_TAB", activeTab); // Ghi nhớ tab vừa chọn
+            renderTabs(); // Gọi lại hàm này để cập nhật hiệu ứng CSS Active
+            renderGrid(); 
+        }; 
+        
+        div.oncontextmenu = (e) => showTabMenu(e, tab); 
+        wrap.appendChild(div);
+    });
+}
 
         function renderGrid() {
             let mat = sysData.sheets[activeTab] || [[""]]; let attrs = sysData.attributes[activeTab] || {}; let types = attrs.columnTypes || {};
