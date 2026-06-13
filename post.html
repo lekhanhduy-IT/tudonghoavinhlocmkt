@@ -148,7 +148,7 @@
             <div class="panel-content">
                 
                 <div id="tabFormat" class="ptab-content active">
-                    <select class="tool-input" style="margin-bottom: 12px; font-weight: bold;" onmousedown="event.preventDefault();" onchange="formatDoc('formatBlock', this.value); this.selectedIndex=0;">
+                    <select class="tool-input" style="margin-bottom: 12px; font-weight: bold;" onchange="formatDoc('formatBlock', this.value); this.selectedIndex=0;">
                         <option value="">-- Chọn Tiêu Đề (Heading) --</option>
                         <option value="H1">Heading 1</option>
                         <option value="H2">Heading 2</option>
@@ -178,7 +178,7 @@
                         <span class="tool-label">Cỡ chữ:</span>
                         <div class="size-controller">
                             <button class="size-btn" onmousedown="event.preventDefault(); updateSize('font', -1)"><i class="fas fa-minus"></i></button>
-                            <select id="fontSizeSel" class="size-select" onmousedown="event.preventDefault();" onchange="applySize('font')"></select>
+                            <select id="fontSizeSel" class="size-select" onchange="applySize('font')"></select>
                             <button class="size-btn" onmousedown="event.preventDefault(); updateSize('font', 1)"><i class="fas fa-plus"></i></button>
                         </div>
                     </div>
@@ -187,18 +187,18 @@
                         <span class="tool-label">Dãn dòng:</span>
                         <div class="size-controller">
                             <button class="size-btn" onmousedown="event.preventDefault(); updateSize('line', -1)"><i class="fas fa-minus"></i></button>
-                            <select id="lineHeightSel" class="size-select" onmousedown="event.preventDefault();" onchange="applySize('line')"></select>
+                            <select id="lineHeightSel" class="size-select" onchange="applySize('line')"></select>
                             <button class="size-btn" onmousedown="event.preventDefault(); updateSize('line', 1)"><i class="fas fa-plus"></i></button>
                         </div>
                     </div>
 
                     <div class="tool-row">
                         <span class="tool-label">Màu chữ:</span>
-                        <input type="color" class="tool-input" style="padding: 0; height: 26px;" onmousedown="event.preventDefault();" onchange="formatDoc('foreColor', this.value)">
+                        <input type="color" class="tool-input" style="padding: 0; height: 26px;" onchange="formatDoc('foreColor', this.value)">
                     </div>
                     <div class="tool-row">
                         <span class="tool-label">Màu nền:</span>
-                        <input type="color" class="tool-input" style="padding: 0; height: 26px;" onmousedown="event.preventDefault();" onchange="formatDoc('hiliteColor', this.value)">
+                        <input type="color" class="tool-input" style="padding: 0; height: 26px;" onchange="formatDoc('hiliteColor', this.value)">
                     </div>
 
                     <hr style="border-bottom: 0.5px dashed var(--gray-border); margin: 15px 0;">
@@ -206,9 +206,9 @@
                     <div style="font-weight: bold; margin-bottom: 8px; color: var(--blue); font-size: 12px;"><i class="fab fa-google"></i> Google Fonts:</div>
                     <div class="tool-row">
                         <input type="text" id="fontLink" class="tool-input" placeholder="Dán thẻ <link>...">
-                        <button class="tool-btn" style="margin: 0; padding: 4px 8px;" onmousedown="event.preventDefault(); addGoogleFont()"><i class="fas fa-plus"></i></button>
+                        <button class="tool-btn" style="margin: 0; padding: 4px 8px;" onclick="addGoogleFont()"><i class="fas fa-plus"></i></button>
                     </div>
-                    <select id="fontSelect" class="tool-input" style="margin-top: 5px;" onmousedown="event.preventDefault();" onchange="applyCustomStyle('font-family', this.value)">
+                    <select id="fontSelect" class="tool-input" style="margin-top: 5px;" onchange="applyCustomStyle('font-family', this.value); this.style.fontFamily = this.value;">
                         <option value="Segoe UI, sans-serif" style="font-family: 'Segoe UI', sans-serif">Mặc định (Segoe UI)</option>
                     </select>
 
@@ -235,7 +235,7 @@
                         <div style="font-size:11px; margin-bottom:5px; color:#555;">Xem trước (Preview):</div>
                         <div id="tplPreview" style="border:0.5px dashed var(--gray-border); padding:5px; margin-bottom:5px; min-height:20px; font-size:12px; background:#fff; overflow:hidden;"></div>
 
-                        <button class="tool-btn" style="width: 100%; justify-content: center;" onmousedown="event.preventDefault(); saveTemplate()"><i class="fas fa-save"></i> Lưu Mẫu</button>
+                        <button class="tool-btn" style="width: 100%; justify-content: center;" onclick="saveTemplate()"><i class="fas fa-save"></i> Lưu Mẫu</button>
                     </div>
 
                     <div style="font-weight: bold; margin-bottom: 8px; color: var(--blue); font-size: 12px;">Kho Mẫu (Click để chèn):</div>
@@ -484,14 +484,14 @@
         }
 
         function formatDoc(cmd, value=null) {
-            restoreSelection();
+            restoreSelection(); // Phục hồi bôi đen trước khi xử lý
             if(value) document.execCommand(cmd, false, value);
             else document.execCommand(cmd);
         }
 
         function applyCustomStyle(property, value) {
             if(!value || value === 'px') return;
-            restoreSelection();
+            restoreSelection(); // Phục hồi bôi đen trước khi xử lý
             let sel = window.getSelection();
             if(sel.rangeCount) {
                 let range = sel.getRangeAt(0);
@@ -570,7 +570,7 @@
         }
 
         // ==========================================
-        // GOOGLE FONTS
+        // GOOGLE FONTS (Fix Regex lấy toàn bộ font)
         // ==========================================
         function loadGoogleFonts() {
             let fontsTab = sysData.sheets["Google Fonts_hidden"];
@@ -581,48 +581,74 @@
                     if(fontName && link) {
                         let temp = document.createElement('div'); temp.innerHTML = link;
                         temp.querySelectorAll('link').forEach(t => { let newLink = document.createElement('link'); newLink.rel = "stylesheet"; newLink.href = t.href; document.head.appendChild(newLink); });
-                        let opt = document.createElement('option'); 
-                        opt.value = `'${fontName}', sans-serif`; 
-                        opt.innerText = fontName; 
-                        opt.style.fontFamily = `'${fontName}', sans-serif`; 
-                        select.appendChild(opt);
+                        
+                        // Prevent duplicates
+                        if(!Array.from(select.options).some(opt => opt.text === fontName)) {
+                            let opt = document.createElement('option'); 
+                            opt.value = `'${fontName}', sans-serif`; 
+                            opt.innerText = fontName; 
+                            opt.style.fontFamily = `'${fontName}', sans-serif`; 
+                            select.appendChild(opt);
+                        }
                     }
                 }
             }
         }
 
-        async function addGoogleFont() {
+        function addGoogleFont() {
             let link = document.getElementById('fontLink').value.trim();
             if(!link.includes('<link')) return showAlert("Vui lòng dán nguyên thẻ &lt;link&gt; lấy từ Google Fonts.", true);
             
-            let match = link.match(/family=([^:&]+)/);
-            if(match && match[1]) {
-                let fontName = match[1].replace(/\+/g, ' ');
-                let select = document.getElementById('fontSelect');
-                let opt = document.createElement('option');
-                opt.value = `'${fontName}', sans-serif`; 
-                opt.innerText = fontName;
-                opt.style.fontFamily = `'${fontName}', sans-serif`;
-                select.appendChild(opt); select.value = opt.value;
+            // Tìm TẤT CẢ chữ family= trong link
+            let matches = [...link.matchAll(/family=([^:&"']+)/g)];
+            if(matches.length > 0) {
                 
+                // Nhúng thẻ link vào Head liền
                 let temp = document.createElement('div'); temp.innerHTML = link;
                 temp.querySelectorAll('link').forEach(t => { let n = document.createElement('link'); n.rel="stylesheet"; n.href=t.href; document.head.appendChild(n); });
-                
-                applyCustomStyle('font-family', opt.value);
-                document.getElementById('fontLink').value = "";
-                showAlert("Đã tải và lưu Font thành công!");
 
-                if(!sysData.sheets["Google Fonts_hidden"]) {
-                    sysData.tabOrder.push("Google Fonts_hidden"); sysData.sheets["Google Fonts_hidden"] = [["Mã Link", "Tên Font"]];
-                    await pushQueue({type:'MANAGE_TAB', action:'create', tab: "Google Fonts_hidden"});
-                    await pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "Mã Link", tab: "Google Fonts_hidden"});
-                    await pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Tên Font", tab: "Google Fonts_hidden"});
+                let select = document.getElementById('fontSelect');
+                let addedFonts = [];
+
+                matches.forEach(match => {
+                    let fontName = match[1].replace(/\+/g, ' ');
+                    addedFonts.push(fontName);
+                    
+                    if(!Array.from(select.options).some(opt => opt.text === fontName)) {
+                        let opt = document.createElement('option');
+                        opt.value = `'${fontName}', sans-serif`; 
+                        opt.innerText = fontName;
+                        opt.style.fontFamily = `'${fontName}', sans-serif`;
+                        select.appendChild(opt); 
+                        select.value = opt.value; // Trỏ thẳng vào font vừa add cuối cùng
+                    }
+                });
+
+                if(addedFonts.length > 0) {
+                    applyCustomStyle('font-family', select.value);
+                    select.style.fontFamily = select.value;
+                    document.getElementById('fontLink').value = "";
+                    showAlert(`Đã tải và lưu thành công ${addedFonts.length} Font!`);
+
+                    // Cập nhật Optimistic UI cho Sheet Google Fonts_hidden
+                    if(!sysData.sheets["Google Fonts_hidden"]) {
+                        sysData.tabOrder.push("Google Fonts_hidden"); sysData.sheets["Google Fonts_hidden"] = [["Mã Link", "Tên Font"]];
+                        pushQueue({type:'MANAGE_TAB', action:'create', tab: "Google Fonts_hidden"});
+                        pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "Mã Link", tab: "Google Fonts_hidden"});
+                        pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Tên Font", tab: "Google Fonts_hidden"});
+                    }
+                    let gfTab = sysData.sheets["Google Fonts_hidden"];
+                    
+                    addedFonts.forEach(fontName => {
+                        let newRow = gfTab.length + 1; 
+                        gfTab.push([link, fontName]);
+                        pushQueue({type:'STRUCTURAL', action:'insertRow', index: newRow, count: 1, tab: "Google Fonts_hidden"});
+                        pushQueue({type:'SYNC_CELL', row: newRow, col: 1, val: link, tab: "Google Fonts_hidden"});
+                        pushQueue({type:'SYNC_CELL', row: newRow, col: 2, val: fontName, tab: "Google Fonts_hidden"});
+                    });
                 }
-                let gfTab = sysData.sheets["Google Fonts_hidden"];
-                let newRow = gfTab.length + 1; gfTab.push([link, fontName]);
-                await pushQueue({type:'STRUCTURAL', action:'insertRow', index: newRow, count: 1, tab: "Google Fonts_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: newRow, col: 1, val: link, tab: "Google Fonts_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: newRow, col: 2, val: fontName, tab: "Google Fonts_hidden"});
+            } else {
+                showAlert("Không tìm thấy tên font (family=...) trong link.", true);
             }
         }
 
@@ -684,17 +710,33 @@
                 while (parentBlock && !parentBlock.classList?.contains('custom-html-block') && parentBlock.id !== 'postContent') parentBlock = parentBlock.parentNode;
                 
                 if(parentBlock && parentBlock.classList.contains('custom-html-block')) {
-                    parentBlock.querySelector('.block-content').innerHTML += html;
+                    let blockContent = parentBlock.querySelector('.block-content');
+                    
+                    let tempDiv = document.createElement('div'); tempDiv.innerHTML = html;
+                    while(tempDiv.firstChild) blockContent.appendChild(tempDiv.firstChild);
+                    
+                    // Tạo sẵn 1 dòng p rỗng để gõ tiếp
+                    let innerP = document.createElement('p'); innerP.innerHTML = "<br>";
+                    blockContent.appendChild(innerP);
+
+                    let newRange = document.createRange();
+                    newRange.setStart(innerP, 0); newRange.collapse(true);
+                    sel.removeAllRanges(); sel.addRange(newRange);
+                    savedSelectionRange = newRange;
                     return; 
                 }
             }
 
-            // Tạo khối mới
+            // --- TẠO KHỐI MỚI ---
             let block = document.createElement("div");
             block.className = "custom-html-block";
+            
+            // Đảm bảo khối mới luôn có 1 dòng rỗng ở tận cùng bên trong
+            let htmlWithInnerP = html + '<p><br></p>';
+
             block.innerHTML = `
                 <button class="block-del-btn del-top" contenteditable="false" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>
-                <div class="block-content">${html}</div>
+                <div class="block-content">${htmlWithInnerP}</div>
                 <button class="block-del-btn del-bot" contenteditable="false" onmousedown="event.preventDefault(); this.parentElement.remove()" title="Xóa khối"><i class="fas fa-times"></i></button>
             `;
             
@@ -706,18 +748,20 @@
                 editor.appendChild(block);
             }
 
-            // Tạo dòng rỗng p br phía dưới và focus vào đó
-            let emptyP = document.createElement('p'); emptyP.innerHTML = "<br>";
-            block.parentNode.insertBefore(emptyP, block.nextSibling);
+            // Tạo sẵn 1 dòng rỗng ngoài khối để không bị kẹt mã
+            let outerEmptyP = document.createElement('p'); outerEmptyP.innerHTML = "<br>";
+            block.parentNode.insertBefore(outerEmptyP, block.nextSibling);
             
+            // Focus con trỏ chuột vào trong dòng p rỗng BÊN TRONG khối mã (Yêu cầu của bạn)
+            let insideEmptyP = block.querySelector('.block-content').lastElementChild;
             let newRange = document.createRange();
-            newRange.setStart(emptyP, 0); newRange.collapse(true);
+            newRange.setStart(insideEmptyP, 0); newRange.collapse(true);
             sel.removeAllRanges(); sel.addRange(newRange);
             savedSelectionRange = newRange;
         }
 
         // ==========================================
-        // MẪU HTML (Templates)
+        // MẪU HTML (Templates) - Optimistic UI
         // ==========================================
         function loadTemplates() {
             let tplTab = sysData.sheets["Mẫu html_hidden"];
@@ -765,34 +809,37 @@
             }
         }
 
-        async function saveTemplate() {
+        function saveTemplate() {
             let cat = document.getElementById('catSelect').value;
             let html = document.getElementById('tplHtmlInput').value.trim();
             if(!cat || !html) return showAlert("Vui lòng nhập đủ Loại khối và Mã HTML!", true);
 
+            // Cập nhật Optimistic UI hiển thị ngay lập tức
             if(!sysData.sheets["Mẫu html_hidden"]) {
                 sysData.tabOrder.push("Mẫu html_hidden"); sysData.sheets["Mẫu html_hidden"] = [["Loại Khối", "Mã HTML"]];
-                await pushQueue({type:'MANAGE_TAB', action:'create', tab: "Mẫu html_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "Loại Khối", tab: "Mẫu html_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Mã HTML", tab: "Mẫu html_hidden"});
+                pushQueue({type:'MANAGE_TAB', action:'create', tab: "Mẫu html_hidden"});
+                pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "Loại Khối", tab: "Mẫu html_hidden"});
+                pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Mã HTML", tab: "Mẫu html_hidden"});
             }
             let tplTab = sysData.sheets["Mẫu html_hidden"];
             let newRow = tplTab.length + 1;
             tplTab.push([cat, html]);
-            await pushQueue({type:'STRUCTURAL', action:'insertRow', index: newRow, count: 1, tab: "Mẫu html_hidden"});
-            await pushQueue({type:'SYNC_CELL', row: newRow, col: 1, val: cat, tab: "Mẫu html_hidden"});
-            await pushQueue({type:'SYNC_CELL', row: newRow, col: 2, val: html, tab: "Mẫu html_hidden"});
-
+            
             showAlert("Lưu mẫu khối thành công!");
             document.getElementById('tplHtmlInput').value = "";
             document.getElementById('tplPreview').innerHTML = ""; 
             loadTemplates();
+
+            // Background Sync ẩn
+            pushQueue({type:'STRUCTURAL', action:'insertRow', index: newRow, count: 1, tab: "Mẫu html_hidden"});
+            pushQueue({type:'SYNC_CELL', row: newRow, col: 1, val: cat, tab: "Mẫu html_hidden"});
+            pushQueue({type:'SYNC_CELL', row: newRow, col: 2, val: html, tab: "Mẫu html_hidden"});
         }
 
         // ==========================================
         // LƯU BÀI VIẾT (Sheet "Bài viết_hidden")
         // ==========================================
-        async function savePostToSheet() {
+        function savePostToSheet() {
             let title = document.getElementById("postTitle").innerHTML;
             let sapo = document.getElementById("postSapo").innerHTML;
             let coverUrl = document.getElementById("coverUrlInput").value.trim();
@@ -813,49 +860,53 @@
                 </div>
             `;
 
-            let planId = draftData ? draftData.data[1] : "POST_" + new Date().getTime(); // Cho phép lưu bài viết độc lập nếu ko có Kế hoạch
+            let planId = draftData ? draftData.data[1] : "POST_" + new Date().getTime(); 
 
+            // Cập nhật Optimistic UI
             if(!sysData.sheets["Bài viết_hidden"]) {
                 sysData.tabOrder.push("Bài viết_hidden"); sysData.sheets["Bài viết_hidden"] = [["ID Kế Hoạch", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML"]];
-                await pushQueue({type:'MANAGE_TAB', action:'create', tab: "Bài viết_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "ID Kế Hoạch", tab: "Bài viết_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Tiêu đề", tab: "Bài viết_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: 1, col: 3, val: "Sapo", tab: "Bài viết_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: 1, col: 4, val: "Ảnh Bìa", tab: "Bài viết_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: 1, col: 5, val: "Nội Dung HTML", tab: "Bài viết_hidden"});
+                pushQueue({type:'MANAGE_TAB', action:'create', tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "ID Kế Hoạch", tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Tiêu đề", tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: 1, col: 3, val: "Sapo", tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: 1, col: 4, val: "Ảnh Bìa", tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: 1, col: 5, val: "Nội Dung HTML", tab: "Bài viết_hidden"});
             }
 
             let bvTab = sysData.sheets["Bài viết_hidden"];
             let targetRow = -1;
             for(let r=1; r<bvTab.length; r++) { if(bvTab[r][0] == planId) { targetRow = r; break; } }
 
+            showAlert("Bài viết đang được lưu nền về hệ thống!");
+
             if(targetRow !== -1) {
                 bvTab[targetRow] = [planId, title, sapo, coverUrl, finalHtml];
-                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết_hidden"});
             } else {
                 targetRow = bvTab.length; bvTab.push([planId, title, sapo, coverUrl, finalHtml]);
-                await pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow+1, count: 1, tab: "Bài viết_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 1, val: planId, tab: "Bài viết_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết_hidden"});
-                await pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết_hidden"});
+                pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow+1, count: 1, tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 1, val: planId, tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết_hidden"});
+                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết_hidden"});
             }
-            showAlert("Bài viết đã được lưu hoàn tất!");
         }
 
-        // PUSH QUEUE API
-        async function pushQueue(action) {
+        // PUSH QUEUE API (Bất đồng bộ - Không đợi)
+        function pushQueue(action) {
             actionQueue.push(action); localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
             let s = document.getElementById('syncStatus'); s.innerText = "⏳ Đang lưu..."; s.style.color = "#f39c12";
-            try {
-                let res = await fetch(API_URL, { method: "POST", body: JSON.stringify([action]), headers: { "Content-Type": "text/plain;charset=utf-8" } });
-                let json = await res.json();
+            
+            fetch(API_URL, { method: "POST", body: JSON.stringify([action]), headers: { "Content-Type": "text/plain;charset=utf-8" } })
+            .then(res => res.json())
+            .then(json => {
                 if(json.success) { s.innerText = "✅ Đã lưu"; s.style.color = "#27ae60"; }
-            } catch(e) { s.innerText = "⚠️ Mất mạng"; s.style.color = "var(--red)"; }
+            })
+            .catch(e => { s.innerText = "⚠️ Mất mạng"; s.style.color = "var(--red)"; });
         }
     </script>
 </body>
