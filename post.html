@@ -17,9 +17,9 @@
         .save-btn { background: var(--blue); color: var(--white); border-color: var(--blue); }
         .save-btn:hover { background: #0199d3; }
 
-        /* Workspace */
-        .workspace { flex: 1; position: relative; overflow-y: auto; overflow-x: hidden; display: flex; justify-content: center; padding: 40px 0 100px 0; }
-        .editor-container { width: 100%; max-width: 800px; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 5px 20px rgba(0,0,0,0.05); position: relative; display: flex; flex-direction: column; margin-top: 20px; transition: padding 0.1s;}
+        /* Workspace (ĐÃ SỬA LỖI CHIỀU CAO - CHUYỂN THÀNH BLOCK ĐỂ TỰ DÃN) */
+        .workspace { flex: 1; position: relative; overflow-y: auto; overflow-x: hidden; display: block; padding: 40px 0 100px 0; }
+        .editor-container { width: 100%; max-width: 800px; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 5px 20px rgba(0,0,0,0.05); position: relative; display: block; margin: 20px auto 0 auto; transition: padding 0.1s; }
         
         /* CÂY THƯỚC (RULER) CHUẨN MS WORD */
         .ruler-container { display: none; }
@@ -42,23 +42,17 @@
         
         #postTitle { font-size: 26px; font-weight: bold; color: var(--blue); }
         #postSapo { font-size: 16px; font-style: italic; color: #555; background: #fdfdfd; }
-        #postContent { font-size: 15px; height: auto; min-height: 500px; border-bottom: none; padding-bottom: 80px; }
+        #postContent { font-size: 15px; display: block; height: auto; min-height: 500px; border-bottom: none; padding-bottom: 80px; }
         
         .cover-area { padding: 10px 20px; border-bottom: 0.5px dashed var(--gray-border); background: var(--white); }
         .cover-input { width: 100%; padding: 6px 10px; border: 0.5px solid var(--gray-border); outline: none; font-size: 12px; border-radius: 2px; margin-bottom: 5px; color: var(--blue); }
         .cover-preview { width: 100%; max-height: 400px; object-fit: contain; display: none; border: 0.5px solid var(--gray-border); margin-top: 5px; }
 
-        /* Custom HTML Blocks (Khối mã HTML) */
+        /* Custom HTML Blocks */
         .custom-html-block { position: relative; border: 1px dashed transparent; margin: 10px 0; transition: 0.2s; }
         .custom-html-block:hover, .custom-html-block.active { border: 1px dashed rgba(1, 173, 238, 0.5); }
-        .block-content { min-height: 20px; }
-        
-        /* Reset kiểu dáng để không bị lây từ thẻ p cha */
-        .custom-html-block .block-content {
-            font-size: initial; font-weight: normal; font-style: normal; text-align: left; line-height: normal;
-        }
+        .block-content { min-height: 20px; font-size: initial; font-weight: normal; font-style: normal; text-align: left; line-height: normal; }
 
-        /* Nút chèn dòng trống ở góc trái */
         .custom-html-block::before {
             content: '↵'; position: absolute; top: 0; left: 0; background: var(--blue); color: #fff;
             width: 22px; height: 22px; display: none; align-items: center; justify-content: center;
@@ -71,7 +65,7 @@
         .custom-html-block:hover .block-del-btn { display: flex; }
         .del-top { top: -10px; } .del-bot { bottom: -10px; }
 
-        /* Floating Panels (Bảng nổi kéo thả) */
+        /* Floating Panels */
         .floating-panel { position: absolute; width: 300px; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 5px 20px rgba(0,0,0,0.1); display: flex; flex-direction: column; max-height: 85vh; z-index: 50; transition: box-shadow 0.2s; }
         .panel-header { padding: 8px 12px; background: var(--gray-light); border-bottom: 0.5px solid var(--gray-border); font-weight: bold; font-size: 12px; cursor: move; user-select: none; display: flex; justify-content: space-between; align-items: center; color: var(--blue); }
         .panel-content { flex: 1; overflow-y: auto; padding: 10px; font-size: 13px; }
@@ -96,33 +90,25 @@
         .tool-input:focus { border-color: var(--blue); }
         .tool-label { font-size: 11px; color: #777; width: 60px; flex-shrink: 0;}
 
-        /* Bộ Chọn Cỡ Chữ & Dãn Dòng Mới */
+        /* Bộ Chọn Cỡ Chữ & Dãn Dòng */
         .size-controller { display: flex; align-items: center; border: 0.5px solid var(--gray-border); border-radius: 3px; overflow: hidden; flex: 1; }
         .size-btn { width: 25px; height: 26px; background: var(--gray-light); border: none; font-weight: bold; cursor: pointer; color: var(--text-main); display: flex; justify-content: center; align-items: center; outline: none;}
         .size-btn:hover { background: #e0e0e0; color: var(--blue); }
         .size-select { flex: 1; height: 26px; border: none; outline: none; text-align: center; font-size: 12px; border-left: 0.5px solid var(--gray-border); border-right: 0.5px solid var(--gray-border); cursor: pointer;}
         
-        /* Box màu nhanh */
         .quick-color { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 1px solid var(--gray-border); box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: 0.1s; }
         .quick-color:hover { transform: scale(1.2); }
 
-        /* Templates (Mẫu HTML) */
+        /* Templates */
         .mega-row-cat { background: var(--blue); color: var(--white); padding: 6px 10px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; margin-top: 10px; border: 0.5px solid var(--blue); border-radius: 2px;}
         .cat-content { border: 0.5px solid var(--gray-border); border-top: none; padding: 5px; display: none; }
         .cat-content.open { display: block; background: #fdfdfd; }
         
         .template-item { cursor: pointer; border: 0.5px solid var(--gray-border); margin-bottom: 5px; background: var(--white); transition: 0.2s; position: relative; overflow: hidden; padding: 5px; font-size: 12px;}
         .template-item:hover { border-color: var(--blue); box-shadow: 0 2px 5px rgba(1, 173, 238, 0.2); }
-        
-        /* Sửa lỗi hiển thị tỷ lệ Mẫu HTML */
-        .template-preview-box { 
-            zoom: 0.6; /* Thu nhỏ giao diện theo tỷ lệ thực */
-            pointer-events: none; 
-            max-height: none; /* Xóa bỏ giới hạn cắt xén */
-            overflow: visible; 
-        }
+        .template-preview-box { zoom: 0.6; pointer-events: none; max-height: none; overflow: visible; }
 
-        /* Modals (Cảnh báo, Mã HTML) */
+        /* Modals */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 9999; display: none; justify-content: center; align-items: center; }
         .modal-box { background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: flex; flex-direction: column; border-radius: 4px; overflow: hidden; }
         .modal-header { padding: 10px 15px; background: var(--gray-light); border-bottom: 0.5px solid var(--gray-border); font-weight: bold; display: flex; justify-content: space-between; font-size: 13px; color: var(--blue); }
@@ -131,7 +117,6 @@
         .line-numbers { width: 35px; background: #252526; color: #858585; text-align: right; padding: 10px 5px; font-family: monospace; font-size: 13px; overflow: hidden; border-right: 0.5px solid #444; line-height: 1.5; }
         .html-textarea { flex: 1; background: transparent; color: #d4d4d4; border: none; outline: none; padding: 10px; font-family: monospace; font-size: 13px; resize: none; line-height: 1.5; white-space: pre; overflow: auto; }
 
-        /* Alert/Prompt Custom */
         .custom-alert { width: 350px; text-align: center; padding: 20px; }
         .alert-title { font-size: 16px; margin-bottom: 10px; color: var(--blue); font-weight: bold;}
         .alert-msg { font-size: 13px; margin-bottom: 20px; line-height: 1.5; color: var(--text-main);}
@@ -172,8 +157,8 @@
             <div class="panel-content">
                 
                 <div id="tabFormat" class="ptab-content active">
-                    <select class="tool-input" style="margin-bottom: 12px; font-weight: bold;" onchange="formatDoc('formatBlock', this.value); this.selectedIndex=0;">
-                        <option value="">-- Chọn Tiêu Đề (Heading) --</option>
+                    <select id="formatSelect" class="tool-input" style="margin-bottom: 12px; font-weight: bold;" onchange="changeBlockType(this.value);">
+                        <option value="P">-- Chọn Tiêu Đề (Heading) --</option>
                         <option value="H1">Heading 1</option>
                         <option value="H2">Heading 2</option>
                         <option value="H3">Heading 3</option>
@@ -345,6 +330,9 @@
         let savedSelectionRange = null; 
         let activeHtmlBlock = null;     
         let promptCallback = null;
+        
+        // TỪ ĐIỂN LƯU TRỮ FORMAT TOÀN CỤC CHO TỪNG LOẠI THẺ
+        let globalTagFormats = { 'H1': null, 'H2': null, 'H3': null, 'H4': null, 'P': null };
 
         window.onload = async () => {
             initSizeSelects();
@@ -357,7 +345,7 @@
                 document.getElementById('tplPreview').innerHTML = this.value;
             });
 
-            // LƯU RANGE BÔI ĐEN LIÊN TỤC
+            // GHI NHẬN SỰ KIỆN CLICK / BÔI ĐEN ĐỂ TỰ ĐỘNG NHẬN DIỆN HEADING & CỠ CHỮ
             document.addEventListener('selectionchange', () => {
                 let sel = window.getSelection();
                 if (sel.rangeCount > 0) {
@@ -367,17 +355,16 @@
                     let sapo = document.getElementById('postSapo');
                     
                     if(content.contains(r.commonAncestorContainer) || title.contains(r.commonAncestorContainer) || sapo.contains(r.commonAncestorContainer)) {
-                        savedSelectionRange = r.cloneRange(); // Clone an toàn
+                        savedSelectionRange = r.cloneRange();
+                        detectFormatting(); // Quét nhận diện thông minh
                     }
                 }
             });
 
-            // Xử lý góc trên bên trái của Khối HTML để tạo dòng trống
             document.getElementById('postContent').addEventListener('click', function(e) {
                 let block = e.target.closest('.custom-html-block');
                 if(block) {
                     let rect = block.getBoundingClientRect();
-                    // Nếu click vào vùng góc trên trái (22x22px của pseudo-element)
                     if(e.clientX - rect.left <= 22 && e.clientY - rect.top <= 22) {
                         let p = document.createElement('p'); p.innerHTML = '<br>';
                         block.parentNode.insertBefore(p, block);
@@ -397,7 +384,129 @@
         };
 
         // ==========================================
-        // KHỞI TẠO CỠ CHỮ & DÃN DÒNG
+        // AUTO DETECT FORMAT & GLOBAL SYNC
+        // ==========================================
+        
+        // Nhận diện loại Heading và FontSize của đoạn hiện tại đang nháy chuột
+        function detectFormatting() {
+            let sel = window.getSelection();
+            if (!sel.rangeCount) return;
+            let node = sel.anchorNode;
+            if(!node) return;
+            if (!document.getElementById('postContent').contains(node) && 
+                !document.getElementById('postTitle').contains(node) && 
+                !document.getElementById('postSapo').contains(node)) return;
+
+            let block = node.nodeType === 3 ? node.parentNode : node;
+            let curBlock = block;
+            let tagName = "P";
+            
+            // Tìm loại Heading
+            while (curBlock && !['H1','H2','H3','H4','H5','H6','P','DIV'].includes(curBlock.tagName)) {
+                if(curBlock.id === 'postContent' || curBlock.classList.contains('rich-input')) break;
+                curBlock = curBlock.parentNode;
+            }
+            if (curBlock && ['H1','H2','H3','H4','H5','H6','P'].includes(curBlock.tagName)) {
+                tagName = curBlock.tagName;
+            }
+            document.getElementById('formatSelect').value = tagName;
+
+            // Tìm FontSize thực tế
+            let innerComputed = window.getComputedStyle(block);
+            let size = innerComputed.fontSize;
+            if (size) {
+                let sizeVal = Math.round(parseFloat(size));
+                let sizeSel = document.getElementById('fontSizeSel');
+                if(Array.from(sizeSel.options).some(o => o.value == sizeVal)) {
+                    sizeSel.value = sizeVal;
+                }
+            }
+        }
+
+        // Chuyển loại Heading và áp dụng Global Style nếu có
+        function changeBlockType(tagName) {
+            if(!tagName) return;
+            restoreSelection();
+            document.execCommand('formatBlock', false, tagName);
+            
+            if (globalTagFormats[tagName]) {
+                applyFormatToAllTags(tagName);
+            } else {
+                let existingTag = document.getElementById('postContent').querySelector(tagName);
+                if (existingTag) {
+                    let computed = window.getComputedStyle(existingTag);
+                    globalTagFormats[tagName] = {
+                        color: existingTag.style.color || computed.color,
+                        fontSize: existingTag.style.fontSize || computed.fontSize,
+                        lineHeight: existingTag.style.lineHeight || computed.lineHeight,
+                        textAlign: existingTag.style.textAlign || computed.textAlign
+                    };
+                    applyFormatToAllTags(tagName);
+                }
+            }
+            setTimeout(detectFormatting, 50);
+        }
+
+        // Đồng bộ định dạng khi một Style được thay đổi thủ công (Color, Size...)
+        function syncGlobalFormat() {
+            let sel = window.getSelection();
+            if (!sel.rangeCount) return;
+            let node = sel.anchorNode;
+            let block = node.nodeType === 3 ? node.parentNode : node;
+            
+            while (block && !['H1','H2','H3','H4','H5','H6','P'].includes(block.tagName) && block.id !== 'postContent') {
+                block = block.parentNode;
+            }
+            
+            if (block && ['H1','H2','H3','H4','H5','H6','P'].includes(block.tagName)) {
+                let tag = block.tagName;
+                let innerNode = node.nodeType === 3 ? node.parentNode : node;
+                let innerComputed = window.getComputedStyle(innerNode);
+                let blockComputed = window.getComputedStyle(block);
+                
+                globalTagFormats[tag] = {
+                    color: innerNode.style.color || innerComputed.color,
+                    fontSize: innerNode.style.fontSize || innerComputed.fontSize,
+                    lineHeight: block.style.lineHeight || blockComputed.lineHeight,
+                    textAlign: block.style.textAlign || blockComputed.textAlign
+                };
+
+                applyFormatToAllTags(tag);
+            }
+        }
+
+        function applyFormatToAllTags(tag) {
+            if (!globalTagFormats[tag]) return;
+            let format = globalTagFormats[tag];
+            let allTags = document.getElementById('postContent').querySelectorAll(tag);
+            
+            allTags.forEach(el => {
+                if (format.color) el.style.color = format.color;
+                if (format.fontSize) el.style.fontSize = format.fontSize;
+                if (format.lineHeight) el.style.lineHeight = format.lineHeight;
+                if (format.textAlign) el.style.textAlign = format.textAlign;
+                
+                // Ghi đè vào các thẻ con bên trong để nó đồng nhất
+                el.querySelectorAll('span, font').forEach(child => {
+                    if (format.color) child.style.color = format.color;
+                    if (format.fontSize) child.style.fontSize = format.fontSize;
+                });
+            });
+
+            // Đồng bộ sang popup Code Realtime nếu đang làm việc trong khối HTML
+            let sel = window.getSelection();
+            if(sel.rangeCount) {
+                let node = sel.anchorNode;
+                let containerBlock = node.nodeType === 3 ? node.parentNode.closest('.custom-html-block') : node.closest('.custom-html-block');
+                if(containerBlock && activeHtmlBlock === containerBlock && document.getElementById('htmlModal').style.display === 'flex') {
+                    document.getElementById('htmlEditorTextarea').value = containerBlock.querySelector('.block-content').innerHTML;
+                    updateLineNumbers();
+                }
+            }
+        }
+
+        // ==========================================
+        // CÁC HÀM FORMAT CƠ BẢN
         // ==========================================
         function initSizeSelects() {
             let fs = document.getElementById('fontSizeSel');
@@ -419,13 +528,11 @@
             }
         }
 
-        // --- FIX LỖI MẤT BÔI ĐEN VÀ ÁP DỤNG ĐỊNH DẠNG ---
         function applySize(type) {
             let val = document.getElementById(type === 'font' ? 'fontSizeSel' : 'lineHeightSel').value;
-            restoreSelection(); // Gọi lại vùng bôi đen đã lưu trước khi click
+            restoreSelection(); 
             
             if (type === 'font') {
-                // Dùng execCommand bọc size 7, sau đó chuyển thành px (Bảo đảm không rách mã)
                 document.execCommand('fontSize', false, '7');
                 let fonts = document.getElementById('postContent').querySelectorAll('font[size="7"]');
                 fonts.forEach(f => {
@@ -433,13 +540,11 @@
                     f.style.fontSize = val + 'px';
                 });
             } else if (type === 'line') {
-                // Dãn dòng áp dụng cho thẻ bọc ngoài cùng (p, div, h1...)
                 let sel = window.getSelection();
                 if(!sel.rangeCount) return;
                 let startNode = sel.getRangeAt(0).startContainer;
                 let block = startNode.nodeType === 3 ? startNode.parentNode : startNode;
                 
-                // Tìm thẻ root bên trong postContent
                 while (block && !['P','DIV','H1','H2','H3','H4','H5','H6','LI'].includes(block.tagName)) {
                     if (block.id === 'postContent') break;
                     block = block.parentNode;
@@ -448,6 +553,17 @@
                     block.style.lineHeight = val + 'px';
                 }
             }
+            
+            // Gọi đồng bộ tự động sau 50ms
+            setTimeout(() => { syncGlobalFormat(); detectFormatting(); }, 50);
+        }
+
+        function formatDoc(cmd, value=null) {
+            restoreSelection(); 
+            if(value) document.execCommand(cmd, false, value);
+            else document.execCommand(cmd);
+            
+            setTimeout(() => { syncGlobalFormat(); detectFormatting(); }, 50);
         }
 
         function applyCustomFont(fontValue) {
@@ -458,10 +574,11 @@
                 f.removeAttribute('face');
                 f.style.fontFamily = fontValue;
             });
+            setTimeout(() => { syncGlobalFormat(); detectFormatting(); }, 50);
         }
 
         // ==========================================
-        // ALERTS / PROMPTS / KÉO THẢ PANEL
+        // ALERTS / KÉO THẢ
         // ==========================================
         function showAlert(msg, isError = false) {
             document.getElementById('alertMsg').innerHTML = msg;
@@ -486,35 +603,25 @@
             e.preventDefault();
             let panel = document.getElementById(panelId);
             let pos1 = 0, pos2 = 0, pos3 = e.clientX, pos4 = e.clientY;
-            
             let rect = panel.getBoundingClientRect();
-            panel.style.position = 'fixed';
-            panel.style.top = rect.top + 'px';
-            panel.style.left = rect.left + 'px';
-            panel.style.right = 'auto'; 
+            panel.style.position = 'fixed'; panel.style.top = rect.top + 'px'; panel.style.left = rect.left + 'px'; panel.style.right = 'auto'; 
 
-            document.onmouseup = closeDragElement;
-            document.onmousemove = elementDrag;
+            document.onmouseup = closeDragElement; document.onmousemove = elementDrag;
 
             function elementDrag(ev) {
                 ev.preventDefault();
                 pos1 = pos3 - ev.clientX; pos2 = pos4 - ev.clientY;
                 pos3 = ev.clientX; pos4 = ev.clientY;
-                let newTop = panel.offsetTop - pos2;
-                let newLeft = panel.offsetLeft - pos1;
+                let newTop = panel.offsetTop - pos2; let newLeft = panel.offsetLeft - pos1;
                 if(newTop < 45) newTop = 45; 
                 panel.style.top = newTop + "px"; panel.style.left = newLeft + "px";
             }
-
             function closeDragElement() {
                 document.onmouseup = null; document.onmousemove = null;
                 if (panel.offsetTop < 120 && (panel.offsetLeft < 100 || window.innerWidth - panel.offsetLeft < 350)) {
                     panel.style.position = 'absolute';
-                    if (panelId === 'panelRight') {
-                        panel.style.right = '20px'; panel.style.left = 'auto'; panel.style.top = '60px';
-                    } else {
-                        panel.style.left = '20px'; panel.style.top = '60px';
-                    }
+                    if (panelId === 'panelRight') { panel.style.right = '20px'; panel.style.left = 'auto'; panel.style.top = '60px'; } 
+                    else { panel.style.left = '20px'; panel.style.top = '60px'; }
                 }
             }
         }
@@ -532,10 +639,7 @@
             try {
                 let res = await fetch(API_URL + "?t=" + new Date().getTime(), { method: "GET" });
                 let json = await res.json();
-                if(json.success) {
-                    sysData = json.data;
-                    localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
-                }
+                if(json.success) { sysData = json.data; localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); }
             } catch(e) { console.log("Offline mode"); }
         }
 
@@ -553,26 +657,14 @@
         }
 
         // ==========================================
-        // RICH TEXT CƠ BẢN & RULER
+        // CÁC TÍNH NĂNG NHỎ (RULER, LINK, THUMBNAIL)
         // ==========================================
         function restoreSelection() {
-            if (savedSelectionRange) {
-                let sel = window.getSelection();
-                sel.removeAllRanges();
-                sel.addRange(savedSelectionRange);
-            }
-        }
-
-        function formatDoc(cmd, value=null) {
-            restoreSelection(); 
-            if(value) document.execCommand(cmd, false, value);
-            else document.execCommand(cmd);
+            if (savedSelectionRange) { let sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(savedSelectionRange); }
         }
 
         function insertLink() {
-            showPrompt("Nhập đường dẫn (URL):", "https://", (url) => {
-                if (url) { restoreSelection(); document.execCommand('createLink', false, url); }
-            });
+            showPrompt("Nhập đường dẫn (URL):", "https://", (url) => { if (url) { restoreSelection(); document.execCommand('createLink', false, url); } });
         }
 
         function updateCoverPreview() {
@@ -676,7 +768,7 @@
         }
 
         // ==========================================
-        // KHỐI HTML & TÁCH LÂY NHIỄM CSS
+        // KHỐI HTML TÙY CHỈNH
         // ==========================================
         function updateLineNumbers() {
             let ta = document.getElementById('htmlEditorTextarea');
@@ -714,7 +806,6 @@
             restoreSelection();
             let sel = window.getSelection();
             
-            // Nếu đang đứng sẵn trong một khối cũ -> Gộp luôn vào đó
             if(sel.rangeCount && editor.contains(sel.anchorNode)) {
                 let node = sel.anchorNode;
                 let parentBlock = node.nodeType === 3 ? node.parentNode : node;
@@ -732,7 +823,6 @@
                 }
             }
 
-            // --- TẠO KHỐI MỚI VÀ ÉP RA NGOÀI (CHỐNG LÂY ĐỊNH DẠNG) ---
             let block = document.createElement("div");
             block.className = "custom-html-block";
             let htmlWithInnerP = html + '<p><br></p>';
@@ -744,7 +834,6 @@
             `;
             
             if(sel.rangeCount && editor.contains(sel.anchorNode)) {
-                // Thoát ra khỏi thẻ P, H1, H2, DIV để đứng ngoài cùng
                 let currentNode = sel.anchorNode;
                 let topLevelNode = currentNode.nodeType === 3 ? currentNode.parentNode : currentNode;
                 
@@ -753,7 +842,6 @@
                 }
                 
                 if (topLevelNode && topLevelNode.id !== 'postContent') {
-                    // Chèn khối HTML ngay phía sau thẻ hiện tại
                     topLevelNode.parentNode.insertBefore(block, topLevelNode.nextSibling);
                 } else {
                     editor.appendChild(block);
@@ -762,11 +850,9 @@
                 editor.appendChild(block);
             }
 
-            // Tạo dòng trống dự phòng bên dưới khối để không kẹt con trỏ
             let outerEmptyP = document.createElement('p'); outerEmptyP.innerHTML = "<br>";
             block.parentNode.insertBefore(outerEmptyP, block.nextSibling);
             
-            // Focus vào dòng trống TẬN CÙNG BÊN TRONG khối để gõ tiếp
             let insideEmptyP = block.querySelector('.block-content').lastElementChild;
             let newRange = document.createRange();
             newRange.setStart(insideEmptyP, 0); newRange.collapse(true);
@@ -836,7 +922,7 @@
         }
 
         // ==========================================
-        // LƯU BÀI VIẾT (Sheet "Bài viết_hidden")
+        // LƯU BÀI VIẾT TỰ ĐỘNG
         // ==========================================
         function savePostToSheet() {
             let title = document.getElementById("postTitle").innerHTML;
