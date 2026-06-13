@@ -63,7 +63,7 @@
 
         .data-row { margin-bottom: 8px; border: 1px solid var(--gray-border); overflow: hidden; }
         .data-label { background: var(--gray-light); padding: 4px 8px; font-weight: bold; border-bottom: 1px solid var(--gray-border); font-size: 11px; color: var(--text-main); }
-        .data-val { padding: 6px 8px; background: var(--white); word-wrap: break-word; font-size: 12px; }
+        .data-val { padding: 6px 8px; background: var(--white); word-wrap: break-word; font-size: 13px; line-height: 1.5; }
 
         .panel-tabs { display: flex; border-bottom: 1px solid var(--gray-border); }
         .ptab-btn { flex: 1; text-align: center; padding: 10px; cursor: pointer; font-size: 11px; font-weight: bold; color: #777; transition: 0.2s; border-bottom: 2px solid transparent; }
@@ -137,7 +137,7 @@
 .data-row { cursor: grab; transition: background 0.2s, opacity 0.2s; position: relative; }
 .data-row:active { cursor: grabbing; }
 .data-label { display: flex; align-items: center; gap: 8px; cursor: grab; }
-.data-val.editable { cursor: text; outline: none; transition: 0.2s; position: relative; }
+.data-val.editable { cursor: text; outline: none; transition: 0.2s; position: relative; white-space: pre-wrap; min-height: 32px; }
 .data-val.editable:hover { background: #f0f8ff; box-shadow: inset 0 0 0 1px rgba(1,173,238,0.3); }
 .data-val.editable:focus { background: #ffffff; box-shadow: inset 0 0 0 1px var(--blue); }
     </style>
@@ -1459,7 +1459,7 @@ Google Fonts:</div>
                 let container = document.getElementById("sourceDataContainer");
                 container.innerHTML = "";
 
-                // 1. Xác định tab nguồn (Giả sử draftData.sourceTab hoặc lấy tên mặc định)
+                // 1. Xác định tab nguồn
                 let tabName = draftData.tabName || draftData.sourceTab || "Kế Hoạch";
 
                 // 2. Tìm thứ tự đã lưu từ sheet thutuHeader_hidden
@@ -1474,7 +1474,7 @@ Google Fonts:</div>
                     }
                 }
 
-                // 3. Phân loại header theo mảng thứ tự (Header mới chưa có trong mảng sẽ bị đẩy xuống cuối)
+                // 3. Phân loại header theo mảng thứ tự
                 let sortedIndices = [];
                 orderArray.forEach(headerName => {
                     let idx = draftData.headers.indexOf(headerName);
@@ -1484,11 +1484,10 @@ Google Fonts:</div>
                     if(!sortedIndices.includes(i)) sortedIndices.push(i);
                 });
 
-                // 4. Render HTML với thuộc tính draggable và contenteditable
+                // 4. Render HTML (ĐÃ BỎ LỆNH XÓA HTML ĐỂ CHẤP NHẬN RICHTEXT & XUỐNG DÒNG)
                 sortedIndices.forEach(i => {
                     let h = draftData.headers[i];
                     let val = draftData.data[i] || "";
-                    if(typeof val === 'string') val = val.replace(/</g, "&lt;").replace(/>/g, "&gt;");
                     
                     container.innerHTML += `
                         <div class="data-row" draggable="true" data-header="${h}">
@@ -1497,7 +1496,7 @@ Google Fonts:</div>
                         </div>`;
                 });
 
-                initDragDropLeftPanel(); // Kích hoạt sự kiện kéo thả
+                initDragDropLeftPanel();
 
             } catch(e) { console.error("Lỗi nạp Draft Data:", e); }
         }
@@ -1573,16 +1572,23 @@ Google Fonts:</div>
 
         // --- HÀM 3: SỬA DỮ LIỆU ĐỒNG BỘ NGƯỢC VỀ SHEET GỐC ---
         // --- HÀM 3: SỬA DỮ LIỆU ĐỒNG BỘ NGƯỢC VỀ SHEET _PLAN_DATA_ ---
+        // --- HÀM 3: SỬA DỮ LIỆU ĐỒNG BỘ NGƯỢC VỀ SHEET _PLAN_DATA_ ---
         function updateDraftValue(headerName, el) {
             if(!draftData || !draftData.headers) return;
             let hIndex = draftData.headers.indexOf(headerName);
             if(hIndex === -1) return;
 
-            let cleanVal = el.innerText.trim();
-            if(cleanVal === "Trống" && el.querySelector('i')) cleanVal = ""; // Xóa chữ Trống ảo
+            // ĐỔI SANG DÙNG innerHTML ĐỂ LẤY ĐƯỢC THẺ <br> (XUỐNG DÒNG) VÀ ĐỊNH DẠNG
+            let cleanVal = el.innerHTML;
+            
+            // Xử lý trường hợp người dùng xóa hết chữ hoặc ô đang hiển thị chữ "Trống"
+            let textCheck = el.innerText.trim();
+            if(!textCheck || (textCheck === "Trống" && el.querySelector('i'))) {
+                cleanVal = "";
+            }
             
             let oldVal = draftData.data[hIndex] || "";
-            if(cleanVal === oldVal.trim()) return; // Không đổi thì bỏ qua
+            if(cleanVal === oldVal) return; // Không đổi thì bỏ qua
 
             // 1. Cập nhật dữ liệu đệm local cho panel
             draftData.data[hIndex] = cleanVal;
@@ -1602,7 +1608,7 @@ Google Fonts:</div>
                 sysData.sheets["_PLAN_DATA_"][planRowIndex][2] = newJsonData;
                 localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
 
-                // Bắn lệnh lên Google Sheet (Ghi đè vào cột 3 - cột chứa chuỗi JSON)
+                // Bắn lệnh lên Google Sheet
                 pushQueue({
                     type: 'SYNC_CELL', 
                     row: planRowIndex + 1, 
@@ -1611,11 +1617,10 @@ Google Fonts:</div>
                     tab: "_PLAN_DATA_"
                 });
                 
-                // Hiệu ứng chớp nháy màu xanh lá báo thành công
+                // Hiệu ứng chớp nháy màu xanh lá
                 el.style.backgroundColor = "#e8f5e9"; 
                 setTimeout(() => el.style.backgroundColor = "", 1000);
             } else {
-                // Đỏ: Lỗi không tìm thấy dòng liên kết
                 el.style.backgroundColor = "#ffcdd2"; 
                 setTimeout(() => el.style.backgroundColor = "", 1000); 
             }
