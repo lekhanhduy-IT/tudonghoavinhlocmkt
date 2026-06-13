@@ -73,6 +73,7 @@
         <button class="tool-btn" onclick="applyFormat('align-justify')"><i class="fas fa-align-justify"></i></button>
         <button class="tool-btn" onclick="openColorPicker(event, 'color')"><i class="fas fa-font"></i> Màu Chữ</button>
         <button class="tool-btn" onclick="openColorPicker(event, 'bg')"><i class="fas fa-fill-drip"></i> Màu Nền</button>
+        <div id="activeFilterDisplay" style="display:none; margin-left:10px; align-items:center; font-size:12px; background:#e8eaed; padding:4px 10px; border-radius:12px; border: 0.5px solid var(--blue);"></div>
         <span id="syncStatus" onclick="forceFetchData()" title="Bấm để lấy dữ liệu mới nhất từ Sheet">🔄 Đang tải...</span>
     </div>
 
@@ -348,6 +349,7 @@ setInterval(processQueueAndSync, 4000);
                 body.appendChild(tr);
             });
             highlightSelection();
+            updateActiveFilterToolbar();
         }
 
         function createEditor(r, c, val, isRichText) { let ed = document.createElement("div"); ed.className = "cell-editor"; ed.contentEditable = "true"; ed.innerHTML = val; ed.ondblclick = function(e) { e.stopPropagation(); document.querySelectorAll(".cell-expanded").forEach(x=>x.classList.remove("cell-expanded")); this.classList.add("cell-expanded"); }; ed.onblur = function() { this.classList.remove("cell-expanded"); updateCell(r, c, this.innerHTML); }; return ed; }
@@ -381,7 +383,39 @@ setInterval(processQueueAndSync, 4000);
         function openDropdownEditorDirect(c) { activeColPopup = c; openDropdownEditor(); }
         function openDropdownEditor() { let c = activeColPopup; let attrs = sysData.attributes[activeTab] || {}; let opts = (attrs.dropdownChoices && attrs.dropdownChoices[c]) ? attrs.dropdownChoices[c] : []; showModal("Sửa danh sách", `<textarea id="dropEdit" class="popup-input" style="height:100px;">${opts.join("\n")}</textarea>`, [ { text: "Lưu", class: "btn-blue", onclick: () => { attrs.dropdownChoices = attrs.dropdownChoices || {}; attrs.dropdownChoices[c] = document.getElementById("dropEdit").value.split("\n").map(x=>x.trim()).filter(Boolean); dispatchAttrSave(); renderGrid(); closeModal(); } }, { text: "Đóng", class: "btn-cancel", onclick: closeModal } ]); document.getElementById("dropdownPopup").style.display = 'none'; }
 
-        function openFilterMenu(e, c) { e.stopPropagation(); activeFilterCol = c; let box = document.getElementById("filterListArea"); box.innerHTML = ""; document.getElementById("filterHeader").innerHTML = `<i class="fas fa-filter"></i> Lọc cột ${getColLetter(c)}`; let mat = sysData.sheets[activeTab]; let unique = new Set(); for(let r=1; r<mat.length; r++) unique.add(String(mat[r][c] || "").trim()); let vals = Array.from(unique).sort(); let flt = (sysData.filters[activeTab] || {})[c] || null; let html = `<div class="menu-item" onclick="toggleAllFlt(this)"><input type="checkbox" id="fltAll" style="pointer-events:none;" ${flt===null?'checked':''}> <b>(Chọn tất cả)</b></div>`; vals.forEach(v => { let isChk = flt === null || flt.includes(v); html += `<div class="menu-item" onclick="toggleSingleFlt(this)"><input type="checkbox" class="flt-cb" value="${v}" style="pointer-events:none;" ${isChk?'checked':''}> <span>${v===""?"(Trống)":v}</span></div>`; }); box.innerHTML = html; showPopupSafe(document.getElementById("filterPopup"), e); }
+        function openFilterMenu(e, c) { 
+            e.stopPropagation(); 
+            activeFilterCol = c; 
+            let box = document.getElementById("filterListArea"); 
+            box.innerHTML = ""; 
+            document.getElementById("filterHeader").innerHTML = `<i class="fas fa-filter"></i> Lọc cột ${getColLetter(c)}`; 
+            
+            let mat = sysData.sheets[activeTab]; 
+            let attrs = sysData.attributes[activeTab] || {};
+            let type = attrs.columnTypes ? attrs.columnTypes[c] : null;
+            let vals = [];
+
+            // KIỂM TRA NẾU LÀ CỘT DROPDOWN -> LẤY DANH SÁCH TỪ SETTING
+            if (type === "dropdown" && attrs.dropdownChoices && attrs.dropdownChoices[c] && attrs.dropdownChoices[c].length > 0) {
+                vals = [...attrs.dropdownChoices[c]];
+            } else {
+                // NẾU KHÔNG PHẢI DROPDOWN -> LẤY UNIQUE TỪ DỮ LIỆU CỘT
+                let unique = new Set(); 
+                for(let r=1; r<mat.length; r++) unique.add(String(mat[r][c] || "").trim()); 
+                vals = Array.from(unique).sort(); 
+            }
+
+            let flt = (sysData.filters[activeTab] || {})[c] || null; 
+            let html = `<div class="menu-item" onclick="toggleAllFlt(this)"><input type="checkbox" id="fltAll" style="pointer-events:none;" ${flt===null?'checked':''}> <b>(Chọn tất cả)</b></div>`; 
+            
+            vals.forEach(v => { 
+                let isChk = flt === null || flt.includes(v); 
+                html += `<div class="menu-item" onclick="toggleSingleFlt(this)"><input type="checkbox" class="flt-cb" value="${v}" style="pointer-events:none;" ${isChk?'checked':''}> <span>${v===""?"(Trống)":v}</span></div>`; 
+            }); 
+            
+            box.innerHTML = html; 
+            showPopupSafe(document.getElementById("filterPopup"), e); 
+        }
         function toggleAllFlt(el) { let cb = el.querySelector('input'); cb.checked = !cb.checked; document.querySelectorAll(".flt-cb").forEach(x=>x.checked = cb.checked); }
         function toggleSingleFlt(el) { let cb = el.querySelector('input'); cb.checked = !cb.checked; }
         function applyFilter() { let cbs = document.querySelectorAll(".flt-cb"); let sel = []; let all = true; cbs.forEach(cb => { if(cb.checked) sel.push(cb.value); else all = false; }); sysData.filters[activeTab] = sysData.filters[activeTab] || {}; if(all) delete sysData.filters[activeTab][activeFilterCol]; else sysData.filters[activeTab][activeFilterCol] = sel; document.getElementById("filterPopup").style.display = "none"; renderGrid(); }
@@ -476,6 +510,38 @@ function processSchedule() {
     renderGrid();
     selStart = null; selEnd = null; // Reset vùng chọn
 }
+function updateActiveFilterToolbar() {
+            let display = document.getElementById("activeFilterDisplay");
+            if (!display) return;
+            let flts = sysData.filters[activeTab];
+            
+            // Nếu không có lọc ở tab hiện tại thì ẩn thanh
+            if (!flts || Object.keys(flts).length === 0) {
+                display.style.display = "none";
+                return;
+            }
+            
+            let mat = sysData.sheets[activeTab];
+            let html = "";
+            for (let c in flts) {
+                // Lấy tiêu đề từ hàng đầu tiên (row 0), nếu trống thì lấy chữ cái A, B, C...
+                let colTitle = (mat[0] && mat[0][c]) ? mat[0][c] : getColLetter(parseInt(c)); 
+                let vals = flts[c].join(", ");
+                
+                html += `<div style="display:inline-flex; align-items:center; margin-right: 15px;">
+                            <span style="font-weight:bold; margin-right:4px;">${activeTab}</span> - ${colTitle}: 
+                            <span style="color:var(--blue); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left:4px;" title="${vals}">${vals}</span> 
+                            <i class="fas fa-times-circle" style="cursor:pointer; color:var(--red); margin-left:6px; font-size: 14px;" onclick="clearFilterForCol(${c})" title="Xóa lọc"></i>
+                         </div>`;
+            }
+            display.innerHTML = html;
+            display.style.display = "flex";
+        }
+        
+        function clearFilterForCol(c) {
+            if (sysData.filters[activeTab]) delete sysData.filters[activeTab][c];
+            renderGrid(); // Cập nhật lại bảng và ẩn toolbar lập tức
+        }
     </script>
 </body>
 </html>
