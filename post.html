@@ -17,7 +17,7 @@
         .save-btn { background: var(--blue); color: var(--white); border-color: var(--blue); }
         .save-btn:hover { background: #0199d3; }
 
-        /* Workspace (ĐÃ SỬA LỖI CHIỀU CAO - CHUYỂN THÀNH BLOCK ĐỂ TỰ DÃN) */
+        /* Workspace (Tự dãn độ dài) */
         .workspace { flex: 1; position: relative; overflow-y: auto; overflow-x: hidden; display: block; padding: 40px 0 100px 0; }
         .editor-container { width: 100%; max-width: 800px; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 5px 20px rgba(0,0,0,0.05); position: relative; display: block; margin: 20px auto 0 auto; transition: padding 0.1s; }
         
@@ -40,7 +40,7 @@
         .rich-input { padding: 15px 20px; outline: none; border-bottom: 0.5px dashed var(--gray-border); width: 100%; line-height: 1.6; position: relative; transition: padding 0.1s; }
         .rich-input:empty:before { content: attr(data-placeholder); color: #aaa; pointer-events: none; display: block; }
         
-        #postTitle { font-size: 26px; font-weight: bold; color: var(--blue); }
+        #postTitle { font-size: 48px; font-weight: bold; color: var(--blue); margin: 0; line-height: 1.3; } /* Cập nhật H1 & 48px */
         #postSapo { font-size: 16px; font-style: italic; color: #555; background: #fdfdfd; }
         #postContent { font-size: 15px; display: block; height: auto; min-height: 500px; border-bottom: none; padding-bottom: 80px; }
         
@@ -237,7 +237,7 @@
                 </div>
 
                 <div id="tabBlocks" class="ptab-content">
-                    <button class="tool-btn" style="width: 100%; justify-content: center; background: var(--blue); color: var(--white); margin-bottom: 15px;" onmousedown="event.preventDefault(); openHtmlModal('')">
+                    <button class="tool-btn" style="width: 100%; justify-content: center; background: var(--blue); color: var(--white); margin-bottom: 15px;" onmousedown="event.preventDefault(); openHtmlModal(DEFAULT_HTML_BLOCK)">
                         <i class="fas fa-code"></i> Viết Mã HTML
                     </button>
                     
@@ -273,7 +273,7 @@
                 <div class="ruler-v" id="rulerV"></div>
             </div>
 
-            <div class="rich-input" contenteditable="true" id="postTitle" data-placeholder="Nhập Tiêu đề bài viết tại đây..."></div>
+            <h1 class="rich-input" contenteditable="true" id="postTitle" data-placeholder="Nhập Tiêu đề bài viết tại đây..."></h1>
             <div class="rich-input" contenteditable="true" id="postSapo" data-placeholder="Nhập Sapo (Đoạn tóm tắt) tại đây..."></div>
             
             <div class="cover-area">
@@ -331,7 +331,9 @@
         let activeHtmlBlock = null;     
         let promptCallback = null;
         
-        // TỪ ĐIỂN LƯU TRỮ FORMAT TOÀN CỤC CHO TỪNG LOẠI THẺ
+        // MÃ MẶC ĐỊNH CHO POPUP HTML BLOCK
+        const DEFAULT_HTML_BLOCK = `<style>\n  @import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,700;1,400&display=swap');\n\n  @media screen and (min-width: 1024px) {\n    .desktop-spacing {\n      margin-left: 100px !important;\n      margin-right: 100px !important;\n    }\n  }\n</style>\n\n<div class="desktop-spacing" style="text-align:justify;font-family:'Nunito', Arial, sans-serif !important;font-size:16px;line-height:1.5;color:#333333;max-width:100%;">\n\n<p style="font-weight: normal; margin-bottom: 12px;">\nDán nội dung của bạn\n</p>\n\n<strong>@Mã bài viết</strong>\n</div>`;
+
         let globalTagFormats = { 'H1': null, 'H2': null, 'H3': null, 'H4': null, 'P': null };
 
         window.onload = async () => {
@@ -345,7 +347,6 @@
                 document.getElementById('tplPreview').innerHTML = this.value;
             });
 
-            // GHI NHẬN SỰ KIỆN CLICK / BÔI ĐEN ĐỂ TỰ ĐỘNG NHẬN DIỆN HEADING & CỠ CHỮ
             document.addEventListener('selectionchange', () => {
                 let sel = window.getSelection();
                 if (sel.rangeCount > 0) {
@@ -356,7 +357,7 @@
                     
                     if(content.contains(r.commonAncestorContainer) || title.contains(r.commonAncestorContainer) || sapo.contains(r.commonAncestorContainer)) {
                         savedSelectionRange = r.cloneRange();
-                        detectFormatting(); // Quét nhận diện thông minh
+                        detectFormatting();
                     }
                 }
             });
@@ -386,8 +387,6 @@
         // ==========================================
         // AUTO DETECT FORMAT & GLOBAL SYNC
         // ==========================================
-        
-        // Nhận diện loại Heading và FontSize của đoạn hiện tại đang nháy chuột
         function detectFormatting() {
             let sel = window.getSelection();
             if (!sel.rangeCount) return;
@@ -401,7 +400,6 @@
             let curBlock = block;
             let tagName = "P";
             
-            // Tìm loại Heading
             while (curBlock && !['H1','H2','H3','H4','H5','H6','P','DIV'].includes(curBlock.tagName)) {
                 if(curBlock.id === 'postContent' || curBlock.classList.contains('rich-input')) break;
                 curBlock = curBlock.parentNode;
@@ -411,7 +409,6 @@
             }
             document.getElementById('formatSelect').value = tagName;
 
-            // Tìm FontSize thực tế
             let innerComputed = window.getComputedStyle(block);
             let size = innerComputed.fontSize;
             if (size) {
@@ -423,7 +420,6 @@
             }
         }
 
-        // Chuyển loại Heading và áp dụng Global Style nếu có
         function changeBlockType(tagName) {
             if(!tagName) return;
             restoreSelection();
@@ -447,7 +443,6 @@
             setTimeout(detectFormatting, 50);
         }
 
-        // Đồng bộ định dạng khi một Style được thay đổi thủ công (Color, Size...)
         function syncGlobalFormat() {
             let sel = window.getSelection();
             if (!sel.rangeCount) return;
@@ -455,6 +450,7 @@
             let block = node.nodeType === 3 ? node.parentNode : node;
             
             while (block && !['H1','H2','H3','H4','H5','H6','P'].includes(block.tagName) && block.id !== 'postContent') {
+                if(block.classList?.contains('rich-input')) break;
                 block = block.parentNode;
             }
             
@@ -479,21 +475,22 @@
             if (!globalTagFormats[tag]) return;
             let format = globalTagFormats[tag];
             let allTags = document.getElementById('postContent').querySelectorAll(tag);
+            let titleEl = document.getElementById('postTitle');
+            if (tag === 'H1') allTags = [...allTags, titleEl]; 
             
             allTags.forEach(el => {
+                if(!el) return;
                 if (format.color) el.style.color = format.color;
                 if (format.fontSize) el.style.fontSize = format.fontSize;
                 if (format.lineHeight) el.style.lineHeight = format.lineHeight;
                 if (format.textAlign) el.style.textAlign = format.textAlign;
                 
-                // Ghi đè vào các thẻ con bên trong để nó đồng nhất
                 el.querySelectorAll('span, font').forEach(child => {
                     if (format.color) child.style.color = format.color;
                     if (format.fontSize) child.style.fontSize = format.fontSize;
                 });
             });
 
-            // Đồng bộ sang popup Code Realtime nếu đang làm việc trong khối HTML
             let sel = window.getSelection();
             if(sel.rangeCount) {
                 let node = sel.anchorNode;
@@ -506,7 +503,7 @@
         }
 
         // ==========================================
-        // CÁC HÀM FORMAT CƠ BẢN
+        // FORMAT CƠ BẢN
         // ==========================================
         function initSizeSelects() {
             let fs = document.getElementById('fontSizeSel');
@@ -534,7 +531,8 @@
             
             if (type === 'font') {
                 document.execCommand('fontSize', false, '7');
-                let fonts = document.getElementById('postContent').querySelectorAll('font[size="7"]');
+                let rootContent = document.getElementById('workspaceArea');
+                let fonts = rootContent.querySelectorAll('font[size="7"]');
                 fonts.forEach(f => {
                     f.removeAttribute('size');
                     f.style.fontSize = val + 'px';
@@ -546,15 +544,14 @@
                 let block = startNode.nodeType === 3 ? startNode.parentNode : startNode;
                 
                 while (block && !['P','DIV','H1','H2','H3','H4','H5','H6','LI'].includes(block.tagName)) {
-                    if (block.id === 'postContent') break;
+                    if (block.id === 'postContent' || block.classList?.contains('rich-input')) break;
                     block = block.parentNode;
                 }
-                if (block && block.id !== 'postContent') {
+                if (block) {
                     block.style.lineHeight = val + 'px';
                 }
             }
             
-            // Gọi đồng bộ tự động sau 50ms
             setTimeout(() => { syncGlobalFormat(); detectFormatting(); }, 50);
         }
 
@@ -569,7 +566,8 @@
         function applyCustomFont(fontValue) {
             restoreSelection();
             document.execCommand('fontName', false, 'VLCustomFontName');
-            let fonts = document.getElementById('postContent').querySelectorAll('font[face="VLCustomFontName"]');
+            let rootContent = document.getElementById('workspaceArea');
+            let fonts = rootContent.querySelectorAll('font[face="VLCustomFontName"]');
             fonts.forEach(f => {
                 f.removeAttribute('face');
                 f.style.fontFamily = fontValue;
