@@ -2034,10 +2034,10 @@ function loadPostIntoEditor(postId) {
     
     // --- BẮT ĐẦU PHẦN SỬA ĐỔI: ĐỒNG BỘ NGƯỢC ID ---
     // Khởi tạo hoặc lấy ID bài viết hiện tại
-    let planId = (draftData && draftData.data[1]) ? draftData.data[1] : "POST_" + new Date().getTime();
+    let planId = (draftData && draftData.data[0]) ? draftData.data[0] : "POST_" + new Date().getTime();
 
     // Nếu ID vừa được tự sinh ra (chưa có trong Kế Hoạch), tiến hành lưu ngược lại
-    if (draftData && (!draftData.data[1] || draftData.data[1] !== planId)) {
+    if (draftData && (!draftData.data[0] || draftData.data[0] !== planId)) {
         draftData.data[1] = planId; // Cập nhật vào dữ liệu đang nháp
         localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
         
