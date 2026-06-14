@@ -2012,7 +2012,7 @@ function loadPostIntoEditor(postId) {
         }
 
         function savePostToSheet() {
-// 1. Lấy nội dung VÀ LẤY CẢ STYLE (dãn dòng, màu chữ...) của Tiêu đề & Sapo
+    // 1. Lấy nội dung VÀ LẤY CẢ STYLE (dãn dòng, màu chữ...) của Tiêu đề & Sapo
     let titleEl = document.getElementById("postTitle");
     let title = titleEl.innerHTML;
     let titleStyle = titleEl.getAttribute("style") || "";
@@ -2032,38 +2032,62 @@ function loadPostIntoEditor(postId) {
     // 2. Nhúng titleStyle và sapoStyle vào chuỗi finalHtml
     let finalHtml = `<div class="post-wrapper">${title ? `<h1 class="post-title" style="${titleStyle}">${title}</h1>` : ""}${sapo ? `<div class="post-sapo" style="${sapoStyle}">${sapo}</div>` : ""}${coverUrl ? `<img class="post-cover" src="${coverUrl}">` : ""}<div class="post-body">${content}</div></div>`;
     
-    let planId = draftData ? draftData.data[1] : "POST_" + new Date().getTime();
+    // --- BẮT ĐẦU PHẦN SỬA ĐỔI: ĐỒNG BỘ NGƯỢC ID ---
+    // Khởi tạo hoặc lấy ID bài viết hiện tại
+    let planId = (draftData && draftData.data[1]) ? draftData.data[1] : "POST_" + new Date().getTime();
 
-            if(!sysData.sheets["Bài viết_hidden"]) {
-                sysData.tabOrder.push("Bài viết_hidden"); sysData.sheets["Bài viết_hidden"] = [["ID Kế hoạch", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML"]];
-                pushQueue({type:'MANAGE_TAB', action:'create', tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "ID Kế hoạch", tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Tiêu đề", tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: 1, col: 3, val: "Sapo", tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: 1, col: 4, val: "Ảnh Bìa", tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: 1, col: 5, val: "Nội Dung HTML", tab: "Bài viết_hidden"});
-            }
-
-            let bvTab = sysData.sheets["Bài viết_hidden"];
-            let targetRow = -1; for(let r=1; r<bvTab.length; r++) { if(bvTab[r][0] == planId) { targetRow = r; break; } }
-            showAlert("Bài viết đang được lưu nền về hệ thống!");
-
-            if(targetRow !== -1) {
-                bvTab[targetRow] = [planId, title, sapo, coverUrl, finalHtml];
-                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết_hidden"});
-            } else {
-                targetRow = bvTab.length; bvTab.push([planId, title, sapo, coverUrl, finalHtml]);
-                pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow+1, count: 1, tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 1, val: planId, tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết_hidden"});
-                pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết_hidden"});
-            }
+    // Nếu ID vừa được tự sinh ra (chưa có trong Kế Hoạch), tiến hành lưu ngược lại
+    if (draftData && (!draftData.data[1] || draftData.data[1] !== planId)) {
+        draftData.data[1] = planId; // Cập nhật vào dữ liệu đang nháp
+        localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
+        
+        // Đẩy ID mới lên Sheet Kế Hoạch (_PLAN_DATA_) thông qua hàng đợi actionQueue
+        if (sysData.sheets["_PLAN_DATA_"] && draftData.planRowIndex !== undefined) {
+            let newJsonData = JSON.stringify(draftData.data);
+            sysData.sheets["_PLAN_DATA_"][draftData.planRowIndex][2] = newJsonData;
+            localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+            
+            pushQueue({
+                type: 'SYNC_CELL', 
+                row: draftData.planRowIndex + 1, 
+                col: 3, 
+                val: newJsonData, 
+                tab: "_PLAN_DATA_"
+            });
         }
+    }
+    // --- KẾT THÚC PHẦN SỬA ĐỔI ---
+
+    if(!sysData.sheets["Bài viết_hidden"]) {
+        sysData.tabOrder.push("Bài viết_hidden"); sysData.sheets["Bài viết_hidden"] = [["ID Kế hoạch", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML"]];
+        pushQueue({type:'MANAGE_TAB', action:'create', tab: "Bài viết_hidden"});
+        pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "ID Kế hoạch", tab: "Bài viết_hidden"});
+        pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Tiêu đề", tab: "Bài viết_hidden"});
+        pushQueue({type:'SYNC_CELL', row: 1, col: 3, val: "Sapo", tab: "Bài viết_hidden"});
+        pushQueue({type:'SYNC_CELL', row: 1, col: 4, val: "Ảnh Bìa", tab: "Bài viết_hidden"});
+        pushQueue({type:'SYNC_CELL', row: 1, col: 5, val: "Nội Dung HTML", tab: "Bài viết_hidden"});
+    }
+
+    let bvTab = sysData.sheets["Bài viết_hidden"];
+    let targetRow = -1; for(let r=1; r<bvTab.length; r++) { if(bvTab[r][0] == planId) { targetRow = r; break; } }
+    showAlert("Bài viết đang được lưu nền về hệ thống!");
+
+    if(targetRow !== -1) {
+        bvTab[targetRow] = [planId, title, sapo, coverUrl, finalHtml];
+        pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết_hidden"});
+        pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết_hidden"});
+        pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết_hidden"});
+        pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết_hidden"});
+    } else {
+        targetRow = bvTab.length; bvTab.push([planId, title, sapo, coverUrl, finalHtml]);
+        pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow+1, count: 1, tab: "Bài viết_hidden"});
+        pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 1, val: planId, tab: "Bài viết_hidden"});
+        pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết_hidden"});
+        pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết_hidden"});
+        pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết_hidden"});
+        pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết_hidden"});
+    }
+}
 
         function pushQueue(action) {
             actionQueue.push(action); localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
