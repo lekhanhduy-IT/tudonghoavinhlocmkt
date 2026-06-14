@@ -2089,13 +2089,43 @@ function loadPostIntoEditor(postId) {
     }
 }
 
-        function pushQueue(action) {
-            actionQueue.push(action); localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
-            let s = document.getElementById('syncStatus'); s.innerText = "⏳ Đang lưu..."; s.style.color = "#f39c12";
-            fetch(API_URL, { method: "POST", body: JSON.stringify([action]), headers: { "Content-Type": "text/plain;charset=utf-8" } })
-            .then(res => res.json()).then(json => { if(json.success) { s.innerText = "✅ Đã lưu"; s.style.color = "#27ae60"; } })
-            .catch(e => { s.innerText = "⚠️ Mất mạng"; s.style.color = "var(--red)"; });
-        }
+let syncTimer = null;
+
+function pushQueue(action) {
+    actionQueue.push(action); 
+    localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+    
+    let s = document.getElementById('syncStatus'); 
+    s.innerText = "⏳ Gom dữ liệu..."; 
+    s.style.color = "#f39c12";
+    
+    // Hủy lệnh gửi cũ nếu có thao tác mới liên tiếp
+    clearTimeout(syncTimer);
+    
+    // Gom toàn bộ lệnh trong 1.5 giây vào một gói (batch) rồi gửi đi một lần
+    syncTimer = setTimeout(() => {
+        let batch = [...actionQueue];
+        actionQueue = []; // Reset hàng đợi
+        
+        s.innerText = "⏳ Đang lưu nền...";
+        fetch(API_URL, { 
+            method: "POST", 
+            body: JSON.stringify(batch), 
+            headers: { "Content-Type": "text/plain;charset=utf-8" } 
+        })
+        .then(res => res.json())
+        .then(json => { 
+            if(json.success) { 
+                s.innerText = "✅ Đã lưu an toàn"; 
+                s.style.color = "#27ae60"; 
+            } 
+        })
+        .catch(e => { 
+            s.innerText = "⚠️ Lỗi mạng"; 
+            s.style.color = "var(--red)"; 
+        });
+    }, 1500); 
+}
     </script>
 </body>
 </html>
