@@ -180,8 +180,29 @@
                 let div = document.createElement("div"); div.style.background = c; div.style.width = "20px"; div.style.height = "20px"; div.style.borderRadius = "50%"; div.style.cursor = "pointer"; div.style.border = "0.5px solid var(--gray-border)";
                 div.onclick = () => { document.getElementById("hexInput").value = c; previewColor(); applyChosenColor(); }; grid.appendChild(div);
             });
-           // ... code khởi tạo bảng màu ở trên ...
 
+           // ... code khởi tạo bảng màu ở trên ...
+window.onload = () => {
+            // ... (Các code khởi tạo cũ giữ nguyên) ...
+            
+            // TÍNH NĂNG MỚI: Tự động vẽ lại bảng ngay khi click ra ngoài ô đang gõ
+            document.addEventListener('mousedown', () => {
+                setTimeout(() => {
+                    if (hasPendingUpdate && !checkIsEditing()) {
+                        hasPendingUpdate = false;
+                        fetchDataFromServer(true); // Ép tải thẳng từ Google
+                    }
+                }, 200);
+            });
+            document.addEventListener('focusout', () => {
+                setTimeout(() => {
+                    if (hasPendingUpdate && !checkIsEditing()) {
+                        hasPendingUpdate = false;
+                        fetchDataFromServer(true);
+                    }
+                }, 200);
+            });
+        };
 let cached = localStorage.getItem("MKT_DATA");
 let cachedActiveTab = localStorage.getItem("ACTIVE_TAB"); // Đọc tab đã lưu
 
@@ -237,49 +258,54 @@ setInterval(processQueueAndSync, 4000);
             fetchDataFromServer();
         }
 
-        async function fetchDataFromServer() {
-    try {
-        if(actionQueue.length === 0) setSyncStatus("🔄 Đang lấy dữ liệu...", "var(--blue)");
-        
-        // ===== SỬA Ở ĐÂY: GỌI NÃO NHỆN ======
-        // Nếu đang chạy code trên máy tính (localhost) thì gọi Google, nếu lên Vercel thì gọi API Vercel
-        let fetchUrl = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
-            ? API_URL + "?t=" + new Date().getTime() 
-            : "/api/get-brain";
+        // Bổ sung tham số forceFromGoogle
+        async function fetchDataFromServer(forceFromGoogle = false) {
+            try {
+                if(actionQueue.length === 0) setSyncStatus("🔄 Đang lấy dữ liệu...", "var(--blue)");
+                
+                // Quyết định hướng đi: Vào Não nhện hay Lên thẳng Google
+                let fetchUrl = (!forceFromGoogle && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') 
+                    ? "/api/get-brain" 
+                    : API_URL + "?t=" + new Date().getTime();
 
-        let res = await fetch(fetchUrl);
-        let json = await res.json();
-        
-        // Kế hoạch dự phòng (Fallback): Lỡ Vercel KV bị lỗi hoặc trống, thì tự động chạy lại link Google cũ
-        if (!json.success && fetchUrl === "/api/get-brain") {
-            console.warn("Não nhện lỗi, tự động gọi Google Apps Script dự phòng...");
-            res = await fetch(API_URL + "?t=" + new Date().getTime());
-            json = await res.json();
-        }
+                let res = await fetch(fetchUrl);
+                let json = await res.json();
+                
+                // MA THUẬT BẺ LÁI: Nếu Não nhện lỗi, HOẶC Não nhện bị cũ hơn thực tế -> Gọi thẳng Google!
+                if (fetchUrl === "/api/get-brain") {
+                    if (!json.success || (json.success && json.data.syncToken < currentSyncToken)) {
+                        console.warn("Não nhện bị cũ hoặc lỗi. Đang bẻ lái lấy dữ liệu tươi từ Google...");
+                        res = await fetch(API_URL + "?t=" + new Date().getTime());
+                        json = await res.json();
+                    }
+                }
 
-        if(json.success) {
-            let localFilters = sysData.filters; 
-            sysData = json.data; 
-            sysData.filters = localFilters || {}; 
-            currentSyncToken = sysData.syncToken;
-            localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
-            
-            // ... (Đoạn code bóc tách Tab và render bên dưới giữ nguyên không đổi) ...
-            let firstVisibleTab = sysData.tabOrder.find(t => !t.endsWith('_hidden') && !(sysData.attributes[t] || {}).hidden);
-            if(!activeTab || !sysData.tabOrder.includes(activeTab) || activeTab.endsWith('_hidden') || (sysData.attributes[activeTab] || {}).hidden) {
-                activeTab = firstVisibleTab || sysData.tabOrder[0];
-            }
-            
-            let isGridEmpty = document.getElementById("dataHead").innerHTML === "";
-            if (isGridEmpty || !checkIsEditing()) {
-                renderTabs(); 
-                renderGrid(); 
-                setSyncStatus("✅ Sẵn sàng", "#27ae60");
-            } else {
-                setSyncStatus("⚠️ Có dữ liệu mới", "#f39c12");
-            }
-        }
-    } catch(e) { setSyncStatus("⚠️ Ngoại tuyến", "var(--red)"); }
+                if(json.success) {
+                    let localFilters = sysData.filters; 
+                    sysData = json.data; 
+                    sysData.filters = localFilters || {}; 
+                    currentSyncToken = sysData.syncToken;
+                    localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
+                    
+                    let firstVisibleTab = sysData.tabOrder.find(t => !t.endsWith('_hidden') && !(sysData.attributes[t] || {}).hidden);
+                    if(!activeTab || !sysData.tabOrder.includes(activeTab) || activeTab.endsWith('_hidden') || (sysData.attributes[activeTab] || {}).hidden) {
+                        activeTab = firstVisibleTab || sysData.tabOrder[0];
+                    }
+                    
+                    // NẾU KHÔNG GÕ CHỮ -> VẼ LUÔN
+                    if (!checkIsEditing()) {
+                        renderTabs(); 
+                        renderGrid(); 
+                        setSyncStatus("✅ Sẵn sàng", "#27ae60");
+                        hasPendingUpdate = false;
+                    } 
+                    // NẾU ĐANG GÕ CHỮ -> TREO CỜ CHỜ VẼ
+                    else {
+                        setSyncStatus("⚠️ Có dữ liệu mới (Click ra ngoài để tải)", "#f39c12");
+                        hasPendingUpdate = true;
+                    }
+                }
+            } catch(e) { setSyncStatus("⚠️ Ngoại tuyến", "var(--red)"); }
         }
 
         async function processQueueAndSync() {
@@ -289,17 +315,28 @@ setInterval(processQueueAndSync, 4000);
                 if(batch.length > 0) setSyncStatus("⏳ Đang lưu...", "var(--blue)");
                 let res = await fetch(API_URL, { method: "POST", body: JSON.stringify(batch), headers: { "Content-Type": "text/plain;charset=utf-8" } });
                 let json = await res.json();
-                if (!json.success) { if(batch.length > 0) actionQueue = batch.concat(actionQueue); } 
-                else { 
+                
+                if (!json.success) { 
+                    if(batch.length > 0) actionQueue = batch.concat(actionQueue); 
+                } else { 
                     if(batch.length > 0) setSyncStatus("✅ Đã lưu", "#27ae60"); 
-                    // PHÁT HIỆN DỮ LIỆU MỚI TỪ API GỬI VỀ
+                    
+                    // PHÁT HIỆN GOOGLE CÓ DỮ LIỆU MỚI TỪ NGUỒN KHÁC
                     if (currentSyncToken !== 0 && json.syncToken > currentSyncToken && batch.length === 0) {
-                        if(!checkIsEditing()) await fetchDataFromServer();
-                        else setSyncStatus("⚠️ Có dữ liệu mới", "#f39c12");
+                        currentSyncToken = json.syncToken; // Cập nhật token mới để fetchData biết đường bẻ lái
+                        if(!checkIsEditing()) {
+                            await fetchDataFromServer(true); // Ép tải thẳng từ Google
+                        } else {
+                            setSyncStatus("⚠️ Có dữ liệu mới (Click ra ngoài để tải)", "#f39c12");
+                            hasPendingUpdate = true;
+                        }
+                    } else {
+                        currentSyncToken = json.syncToken;
                     }
-                    currentSyncToken = json.syncToken;
                 }
-            } catch(e) { if(batch.length > 0) { actionQueue = batch.concat(actionQueue); setSyncStatus("⚠️ Lỗi mạng", "var(--red)"); } }
+            } catch(e) { 
+                if(batch.length > 0) { actionQueue = batch.concat(actionQueue); setSyncStatus("⚠️ Lỗi mạng", "var(--red)"); } 
+            }
             isProcessingQueue = false;
         }
 
