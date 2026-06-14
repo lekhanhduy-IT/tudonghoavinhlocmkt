@@ -170,7 +170,7 @@
 
         let isResizing = false;
         let resizeData = { type: '', targetEl: null, startDim: 0, startMouse: 0, startTableW: 0 };
-
+        let hasPendingUpdate = false;
         window.onload = () => {
             loadLocalData();
             fetchDataFromServer();
@@ -211,8 +211,26 @@
                     } catch(err) {}
                 }
             });
+            // TÍNH NĂNG MỚI: Tự động vẽ lại bảng ngay khi click ra ngoài ô đang gõ
+            document.addEventListener('mousedown', () => {
+                setTimeout(() => {
+                    if (hasPendingUpdate && !checkIsEditing()) {
+                        hasPendingUpdate = false;
+                        fetchDataFromServer(true); // Ép tải thẳng từ Google
+                    }
+                }, 200);
+            });
+            document.addEventListener('focusout', () => {
+                setTimeout(() => {
+                    if (hasPendingUpdate && !checkIsEditing()) {
+                        hasPendingUpdate = false;
+                        fetchDataFromServer(true);
+                    }
+                }, 200);
+            });
         };
         };
+        
 
         // ==========================================
         // SYSTEM MODAL & CHUYỂN DỮ LIỆU
@@ -403,18 +421,46 @@
             fetchDataFromServer();
         }
 
-        async function fetchDataFromServer() {
+        // Bổ sung tham số forceFromGoogle
+        async function fetchDataFromServer(forceFromGoogle = false) {
             try {
                 if(actionQueue.length === 0) setSyncStatus("🔄 Đang lấy dữ liệu...", "var(--blue)");
-                let res = await fetch(API_URL + "?t=" + new Date().getTime(), { method: "GET", redirect: "follow", cache: "no-store" });
+                
+                // Quyết định hướng đi: Vào Não nhện hay Lên thẳng Google
+                let fetchUrl = (!forceFromGoogle && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') 
+                    ? "/api/get-brain" 
+                    : API_URL + "?t=" + new Date().getTime();
+
+                let res = await fetch(fetchUrl);
                 let json = await res.json();
+                
+                // MA THUẬT BẺ LÁI: Nếu Não nhện lỗi, HOẶC Não nhện bị cũ hơn thực tế -> Gọi thẳng Google!
+                if (fetchUrl === "/api/get-brain") {
+                    if (!json.success || (json.success && json.data.syncToken < currentSyncToken)) {
+                        console.warn("Não nhện bị cũ hoặc lỗi. Đang bẻ lái lấy dữ liệu tươi từ Google...");
+                        res = await fetch(API_URL + "?t=" + new Date().getTime());
+                        json = await res.json();
+                    }
+                }
+
                 if(json.success) {
                     let localFilters = sysData.filters || {}; 
-                    sysData = json.data; sysData.filters = localFilters; currentSyncToken = sysData.syncToken;
+                    sysData = json.data; 
+                    sysData.filters = localFilters; 
+                    currentSyncToken = sysData.syncToken;
                     localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
                     
-                    if (!checkIsEditing()) { processAndRender(); setSyncStatus("✅ Sẵn sàng", "#27ae60"); } 
-                    else setSyncStatus("⚠️ Có dữ liệu mới", "#f39c12");
+                    // NẾU KHÔNG GÕ CHỮ -> VẼ LUÔN
+                    if (!checkIsEditing()) { 
+                        processAndRender(); 
+                        setSyncStatus("✅ Sẵn sàng", "#27ae60"); 
+                        hasPendingUpdate = false;
+                    } 
+                    // NẾU ĐANG GÕ CHỮ -> TREO CỜ CHỜ VẼ
+                    else {
+                        setSyncStatus("⚠️ Có dữ liệu mới", "#f39c12");
+                        hasPendingUpdate = true;
+                    }
                 }
             } catch(e) { setSyncStatus("⚠️ Ngoại tuyến", "var(--red)"); }
         }
@@ -426,15 +472,29 @@
                 if(batch.length > 0) setSyncStatus("⏳ Đang lưu...", "var(--blue)");
                 let res = await fetch(API_URL, { method: "POST", body: JSON.stringify(batch), headers: { "Content-Type": "text/plain;charset=utf-8" } });
                 let json = await res.json();
-                if (!json.success) { if(batch.length > 0) actionQueue = batch.concat(actionQueue); } 
+                
+                if (!json.success) { 
+                    if(batch.length > 0) actionQueue = batch.concat(actionQueue); 
+                } 
                 else { 
                     if(batch.length > 0) setSyncStatus("✅ Đã lưu", "#27ae60"); 
+                    
+                    // PHÁT HIỆN GOOGLE CÓ DỮ LIỆU MỚI TỪ NGUỒN KHÁC
                     if (currentSyncToken !== 0 && json.syncToken > currentSyncToken && batch.length === 0) {
-                        if(!checkIsEditing()) await fetchDataFromServer(); else setSyncStatus("⚠️ Có dữ liệu mới", "#f39c12");
+                        currentSyncToken = json.syncToken; // Cập nhật token mới để fetchData biết đường bẻ lái
+                        if(!checkIsEditing()) {
+                            await fetchDataFromServer(true); // Ép tải thẳng từ Google
+                        } else {
+                            setSyncStatus("⚠️ Có dữ liệu mới", "#f39c12");
+                            hasPendingUpdate = true;
+                        }
+                    } else {
+                        currentSyncToken = json.syncToken;
                     }
-                    currentSyncToken = json.syncToken;
                 }
-            } catch(e) { if(batch.length > 0) { actionQueue = batch.concat(actionQueue); setSyncStatus("⚠️ Lỗi mạng", "var(--red)"); } }
+            } catch(e) { 
+                if(batch.length > 0) { actionQueue = batch.concat(actionQueue); setSyncStatus("⚠️ Lỗi mạng", "var(--red)"); } 
+            }
             isProcessingQueue = false;
         }
 
