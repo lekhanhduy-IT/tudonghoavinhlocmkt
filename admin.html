@@ -150,7 +150,6 @@
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
         
         function loadModule(url, element) {
-            // Cập nhật giao diện menu
             document.querySelectorAll('.menu-item-side').forEach(el => el.classList.remove('active')); 
             if (element) {
                 element.classList.add('active');
@@ -162,18 +161,21 @@
             localStorage.setItem('activeAdminTab', url);
             document.getElementById('globalSearch').value = "";
             
-            // Tắt tất cả iframe đang hiển thị
             Object.values(loadedIframes).forEach(iframe => {
                 iframe.classList.remove('active');
             });
             
             const container = document.getElementById('iframeContainer');
             
-            // Nếu iframe đã được tải (do user đã mở hoặc do hệ thống tải ngầm thành công)
             if (loadedIframes[url]) {
                 loadedIframes[url].classList.add('active');
+                
+                // --- ĐÂY LÀ ĐOẠN ĐÁNH THỨC TRANG CON KHI NÓ ĐƯỢC HIỂN THỊ LẠI ---
+                let frameWindow = loadedIframes[url].contentWindow;
+                if (frameWindow && typeof frameWindow.onTabActivated === 'function') {
+                    frameWindow.onTabActivated();
+                }
             } else {
-                // Đề phòng trường hợp bấm quá nhanh khi chưa kịp tải ngầm
                 const iframe = document.createElement('iframe');
                 iframe.src = url;
                 iframe.className = 'module-frame active'; 

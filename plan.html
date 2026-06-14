@@ -734,6 +734,14 @@
 
         function applyFilter() { activeFilters = []; document.querySelectorAll(".month-cb").forEach(cb => { if (cb.checked) activeFilters.push(cb.value); }); document.getElementById("filterPopup").style.display = "none"; processAndRender(); }
         function clearFilter() { activeFilters = []; document.getElementById("filterPopup").style.display = "none"; processAndRender(); }
+        // --- HÀM TỰ ĐỘNG CẬP NHẬT KHI TAB NÀY ĐƯỢC ADMIN MỞ LÊN ---
+        window.onTabActivated = function() {
+            let cached = localStorage.getItem("MKT_DATA");
+            if (cached) {
+                sysData = JSON.parse(cached);
+                processAndRender(); // Vẽ lại giao diện Kế hoạch lập tức
+            }
+        };
     </script>
 </body>
 </html>

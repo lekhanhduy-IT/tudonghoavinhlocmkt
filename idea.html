@@ -692,6 +692,20 @@ function updateActiveFilterToolbar() {
             if (sysData.filters[activeTab]) delete sysData.filters[activeTab][c];
             renderGrid(); // Cập nhật lại bảng và ẩn toolbar lập tức
         }
+        // --- HÀM TỰ ĐỘNG CẬP NHẬT KHI TAB NÀY ĐƯỢC ADMIN MỞ LÊN ---
+        window.onTabActivated = function() {
+            let cached = localStorage.getItem("MKT_DATA");
+            if (cached) {
+                let parsedData = JSON.parse(cached);
+                sysData.sheets = parsedData.sheets || {};
+                sysData.attributes = parsedData.attributes || {};
+                sysData.tabOrder = parsedData.tabOrder || [];
+                sysData.filters = parsedData.filters || {};
+                
+                renderTabs();
+                renderGrid(); // Vẽ lại bảng Ý tưởng lập tức
+            }
+        };
     </script>
 </body>
 </html>
