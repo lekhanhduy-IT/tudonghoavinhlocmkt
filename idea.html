@@ -583,35 +583,35 @@ function openSchedulePopup() {
 
     let lastDate = document.getElementById("scheduleDate") ? document.getElementById("scheduleDate").value : "";
 
-    // MA THUẬT: Tạm thời kéo giãn khung Modal rộng ra để chứa đủ 2 bên (Ô nhập + Lịch)
+    // Mở rộng form ra xíu nữa cho thoải mái
     let modalBox = document.querySelector(".modal-box");
-    modalBox.style.maxWidth = "700px";
+    modalBox.style.maxWidth = "720px";
 
     showModal("Lên Lịch Công Việc", `
-        <div style="display: flex; flex-wrap: wrap; gap: 25px; align-items: center; padding: 10px 0;">
-            <div style="flex: 1; min-width: 250px;">
-                <div style="margin-bottom: 15px; font-size: 16px; font-weight: bold; color: var(--blue);">📅 Ngày hoàn thành:</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; padding: 10px 0;">
+            <div style="flex: 1; min-width: 250px; margin-top: 10px;">
+                <div style="margin-bottom: 15px; font-size: 15px; font-weight: bold; color: var(--blue);">📅 Ngày hoàn thành:</div>
                 
-                <input type="text" id="displayDate" class="date-picker-rounded" placeholder="VD: 15/06/2026" style="text-align: center; background-color: #fff; cursor: text; font-size: 16px; font-weight: bold; color: var(--blue);">
+                <input type="text" id="displayDate" class="date-picker-rounded" placeholder="VD: 15/06/2026" style="text-align: center; background-color: #fff; cursor: text; font-size: 16px; font-weight: bold; color: var(--blue); width: 100%; box-sizing: border-box;">
                 
-                <input type="hidden" id="scheduleDate">
+                <input type="text" id="scheduleDate" style="display: none !important; position: absolute; visibility: hidden; opacity: 0;">
                 
                 <div style="font-size: 13px; color: #666; margin-top: 20px; line-height: 1.6; background: var(--gray-light); padding: 12px; border-radius: 8px; border-left: 3px solid var(--blue);">
                     💡 <b>Mẹo:</b> Bạn có thể tự gõ ngày (VD: 15/06/2026) vào ô trên, hoặc chọn trực tiếp trên bảng lịch nằm ngay bên cạnh 👉
                 </div>
             </div>
             
-            <div id="calendarRightPanel" style="width: 310px; display: flex; justify-content: center; background: #fff; padding: 10px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1.5px solid var(--blue);">
+            <div id="calendarRightPanel" style="width: 340px; min-width: 340px; display: flex; justify-content: center; background: #fff; padding: 10px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1.5px solid var(--gray-border); box-sizing: border-box;">
                 </div>
         </div>
     `, [
         { text: "Lên lịch & Chuyển", class: "btn-blue btn-rounded", onclick: () => { 
             processSchedule(); 
-            document.querySelector(".modal-box").style.maxWidth = "400px"; // Trả lại kích thước Modal cũ
+            document.querySelector(".modal-box").style.maxWidth = "400px"; 
         }},
         { text: "Hủy", class: "btn-cancel btn-rounded", onclick: () => { 
             closeModal(); 
-            document.querySelector(".modal-box").style.maxWidth = "400px"; // Trả lại kích thước Modal cũ
+            document.querySelector(".modal-box").style.maxWidth = "400px"; 
         }}
     ]);
 
@@ -619,7 +619,6 @@ function openSchedulePopup() {
         let realInput = document.getElementById("scheduleDate");
         let displayInput = document.getElementById("displayDate");
 
-        // Kích hoạt lịch ở chế độ NỘI TUYẾN (inline) - Nằm chết một chỗ, dẹp luôn chế độ popup
         let fp = flatpickr(realInput, {
             locale: "vn",
             dateFormat: "Y-m-d",
@@ -628,27 +627,23 @@ function openSchedulePopup() {
             defaultDate: lastDate || "today",
             onChange: function(selectedDates) {
                 if(selectedDates.length > 0) {
-                    // Khi nhấp chuột vào Lịch -> Dữ liệu chạy ngược sang ô gõ tay
                     displayInput.value = fp.formatDate(selectedDates[0], "d/m/Y");
                 }
             }
         });
 
-        // Đổ ngày mặc định vào ô gõ tay lúc vừa mở Modal lên
         if(fp.selectedDates.length > 0) {
             displayInput.value = fp.formatDate(fp.selectedDates[0], "d/m/Y");
         }
 
-        // ĐỒNG BỘ NGƯỢC: Khi bạn tự gõ phím -> Lịch bên phải phải lật đúng trang
         displayInput.addEventListener("input", function() {
             let val = this.value.trim();
             let parts = val.split("/");
-            // Chỉ chạy khi bạn gõ đúng định dạng dd/mm/yyyy (vd: 15/06/2026)
             if(parts.length === 3 && parts[2].length === 4) {
                 let d = new Date(parts[2], parts[1]-1, parts[0]);
                 if(!isNaN(d.getTime())) {
-                    fp.setDate(d, false); // Lật tờ lịch
-                    realInput.value = fp.formatDate(d, "Y-m-d"); // Chốt dữ liệu ngầm
+                    fp.setDate(d, false); 
+                    realInput.value = fp.formatDate(d, "Y-m-d"); 
                 }
             }
         });
