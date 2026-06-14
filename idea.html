@@ -210,41 +210,49 @@ setInterval(processQueueAndSync, 4000);
         }
 
         async function fetchDataFromServer() {
-            try {
-                if(actionQueue.length === 0) setSyncStatus("🔄 Đang lấy dữ liệu...", "var(--blue)");
-                let res = await fetch(API_URL + "?t=" + new Date().getTime(), { method: "GET", redirect: "follow", cache: "no-store" });
-                let json = await res.json();
-                if(json.success) {
-                    let localFilters = sysData.filters; 
-                    sysData = json.data; 
-                    sysData.filters = localFilters || {}; 
-                    currentSyncToken = sysData.syncToken;
-                    localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
-                    
-                    // ===== BƯỚC 1: TỰ ĐỘNG TÌM TAB HỢP LỆ ĐỂ HIỂN THỊ =====
-                    // Quét tìm tab đầu tiên KHÔNG có đuôi _hidden và KHÔNG bị ẩn trong cấu hình
-                    let firstVisibleTab = sysData.tabOrder.find(t => !t.endsWith('_hidden') && !(sysData.attributes[t] || {}).hidden);
-                    
-                    // Kiểm tra: Nếu chưa chọn tab, hoặc tab đang chọn bị xóa, hoặc nó là một tab ẩn -> Ép sang tab hợp lệ vừa tìm được
-                    if(!activeTab || !sysData.tabOrder.includes(activeTab) || activeTab.endsWith('_hidden') || (sysData.attributes[activeTab] || {}).hidden) {
-                        activeTab = firstVisibleTab || sysData.tabOrder[0];
-                    }
-                    
-                    // ===== BƯỚC 2: ÉP HIỂN THỊ NGAY LẬP TỨC =====
-                    // Nhận diện lần đầu tiên truy cập (lưới bảng đang trống trơn)
-                    let isGridEmpty = document.getElementById("dataHead").innerHTML === "";
-                    
-                    // Nếu là lần đầu truy cập HOẶC người dùng không đang gõ chữ -> Vẽ ngay dữ liệu ra
-                    if (isGridEmpty || !checkIsEditing()) {
-                        renderTabs(); 
-                        renderGrid(); 
-                        setSyncStatus("✅ Sẵn sàng", "#27ae60");
-                    } else {
-                        setSyncStatus("⚠️ Có dữ liệu mới (Chờ render)", "#f39c12");
-                    }
-                }
-            } catch(e) { setSyncStatus("⚠️ Ngoại tuyến", "var(--red)"); }
+    try {
+        if(actionQueue.length === 0) setSyncStatus("🔄 Đang lấy dữ liệu...", "var(--blue)");
+        
+        // ===== SỬA Ở ĐÂY: GỌI NÃO NHỆN ======
+        // Nếu đang chạy code trên máy tính (localhost) thì gọi Google, nếu lên Vercel thì gọi API Vercel
+        let fetchUrl = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+            ? API_URL + "?t=" + new Date().getTime() 
+            : "/api/get-brain";
+
+        let res = await fetch(fetchUrl);
+        let json = await res.json();
+        
+        // Kế hoạch dự phòng (Fallback): Lỡ Vercel KV bị lỗi hoặc trống, thì tự động chạy lại link Google cũ
+        if (!json.success && fetchUrl === "/api/get-brain") {
+            console.warn("Não nhện lỗi, tự động gọi Google Apps Script dự phòng...");
+            res = await fetch(API_URL + "?t=" + new Date().getTime());
+            json = await res.json();
         }
+
+        if(json.success) {
+            let localFilters = sysData.filters; 
+            sysData = json.data; 
+            sysData.filters = localFilters || {}; 
+            currentSyncToken = sysData.syncToken;
+            localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
+            
+            // ... (Đoạn code bóc tách Tab và render bên dưới giữ nguyên không đổi) ...
+            let firstVisibleTab = sysData.tabOrder.find(t => !t.endsWith('_hidden') && !(sysData.attributes[t] || {}).hidden);
+            if(!activeTab || !sysData.tabOrder.includes(activeTab) || activeTab.endsWith('_hidden') || (sysData.attributes[activeTab] || {}).hidden) {
+                activeTab = firstVisibleTab || sysData.tabOrder[0];
+            }
+            
+            let isGridEmpty = document.getElementById("dataHead").innerHTML === "";
+            if (isGridEmpty || !checkIsEditing()) {
+                renderTabs(); 
+                renderGrid(); 
+                setSyncStatus("✅ Sẵn sàng", "#27ae60");
+            } else {
+                setSyncStatus("⚠️ Có dữ liệu mới", "#f39c12");
+            }
+        }
+    } catch(e) { setSyncStatus("⚠️ Ngoại tuyến", "var(--red)"); }
+}
 
         async function processQueueAndSync() {
             if(isProcessingQueue) return; isProcessingQueue = true;
