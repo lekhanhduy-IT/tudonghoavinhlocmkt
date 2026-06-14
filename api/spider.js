@@ -1,11 +1,11 @@
 import { kv } from '@vercel/kv';
 
 export default async function handler(request, response) {
-  // ĐÃ TẠM TẮT Ổ KHÓA BẢO MẬT ĐỂ MÁ TEST BẰNG TAY TRÊN TRÌNH DUYỆT
-  // const authHeader = request.headers.authorization;
-  // if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-  //   return response.status(401).json({ success: false, error: 'Unauthorized' });
-  // }
+  // ĐÃ TẠM BẬT Ổ KHÓA BẢO MẬT ĐỂ MÁ TEST BẰNG TAY TRÊN TRÌNH DUYỆT
+   const authHeader = request.headers.authorization;
+   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+     return response.status(401).json({ success: false, error: 'Unauthorized' });
+   }
 
   // Link Google Apps Script Cũ Của Bạn
   const GAS_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
