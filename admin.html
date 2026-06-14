@@ -44,6 +44,7 @@
         .logout-btn { background: var(--red); color: var(--white); border: none; padding: 8px 16px; font-weight: bold; border-radius: 4px; cursor: pointer; }
         
         /* --- CSS MỚI CHO VÙNG CHỨA IFRAME ĐỂ CHUYỂN TRANG TỨC THÌ --- */
+        /* --- CƠ CHẾ IFRAME 0ms DELAY --- */
         #iframeContainer {
             flex-grow: 1;
             width: 100%;
@@ -56,15 +57,20 @@
             border: none; 
             width: 100%; 
             height: 100%; 
-            position: absolute; /* Đè các iframe lên cùng 1 vị trí */
+            position: absolute; 
             top: 0;
             left: 0;
-            display: none; /* Ẩn mặc định */
+            /* Dùng opacity và visibility thay cho display:none để không bị render lại layout */
+            opacity: 0;
+            visibility: hidden;
+            z-index: 1;
         }
         
         /* Chỉ hiện iframe nào đang được kích hoạt */
         .module-frame.active {
-            display: block; 
+            opacity: 1;
+            visibility: visible;
+            z-index: 10; 
         }
 
         @media (max-width: 768px) { .sidebar { position: absolute; height: 100%; transform: translateX(-100%); } .sidebar.mobile-open { transform: translateX(0); } }
@@ -104,7 +110,10 @@
 
     <script>
         // --- QUẢN LÝ IFRAME TỐC ĐỘ CAO ---
-        const loadedIframes = {}; // Object lưu trữ các iframe đã tải
+        const loadedIframes = {}; 
+        
+        // Danh sách các module cần tải ngầm (thêm module mới vào đây nếu có)
+        const modulesToPreload = ['idea.html', 'plan.html', 'post.html', 'image.html'];
 
         document.addEventListener("DOMContentLoaded", () => {
             document.getElementById('welcomeUser').innerText = localStorage.getItem('admin_name') || 'Admin';
@@ -112,64 +121,71 @@
             // Mở khóa cài đặt
             if (localStorage.getItem('admin_email') === 'admin@tudonghoavinhloc.com') {
                 document.getElementById('menuSettings').style.display = 'flex';
+                modulesToPreload.push('caidat.html'); // Cho phép tải ngầm tab cài đặt nếu là admin
             }
 
-            // Đọc trạng thái lưu xem trước khi F5 người dùng đang ở tab nào (mặc định là idea.html)
+            // Đọc trạng thái lưu xem trước khi F5 người dùng đang ở tab nào
             const savedTab = localStorage.getItem('activeAdminTab') || 'idea.html';
             
-            // Tìm nút menu tương ứng với tab đó để active
+            // 1. Tải NGAY LẬP TỨC tab hiện tại để user thấy ngay
             const menuEl = document.querySelector(`.menu-item-side[onclick*="${savedTab}"]`);
-            
-            // Gọi hàm nạp module
             loadModule(savedTab, menuEl);
+
+            // 2. TẢI NGẦM các tab còn lại ở background (đợi 500ms để không ảnh hưởng trang chính)
+            setTimeout(() => {
+                const container = document.getElementById('iframeContainer');
+                modulesToPreload.forEach(url => {
+                    if (!loadedIframes[url]) {
+                        const iframe = document.createElement('iframe');
+                        iframe.src = url;
+                        iframe.className = 'module-frame'; // Không có class active nên nó sẽ tàng hình
+                        container.appendChild(iframe);
+                        loadedIframes[url] = iframe;
+                    }
+                });
+            }, 500);
         });
 
         function logout() { localStorage.clear(); window.location.href = 'index.html'; }
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
         
-        // Cập nhật hàm loadModule (Tắt hiệu ứng, ẩn/hiện iframe)
         function loadModule(url, element) {
             // Cập nhật giao diện menu
             document.querySelectorAll('.menu-item-side').forEach(el => el.classList.remove('active')); 
             if (element) {
                 element.classList.add('active');
             } else {
-                // Đề phòng trường hợp gọi hàm mà quên truyền element
                 const link = document.querySelector(`.menu-item-side[onclick*="${url}"]`);
                 if (link) link.classList.add('active');
             }
             
-            // Lưu lại đường dẫn đang mở để ghi nhớ sau khi tải lại trang (F5)
             localStorage.setItem('activeAdminTab', url);
             document.getElementById('globalSearch').value = "";
             
-            const container = document.getElementById('iframeContainer');
-            
-            // 1. Ẩn tất cả các Iframe đang hiện hữu (Chỉ ẩn đi chứ không xóa nội dung bên trong)
+            // Tắt tất cả iframe đang hiển thị
             Object.values(loadedIframes).forEach(iframe => {
                 iframe.classList.remove('active');
             });
             
-            // 2. Kiểm tra xem file HTML này đã có iframe tương ứng chưa
-            if (!loadedIframes[url]) {
-                // CHƯA CÓ: Tạo iframe mới, nạp link và đưa vào bộ nhớ
+            const container = document.getElementById('iframeContainer');
+            
+            // Nếu iframe đã được tải (do user đã mở hoặc do hệ thống tải ngầm thành công)
+            if (loadedIframes[url]) {
+                loadedIframes[url].classList.add('active');
+            } else {
+                // Đề phòng trường hợp bấm quá nhanh khi chưa kịp tải ngầm
                 const iframe = document.createElement('iframe');
                 iframe.src = url;
-                iframe.className = 'module-frame active'; // Đặt active để nó hiển thị ngay
+                iframe.className = 'module-frame active'; 
                 container.appendChild(iframe);
-                loadedIframes[url] = iframe; // Đưa vào danh sách quản lý
-            } else {
-                // ĐÃ CÓ: Chỉ đơn giản là bật nó hiện lên lại (Tốc độ tức thì & giữ vị trí cuộn)
-                loadedIframes[url].classList.add('active');
+                loadedIframes[url] = iframe; 
             }
         }
 
         function executeGlobalSearch() {
             let kw = document.getElementById('globalSearch').value.trim(); 
-            
-            // Lấy URL của tab đang hoạt động hiện tại
             let activeUrl = localStorage.getItem('activeAdminTab') || 'idea.html';
-            let frame = loadedIframes[activeUrl]; // Trích xuất đúng iframe đó
+            let frame = loadedIframes[activeUrl]; 
             
             if(frame && frame.contentWindow && typeof frame.contentWindow.executeSearch === 'function') {
                 frame.contentWindow.executeSearch(kw);
