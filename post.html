@@ -150,7 +150,7 @@
             <span style="font-weight: bold; color: var(--blue); font-size: 14px; margin-left: 5px;"><i class="fas fa-edit"></i> Trình Soạn Thảo Blog</span>
         </div>
         <div style="display: flex; align-items: center;">
-            <span id="syncStatus" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60;">✅ Khởi tạo...</span>
+           <span id="syncStatus" onclick="forceFetchData()" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60; cursor: pointer;">✅ Khởi tạo...</span>
             <button class="tool-btn" onclick="togglePanel('right')" title="Bật/Tắt Công Cụ" style="margin-right: 10px;"><i class="fas fa-toolbox"></i></button>
             <button class="tool-btn save-btn" onclick="savePostToSheet()"><i class="fas fa-save"></i> Lưu bài viết</button>
         </div>
@@ -411,7 +411,19 @@ Google Fonts:</div>
         let savedSelectionRange = null; 
         let activeHtmlBlock = null;     
         let promptCallback = null;
-        
+        // MỚI THÊM ĐỂ ĐỒNG BỘ CACHE
+        let currentSyncToken = 0;
+        let hasPendingUpdate = false; 
+
+        // KIỂM TRA XEM NGƯỜI DÙNG CÓ ĐANG GÕ CHỮ HAY KHÔNG (Dành riêng cho Post)
+        function checkIsEditing() {
+            let active = document.activeElement;
+            if (!active) return false;
+            if (active.isContentEditable) return true;
+            if (['INPUT', 'TEXTAREA'].includes(active.tagName)) return true;
+            if (document.querySelector('.cell-expanded')) return true;
+            return false;
+        }
         var DEFAULT_HTML_BLOCK = `<style>\n  @import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,400;0,700;1,400&display=swap');\n\n  @media screen and (min-width: 1024px) {\n    .desktop-spacing {\n      margin-left: 100px !important;\n      margin-right: 100px !important;\n    }\n  }\n</style>\n\n<div class="desktop-spacing" style="text-align:justify;font-family:'Nunito', Arial, sans-serif !important;font-size:16px;line-height:1.5;color:#333333;max-width:100%;">\n\n<p style="font-weight: normal; margin-bottom: 12px;">\nDán nội dung của bạn\n</p>\n\n</div>`;
 
         let globalTagFormats = { 'H1': null, 'H2': null, 'H3': null, 'H4': null, 'H5': null, 'H6': null };
@@ -431,39 +443,84 @@ Google Fonts:</div>
         };
 
         window.onload = async () => {
-    try {
-        let cached = localStorage.getItem("MKT_DATA");
-        if(cached) {
-            let parsedCache = JSON.parse(cached);
-            if(parsedCache && parsedCache.sheets) {
-                sysData = parsedCache;
-                document.getElementById('syncStatus').innerHTML = "⚡ Chế độ nhanh (Local)";
+            try {
+                let cached = localStorage.getItem("MKT_DATA");
+                if(cached) {
+                    let parsedCache = JSON.parse(cached);
+                    if(parsedCache && parsedCache.sheets) {
+                        sysData = parsedCache;
+                        currentSyncToken = sysData.syncToken || 0; // Đọc token hiện tại
+                        document.getElementById('syncStatus').innerHTML = "⚡ Chế độ nhanh (Local)";
+                    }
+                }
+                
+                initSizeSelects();
+                initResizers();
+                loadDraftData(); 
+                
+                let urlParams = new URLSearchParams(window.location.search);
+                let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[0] : null);
+                if (postIdToLoad) {
+                    loadPostIntoEditor(postIdToLoad);
+                }
+
+                processAndRenderPostUI(); // Nạp UI công cụ
+
+            } catch (err) {
+                console.error("Lỗi khởi tạo UI từ Cache:", err);
             }
+            
+            attachCoreEvents();
+            fetchDataFromServer(); // Gọi fetch thông minh thay vì fetchBackground cũ
+
+            // VÒNG LẶP QUÉT TỰ ĐỘNG 20s
+            setInterval(() => {
+                if(!checkIsEditing() && actionQueue.length === 0) fetchDataFromServer();
+            }, 20000);
+
+            // LẮNG NGHE ĐỒNG BỘ TỪ TAB KHÁC
+            window.addEventListener('storage', function(e) {
+                if (e.key === "MKT_DATA") {
+                    try {
+                        let newData = JSON.parse(e.newValue);
+                        if (newData && newData.sheets) {
+                            sysData = newData;
+                            processAndRenderPostUI(); // Chỉ render công cụ, không đụng văn bản
+                        }
+                    } catch(err) {}
+                }
+            });
+
+            // ÉP CẬP NHẬT KHI CLICK RA NGOÀI
+            document.addEventListener('mousedown', () => {
+                setTimeout(() => {
+                    if (hasPendingUpdate && !checkIsEditing()) {
+                        hasPendingUpdate = false;
+                        fetchDataFromServer(true);
+                    }
+                }, 200);
+            });
+            document.addEventListener('focusout', () => {
+                setTimeout(() => {
+                    if (hasPendingUpdate && !checkIsEditing()) {
+                        hasPendingUpdate = false;
+                        fetchDataFromServer(true);
+                    }
+                }, 200);
+            });
+        };
+
+        // HÀM RENDER AN TOÀN (Tuyệt đối không chạm vào #postContent)
+        function processAndRenderPostUI() {
+            loadGoogleFonts();
+            loadTemplates();
+            window.loadEmojis();
         }
         
-        initSizeSelects();
-        initResizers();
-        loadDraftData(); // Nạp dữ liệu panel trái trước
-        
-        // CƠ CHẾ NẠP BÀI VIẾT TỪ CACHE (Siêu tốc)
-        // Ưu tiên lấy ID từ URL (VD: ?id=POST_123), nếu không có mới lấy từ Draft Kế hoạch
-        let urlParams = new URLSearchParams(window.location.search);
-        let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[0] : null);
-        if (postIdToLoad) {
-            loadPostIntoEditor(postIdToLoad);
+        function forceFetchData() {
+            if(checkIsEditing()) return alert("Vui lòng click ra ngoài vùng soạn thảo để làm mới dữ liệu!"); 
+            fetchDataFromServer(true);
         }
-
-        loadGoogleFonts();
-        loadTemplates();
-        window.loadEmojis(); 
-
-    } catch (err) {
-        console.error("Lỗi khởi tạo UI từ Cache:", err);
-    }
-    
-    attachCoreEvents();
-    fetchAllDataBackground(); // Gọi fetch ngầm
-};
 
         // Lấy tọa độ Ma Trận chuẩn 100% (Khắc phục lỗi lệch cột rowspan/colspan)
         function getTableMap(table) {
@@ -1419,35 +1476,49 @@ Google Fonts:</div>
             };
         }
 
-        async function fetchAllDataBackground() {
-    try {
-        let res = await fetch(API_URL + "?t=" + new Date().getTime(), { method: "GET" });
-        let json = await res.json();
-        if(json.success) { 
-            sysData = json.data; 
-            if(!sysData.sheets) sysData.sheets = {};
-            localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
-            
-            // CẬP NHẬT LẠI DỮ LIỆU NẾU TRÊN SERVER CÓ SỰ THAY ĐỔI
-            let urlParams = new URLSearchParams(window.location.search);
-            let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[0] : null);
-            if (postIdToLoad) {
-                loadPostIntoEditor(postIdToLoad);
+        async function fetchDataFromServer(forceFromGoogle = false) {
+            try {
+                if(actionQueue.length === 0) {
+                    document.getElementById('syncStatus').innerText = "🔄 Đang tải...";
+                    document.getElementById('syncStatus').style.color = "var(--blue)";
+                }
+                
+                let fetchUrl = (!forceFromGoogle && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') 
+                    ? "/api/get-brain" 
+                    : API_URL + "?t=" + new Date().getTime();
+
+                let res = await fetch(fetchUrl);
+                let json = await res.json();
+                
+                if (fetchUrl === "/api/get-brain") {
+                    if (!json.success || (json.success && json.data.syncToken < currentSyncToken)) {
+                        console.warn("Não nhện cũ. Bẻ lái lấy từ Google...");
+                        res = await fetch(API_URL + "?t=" + new Date().getTime());
+                        json = await res.json();
+                    }
+                }
+
+                if(json.success) { 
+                    sysData = json.data; 
+                    currentSyncToken = sysData.syncToken;
+                    localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
+                    
+                    if (!checkIsEditing()) {
+                        processAndRenderPostUI();
+                        document.getElementById('syncStatus').innerText = "✅ Sẵn sàng"; 
+                        document.getElementById('syncStatus').style.color = "#27ae60";
+                        hasPendingUpdate = false;
+                    } else {
+                        document.getElementById('syncStatus').innerText = "⚠️ Có dữ liệu mới"; 
+                        document.getElementById('syncStatus').style.color = "#f39c12";
+                        hasPendingUpdate = true;
+                    }
+                }
+            } catch(e) { 
+                document.getElementById('syncStatus').innerText = "⚠️ Ngoại tuyến"; 
+                document.getElementById('syncStatus').style.color = "var(--red)";
             }
-
-            loadGoogleFonts();
-            loadTemplates();
-            window.loadEmojis();
-
-            document.getElementById('syncStatus').innerText = "✅ Dữ liệu mới nhất"; 
-            document.getElementById('syncStatus').style.color = "#27ae60";
         }
-    } catch(e) { 
-        console.log("Sử dụng hoàn toàn Offline"); 
-        document.getElementById('syncStatus').innerText = "⚠️ Dùng bản lưu Offline"; 
-        document.getElementById('syncStatus').style.color = "var(--red)";
-    }
-}
 
         function loadDraftData() {
             let draftStr = localStorage.getItem("DRAFT_POST_DATA");
@@ -2091,6 +2162,8 @@ function loadPostIntoEditor(postId) {
 
 let syncTimer = null;
 
+let syncTimer = null;
+
 function pushQueue(action) {
     actionQueue.push(action); 
     localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
@@ -2099,13 +2172,11 @@ function pushQueue(action) {
     s.innerText = "⏳ Gom dữ liệu..."; 
     s.style.color = "#f39c12";
     
-    // Hủy lệnh gửi cũ nếu có thao tác mới liên tiếp
     clearTimeout(syncTimer);
     
-    // Gom toàn bộ lệnh trong 1.5 giây vào một gói (batch) rồi gửi đi một lần
     syncTimer = setTimeout(() => {
         let batch = [...actionQueue];
-        actionQueue = []; // Reset hàng đợi
+        actionQueue = []; 
         
         s.innerText = "⏳ Đang lưu nền...";
         fetch(API_URL, { 
@@ -2118,6 +2189,18 @@ function pushQueue(action) {
             if(json.success) { 
                 s.innerText = "✅ Đã lưu an toàn"; 
                 s.style.color = "#27ae60"; 
+                
+                // KIỂM TRA XEM CÓ DỮ LIỆU MỚI TỪ GOOGLE KHÔNG
+                if (json.syncToken > currentSyncToken) {
+                    currentSyncToken = json.syncToken;
+                    if(!checkIsEditing()) {
+                        fetchDataFromServer(true);
+                    } else {
+                        s.innerText = "⚠️ Có dữ liệu mới"; 
+                        s.style.color = "#f39c12"; 
+                        hasPendingUpdate = true;
+                    }
+                }
             } 
         })
         .catch(e => { 
