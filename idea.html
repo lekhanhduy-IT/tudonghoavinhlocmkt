@@ -600,22 +600,21 @@ function openSchedulePopup() {
             allowInput: true,
             defaultDate: lastDate || "today", 
             disableMobile: "true",
-            // TRỊ BỆNH 1: Ép lịch luôn xổ xuống dưới giữa, cấm nhảy lên đè ô nhập
-            position: "bottom center", 
+            static: true, // THUỐC ĐẶC TRỊ: Khóa chặt lịch nằm dưới ô input, không cho bay lung tung
             onChange: function(selectedDates, dateStr, instance) {
-                // Chọn ngày xong là tự động đóng popup lịch luôn cho thoáng
+                // Đóng lịch tự động khi chọn xong ngày
                 instance.close(); 
             }
         });
 
-        // TRỊ BỆNH 2: Bắt cú nhấp chuột ngay tức khắc
+        // XỬ LÝ VỤ BẤM CHUỘT 2 LẦN
+        // Dùng onmousedown để "cướp" lệnh click trước khi thằng lịch kịp đóng lại
         let btnSubmit = document.querySelector("#modalFooter .btn-blue");
         if(btnSubmit) {
-            // Dùng onmousedown để "cướp" lệnh click trước khi Flatpickr kịp nuốt nó
             btnSubmit.onmousedown = function(e) {
-                e.preventDefault(); // Ngăn không cho ô nhập liệu bị mất focus gây kẹt
-                if(fp.isOpen) fp.close(); // Dẹp luôn cái lịch nếu nó đang cản đường
-                processSchedule(); // Bấm 1 phát ăn ngay!
+                e.preventDefault(); 
+                if(fp.isOpen) fp.close(); // Nếu lịch đang mở thì dẹp nó đi
+                processSchedule(); // Gọi luôn hàm chuyển dữ liệu, 1 click ăn ngay!
             };
         }
     }, 50);
