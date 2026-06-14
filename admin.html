@@ -22,22 +22,19 @@
         .sidebar-header { height: 60px; display: flex; align-items: center; border-bottom: 0.5px solid var(--gray-border); }
         .toggle-btn { width: 60px; height: 60px; background: transparent; border: none; font-size: 20px; color: var(--text-main); opacity: 0.7; cursor: pointer; flex-shrink: 0; display: flex; justify-content: center; align-items: center; }
         
-        /* Cập nhật Brand: Chữ đen, nét mỏng, size 14px */
         .brand { font-size: 14px; font-weight: 300; color: #000000; opacity: 1; transition: opacity 0.2s; display: flex; align-items: center; }
         .brand img { height: 30px; margin-right: 10px; }
         .sidebar.collapsed .brand { opacity: 0; pointer-events: none; }
         
-        /* Cập nhật Menu Item: Chữ đen */
         .menu-item-side { padding: 0; display: flex; align-items: center; cursor: pointer; border-bottom: 0.5px solid var(--gray-border); transition: 0.3s; color: #000000; text-decoration: none;}
         .menu-item-side:hover, .menu-item-side.active { background: var(--blue); color: var(--white); }
         .icon { width: 60px; height: 50px; display: flex; justify-content: center; align-items: center; font-size: 18px; flex-shrink: 0; }
         
-        /* Cập nhật Text Menu: Nét mỏng, size 14px */
         .text { font-weight: 300; font-size: 14px; transition: opacity 0.2s; opacity: 1; }
         .sidebar.collapsed .text { opacity: 0; pointer-events: none; }
 
         .main-content { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
-        .header-bar { height: 60px; border-bottom: 0.5px solid var(--gray-border); display: flex; justify-content: space-between; align-items: center; padding: 0 20px; flex-shrink: 0; background: var(--white); }
+        .header-bar { height: 60px; border-bottom: 0.5px solid var(--gray-border); display: flex; justify-content: space-between; align-items: center; padding: 0 20px; flex-shrink: 0; background: var(--white); z-index: 20; }
         .search-wrapper { flex: 1; display: flex; justify-content: center; }
         .search-box { width: 100%; max-width: 500px; display: flex; align-items: center; border: 0.5px solid var(--gray-border); border-radius: 20px; overflow: hidden; padding: 5px 15px; }
         .search-box input { flex: 1; border: none; outline: none; font-size: 14px; padding: 2px; }
@@ -46,16 +43,27 @@
         .user-actions { display: flex; align-items: center; gap: 15px; }
         .logout-btn { background: var(--red); color: var(--white); border: none; padding: 8px 16px; font-weight: bold; border-radius: 4px; cursor: pointer; }
         
-        /* Iframe không có transition delay để đổi trang ngay lập tức */
-        #moduleFrame { 
-    flex-grow: 1; 
-    border: none; 
-    width: 100%; 
-    height: 100%; 
-    background: #f9f9f9; 
-   transition: none; /* Bỏ hiệu ứng mờ */
-    opacity: 1;       /* Luôn hiển thị */
-}
+        /* CẤU TRÚC ĐA KHUNG (MULTI-IFRAME) CHUYỂN TRANG 0ms */
+        #iframeContainer {
+            flex-grow: 1; 
+            position: relative; 
+            width: 100%; 
+            height: 100%;
+        }
+        
+        .module-frame { 
+            position: absolute; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%; 
+            border: none; background: #f9f9f9; 
+            visibility: hidden;  /* Ẩn hoàn toàn nhưng vẫn giữ nguyên vị trí cuộn */
+            z-index: 0;
+        }
+
+        .module-frame.active-frame {
+            visibility: visible; /* Hiện ngay lập tức, không hiệu ứng mờ */
+            z-index: 10;
+        }
 
         @media (max-width: 768px) { .sidebar { position: absolute; height: 100%; transform: translateX(-100%); } .sidebar.mobile-open { transform: translateX(0); } }
     </style>
@@ -67,12 +75,12 @@
             <button class="toggle-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
             <div class="brand"><img src="https://i.postimg.cc/xCjmFrb4/Untitled-design.png"> WEB MKT</div>
         </div>
-        <a href="#" class="menu-item-side active" onclick="loadModule('idea.html', this)"><div class="icon"><i class="fas fa-lightbulb"></i></div><div class="text">Ý TƯỞNG</div></a>
-        <a href="#" class="menu-item-side" onclick="loadModule('plan.html', this)"><div class="icon"><i class="fas fa-calendar-alt"></i></div><div class="text">KẾ HOẠCH</div></a>
-        <a href="#" class="menu-item-side" onclick="loadModule('post.html', this)"><div class="icon"><i class="fas fa-file-alt"></i></div><div class="text">BÀI VIẾT</div></a>
-        <a href="#" class="menu-item-side" onclick="loadModule('image.html', this)"><div class="icon"><i class="fas fa-images"></i></div><div class="text">HÌNH ẢNH</div></a>
+        <a href="#" class="menu-item-side" onclick="loadModule('idea.html', this)" data-target="idea"><div class="icon"><i class="fas fa-lightbulb"></i></div><div class="text">Ý TƯỞNG</div></a>
+        <a href="#" class="menu-item-side" onclick="loadModule('plan.html', this)" data-target="plan"><div class="icon"><i class="fas fa-calendar-alt"></i></div><div class="text">KẾ HOẠCH</div></a>
+        <a href="#" class="menu-item-side" onclick="loadModule('post.html', this)" data-target="post"><div class="icon"><i class="fas fa-file-alt"></i></div><div class="text">BÀI VIẾT</div></a>
+        <a href="#" class="menu-item-side" onclick="loadModule('image.html', this)" data-target="image"><div class="icon"><i class="fas fa-images"></i></div><div class="text">HÌNH ẢNH</div></a>
         
-        <a href="#" id="menuSettings" class="menu-item-side" style="display: none;" onclick="loadModule('caidat.html', this)"><div class="icon"><i class="fas fa-cogs"></i></div><div class="text">CÀI ĐẶT</div></a>
+        <a href="#" id="menuSettings" class="menu-item-side" style="display: none;" onclick="loadModule('caidat.html', this)" data-target="caidat"><div class="icon"><i class="fas fa-cogs"></i></div><div class="text">CÀI ĐẶT</div></a>
     </div>
 
     <div class="main-content">
@@ -88,124 +96,72 @@
                 <button class="logout-btn" onclick="logout()">Đăng Xuất</button>
             </div>
         </div>
-        <iframe src="idea.html" id="moduleFrame"></iframe>
+        
+        <div id="iframeContainer">
+            <iframe src="idea.html" id="frame-idea" class="module-frame"></iframe>
+            <iframe src="plan.html" id="frame-plan" class="module-frame"></iframe>
+            <iframe src="post.html" id="frame-post" class="module-frame"></iframe>
+            <iframe src="image.html" id="frame-image" class="module-frame"></iframe>
+            <iframe src="caidat.html" id="frame-caidat" class="module-frame"></iframe>
+        </div>
     </div>
 
     <script>
         document.getElementById('welcomeUser').innerText = localStorage.getItem('admin_name') || 'Admin';
         
-        // KIỂM TRA QUYỀN ĐỂ MỞ KHÓA MENU CÀI ĐẶT
         if (localStorage.getItem('admin_email') === 'admin@tudonghoavinhloc.com') {
             document.getElementById('menuSettings').style.display = 'flex';
         }
 
+        // Khôi phục Tab đang mở sau khi F5/Tải lại trang
+        document.addEventListener("DOMContentLoaded", () => {
+            let savedModule = localStorage.getItem('MKT_ACTIVE_MODULE') || 'idea.html';
+            let targetId = savedModule.replace('.html', '');
+            
+            let items = document.querySelectorAll('.menu-item-side');
+            let targetItem = Array.from(items).find(el => el.getAttribute('data-target') === targetId);
+            
+            if (targetItem) {
+                loadModule(savedModule, targetItem);
+            } else {
+                loadModule('idea.html', items[0]);
+            }
+        });
+
         function logout() { localStorage.clear(); window.location.href = 'index.html'; }
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
         
-        // Hàm loadModule tải trang ngay lập tức
-        // Hàm loadModule cải tiến: Dùng cơ chế Multi-Iframe để chuyển trang lập tức & giữ vị trí cuộn
-function loadModule(url, element) {
-    // 1. Đổi màu menu active
-    document.querySelectorAll('.menu-item-side').forEach(el => el.classList.remove('active')); 
-    element.classList.add('active');
-    
-    // 2. Tạo ID duy nhất cho iframe của từng tab (Ví dụ: iframe_idea_html)
-    const iframeId = 'iframe_' + url.replace(/[^a-zA-Z0-9]/g, '_');
-    
-    // Tìm vùng chứa cha để nhét các iframe vào
-    const oldFrame = document.getElementById('moduleFrame');
-    let container = oldFrame ? oldFrame.parentNode : null;
-    
-    if (oldFrame) {
-        // Lần đầu chạy, ẩn cái iframe tĩnh gốc đi
-        oldFrame.style.display = 'none';
-        oldFrame.removeAttribute('id'); // Bỏ id cũ để tránh trùng dòng với iframe động
-    }
-    
-    if (!container) return;
+        // HÀM CHUYỂN MODULE 0ms VÀ BẢO LƯU SCROLL
+        function loadModule(url, element) {
+            // Đổi màu menu
+            document.querySelectorAll('.menu-item-side').forEach(el => el.classList.remove('active')); 
+            element.classList.add('active');
+            
+            // Tìm id của iframe cần hiện
+            let targetId = 'frame-' + url.replace('.html', '');
+            
+            // Giấu tất cả iframe, chỉ hiện iframe được chọn
+            document.querySelectorAll('.module-frame').forEach(frame => {
+                frame.classList.remove('active-frame');
+            });
+            document.getElementById(targetId).classList.add('active-frame');
 
-    // 3. Ẩn tất cả các iframe hiện có trong vùng chứa
-    container.querySelectorAll('iframe').forEach(iframe => {
-        iframe.style.display = 'none';
-    });
-
-    // 4. Kiểm tra xem iframe của trang này đã từng được tạo chưa
-    let targetIframe = document.getElementById(iframeId);
-    if (!targetIframe) {
-        // Nếu chưa có thì tạo mới đúng 1 lần duy nhất
-        targetIframe = document.createElement('iframe');
-        targetIframe.id = iframeId;
-        targetIframe.src = url;
-        
-        // Giữ nguyên CSS gốc của moduleFrame để không lệch giao diện
-        targetIframe.style.flexGrow = '1';
-        targetIframe.style.border = 'none';
-        targetIframe.style.width = '100%';
-        targetIframe.style.height = '100%';
-        targetIframe.style.background = '#f9f9f9';
-        
-        container.appendChild(targetIframe);
-    } else {
-        // ĐẢM BẢO DỮ LIỆU LUÔN MỚI:
-        // Vì iframe ẩn vẫn sống ngầm, setInterval bên trong các trang con (idea.html, plan.html...) 
-        // vẫn tự chạy ngầm để lấy dữ liệu mới từ get-brain.js / Google Sheet.
-        // Để chắc chắn hơn nữa, khi người dùng click lại vào tab, ta ép trang con gọi hàm fetch dữ liệu ngay lập tức:
-        try {
-            if (targetIframe.contentWindow && typeof targetIframe.contentWindow.fetchDataFromServer === 'function') {
-                targetIframe.contentWindow.fetchDataFromServer(true); 
-            }
-        } catch(e) { 
-            // Phòng trường hợp iframe chưa kịp load xong ở lần đầu click
-            console.log("Chờ iframe sẵn sàng để cập nhật dữ liệu."); 
+            // Lưu lại trang hiện tại vào bộ nhớ đệm
+            localStorage.setItem('MKT_ACTIVE_MODULE', url);
+            
+            // Xóa thanh tìm kiếm khi đổi trang
+            document.getElementById('globalSearch').value = "";
         }
-    }
-
-    // 5. Hiển thị iframe mục tiêu ngay lập tức - tốc độ mắt không kịp thấy chuyển giao
-    targetIframe.style.display = 'block';
-    document.getElementById('globalSearch').value = "";
-    
-    // 6. Lưu lại URL đang mở vào localStorage để phục vụ khi tải lại trang (F5)
-    localStorage.setItem('active_module_url', url);
-}
-
-// TỰ ĐỘNG KHÔI PHỤC ĐÚNG TAB ĐANG MỞ KHI TẢI LẠI TRANG (F5)
-// Thêm sự kiện DOMContentLoaded này vào cuối phân vùng <script> trong admin.html
-document.addEventListener('DOMContentLoaded', () => {
-    const savedUrl = localStorage.getItem('active_module_url');
-    let targetItem = null;
-    
-    if (savedUrl) {
-        // Tìm xem menu-item-side nào đang chứa link đã lưu trong thuộc tính onclick
-        document.querySelectorAll('.menu-item-side').forEach(item => {
-            const attrClick = item.getAttribute('onclick') || '';
-            if (attrClick.includes(savedUrl)) {
-                targetItem = item;
-            }
-        });
-    }
-    
-    // Nếu tìm thấy tab cũ thì mở lại, không thì tự động click vào tab đầu tiên làm mặc định
-    if (targetItem && savedUrl) {
-        loadModule(savedUrl, targetItem);
-    } else {
-        const firstMenu = document.querySelector('.menu-item-side');
-        if (firstMenu) firstMenu.click();
-    }
-});
 
         function executeGlobalSearch() {
-    let kw = document.getElementById('globalSearch').value.trim(); 
-    let savedUrl = localStorage.getItem('active_module_url');
-    
-    if (savedUrl) {
-        const iframeId = 'iframe_' + savedUrl.replace(/[^a-zA-Z0-9]/g, '_');
-        let activeFrame = document.getElementById(iframeId);
-        
-        if (activeFrame && activeFrame.contentWindow && typeof activeFrame.contentWindow.executeSearch === 'function') {
-            activeFrame.contentWindow.executeSearch(kw);
+            let kw = document.getElementById('globalSearch').value.trim(); 
+            // Xác định iframe nào đang được mở để kích hoạt tìm kiếm
+            let activeFrame = document.querySelector('.module-frame.active-frame');
+            
+            if(activeFrame && activeFrame.contentWindow && typeof activeFrame.contentWindow.executeSearch === 'function') {
+                activeFrame.contentWindow.executeSearch(kw);
+            }
         }
-    }
-}
     </script>
 </body>
 </html>
