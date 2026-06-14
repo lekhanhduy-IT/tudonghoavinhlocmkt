@@ -448,7 +448,7 @@ Google Fonts:</div>
         // CƠ CHẾ NẠP BÀI VIẾT TỪ CACHE (Siêu tốc)
         // Ưu tiên lấy ID từ URL (VD: ?id=POST_123), nếu không có mới lấy từ Draft Kế hoạch
         let urlParams = new URLSearchParams(window.location.search);
-        let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[1] : null);
+        let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[0] : null);
         if (postIdToLoad) {
             loadPostIntoEditor(postIdToLoad);
         }
