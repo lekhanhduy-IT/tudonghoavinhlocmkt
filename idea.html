@@ -218,13 +218,12 @@ fetchDataFromServer();
 setInterval(processQueueAndSync, 4000);
 // ... code còn lại ... // Vòng lặp Queue cũ
             
-            // VÒNG LẶP DỰ PHÒNG: Quét tự động mỗi 20s ép tải từ Google nếu có biến
+           // VÒNG LẶP DỰ PHÒNG: Quét tự động mỗi 20s ép tải từ Google nếu có biến
             setInterval(() => {
                 if(actionQueue.length === 0 && !isProcessingQueue && !checkIsEditing()) {
                     fetchDataFromServer(true); // <--- THÊM CHỮ true VÀO ĐÂY
                 }
             }, 20000);
-
             document.addEventListener('paste', handlePasteEvent); document.addEventListener('mousemove', handleMouseMove); document.addEventListener('mouseup', handleMouseUp);
             document.addEventListener('click', (e) => { document.querySelectorAll('.popup-box').forEach(el => { if(!el.contains(e.target)) el.style.display = 'none'; }); });
             document.querySelectorAll('.popup-box').forEach(box => { box.addEventListener('click', (e) => e.stopPropagation()); });
@@ -237,7 +236,7 @@ setInterval(processQueueAndSync, 4000);
             fetchDataFromServer();
         }
 
-       async function fetchDataFromServer(forceGoogle = false) {
+        async function fetchDataFromServer(forceGoogle = false) {
     try {
         if(actionQueue.length === 0) setSyncStatus("🔄 Đang lấy dữ liệu...", "var(--blue)");
         
@@ -290,7 +289,6 @@ setInterval(processQueueAndSync, 4000);
         }
     } catch(e) { setSyncStatus("⚠️ Ngoại tuyến", "var(--red)"); }
 }
-
         async function processQueueAndSync() {
             if(isProcessingQueue) return; isProcessingQueue = true;
             let batch = [...actionQueue]; actionQueue = []; 
@@ -301,9 +299,9 @@ setInterval(processQueueAndSync, 4000);
                 if (!json.success) { if(batch.length > 0) actionQueue = batch.concat(actionQueue); } 
                 else { 
                     if(batch.length > 0) setSyncStatus("✅ Đã lưu", "#27ae60"); 
-                    // PHÁT HIỆN DỮ LIỆU MỚI TỪ API GỬI VỀ
+                   // PHÁT HIỆN DỮ LIỆU MỚI TỪ API GỬI VỀ
                     if (currentSyncToken !== 0 && json.syncToken > currentSyncToken && batch.length === 0) {
-                        if(!checkIsEditing()) await fetchDataFromServer();
+                        if(!checkIsEditing()) await fetchDataFromServer(true); // <--- THÊM CHỮ true VÀO ĐÂY
                         else setSyncStatus("⚠️ Có dữ liệu mới", "#f39c12");
                     }
                     currentSyncToken = json.syncToken;
