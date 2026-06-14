@@ -218,12 +218,12 @@ fetchDataFromServer();
 setInterval(processQueueAndSync, 4000);
 // ... code còn lại ... // Vòng lặp Queue cũ
             
-            // VÒNG LẶP DỰ PHÒNG: Quét tự động mỗi 20s nếu không gõ chữ
+            // VÒNG LẶP DỰ PHÒNG: Quét tự động mỗi 20s ép tải từ Google nếu có biến
             setInterval(() => {
                 if(actionQueue.length === 0 && !isProcessingQueue && !checkIsEditing()) {
-                    fetchDataFromServer();
+                    fetchDataFromServer(true); // <--- THÊM CHỮ true VÀO ĐÂY
                 }
-            }, 20000); 
+            }, 20000);
 
             document.addEventListener('paste', handlePasteEvent); document.addEventListener('mousemove', handleMouseMove); document.addEventListener('mouseup', handleMouseUp);
             document.addEventListener('click', (e) => { document.querySelectorAll('.popup-box').forEach(el => { if(!el.contains(e.target)) el.style.display = 'none'; }); });
@@ -237,34 +237,43 @@ setInterval(processQueueAndSync, 4000);
             fetchDataFromServer();
         }
 
-        async function fetchDataFromServer() {
+       async function fetchDataFromServer(forceGoogle = false) {
     try {
         if(actionQueue.length === 0) setSyncStatus("🔄 Đang lấy dữ liệu...", "var(--blue)");
         
-        // ===== SỬA Ở ĐÂY: GỌI NÃO NHỆN ======
-        // Nếu đang chạy code trên máy tính (localhost) thì gọi Google, nếu lên Vercel thì gọi API Vercel
-        let fetchUrl = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+        // ===== ÉP TẢI TỪ GOOGLE KHI CẦN & CHỐNG KẸT CACHE ======
+        let fetchUrl = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || forceGoogle) 
             ? API_URL + "?t=" + new Date().getTime() 
-            : "/api/get-brain";
+            : "/api/get-brain?t=" + new Date().getTime(); 
 
         let res = await fetch(fetchUrl);
         let json = await res.json();
         
-        // Kế hoạch dự phòng (Fallback): Lỡ Vercel KV bị lỗi hoặc trống, thì tự động chạy lại link Google cũ
-        if (!json.success && fetchUrl === "/api/get-brain") {
+        // Dự phòng nếu Não nhện lỗi
+        if (!json.success && fetchUrl.includes("/api/get-brain")) {
             console.warn("Não nhện lỗi, tự động gọi Google Apps Script dự phòng...");
             res = await fetch(API_URL + "?t=" + new Date().getTime());
             json = await res.json();
         }
 
-        if(json.success) {
+        let incomingData = json.source === 'spider-brain' ? json.data : json;
+
+        if(incomingData && (incomingData.success || json.success)) {
+            
+            // ===== CHỐNG LƯU NGƯỢC VỀ QUÁ KHỨ =====
+            // Nếu không bị ép tải từ Google, và data của Nhện CŨ HƠN data đang hiển thị -> Bỏ qua
+            if (!forceGoogle && currentSyncToken && incomingData.syncToken < currentSyncToken) {
+                console.log("Não nhện đang chứa data cũ, giữ nguyên giao diện hiện tại.");
+                setSyncStatus("✅ Sẵn sàng", "#27ae60");
+                return; 
+            }
+
             let localFilters = sysData.filters; 
-            sysData = json.data; 
+            sysData = incomingData; 
             sysData.filters = localFilters || {}; 
             currentSyncToken = sysData.syncToken;
             localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
             
-            // ... (Đoạn code bóc tách Tab và render bên dưới giữ nguyên không đổi) ...
             let firstVisibleTab = sysData.tabOrder.find(t => !t.endsWith('_hidden') && !(sysData.attributes[t] || {}).hidden);
             if(!activeTab || !sysData.tabOrder.includes(activeTab) || activeTab.endsWith('_hidden') || (sysData.attributes[activeTab] || {}).hidden) {
                 activeTab = firstVisibleTab || sysData.tabOrder[0];
@@ -280,7 +289,7 @@ setInterval(processQueueAndSync, 4000);
             }
         }
     } catch(e) { setSyncStatus("⚠️ Ngoại tuyến", "var(--red)"); }
-        }
+}
 
         async function processQueueAndSync() {
             if(isProcessingQueue) return; isProcessingQueue = true;
