@@ -585,7 +585,9 @@ function openSchedulePopup() {
 
     showModal("Lên Lịch Công Việc", `
         <div style="margin-bottom: 12px; font-size: 14px; font-weight: bold; color: var(--blue); text-align: center;">📅 Chọn ngày hoàn thành dự kiến</div>
-        <input type="text" id="scheduleDate" class="date-picker-rounded" placeholder="VD: 15/06/2026" style="text-align: center; background-color: #fff; cursor: text;">
+        <div style="display: block; width: 100%;">
+            <input type="text" id="scheduleDate" placeholder="VD: 15/06/2026" style="text-align: center; background-color: #fff; cursor: text;">
+        </div>
     `, [
         { text: "Lên lịch & Chuyển", class: "btn-blue btn-rounded", onclick: processSchedule },
         { text: "Hủy", class: "btn-cancel btn-rounded", onclick: closeModal }
@@ -600,21 +602,28 @@ function openSchedulePopup() {
             allowInput: true,
             defaultDate: lastDate || "today", 
             disableMobile: "true",
-            static: true, // THUỐC ĐẶC TRỊ: Khóa chặt lịch nằm dưới ô input, không cho bay lung tung
+            
+            // THUỐC GIẢI 1: Ép ô input ảo phải mang class CSS để bung full 100% ra giữa
+            altInputClass: "date-picker-rounded",
+            
+            // THUỐC GIẢI 2: Đưa cái popup lịch ra hẳn ngoài thẻ <body> để không bị giới hạn bởi khung Modal
+            appendTo: document.body,
+            
+            // THUỐC GIẢI 3: Cho phép tự do nhảy lên nhảy xuống tùy theo khoảng trống của màn hình
+            position: "auto center",
+
             onChange: function(selectedDates, dateStr, instance) {
-                // Đóng lịch tự động khi chọn xong ngày
-                instance.close(); 
+                instance.close(); // Tự động đóng lịch khi chọn xong
             }
         });
 
-        // XỬ LÝ VỤ BẤM CHUỘT 2 LẦN
-        // Dùng onmousedown để "cướp" lệnh click trước khi thằng lịch kịp đóng lại
+        // Giữ nguyên cơ chế "1 click ăn ngay" cho nút Lên lịch
         let btnSubmit = document.querySelector("#modalFooter .btn-blue");
         if(btnSubmit) {
             btnSubmit.onmousedown = function(e) {
                 e.preventDefault(); 
-                if(fp.isOpen) fp.close(); // Nếu lịch đang mở thì dẹp nó đi
-                processSchedule(); // Gọi luôn hàm chuyển dữ liệu, 1 click ăn ngay!
+                if(fp.isOpen) fp.close(); 
+                processSchedule(); 
             };
         }
     }, 50);
