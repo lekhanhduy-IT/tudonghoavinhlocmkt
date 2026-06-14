@@ -414,7 +414,7 @@ Google Fonts:</div>
         // MỚI THÊM ĐỂ ĐỒNG BỘ CACHE
         let currentSyncToken = 0;
         let hasPendingUpdate = false; 
-
+        let isPostDirty = false;
         // KIỂM TRA XEM NGƯỜI DÙNG CÓ ĐANG GÕ CHỮ HAY KHÔNG (Dành riêng cho Post)
         function checkIsEditing() {
             let active = document.activeElement;
@@ -511,14 +511,44 @@ Google Fonts:</div>
         };
 
         // HÀM RENDER AN TOÀN (Tuyệt đối không chạm vào #postContent)
+       // HÀM RENDER THÔNG MINH MỚI
         function processAndRenderPostUI() {
             loadGoogleFonts();
             loadTemplates();
             window.loadEmojis();
+
+            // 1. Tự động cập nhật Panel Kế hoạch bên trái từ Sheet gốc (_PLAN_DATA_)
+            if (draftData && draftData.planRowIndex !== undefined && sysData.sheets["_PLAN_DATA_"]) {
+                let planRow = sysData.sheets["_PLAN_DATA_"][draftData.planRowIndex];
+                if (planRow && planRow[2]) {
+                    try {
+                        let newData = JSON.parse(planRow[2]);
+                        draftData.data = newData;
+                        localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
+                    } catch(e) {}
+                }
+            }
+            loadDraftData();
+
+            // 2. Tự động cập nhật Bài viết (CHỈ KHI NGƯỜI DÙNG CHƯA GÕ GÌ ĐỂ TRÁNH MẤT CHỮ)
+            let urlParams = new URLSearchParams(window.location.search);
+            let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[0] : null);
+            
+            if (postIdToLoad && !isPostDirty) {
+                loadPostIntoEditor(postIdToLoad);
+            }
         }
         
+        // NÚT KHỞI TẠO THÔNG MINH BẢO VỆ NGƯỜI DÙNG
         function forceFetchData() {
-            if(checkIsEditing()) return alert("Vui lòng click ra ngoài vùng soạn thảo để làm mới dữ liệu!"); 
+            if (isPostDirty) {
+                if (!confirm("Bạn đang có thay đổi chưa lưu! Nếu làm mới dữ liệu từ máy chủ, các chữ bạn vừa gõ sẽ bị mất. Vẫn tiếp tục tải lại?")) {
+                    return;
+                }
+                isPostDirty = false; // Bỏ qua cờ bảo vệ để ép tải lại
+            } else if (checkIsEditing()) {
+                return alert("Vui lòng click ra ngoài vùng soạn thảo để làm mới dữ liệu!"); 
+            }
             fetchDataFromServer(true);
         }
 
@@ -576,7 +606,20 @@ Google Fonts:</div>
                         });
                     }
                 });
-
+// MỚI THÊM: ĐÁNH DẤU BÀI VIẾT ĐÃ BỊ SỬA (CHƯA LƯU)
+                ['postTitle', 'postSapo', 'postContent', 'coverUrlInput'].forEach(id => {
+                    let el = document.getElementById(id);
+                    if(el) {
+                        el.addEventListener('input', () => { 
+                            isPostDirty = true; 
+                            let s = document.getElementById('syncStatus');
+                            if (s.innerText !== "⏳ Đang lưu nền...") {
+                                s.innerText = "⚠️ Chưa lưu";
+                                s.style.color = "var(--red)";
+                            }
+                        });
+                    }
+                });
                 // 2. CÁC SỰ KIỆN GỐC KHÁC GIỮ NGUYÊN BÊN DƯỚI
                 document.getElementById('tplHtmlInput').addEventListener('input', function() {
                     document.getElementById('tplPreview').innerHTML = this.value;
@@ -2158,6 +2201,8 @@ function loadPostIntoEditor(postId) {
         pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết_hidden"});
         pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết_hidden"});
     }
+    // Dán dòng này vào cuối cùng của hàm savePostToSheet
+        isPostDirty = false;
 }
 
 
