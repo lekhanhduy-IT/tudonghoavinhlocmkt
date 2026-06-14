@@ -583,7 +583,6 @@ function openSchedulePopup() {
 
     let lastDate = document.getElementById("scheduleDate") ? document.getElementById("scheduleDate").value : "";
 
-    // ĐÃ BỎ thuộc tính 'readonly' để cho phép nhấp nháy con trỏ chuột và gõ phím
     showModal("Lên Lịch Công Việc", `
         <div style="margin-bottom: 12px; font-size: 14px; font-weight: bold; color: var(--blue); text-align: center;">📅 Chọn ngày hoàn thành dự kiến</div>
         <input type="text" id="scheduleDate" class="date-picker-rounded" placeholder="VD: 15/06/2026" style="text-align: center; background-color: #fff; cursor: text;">
@@ -592,17 +591,33 @@ function openSchedulePopup() {
         { text: "Hủy", class: "btn-cancel btn-rounded", onclick: closeModal }
     ]);
 
-    // Bổ sung các lệnh cho phép gõ tay và đổi format
     setTimeout(() => {
-        flatpickr("#scheduleDate", {
+        let fp = flatpickr("#scheduleDate", {
             locale: "vn",
-            dateFormat: "Y-m-d",    // Dữ liệu ngầm định lưu vào Sheet (Năm-Tháng-Ngày) để dễ sort
-            altInput: true,         // Tạo một ô nhập liệu thân thiện với người dùng
-            altFormat: "d/m/Y",     // Hiển thị ra ngoài giao diện là Ngày/Tháng/Năm
-            allowInput: true,       // MỞ KHÓA BÀN PHÍM: Cho phép gõ trực tiếp ngày tháng năm
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "d/m/Y",
+            allowInput: true,
             defaultDate: lastDate || "today", 
-            disableMobile: "true"
+            disableMobile: "true",
+            // TRỊ BỆNH 1: Ép lịch luôn xổ xuống dưới giữa, cấm nhảy lên đè ô nhập
+            position: "bottom center", 
+            onChange: function(selectedDates, dateStr, instance) {
+                // Chọn ngày xong là tự động đóng popup lịch luôn cho thoáng
+                instance.close(); 
+            }
         });
+
+        // TRỊ BỆNH 2: Bắt cú nhấp chuột ngay tức khắc
+        let btnSubmit = document.querySelector("#modalFooter .btn-blue");
+        if(btnSubmit) {
+            // Dùng onmousedown để "cướp" lệnh click trước khi Flatpickr kịp nuốt nó
+            btnSubmit.onmousedown = function(e) {
+                e.preventDefault(); // Ngăn không cho ô nhập liệu bị mất focus gây kẹt
+                if(fp.isOpen) fp.close(); // Dẹp luôn cái lịch nếu nó đang cản đường
+                processSchedule(); // Bấm 1 phát ăn ngay!
+            };
+        }
     }, 50);
 }
 function processSchedule() {
