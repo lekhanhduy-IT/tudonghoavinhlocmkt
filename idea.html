@@ -545,26 +545,28 @@ function openSchedulePopup() {
 
     let lastDate = document.getElementById("scheduleDate") ? document.getElementById("scheduleDate").value : "";
 
-    // Đổi type="date" thành type="text" để thư viện tự quản lý giao diện
+    // ĐÃ BỎ thuộc tính 'readonly' để cho phép nhấp nháy con trỏ chuột và gõ phím
     showModal("Lên Lịch Công Việc", `
         <div style="margin-bottom: 12px; font-size: 14px; font-weight: bold; color: var(--blue); text-align: center;">📅 Chọn ngày hoàn thành dự kiến</div>
-        <input type="text" id="scheduleDate" class="date-picker-rounded" placeholder="Nhấp để chọn ngày..." style="text-align: center; background-color: #fff; cursor: pointer;" readonly>
+        <input type="text" id="scheduleDate" class="date-picker-rounded" placeholder="VD: 15/06/2026" style="text-align: center; background-color: #fff; cursor: text;">
     `, [
         { text: "Lên lịch & Chuyển", class: "btn-blue btn-rounded", onclick: processSchedule },
         { text: "Hủy", class: "btn-cancel btn-rounded", onclick: closeModal }
     ]);
 
-    // Kích hoạt lịch Flatpickr hiển thị bo tròn cực mượt
+    // Bổ sung các lệnh cho phép gõ tay và đổi format
     setTimeout(() => {
         flatpickr("#scheduleDate", {
-            locale: "vn",           // Tiếng Việt
-            dateFormat: "Y-m-d",    // Định dạng lưu dữ liệu chuẩn
+            locale: "vn",
+            dateFormat: "Y-m-d",    // Dữ liệu ngầm định lưu vào Sheet (Năm-Tháng-Ngày) để dễ sort
+            altInput: true,         // Tạo một ô nhập liệu thân thiện với người dùng
+            altFormat: "d/m/Y",     // Hiển thị ra ngoài giao diện là Ngày/Tháng/Năm
+            allowInput: true,       // MỞ KHÓA BÀN PHÍM: Cho phép gõ trực tiếp ngày tháng năm
             defaultDate: lastDate || "today", 
-            disableMobile: "true"   // Ép dùng giao diện bo tròn này trên cả điện thoại thay vì UI mặc định của máy
+            disableMobile: "true"
         });
     }, 50);
 }
-
 function processSchedule() {
     let dateVal = document.getElementById("scheduleDate").value;
     if (!dateVal) {
