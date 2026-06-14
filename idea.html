@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mô-đun Grid</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/vn.js"></script>
     <style>
         :root { --white: #ffffff; --blue: #01adee; --red: #db1010; --gray-light: #f1f3f4; --gray-border: #e0e0e0; --text-main: #333333; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
@@ -70,6 +73,22 @@
     font-family: inherit;
 }
 .date-picker-rounded:focus { box-shadow: 0 0 8px rgba(1, 173, 238, 0.4); }
+/* Giao diện Lịch Flatpickr Custom Bo Tròn */
+.flatpickr-calendar { 
+    border-radius: 20px !important; 
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important; 
+    border: 1px solid var(--gray-border) !important; 
+    padding: 10px !important; 
+}
+.flatpickr-day { 
+    border-radius: 50% !important; /* Ép nút chọn ngày thành hình tròn */
+    transition: 0.2s !important; 
+}
+.flatpickr-day.selected, .flatpickr-day.selected:hover, .flatpickr-day.selected:focus { 
+    background: var(--blue) !important; 
+    border-color: var(--blue) !important; 
+}
+.flatpickr-months .flatpickr-month { height: 40px !important; }
     </style>
 </head>
 <body>
@@ -524,16 +543,26 @@ function openSchedulePopup() {
         return;
     }
 
-    // Giữ lại ngày vừa chọn nếu trước đó người dùng bị báo lỗi
     let lastDate = document.getElementById("scheduleDate") ? document.getElementById("scheduleDate").value : "";
 
+    // Đổi type="date" thành type="text" để thư viện tự quản lý giao diện
     showModal("Lên Lịch Công Việc", `
         <div style="margin-bottom: 12px; font-size: 14px; font-weight: bold; color: var(--blue); text-align: center;">📅 Chọn ngày hoàn thành dự kiến</div>
-        <input type="date" id="scheduleDate" class="date-picker-rounded" value="${lastDate}">
+        <input type="text" id="scheduleDate" class="date-picker-rounded" placeholder="Nhấp để chọn ngày..." style="text-align: center; background-color: #fff; cursor: pointer;" readonly>
     `, [
         { text: "Lên lịch & Chuyển", class: "btn-blue btn-rounded", onclick: processSchedule },
         { text: "Hủy", class: "btn-cancel btn-rounded", onclick: closeModal }
     ]);
+
+    // Kích hoạt lịch Flatpickr hiển thị bo tròn cực mượt
+    setTimeout(() => {
+        flatpickr("#scheduleDate", {
+            locale: "vn",           // Tiếng Việt
+            dateFormat: "Y-m-d",    // Định dạng lưu dữ liệu chuẩn
+            defaultDate: lastDate || "today", 
+            disableMobile: "true"   // Ép dùng giao diện bo tròn này trên cả điện thoại thay vì UI mặc định của máy
+        });
+    }, 50);
 }
 
 function processSchedule() {
