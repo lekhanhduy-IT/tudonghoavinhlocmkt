@@ -157,20 +157,33 @@
 let cached = localStorage.getItem("MKT_DATA");
 let cachedActiveTab = localStorage.getItem("ACTIVE_TAB"); // Đọc tab đã lưu
 
-if (cached) { 
-    sysData = JSON.parse(cached); 
-    currentSyncToken = sysData.syncToken || 0; 
-    
-    // Khôi phục tab đang mở, hoặc lấy tab đầu tiên hợp lệ
-    if (cachedActiveTab && sysData.tabOrder.includes(cachedActiveTab)) {
-        activeTab = cachedActiveTab;
-    } else {
-        // Tìm tab đầu tiên không bị ẩn
-        activeTab = sysData.tabOrder.find(t => !t.endsWith('_hidden') && !(sysData.attributes[t] || {}).hidden) || sysData.tabOrder[0];
+try {
+    if (cached) {
+        let parsedData = JSON.parse(cached);
+        
+        // Kế thừa an toàn, ép kiểu để tránh lỗi undefined làm sập tiến trình
+        sysData.sheets = parsedData.sheets || {};
+        sysData.attributes = parsedData.attributes || {};
+        sysData.tabOrder = parsedData.tabOrder || [];
+        sysData.filters = parsedData.filters || {};
+        currentSyncToken = parsedData.syncToken || 0;
+
+        // Chỉ xử lý tab nếu tabOrder có dữ liệu hợp lệ
+        if (sysData.tabOrder.length > 0) {
+            // Khôi phục tab đang mở, hoặc lấy tab đầu tiên hợp lệ
+            if (cachedActiveTab && sysData.tabOrder.includes(cachedActiveTab)) {
+                activeTab = cachedActiveTab;
+            } else {
+                // Tìm tab đầu tiên không bị ẩn
+                activeTab = sysData.tabOrder.find(t => !t.endsWith('_hidden') && !(sysData.attributes[t] || {}).hidden) || sysData.tabOrder[0];
+            }
+            renderTabs();
+            renderGrid();
+        }
     }
-    
-    renderTabs(); 
-    renderGrid(); 
+} catch (error) {
+    console.warn("Dữ liệu cache bị lỗi hoặc cũ. Xóa cache và tải mới hoàn toàn:", error);
+    localStorage.removeItem("MKT_DATA"); // Xóa cái cache hư này đi để không kẹt nữa
 }
 
 fetchDataFromServer(); 
