@@ -583,11 +583,36 @@ function openSchedulePopup() {
 
     let lastDate = document.getElementById("scheduleDate") ? document.getElementById("scheduleDate").value : "";
 
-    // Mở rộng form ra xíu nữa cho thoải mái
+    // Nới khung ra xíu nữa cho an toàn tuyệt đối
     let modalBox = document.querySelector(".modal-box");
-    modalBox.style.maxWidth = "720px";
+    modalBox.style.maxWidth = "750px";
 
     showModal("Lên Lịch Công Việc", `
+        <style>
+            /* THUỐC ĐẶC TRỊ ÉP FLATPICKR KHÔNG ĐƯỢC MẤT CỘT CHỦ NHẬT */
+            #calendarRightPanel .flatpickr-calendar {
+                padding: 0 !important; 
+                box-shadow: none !important; 
+                border: none !important;
+                width: 300px !important; /* Ép cứng kích thước */
+                margin: 0 auto !important;
+                background: transparent !important;
+            }
+            #calendarRightPanel .flatpickr-days,
+            #calendarRightPanel .dayContainer {
+                width: 100% !important;
+                min-width: 100% !important;
+                max-width: 100% !important;
+                display: flex !important;
+                justify-content: center !important;
+            }
+            #calendarRightPanel .flatpickr-day {
+                max-width: 38px !important; /* Ép nút ngày thon gọn lại để đủ 7 cột */
+                height: 38px !important;
+                line-height: 38px !important;
+            }
+        </style>
+
         <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; padding: 10px 0;">
             <div style="flex: 1; min-width: 250px; margin-top: 10px;">
                 <div style="margin-bottom: 15px; font-size: 15px; font-weight: bold; color: var(--blue);">📅 Ngày hoàn thành:</div>
@@ -601,8 +626,8 @@ function openSchedulePopup() {
                 </div>
             </div>
             
-            <div id="calendarRightPanel" style="width: 340px; min-width: 340px; display: flex; justify-content: center; background: #fff; padding: 10px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1.5px solid var(--gray-border); box-sizing: border-box;">
-                </div>
+            <div id="calendarRightPanel" style="width: 320px; min-width: 320px; display: flex; flex-direction: column; justify-content: center; background: #fff; padding: 15px 5px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border: 1.5px solid var(--gray-border); box-sizing: border-box; overflow: hidden;">
+            </div>
         </div>
     `, [
         { text: "Lên lịch & Chuyển", class: "btn-blue btn-rounded", onclick: () => { 
