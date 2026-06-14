@@ -61,6 +61,15 @@
         .btn-blue:hover { background: #0199d3; color: var(--white); box-shadow: 0 2px 5px rgba(1,173,238,0.3); }
         .btn-cancel { background: var(--white); color: var(--text-main); border: 0.5px solid var(--gray-border); }
         .btn-cancel:hover { background: #f1f3f4; color: var(--red); border-color: var(--red); }
+        /* CSS Thêm cho Lịch và Nút bo tròn */
+.btn-rounded { border-radius: 30px !important; }
+.date-picker-rounded { 
+    width: 100%; padding: 10px 15px; border-radius: 30px; 
+    border: 1.5px solid var(--blue); outline: none; font-size: 14px; 
+    color: var(--text-main); cursor: pointer; transition: 0.3s;
+    font-family: inherit;
+}
+.date-picker-rounded:focus { box-shadow: 0 0 8px rgba(1, 173, 238, 0.4); }
     </style>
 </head>
 <body>
@@ -493,35 +502,93 @@ function isRowFilteredOut(r, matrix) {
 // CHỨC NĂNG LÊN LỊCH & CHUYỂN DỮ LIỆU SANG PLAN
 // ==========================================
 
+// ==========================================
+// CHỨC NĂNG LÊN LỊCH & CHUYỂN DỮ LIỆU SANG PLAN (ĐÃ CẬP NHẬT)
+// ==========================================
+
 function openSchedulePopup() {
     document.getElementById("contextMenu").style.display = "none";
     
     if (!selStart) {
-        alert("Vui lòng bôi đen (chọn) dữ liệu cần lên lịch!");
+        showModal("Lỗi thao tác", "<p style='text-align:center; font-size:14px;'>Vui lòng bôi đen (chọn) dữ liệu cần lên lịch!</p>", [
+            { text: "Đóng", class: "btn-cancel btn-rounded", onclick: closeModal }
+        ]);
         return;
     }
 
     let minR = Math.min(selStart.r, selEnd.r);
     if (minR === 0) {
-        alert("Không thể chuyển hàng tiêu đề. Vui lòng chỉ chọn dữ liệu!");
+        showModal("Lỗi thao tác", "<p style='text-align:center; font-size:14px;'>Không thể chuyển hàng tiêu đề. Vui lòng chỉ chọn dữ liệu!</p>", [
+            { text: "Đóng", class: "btn-cancel btn-rounded", onclick: closeModal }
+        ]);
         return;
     }
 
+    // Giữ lại ngày vừa chọn nếu trước đó người dùng bị báo lỗi
+    let lastDate = document.getElementById("scheduleDate") ? document.getElementById("scheduleDate").value : "";
+
     showModal("Lên Lịch Công Việc", `
-        <div style="margin-bottom: 8px; font-size: 13px; font-weight: bold; color: var(--text-main);">Chọn ngày hoàn thành dự kiến:</div>
-        <input type="date" id="scheduleDate" class="popup-input" style="width: 100%; margin-bottom: 10px; padding: 10px; border-radius: 4px; border: 1px solid var(--gray-border);">
+        <div style="margin-bottom: 12px; font-size: 14px; font-weight: bold; color: var(--blue); text-align: center;">📅 Chọn ngày hoàn thành dự kiến</div>
+        <input type="date" id="scheduleDate" class="date-picker-rounded" value="${lastDate}">
     `, [
-        { text: "Lên lịch & Chuyển", class: "btn-blue", onclick: processSchedule },
-        { text: "Hủy", class: "btn-cancel", onclick: closeModal }
+        { text: "Lên lịch & Chuyển", class: "btn-blue btn-rounded", onclick: processSchedule },
+        { text: "Hủy", class: "btn-cancel btn-rounded", onclick: closeModal }
     ]);
 }
 
 function processSchedule() {
     let dateVal = document.getElementById("scheduleDate").value;
-    if (!dateVal) return alert("Vui lòng chọn ngày hợp lệ!");
+    if (!dateVal) {
+        showModal("Lỗi Nhập Liệu", `
+            <div style="text-align:center; padding: 10px 0;">
+                <i class="fas fa-times-circle" style="font-size: 40px; color: var(--red); margin-bottom: 10px;"></i>
+                <p style="font-size: 14px; font-weight: bold; color: var(--text-main);">Vui lòng chọn ngày hợp lệ!</p>
+            </div>
+        `, [
+            { text: "Chọn lại", class: "btn-blue btn-rounded", onclick: openSchedulePopup }
+        ]);
+        return;
+    }
 
     let minR = Math.min(selStart.r, selEnd.r), maxR = Math.max(selStart.r, selEnd.r), countR = maxR - minR + 1;
     let mat = sysData.sheets[activeTab];
+    let rowsToMove = mat.slice(minR, maxR + 1);
+
+    // ---------------------------------------------------------
+    // BƯỚC KIỂM TRA TRÙNG LẶP ID TRONG _PLAN_DATA_
+    // ---------------------------------------------------------
+    let selectedIds = rowsToMove.map(r => r[0]).filter(id => id && String(id).trim() !== "");
+    let existingIds = [];
+    
+    if (sysData.sheets["_PLAN_DATA_"]) {
+        let planMat = sysData.sheets["_PLAN_DATA_"];
+        // Bắt đầu từ 1 để bỏ qua Header
+        for(let i = 1; i < planMat.length; i++) {
+            try {
+                let rowData = JSON.parse(planMat[i][2]);
+                if(rowData && rowData[0]) existingIds.push(String(rowData[0]).trim());
+            } catch(e) {}
+        }
+    }
+
+    let duplicates = selectedIds.filter(id => existingIds.includes(String(id).trim()));
+
+    if (duplicates.length > 0) {
+        showModal("Cảnh Báo Trùng Lặp", `
+            <div style="text-align:center; padding: 5px 0;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 40px; color: var(--red); margin-bottom: 15px;"></i>
+                <p style="font-size: 14px; color: var(--text-main); margin-bottom: 10px;">Các ID sau <b>đã tồn tại</b> trong Kế Hoạch:</p>
+                <div style="background: #fff5f5; border: 1px solid #ffcccc; padding: 10px; border-radius: 8px; color: var(--red); font-weight: bold; font-size: 13px; max-height: 80px; overflow-y: auto;">
+                    ${duplicates.join("<br>")}
+                </div>
+                <p style="font-size: 13px; margin-top: 15px; color: #666;">Vui lòng bỏ chọn các dòng này và thử lại!</p>
+            </div>
+        `, [
+            { text: "Đã hiểu", class: "btn-cancel btn-rounded", onclick: closeModal }
+        ]);
+        return;
+    }
+    // ---------------------------------------------------------
 
     // Tạo tab ẩn chứa dữ liệu lịch nếu hệ thống chưa có
     if (!sysData.sheets["_PLAN_DATA_"]) {
@@ -539,8 +606,7 @@ function processSchedule() {
     }
 
     let planMat = sysData.sheets["_PLAN_DATA_"];
-    let rowsToMove = mat.slice(minR, maxR + 1);
-
+    
     // 1. Lưu các dòng đã chọn vào _PLAN_DATA_
     let startRowPlan = planMat.length + 1;
     rowsToMove.forEach((row, i) => {
