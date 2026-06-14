@@ -165,6 +165,7 @@
         let colorTarget = 'bg', activeColPopup = -1, activeFilterCol = -1;
         let isResizing = false, resizeData = { type: '', index: -1, startDim: 0, startMouse: 0 };
         let globalSearchKeyword = "";
+        let hasPendingUpdate = false;
 
         // HÀM NHẬN DIỆN NGƯỜI DÙNG ĐANG GÕ CHỮ
         function checkIsEditing() {
