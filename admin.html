@@ -143,7 +143,10 @@
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
         
         function loadModule(url, element) {
-            // Đổi giao diện Menu
+            // Ngăn chặn sự kiện click thẻ <a> làm giật khung hình
+            if (window.event) window.event.preventDefault();
+
+            // Đổi giao diện Menu (Đổi màu CSS nút bấm ngay lập tức)
             document.querySelectorAll('.menu-item-side').forEach(el => el.classList.remove('active')); 
             if (element) {
                 element.classList.add('active');
@@ -160,15 +163,18 @@
                 iframe.classList.remove('active');
             });
             
-            // Đẩy iframe cần thiết lên lớp z-index 10
+            // Đẩy iframe cần thiết lên lớp z-index 10 ĐỂ HIỂN THỊ RA MẮT NGƯỜI DÙNG NGAY LẬP TỨC
             if (loadedIframes[url]) {
                 loadedIframes[url].classList.add('active');
                 
-                // ĐÁNH THỨC DỮ LIỆU: Ép tab con bốc dữ liệu mới từ LocalStorage lên giao diện
-                let frameWindow = loadedIframes[url].contentWindow;
-                if (frameWindow && typeof frameWindow.onTabActivated === 'function') {
-                    frameWindow.onTabActivated();
-                }
+                // 🚨 BÍ QUYẾT NẰM Ở ĐÂY: Dùng setTimeout 50ms
+                // Trì hoãn việc load dữ liệu nặng để trình duyệt rảnh tay render chuyển tab trước.
+                setTimeout(() => {
+                    let frameWindow = loadedIframes[url].contentWindow;
+                    if (frameWindow && typeof frameWindow.onTabActivated === 'function') {
+                        frameWindow.onTabActivated();
+                    }
+                }, 50); 
             }
         }
 
