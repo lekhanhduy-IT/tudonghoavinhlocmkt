@@ -53,7 +53,8 @@
     width: 100%; 
     height: 100%; 
     background: #f9f9f9; 
-    transition: opacity 0.15s ease-in-out; /* Thêm dòng này */
+   transition: none; /* Bỏ hiệu ứng mờ */
+    opacity: 1;       /* Luôn hiển thị */
 }
 
         @media (max-width: 768px) { .sidebar { position: absolute; height: 100%; transform: translateX(-100%); } .sidebar.mobile-open { transform: translateX(0); } }
@@ -102,35 +103,109 @@
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
         
         // Hàm loadModule tải trang ngay lập tức
-        function loadModule(url, element) {
-    // Đổi màu menu active
+        // Hàm loadModule cải tiến: Dùng cơ chế Multi-Iframe để chuyển trang lập tức & giữ vị trí cuộn
+function loadModule(url, element) {
+    // 1. Đổi màu menu active
     document.querySelectorAll('.menu-item-side').forEach(el => el.classList.remove('active')); 
     element.classList.add('active');
     
-    const frame = document.getElementById('moduleFrame');
+    // 2. Tạo ID duy nhất cho iframe của từng tab (Ví dụ: iframe_idea_html)
+    const iframeId = 'iframe_' + url.replace(/[^a-zA-Z0-9]/g, '_');
     
-    // Giấu iframe đi cực nhanh (mờ đi) để che nhịp load trang trống
-    frame.style.opacity = '0';
+    // Tìm vùng chứa cha để nhét các iframe vào
+    const oldFrame = document.getElementById('moduleFrame');
+    let container = oldFrame ? oldFrame.parentNode : null;
     
-    // Đợi 1 nhịp rất ngắn (50ms) rồi mới đổi link để transition có tác dụng
-    setTimeout(() => {
-        frame.src = url; 
-        document.getElementById('globalSearch').value = "";
+    if (oldFrame) {
+        // Lần đầu chạy, ẩn cái iframe tĩnh gốc đi
+        oldFrame.style.display = 'none';
+        oldFrame.removeAttribute('id'); // Bỏ id cũ để tránh trùng dòng với iframe động
+    }
+    
+    if (!container) return;
+
+    // 3. Ẩn tất cả các iframe hiện có trong vùng chứa
+    container.querySelectorAll('iframe').forEach(iframe => {
+        iframe.style.display = 'none';
+    });
+
+    // 4. Kiểm tra xem iframe của trang này đã từng được tạo chưa
+    let targetIframe = document.getElementById(iframeId);
+    if (!targetIframe) {
+        // Nếu chưa có thì tạo mới đúng 1 lần duy nhất
+        targetIframe = document.createElement('iframe');
+        targetIframe.id = iframeId;
+        targetIframe.src = url;
         
-        // Khi trang mới đã load xong 100% ngầm bên dưới, mới cho hiển thị lên lại
-        frame.onload = () => {
-            frame.style.opacity = '1';
-        };
-    }, 50);
+        // Giữ nguyên CSS gốc của moduleFrame để không lệch giao diện
+        targetIframe.style.flexGrow = '1';
+        targetIframe.style.border = 'none';
+        targetIframe.style.width = '100%';
+        targetIframe.style.height = '100%';
+        targetIframe.style.background = '#f9f9f9';
+        
+        container.appendChild(targetIframe);
+    } else {
+        // ĐẢM BẢO DỮ LIỆU LUÔN MỚI:
+        // Vì iframe ẩn vẫn sống ngầm, setInterval bên trong các trang con (idea.html, plan.html...) 
+        // vẫn tự chạy ngầm để lấy dữ liệu mới từ get-brain.js / Google Sheet.
+        // Để chắc chắn hơn nữa, khi người dùng click lại vào tab, ta ép trang con gọi hàm fetch dữ liệu ngay lập tức:
+        try {
+            if (targetIframe.contentWindow && typeof targetIframe.contentWindow.fetchDataFromServer === 'function') {
+                targetIframe.contentWindow.fetchDataFromServer(true); 
+            }
+        } catch(e) { 
+            // Phòng trường hợp iframe chưa kịp load xong ở lần đầu click
+            console.log("Chờ iframe sẵn sàng để cập nhật dữ liệu."); 
+        }
+    }
+
+    // 5. Hiển thị iframe mục tiêu ngay lập tức - tốc độ mắt không kịp thấy chuyển giao
+    targetIframe.style.display = 'block';
+    document.getElementById('globalSearch').value = "";
+    
+    // 6. Lưu lại URL đang mở vào localStorage để phục vụ khi tải lại trang (F5)
+    localStorage.setItem('active_module_url', url);
 }
 
-        function executeGlobalSearch() {
-            let kw = document.getElementById('globalSearch').value.trim(); 
-            let frame = document.getElementById('moduleFrame');
-            if(frame && frame.contentWindow && typeof frame.contentWindow.executeSearch === 'function') {
-                frame.contentWindow.executeSearch(kw);
+// TỰ ĐỘNG KHÔI PHỤC ĐÚNG TAB ĐANG MỞ KHI TẢI LẠI TRANG (F5)
+// Thêm sự kiện DOMContentLoaded này vào cuối phân vùng <script> trong admin.html
+document.addEventListener('DOMContentLoaded', () => {
+    const savedUrl = localStorage.getItem('active_module_url');
+    let targetItem = null;
+    
+    if (savedUrl) {
+        // Tìm xem menu-item-side nào đang chứa link đã lưu trong thuộc tính onclick
+        document.querySelectorAll('.menu-item-side').forEach(item => {
+            const attrClick = item.getAttribute('onclick') || '';
+            if (attrClick.includes(savedUrl)) {
+                targetItem = item;
             }
+        });
+    }
+    
+    // Nếu tìm thấy tab cũ thì mở lại, không thì tự động click vào tab đầu tiên làm mặc định
+    if (targetItem && savedUrl) {
+        loadModule(savedUrl, targetItem);
+    } else {
+        const firstMenu = document.querySelector('.menu-item-side');
+        if (firstMenu) firstMenu.click();
+    }
+});
+
+        function executeGlobalSearch() {
+    let kw = document.getElementById('globalSearch').value.trim(); 
+    let savedUrl = localStorage.getItem('active_module_url');
+    
+    if (savedUrl) {
+        const iframeId = 'iframe_' + savedUrl.replace(/[^a-zA-Z0-9]/g, '_');
+        let activeFrame = document.getElementById(iframeId);
+        
+        if (activeFrame && activeFrame.contentWindow && typeof activeFrame.contentWindow.executeSearch === 'function') {
+            activeFrame.contentWindow.executeSearch(kw);
         }
+    }
+}
     </script>
 </body>
 </html>
