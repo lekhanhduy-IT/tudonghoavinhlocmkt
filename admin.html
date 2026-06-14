@@ -22,14 +22,17 @@
         .sidebar-header { height: 60px; display: flex; align-items: center; border-bottom: 0.5px solid var(--gray-border); }
         .toggle-btn { width: 60px; height: 60px; background: transparent; border: none; font-size: 20px; color: var(--text-main); opacity: 0.7; cursor: pointer; flex-shrink: 0; display: flex; justify-content: center; align-items: center; }
         
+        /* Cập nhật Brand: Chữ đen, nét mỏng, size 14px */
         .brand { font-size: 14px; font-weight: 300; color: #000000; opacity: 1; transition: opacity 0.2s; display: flex; align-items: center; }
         .brand img { height: 30px; margin-right: 10px; }
         .sidebar.collapsed .brand { opacity: 0; pointer-events: none; }
         
+        /* Cập nhật Menu Item: Chữ đen */
         .menu-item-side { padding: 0; display: flex; align-items: center; cursor: pointer; border-bottom: 0.5px solid var(--gray-border); transition: 0.3s; color: #000000; text-decoration: none;}
         .menu-item-side:hover, .menu-item-side.active { background: var(--blue); color: var(--white); }
         .icon { width: 60px; height: 50px; display: flex; justify-content: center; align-items: center; font-size: 18px; flex-shrink: 0; }
         
+        /* Cập nhật Text Menu: Nét mỏng, size 14px */
         .text { font-weight: 300; font-size: 14px; transition: opacity 0.2s; opacity: 1; }
         .sidebar.collapsed .text { opacity: 0; pointer-events: none; }
 
@@ -43,35 +46,15 @@
         .user-actions { display: flex; align-items: center; gap: 15px; }
         .logout-btn { background: var(--red); color: var(--white); border: none; padding: 8px 16px; font-weight: bold; border-radius: 4px; cursor: pointer; }
         
-        /* --- KHU VỰC IFRAME THIẾT KẾ XẾP CHỒNG (Z-INDEX) --- */
-        #iframeContainer {
-            flex-grow: 1;
-            width: 100%;
-            height: 100%;
-            background: #f9f9f9;
-            position: relative;
-        }
-        
-        .module-frame { 
-            border: none; 
-            width: 100%; 
-            height: 100%; 
-            position: absolute; /* Đè lên nhau */
-            top: 0;
-            left: 0;
-            opacity: 1; 
-            visibility: visible;
-            z-index: 1; /* Nằm dưới mặc định */
-            pointer-events: none; /* Không cho click xuyên xuống dưới */
-            background: #f9f9f9;
-            /* TUYỆT ĐỐI KHÔNG THÊM BẤT KỲ LỆNH TRANSITION NÀO Ở ĐÂY */
-        }
-        
-        /* Chỉ đẩy iframe active lên trên cùng */
-        .module-frame.active {
-            z-index: 10; 
-            pointer-events: auto; /* Mở khóa click */
-        }
+        /* Iframe không có transition delay để đổi trang ngay lập tức */
+        #moduleFrame { 
+    flex-grow: 1; 
+    border: none; 
+    width: 100%; 
+    height: 100%; 
+    background: #f9f9f9; 
+    transition: opacity 0.15s ease-in-out; /* Thêm dòng này */
+}
 
         @media (max-width: 768px) { .sidebar { position: absolute; height: 100%; transform: translateX(-100%); } .sidebar.mobile-open { transform: translateX(0); } }
     </style>
@@ -83,7 +66,7 @@
             <button class="toggle-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
             <div class="brand"><img src="https://i.postimg.cc/xCjmFrb4/Untitled-design.png"> WEB MKT</div>
         </div>
-        <a href="#" class="menu-item-side" onclick="loadModule('idea.html', this)"><div class="icon"><i class="fas fa-lightbulb"></i></div><div class="text">Ý TƯỞNG</div></a>
+        <a href="#" class="menu-item-side active" onclick="loadModule('idea.html', this)"><div class="icon"><i class="fas fa-lightbulb"></i></div><div class="text">Ý TƯỞNG</div></a>
         <a href="#" class="menu-item-side" onclick="loadModule('plan.html', this)"><div class="icon"><i class="fas fa-calendar-alt"></i></div><div class="text">KẾ HOẠCH</div></a>
         <a href="#" class="menu-item-side" onclick="loadModule('post.html', this)"><div class="icon"><i class="fas fa-file-alt"></i></div><div class="text">BÀI VIẾT</div></a>
         <a href="#" class="menu-item-side" onclick="loadModule('image.html', this)"><div class="icon"><i class="fas fa-images"></i></div><div class="text">HÌNH ẢNH</div></a>
@@ -104,85 +87,46 @@
                 <button class="logout-btn" onclick="logout()">Đăng Xuất</button>
             </div>
         </div>
-        
-        <div id="iframeContainer"></div>
+        <iframe src="idea.html" id="moduleFrame"></iframe>
     </div>
 
     <script>
-        const loadedIframes = {}; 
-        const modulesToPreload = ['idea.html', 'plan.html', 'post.html', 'image.html'];
-
-        document.addEventListener("DOMContentLoaded", () => {
-            document.getElementById('welcomeUser').innerText = localStorage.getItem('admin_name') || 'Admin';
-            
-            if (localStorage.getItem('admin_email') === 'admin@tudonghoavinhloc.com') {
-                document.getElementById('menuSettings').style.display = 'flex';
-                modulesToPreload.push('caidat.html');
-            }
-
-            const savedTab = localStorage.getItem('activeAdminTab') || 'idea.html';
-            const container = document.getElementById('iframeContainer');
-
-            // BỎ DELAY: Tải TẤT CẢ iframe ngay lập tức vào DOM
-            modulesToPreload.forEach(url => {
-                const iframe = document.createElement('iframe');
-                iframe.src = url;
-                iframe.className = 'module-frame'; // Nằm dưới
-                container.appendChild(iframe);
-                loadedIframes[url] = iframe;
-            });
-
-            // Chờ một nhịp tick siêu nhỏ để DOM nhận diện Iframe rồi active tab hiện tại
-            setTimeout(() => {
-                const menuEl = document.querySelector(`.menu-item-side[onclick*="${savedTab}"]`);
-                loadModule(savedTab, menuEl);
-            }, 50);
-        });
+        document.getElementById('welcomeUser').innerText = localStorage.getItem('admin_name') || 'Admin';
+        
+        // KIỂM TRA QUYỀN ĐỂ MỞ KHÓA MENU CÀI ĐẶT
+        if (localStorage.getItem('admin_email') === 'admin@tudonghoavinhloc.com') {
+            document.getElementById('menuSettings').style.display = 'flex';
+        }
 
         function logout() { localStorage.clear(); window.location.href = 'index.html'; }
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
         
+        // Hàm loadModule tải trang ngay lập tức
         function loadModule(url, element) {
-            // Ngăn chặn sự kiện click thẻ <a> làm giật khung hình
-            if (window.event) window.event.preventDefault();
-
-            // Đổi giao diện Menu (Đổi màu CSS nút bấm ngay lập tức)
-            document.querySelectorAll('.menu-item-side').forEach(el => el.classList.remove('active')); 
-            if (element) {
-                element.classList.add('active');
-            } else {
-                const link = document.querySelector(`.menu-item-side[onclick*="${url}"]`);
-                if (link) link.classList.add('active');
-            }
-            
-            localStorage.setItem('activeAdminTab', url);
-            document.getElementById('globalSearch').value = "";
-            
-            // Xóa active toàn bộ iframe (Đẩy hết xuống lớp z-index 1)
-            Object.values(loadedIframes).forEach(iframe => {
-                iframe.classList.remove('active');
-            });
-            
-            // Đẩy iframe cần thiết lên lớp z-index 10 ĐỂ HIỂN THỊ RA MẮT NGƯỜI DÙNG NGAY LẬP TỨC
-            if (loadedIframes[url]) {
-                loadedIframes[url].classList.add('active');
-                
-                // 🚨 BÍ QUYẾT NẰM Ở ĐÂY: Dùng setTimeout 50ms
-                // Trì hoãn việc load dữ liệu nặng để trình duyệt rảnh tay render chuyển tab trước.
-                setTimeout(() => {
-                    let frameWindow = loadedIframes[url].contentWindow;
-                    if (frameWindow && typeof frameWindow.onTabActivated === 'function') {
-                        frameWindow.onTabActivated();
-                    }
-                }, 50); 
-            }
-        }
+    // Đổi màu menu active
+    document.querySelectorAll('.menu-item-side').forEach(el => el.classList.remove('active')); 
+    element.classList.add('active');
+    
+    const frame = document.getElementById('moduleFrame');
+    
+    // Giấu iframe đi cực nhanh (mờ đi) để che nhịp load trang trống
+    frame.style.opacity = '0';
+    
+    // Đợi 1 nhịp rất ngắn (50ms) rồi mới đổi link để transition có tác dụng
+    setTimeout(() => {
+        frame.src = url; 
+        document.getElementById('globalSearch').value = "";
+        
+        // Khi trang mới đã load xong 100% ngầm bên dưới, mới cho hiển thị lên lại
+        frame.onload = () => {
+            frame.style.opacity = '1';
+        };
+    }, 50);
+}
 
         function executeGlobalSearch() {
             let kw = document.getElementById('globalSearch').value.trim(); 
-            let activeUrl = localStorage.getItem('activeAdminTab') || 'idea.html';
-            let frame = loadedIframes[activeUrl]; 
-            
+            let frame = document.getElementById('moduleFrame');
             if(frame && frame.contentWindow && typeof frame.contentWindow.executeSearch === 'function') {
                 frame.contentWindow.executeSearch(kw);
             }

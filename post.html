@@ -2126,28 +2126,7 @@ function pushQueue(action) {
         });
     }, 1500); 
 }
-// --- HÀM TỰ ĐỘNG CẬP NHẬT KHI TAB NÀY ĐƯỢC ADMIN MỞ LÊN ---
-        window.onTabActivated = function() {
-            // 1. Cập nhật lại kho dữ liệu gốc (sysData)
-            let cached = localStorage.getItem("MKT_DATA");
-            if (cached) {
-                let parsedCache = JSON.parse(cached);
-                if(parsedCache && parsedCache.sheets) sysData = parsedCache;
-            }
 
-            // 2. Nạp lại nội dung Draft bên cột trái
-            loadDraftData();
-
-            // 3. Nạp ngay bài viết được click từ bên Plan.html vào khung soạn thảo
-            let draftStr = localStorage.getItem("DRAFT_POST_DATA");
-            if (draftStr) {
-                draftData = JSON.parse(draftStr);
-                let postIdToLoad = draftData.data[0];
-                if (postIdToLoad) {
-                    loadPostIntoEditor(postIdToLoad);
-                }
-            }
-        };
     </script>
 </body>
 </html>
