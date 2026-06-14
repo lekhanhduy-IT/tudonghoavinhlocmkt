@@ -252,7 +252,7 @@ setInterval(processQueueAndSync, 4000);
             }
         }
     } catch(e) { setSyncStatus("⚠️ Ngoại tuyến", "var(--red)"); }
-}
+        }
 
         async function processQueueAndSync() {
             if(isProcessingQueue) return; isProcessingQueue = true;
