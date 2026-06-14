@@ -1430,7 +1430,7 @@ Google Fonts:</div>
             
             // CẬP NHẬT LẠI DỮ LIỆU NẾU TRÊN SERVER CÓ SỰ THAY ĐỔI
             let urlParams = new URLSearchParams(window.location.search);
-            let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[1] : null);
+            let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[0] : null);
             if (postIdToLoad) {
                 loadPostIntoEditor(postIdToLoad);
             }
@@ -2038,7 +2038,7 @@ function loadPostIntoEditor(postId) {
 
     // Nếu ID vừa được tự sinh ra (chưa có trong Kế Hoạch), tiến hành lưu ngược lại
     if (draftData && (!draftData.data[0] || draftData.data[0] !== planId)) {
-        draftData.data[1] = planId; // Cập nhật vào dữ liệu đang nháp
+        draftData.data[0] = planId; // Cập nhật vào dữ liệu đang nháp
         localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
         
         // Đẩy ID mới lên Sheet Kế Hoạch (_PLAN_DATA_) thông qua hàng đợi actionQueue
