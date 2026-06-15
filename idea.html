@@ -547,8 +547,9 @@ function isRowFilteredOut(r, matrix) {
 
         function showTabMenu(e, tab) { e.preventDefault(); e.stopPropagation(); let menu = document.getElementById("tabContextMenu"); menu.innerHTML = ` <div class="menu-item" onclick="promptRenameTab('${tab}')"><i class="fas fa-edit"></i> Đổi tên</div> <div class="menu-item" onclick="duplicateTab('${tab}')"><i class="fas fa-clone"></i> Nhân bản</div> <div class="menu-item" style="color:var(--red);" onclick="hideTab('${tab}')"><i class="fas fa-eye-slash"></i> Ẩn</div> <div class="divider"></div> <div class="menu-item" style="color:var(--red);" onclick="deleteTab('${tab}')"><i class="fas fa-trash"></i> Xóa Tab</div> `; showPopupSafe(menu, e); }
         
-        function promptNewTab() { showModal("Tạo Tab Mới", `<input type="text" id="newTabInput" class="popup-input" placeholder="Nhập tên tab...">`, [ { text: "Tạo", class: "btn-blue", onclick: () => { let name = document.getElementById("newTabInput").value.trim(); if(name && !sysData.tabOrder.includes(name)) { sysData.tabOrder.push(name); sysData.sheets[name] = [["A","B","C"]]; activeTab = name; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'create', tab: name}); closeModal(); } } }, { text: "Hủy", class: "btn-cancel", onclick: closeModal } ]); }
-        function promptRenameTab(old) { 
+function promptNewTab() { showModal("Tạo Tab Mới", `<input type="text" id="newTabInput" class="popup-input" placeholder="Nhập tên tab...">`, [ { text: "Tạo", class: "btn-blue", onclick: () => { let name = document.getElementById("newTabInput").value.trim(); if(name && !sysData.tabOrder.includes(name)) { sysData.tabOrder.push(name); sysData.sheets[name] = [["A","B","C"]]; activeTab = name; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'create', tab: name}); closeModal(); } } }, { text: "Hủy", class: "btn-cancel", onclick: closeModal } ]); }
+
+function promptRenameTab(old) { 
     document.getElementById("tabContextMenu").style.display = 'none'; 
     showModal("Đổi Tên Tab", `<input type="text" id="renTabInput" class="popup-input" value="${old}">`, [ 
         { 
@@ -557,7 +558,6 @@ function isRowFilteredOut(r, matrix) {
             onclick: () => { 
                 let n = document.getElementById("renTabInput").value.trim(); 
                 if(n && n !== old) { 
-                    // 1. Cập nhật tên tab trong cấu trúc dữ liệu chính
                     let idx = sysData.tabOrder.indexOf(old); 
                     sysData.tabOrder[idx] = n; 
                     sysData.sheets[n] = sysData.sheets[old]; 
@@ -566,30 +566,18 @@ function isRowFilteredOut(r, matrix) {
                     delete sysData.attributes[old]; 
                     activeTab = n; 
                     
-                    // ========================================================
-                    // 2. TÍNH NĂNG MỚI: CẬP NHẬT TÊN TAB TRONG _PLAN_DATA_
-                    // ========================================================
                     if (sysData.sheets["_PLAN_DATA_"]) {
                         let planMat = sysData.sheets["_PLAN_DATA_"];
-                        // Duyệt từ 1 để bỏ qua dòng Tiêu đề (Header)
                         for (let i = 1; i < planMat.length; i++) {
-                            // planMat[i][0] là cột "Tab" trong _PLAN_DATA_
                             if (planMat[i][0] === old) {
-                                planMat[i][0] = n; // Đổi thành tên mới trên giao diện
-                                // Đẩy lệnh lưu từng ô thay đổi lên Apps Script
+                                planMat[i][0] = n; 
                                 dispatchAction({
-                                    type: 'SYNC_CELL', 
-                                    row: i + 1, 
-                                    col: 1, 
-                                    val: n, 
-                                    tab: "_PLAN_DATA_"
+                                    type: 'SYNC_CELL', row: i + 1, col: 1, val: n, tab: "_PLAN_DATA_"
                                 });
                             }
                         }
                     }
-                    // ========================================================
 
-                    // 3. Render lại giao diện và gửi lệnh đổi tên Tab lên server
                     renderTabs(); 
                     renderGrid(); 
                     dispatchAction({type:'MANAGE_TAB', action:'rename', oldName: old, newName: n, tab: old}); 
@@ -600,9 +588,12 @@ function isRowFilteredOut(r, matrix) {
         { text: "Hủy", class: "btn-cancel", onclick: closeModal } 
     ]); 
 }
-        function duplicateTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let n = tab+"_copy"; sysData.tabOrder.push(n); sysData.sheets[n] = JSON.parse(JSON.stringify(sysData.sheets[tab])); sysData.attributes[n] = JSON.parse(JSON.stringify(sysData.attributes[tab] || {})); activeTab=n; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'duplicate', oldName: tab, newName: n, tab: tab}); }
-        function hideTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let attrs = sysData.attributes[tab] = sysData.attributes[tab] || {}; attrs.hidden = true; if(activeTab === tab) activeTab = sysData.tabOrder.find(t => !(sysData.attributes[t]||{}).hidden) || ""; renderTabs(); renderGrid(); dispatchAction({type: 'SAVE_TAB_ATTRS', targetTab: tab, attributes: attrs}); }
-        function deleteTab(tab) { document.getElementById("tabContextMenu").style.display = 'none'; showModal("Xác nhận xóa Tab", `<p style="font-size: 14px; margin-bottom: 10px;">Bạn có chắc chắn muốn xóa vĩnh viễn tab <b style="color: var(--red);">${tab}</b> không?</p><p style="font-size: 12px; color: #666; font-style: italic;">Hành động này sẽ xóa toàn bộ dữ liệu trong tab và không thể hoàn tác.</p>`, [ { text: "Xóa ngay", class: "btn-blue", onclick: () => { sysData.tabOrder = sysData.tabOrder.filter(t => t !== tab); delete sysData.sheets[tab]; activeTab = sysData.tabOrder[0] || ""; renderTabs(); renderGrid(); dispatchAction({type: 'MANAGE_TAB', action: 'delete', tab: tab}); closeModal(); } }, { text: "Hủy", class: "btn-cancel", onclick: closeModal } ]); }
+
+function duplicateTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let n = tab+"_copy"; sysData.tabOrder.push(n); sysData.sheets[n] = JSON.parse(JSON.stringify(sysData.sheets[tab])); sysData.attributes[n] = JSON.parse(JSON.stringify(sysData.attributes[tab] || {})); activeTab=n; renderTabs(); renderGrid(); dispatchAction({type:'MANAGE_TAB', action:'duplicate', oldName: tab, newName: n, tab: tab}); }
+
+function hideTab(tab) { document.getElementById("tabContextMenu").style.display='none'; let attrs = sysData.attributes[tab] = sysData.attributes[tab] || {}; attrs.hidden = true; if(activeTab === tab) activeTab = sysData.tabOrder.find(t => !(sysData.attributes[t]||{}).hidden) || ""; renderTabs(); renderGrid(); dispatchAction({type: 'SAVE_TAB_ATTRS', targetTab: tab, attributes: attrs}); }
+
+function deleteTab(tab) { document.getElementById("tabContextMenu").style.display = 'none'; showModal("Xác nhận xóa Tab", `<p style="font-size: 14px; margin-bottom: 10px;">Bạn có chắc chắn muốn xóa vĩnh viễn tab <b style="color: var(--red);">${tab}</b> không?</p><p style="font-size: 12px; color: #666; font-style: italic;">Hành động này sẽ xóa toàn bộ dữ liệu trong tab và không thể hoàn tác.</p>`, [ { text: "Xóa ngay", class: "btn-blue", onclick: () => { sysData.tabOrder = sysData.tabOrder.filter(t => t !== tab); delete sysData.sheets[tab]; activeTab = sysData.tabOrder[0] || ""; renderTabs(); renderGrid(); dispatchAction({type: 'MANAGE_TAB', action: 'delete', tab: tab}); closeModal(); } }, { text: "Hủy", class: "btn-cancel", onclick: closeModal } ]); }
 
         function showModal(title, bodyHtml, btns) { document.getElementById("modalTitle").innerText = title; document.getElementById("modalBody").innerHTML = bodyHtml; let ft = document.getElementById("modalFooter"); ft.innerHTML = ""; btns.forEach(b => { let btn = document.createElement("button"); btn.innerText = b.text; btn.className = "btn-modal " + (b.class || "btn-blue"); btn.onclick = b.onclick; ft.appendChild(btn); }); document.getElementById("systemModal").style.display = "flex"; }
         function closeModal() { document.getElementById("systemModal").style.display = "none"; }
