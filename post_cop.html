@@ -1,0 +1,3255 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Viết Bài Blog</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+    /* BỘ CSS LÕI */
+    :root { --white: #ffffff; --blue: #01adee; --red: #db1010; --gray-light: #f9f9f9; --gray-border: #e0e0e0; --text-main: #333333; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+    body { background: var(--gray-light); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    .toolbar { height: 45px; background: var(--white); border-bottom: 1px solid var(--gray-border); display: flex; align-items: center; padding: 0 15px; justify-content: space-between; z-index: 100; flex-shrink: 0; }
+    .tool-btn { background: var(--white); border: 0.5px solid var(--gray-border); color: var(--blue); padding: 5px 12px; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 3px; display: inline-flex; align-items: center; gap: 5px; transition: 0.2s; outline: none; }
+    .tool-btn:hover { background: var(--blue); color: var(--white); border-color: var(--blue); }
+    .save-btn { background: var(--blue); color: var(--white); border-color: var(--blue); }
+
+    .workspace { display: flex; width: 100%; height: calc(100vh - 45px); overflow: hidden; background: var(--gray-light); }
+
+    .side-panel { width: 15vw; min-width: 250px; max-width: 800px; background: var(--white); display: flex; flex-direction: column; height: 100%; z-index: 10; flex-shrink: 0; transition: width 0.3s ease-out; }
+    .panel-header { padding: 12px 15px; background: var(--gray-light); border-bottom: 1px solid var(--gray-border); font-weight: bold; font-size: 13px; color: var(--blue); }
+    .panel-content { flex: 1; overflow-y: auto; padding: 15px; font-size: 13px; }
+
+    .panel-resizer { width: 6px; background: #f1f3f4; cursor: col-resize; z-index: 20; flex-shrink: 0; border-left: 1px solid var(--gray-border); border-right: 1px solid var(--gray-border); transition: background 0.2s; }
+    .panel-resizer:hover, .panel-resizer.active { background: var(--blue); border-color: var(--blue); }
+
+    .main-editor-area { flex: 1; height: 100%; background: var(--white); position: relative; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; }
+    .editor-container { width: 100%; padding: 30px 40px 80px 40px; margin: 0; display: flex; flex-direction: column; flex: 1; }
+    
+    .rich-input { padding: 15px 20px; outline: none; border-bottom: 1px dashed var(--gray-border); width: 100%; line-height: 1.6; position: relative; transition: border 0.3s; }
+    .rich-input:empty:before { content: attr(data-placeholder); color: #aaa; pointer-events: none; display: block; }
+    
+    #postTitle { font-size: 32px; font-weight: bold; color:#000000; margin: 0; line-height: 1.3; } 
+    #postSapo { font-size: 15px; color: #555; background: #fdfdfd; } 
+    #postContent { font-size: 15px; display: block; flex: 1; border-bottom: none; padding-bottom: 80px; cursor: text; outline: none; min-height: 500px;}
+    
+    #postContent ul, #postContent ol { padding-left: 30px; margin-top: 5px; margin-bottom: 10px; }
+    #postContent li { margin-bottom: 5px; }
+
+    .cover-area { padding: 10px 20px; border-bottom: 1px dashed var(--gray-border); background: var(--white); }
+    .cover-input { width: 100%; padding: 6px 10px; border: 0.5px solid var(--gray-border); outline: none; font-size: 12px; border-radius: 2px; margin-bottom: 5px; color: var(--blue); }
+.cover-preview { 
+    width: 100%;
+    height: auto;        /* Tự động tính toán chiều cao bám theo đúng tỷ lệ gốc của ảnh */
+    max-height: none;    /* Phá bỏ giới hạn gán cứng 300px cũ */
+    display: none;
+    border: 0.5px solid var(--gray-border);
+    margin-top: 5px;
+}
+    .data-row { margin-bottom: 8px; border: 0.5px solid var(--gray-border); border-radius: 3px; overflow: hidden; }
+    .data-label { background: var(--gray-light); padding: 6px 8px; font-weight: bold; border-bottom: 1px solid var(--gray-border); font-size: 11px; color: var(--text-main); }
+    .data-val { padding: 8px; background: var(--white); word-wrap: break-word; font-size: 13px; line-height: 1.5; }
+
+    .panel-tabs { display: flex; border-bottom: 1px solid var(--gray-border); }
+    .ptab-btn { flex: 1; text-align: center; padding: 10px; cursor: pointer; font-size: 11px; font-weight: bold; color: #777; transition: 0.2s; border-bottom: 2px solid transparent; }
+    .ptab-btn.active { color: var(--blue); border-bottom: 2px solid var(--blue); background: var(--white); }
+    .ptab-content { display: none; }
+    .ptab-content.active { display: block; }
+
+    /* THAY THẾ TOOL-GRID CŨ THÀNH 5 CỘT */
+    .tool-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-bottom: 12px; }
+    
+    /* CSS MỚI CHO HỆ THỐNG DROPDOWN & BẢNG REALTIME */
+    .tool-dropdown-wrapper { position: relative; display: inline-block; width: 100%; }
+    .tool-dropdown-wrapper .fmt-btn { width: 100%; }
+    .vb-mini-popup { position: absolute; top: 100%; left: 0; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 999; display: none; border-radius: 4px; min-width: 120px; overflow: hidden; margin-top: 2px; }
+    .popup-item { padding: 8px 15px; cursor: pointer; font-size: 13px; color: var(--text-main); border-bottom: 1px solid #f1f1f1; transition: 0.2s; white-space: nowrap; font-weight: bold;}
+    .popup-item:hover { background: #e6f7ff; color: var(--blue); }
+    .emoji-grid-popup { width: 150px; padding: 5px; }
+
+    .table-grid-popup { width: 160px; padding: 8px; }
+    .tc-header { font-size: 12px; text-align: center; color: var(--blue); margin-bottom: 8px; font-weight: bold; }
+    .tc-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+    .tc-cell { width: 18px; height: 18px; border: 0.5px solid var(--gray-border); cursor: pointer; background: #fff; transition: background 0.1s; }
+    .tc-cell.active { background: #01adee; border-color: #007bb5; }
+
+    .fmt-btn { background: var(--white); border: 0.5px solid var(--gray-border); padding: 6px 0; text-align: center; cursor: pointer; color: var(--text-main); font-size: 13px; transition: 0.2s; border-radius: 3px; }
+    .fmt-btn:hover { background: var(--gray-light); color: var(--blue); border-color: var(--blue); }
+    
+    .tool-row { display: flex; gap: 5px; margin-bottom: 8px; align-items: center; justify-content: space-between; }
+    .tool-input { flex: 1; width: 100%; border: 0.5px solid var(--gray-border); padding: 6px 8px; font-size: 12px; outline: none; border-radius: 3px; }
+    .tool-input:focus { border-color: var(--blue); }
+    .tool-label { font-size: 11px; color: #777; width: 60px; flex-shrink: 0;}
+
+    .quick-color { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 0.5px solid var(--gray-border); transition: 0.1s; outline: none; }
+    .quick-color:hover { transform: scale(1.2); }
+
+    .mega-row-cat { background: var(--blue); color: var(--white); padding: 8px 10px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; justify-content: space-between; margin-top: 10px; border-radius: 3px; }
+    .cat-content { border: 0.5px solid var(--gray-border); border-top: none; padding: 5px; display: none; }
+    .cat-content.open { display: block; background: #fdfdfd; }
+    
+    .template-item { cursor: pointer; border: 0.5px solid var(--gray-border); margin-bottom: 5px; background: var(--white); border-radius: 3px; transition: 0.2s; position: relative; width: 100%; height: 90px; overflow: hidden; }
+    .template-item:hover { border-color: var(--blue); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .template-item-content { width: 333%; height: 333%; transform: scale(0.3); transform-origin: top left; pointer-events: none; padding: 10px; }
+
+    .emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; padding: 5px; }
+    .emoji-item { cursor: pointer; font-size: 18px; text-align: center; padding: 4px; border-radius: 4px; transition: 0.2s;}
+    .emoji-item:hover { background: #e6f7ff; transform: scale(1.3); }
+
+    .popup-menu { position: absolute; background: var(--white); border: 0.5px solid var(--gray-border); box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 9999; display: none; border-radius: 4px; max-height: 250px; overflow-y:auto; }
+
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: none; justify-content: center; align-items: center; }
+    .modal-box { background: var(--white); border: 0.5px solid var(--blue); box-shadow: 0 10px 30px rgba(0,0,0,0.2); border-radius: 4px; overflow: hidden; width: 400px; padding: 20px;}
+
+    .vb-alert-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:20000; display:none; justify-content:center; align-items:center; }
+    .vb-alert-box { background:#fff; padding:25px; border-radius:5px; min-width:320px; text-align:center; box-shadow:0 10px 30px rgba(0,0,0,0.3); border-top: 3px solid var(--blue); }
+
+    .code-container { display: flex; height: 100%; background: #ffffff; overflow: hidden; }
+    .line-numbers { width: 35px; background: #252526; color: #858585; text-align: right; padding: 10px 5px; font-family: monospace; font-size: 13px; overflow: hidden; border-right: 1px solid #444; line-height: 1.5; }
+    .html-textarea { flex: 1; background: #1e1e1e; color: #d4d4d4; border: none; outline: none; padding: 10px; font-family: monospace; font-size: 13px; resize: none; line-height: 1.5; white-space: pre; overflow: auto; height: 100%; }
+
+    .size-controller { display: flex; align-items: center; border: 0.5px solid var(--gray-border); border-radius: 3px; overflow: hidden; flex: 1; }
+    .size-btn { width: 25px; height: 26px; background: var(--gray-light); border: none; font-weight: bold; cursor: pointer; color: var(--text-main); display: flex; justify-content: center; align-items: center; outline: none;}
+    .size-btn:hover { background: #e0e0e0; color: var(--blue); }
+    .size-input { flex: 1; height: 26px; border: none; outline: none; text-align: center; font-size: 12px; border-left: 1px solid var(--gray-border); border-right: 1px solid var(--gray-border); width: 100%;min-width: 0;}
+    .size-input::-webkit-inner-spin-button, .size-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* Vỏ bọc khối HTML */
+.custom-html-block { 
+    border: 0.5px dashed transparent; 
+    position: relative; 
+    margin: 15px 0; 
+    padding: 10px; 
+    background: transparent; 
+    transition: all 0.2s ease;
+}
+.custom-html-block:hover { 
+    border-color: #01adee;
+}
+
+/* Nút xóa: Thu nhỏ 19px, ép giữa tuyệt đối bằng Flex, ẩn mặc định */
+.block-del-btn { 
+    position: absolute; 
+    left: 50%; 
+    transform: translateX(-50%) scale(0.8);
+    background: #db1010;
+    width: 19px;   /* Giảm 3px so với 22px cũ */
+    height: 19px;  /* Giảm 3px so với 22px cũ */
+    border-radius: 50%;
+    display: flex;       /* "Huyệt tử" ép SVG vào chính giữa 100% không lệch 1 ly */
+    align-items: center; 
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10;
+    opacity: 0;          /* Ẩn hoàn toàn khi không hover */
+    visibility: hidden;  /* Tránh bị click nhầm khi nút đang tàng hình */
+    transition: all 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28); /* Hiệu ứng nảy (bounce) nhẹ */
+    user-select: none;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+/* Dùng 2 thanh tăm CSS chéo nhau tạo thành chữ X trắng muốt */
+.block-del-btn::before,
+.block-del-btn::after {
+    content: '';
+    position: absolute;
+    width: 10px;
+    height: 2.2px;
+    background-color: #ffffff; /* Trắng vĩnh cửu */
+    border-radius: 1px;
+}
+
+.block-del-btn::before {
+    transform: rotate(45deg);
+}
+
+.block-del-btn::after {
+    transform: rotate(-45deg);
+}
+/* Khi lướt chuột vào khối -> Kích hoạt nút hiện lên */
+.custom-html-block:hover .block-del-btn {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) scale(1);
+}
+
+.block-del-btn:hover {
+    background: #b80c0c; /* Đậm hơn một chút khi rà chuột trúng tim nút */
+    transform: translateX(-50%) scale(1.15); 
+}
+
+/* Canh lề đè đúng tim vạch dứt (19px / 2 = 9.5px) */
+.block-del-btn.top { top: -9.5px; }
+.block-del-btn.bottom { bottom: -9.5px; }
+    .html-code-render { min-height: 20px; outline: none; }
+    /* =========================================
+   TABLE EDITOR GIAO DIỆN WORD
+   ========================================= */
+
+/* 1. Hiệu ứng chọn ô */
+.vb-selected-cell {
+    /* Dùng box-shadow inset để không ghi đè màu nền thật (background-color) của người dùng */
+    box-shadow: inset 0 0 0 9999px rgba(166, 200, 255, 0.4) !important;
+    outline: 1px solid #73a5f5 !important;
+    position: relative;
+}
+
+/* 2. Menu Chuột Phải (Context Menu) */
+.word-context-menu {
+    position: absolute;
+    background: #ffffff;
+    border: 0.5px solid #c8c8c8;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 12px;
+    color: #333;
+    z-index: 100000;
+    min-width: 220px;
+    padding: 2px 0;
+    user-select: none;
+}
+.word-menu-item {
+    padding: 5px 15px 5px 30px;
+    cursor: pointer;
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.word-menu-item:hover {
+    background-color: #f1f1f1;
+}
+.word-menu-icon {
+    position: absolute;
+    left: 8px;
+    color: #666;
+}
+.word-menu-separator {
+    height: 1px;
+    background: #e0e0e0;
+    margin: 3px 0;
+}
+.word-has-submenu::after {
+    content: "▶";
+    font-size: 9px;
+    color: #666;
+}
+
+/* Submenu */
+.word-submenu {
+    position: absolute;
+    top: -1px;
+    left: 100%;
+    background: #ffffff;
+    border: 0.5px solid #c8c8c8;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+    min-width: 180px;
+    display: none;
+    padding: 2px 0;
+}
+.word-menu-item:hover > .word-submenu {
+    display: block;
+}
+
+/* 3. Floating Mini Toolbar */
+.word-mini-toolbar {
+    position: absolute;
+    background: #ffffff;
+    border: 0.5px solid #c8c8c8;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+    border-radius: 3px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: 3px;
+    z-index: 100001;
+    align-items: center;
+    max-width: 550px;
+}
+.word-mini-btn {
+    background: transparent;
+    border: 0.5px solid transparent;
+    cursor: pointer;
+    padding: 4px 6px;
+    font-size: 13px;
+    color: #333;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.word-mini-btn:hover {
+    background: #e6f7ff;
+    border-color: #99d1fa;
+}
+.word-mini-select {
+    border: 0.5px solid transparent;
+    background: transparent;
+    font-size: 12px;
+    padding: 2px;
+    outline: none;
+    cursor: pointer;
+}
+.word-mini-select:hover {
+    border-color: #99d1fa;
+    background: #e6f7ff;
+}
+.word-mini-divider {
+    width: 1px;
+    background: #ddd;
+    height: 18px;
+    margin: 0 3px;
+}
+/* NÚT TAB2 CHUYỂN CHẾ ĐỘ XEM TRƯỚC / CHỈNH SỬA */
+.vb-mode-btn {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    /* Dùng lại đúng công thức width của panelRight để luôn bằng khít panel phải */
+    width: 15vw; 
+    min-width: 250px;
+    max-width: 800px;
+    height: 40px;
+    background: var(--white, #ffffff);
+    border: 0.5px solid var(--gray-border, #cccccc);
+    border-radius: 0 !important; /* Tuyệt đối không bo góc */
+    color: var(--blue, #01adee);
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 99999; /* Luôn nổi trên cùng sát góc phải dưới */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.04);
+    transition: all 0.2s ease;
+    outline: none;
+}
+
+.vb-mode-btn:hover {
+    background: var(--blue, #01adee);
+    color: var(--white, #ffffff);
+}
+</style>
+  </head>
+<body>
+<div class="vb-alert-overlay" id="vbAlertOverlay">
+  <div class="vb-alert-box">
+    <div id="vbAlertMsg" style="margin-bottom:15px; font-size:14px; color:var(--text-main); font-weight:bold;"></div>
+    <input type="text" id="vbPromptInput" class="tool-input" style="display:none; margin-bottom:15px; width:100%; text-align:center;">
+    <div style="display:flex; justify-content:center; gap:10px;">
+      <button id="vbAlertCancel" class="tool-btn" style="display:none;" onclick="vbCloseAlert(false)">Hủy</button>
+      <button id="vbAlertOk" class="tool-btn save-btn" onclick="vbCloseAlert(true)">Xác Nhận</button>
+    </div>
+  </div>
+</div>
+<div class="toolbar">
+  <div style="display: flex; align-items: center; gap: 10px;">
+    <button class="tool-btn" onclick="togglePanelVB('left')" title="Bật/Tắt Dữ Liệu Nguồn">
+      <i class="fas fa-bars"></i> Dữ liệu </button>
+    <span style="font-weight: bold; color: var(--blue); font-size: 14px; margin-left: 5px;">
+      <i class="fas fa-edit"></i> Trình Soạn Thảo Blog </span>
+  </div>
+  <div style="display: flex; align-items: center;">
+   <span id="syncStatusVB" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60;">✅ Đã đồng bộ</span>
+
+<span id="syncStatusVB" onclick="forceFetchData()" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60; cursor: pointer;">✅ Khởi tạo...</span>
+    <button class="tool-btn" onclick="togglePanelVB('right')" style="margin-right: 10px;">
+      <i class="fas fa-toolbox"></i> Công cụ </button>
+    <button class="tool-btn save-btn" onclick="savePostToSheet()">
+      <i class="fas fa-save"></i> Lưu bài viết </button>
+  </div>
+</div>
+<div class="workspace" id="workspaceArea">
+  <div class="side-panel" id="panelLeft">
+    <div class="panel-header">
+      <span>
+        <i class="fas fa-database"></i> Dữ Liệu Nguồn </span>
+    </div>
+    <div class="panel-content" id="sourceDataContainer">
+      <div style="color: #999; text-align: center; margin-top: 20px; font-style: italic;">Chưa nhận được dữ liệu từ module Kế Hoạch. Hãy chọn 1 dòng bên Kế Hoạch và bấm chuyển.</div>
+    </div>
+  </div>
+  <div class="panel-resizer"></div>
+  <div class="main-editor-area" id="mainEditorArea">
+    <div class="editor-container" id="editorContainer">
+      <h1 class="rich-input" contenteditable="true" id="postTitle" data-placeholder="Nhập Tiêu đề bài viết tại đây..."></h1>
+      <div class="rich-input" contenteditable="true" id="postSapo" data-placeholder="Nhập Sapo (Đoạn tóm tắt) tại đây..."></div>
+      <div class="cover-area" id="coverArea">
+        <input type="text" id="coverUrlInput" class="cover-input" placeholder="Dán URL ảnh bìa (Thumbnail) vào đây..." oninput="updateCoverPreview()">
+        <img id="coverPreview" class="cover-preview">
+      </div>
+      <div class="rich-input" contenteditable="true" id="postContent" data-placeholder="Soạn thảo nội dung chi tiết bài viết..."></div>
+    </div>
+  </div>
+  <div class="panel-resizer"></div>
+  <div class="side-panel" id="panelRight">
+    <div class="panel-header">
+      <span>
+        <i class="fas fa-toolbox"></i> Bộ Công Cụ </span>
+    </div>
+    <div class="panel-tabs">
+      <div class="ptab-btn active" onmousedown="switchRightTab('tabFormat', this, event)">Định Dạng</div>
+      <div class="ptab-btn" onmousedown="switchRightTab('tabBlocks', this, event)">Khối & Mẫu</div>
+    </div>
+    <div class="panel-content">
+      <div id="tabFormat" class="ptab-content active">
+        <select id="formatSelect" class="tool-input" style="margin-bottom: 12px; font-weight: bold;" onchange="formatDoc('formatBlock', this.value);">
+          <option value="P">- Tiêu đề -</option>
+          <option value="H1">Heading 1</option>
+          <option value="H2">Heading 2</option>
+          <option value="H3">Heading 3</option>
+          <option value="H4">Heading 4</option>
+          <option value="P">Paragraph (P)</option>
+        </select>
+        <!-- định dạng Văn bản-->
+        <div class="tool-grid">
+          <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('bold')" title="In đậm">
+            <b>B</b>
+          </button>
+          <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('italic')" title="In nghiêng">
+            <i>I</i>
+          </button>
+          <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('underline')" title="Gạch chân">
+            <u>U</u>
+          </button>
+          <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('strikeThrough')" title="Gạch ngang">
+            <strike>S</strike>
+          </button>
+          <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('removeFormat')" title="Xóa định dạng">
+            <i class="fas fa-eraser"></i>
+          </button>
+          <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('justifyLeft')" title="Căn trái">
+            <i class="fas fa-align-left"></i>
+          </button>
+          <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('justifyCenter')" title="Căn giữa">
+            <i class="fas fa-align-center"></i>
+          </button>
+          <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('justifyRight')" title="Căn phải">
+            <i class="fas fa-align-right"></i>
+          </button>
+          <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('justifyFull')" title="Căn đều">
+            <i class="fas fa-align-justify"></i>
+          </button>
+          <button class="fmt-btn" onmousedown="event.preventDefault(); openEmojiMenu(event)" title="Chèn Emoji">
+            <i class="far fa-smile"></i>
+          </button>
+          <div class="tool-dropdown-wrapper">
+            <button class="fmt-btn" onmousedown="event.preventDefault(); openToolPopup('popupNumList', this)" title="Number List">123 ▾</button>
+            <div class="vb-mini-popup" id="popupNumList">
+              <div class="popup-item" onmousedown="event.preventDefault(); applyListStyle('OL', '1')">1. 2. 3.</div>
+              <div class="popup-item" onmousedown="event.preventDefault(); applyListStyle('OL', 'i')">i. ii. iii.</div>
+              <div class="popup-item" onmousedown="event.preventDefault(); applyListStyle('OL', 'I')">I. II. III.</div>
+            </div>
+          </div>
+          <div class="tool-dropdown-wrapper">
+            <button class="fmt-btn" onmousedown="event.preventDefault(); openToolPopup('popupAlphaList', this)" title="Letter List">a. ▾</button>
+            <div class="vb-mini-popup" id="popupAlphaList">
+              <div class="popup-item" onmousedown="event.preventDefault(); applyListStyle('OL', 'a')">a. b. c.</div>
+              <div class="popup-item" onmousedown="event.preventDefault(); applyListStyle('OL', 'A')">A. B. C.</div>
+            </div>
+          </div>
+          <div class="tool-dropdown-wrapper">
+            <button class="fmt-btn" onmousedown="event.preventDefault(); openToolPopup('popupSymList', this)" title="Symbol List">
+              <span style="font-size:14px; font-weight:bold;">&Omega;</span> ▾ </button>
+            <div class="vb-mini-popup emoji-grid-popup" id="popupSymList">
+              <div class="emoji-grid" style="grid-template-columns: repeat(4, 1fr);">
+                <span class="emoji-item" onmousedown="event.preventDefault(); applyListStyle('UL', '-')">-</span>
+                <span class="emoji-item" onmousedown="event.preventDefault(); applyListStyle('UL', '+')">+</span>
+                <span class="emoji-item" onmousedown="event.preventDefault(); applyListStyle('UL', '*')">*</span>
+                <span class="emoji-item" onmousedown="event.preventDefault(); applyListStyle('UL', '✦')">✦</span>
+                <span class="emoji-item" onmousedown="event.preventDefault(); applyListStyle('UL', '🔹')">🔹</span>
+                <span class="emoji-item" onmousedown="event.preventDefault(); applyListStyle('UL', '➤')">➤</span>
+                <span class="emoji-item" onmousedown="event.preventDefault(); applyListStyle('UL', '✽')">✽</span>
+                <span class="emoji-item" onmousedown="event.preventDefault(); applyListStyle('UL', '➢')">➢</span>
+              </div>
+            </div>
+          </div>
+          <div class="tool-dropdown-wrapper">
+            <button class="fmt-btn" onmousedown="event.preventDefault(); openToolPopup('popupTextCase', this)" title="Đổi viết hoa/thường">aA ▾</button>
+            <div class="vb-mini-popup" id="popupTextCase">
+              <div class="popup-item" onmousedown="event.preventDefault(); changeTextCase('aa')">aa (viết thường)</div>
+              <div class="popup-item" onmousedown="event.preventDefault(); changeTextCase('Aa')">Aa (Viết Hoa Chữ Đầu)</div>
+              <div class="popup-item" onmousedown="event.preventDefault(); changeTextCase('AA')">AA (VIẾT HOA TOÀN BỘ)</div>
+            </div>
+          </div>
+          <div class="tool-dropdown-wrapper">
+            <button class="fmt-btn" onmousedown="event.preventDefault(); openTablePopup(this)" title="Chèn Bảng">
+              <i class="fas fa-table"></i> ▾ </button>
+            <div class="vb-mini-popup table-grid-popup" id="popupTable">
+              <div class="tc-header" id="tcStatus">0x0</div>
+              <div class="tc-grid" id="tcGrid"></div>
+            </div>
+          </div>
+        </div>
+        <div class="tool-row">
+          <span class="tool-label">Cỡ chữ (px):</span>
+          <div class="size-controller">
+            <button class="size-btn" onmousedown="event.preventDefault(); updateSizePx('fontSize', -1)">
+              <i class="fas fa-minus"></i>
+            </button>
+            <input type="number" id="fontSizeInput" class="size-input" value="15" onchange="applySizePx('fontSize')">
+            <button class="size-btn" onmousedown="event.preventDefault(); updateSizePx('fontSize', 1)">
+              <i class="fas fa-plus"></i>
+            </button>
+          </div>
+        </div>
+        <div class="tool-row">
+          <span class="tool-label">Dãn dòng (px):</span>
+          <div class="size-controller">
+            <button class="size-btn" onmousedown="event.preventDefault(); updateSizePx('lineHeight', -1)">
+              <i class="fas fa-minus"></i>
+            </button>
+            <input type="number" id="lineHeightInput" class="size-input" value="24" onchange="applySizePx('lineHeight')">
+            <button class="size-btn" onmousedown="event.preventDefault(); updateSizePx('lineHeight', 1)">
+              <i class="fas fa-plus"></i>
+            </button>
+          </div>
+        </div>
+        <div class="tool-row">
+          <span class="tool-label">Màu chữ:</span>
+          <div style="display:flex; gap: 5px; flex: 1;">
+            <button class="quick-color" style="background:#000000;" onmousedown="event.preventDefault(); applyColor('color', '#000000')"></button>
+            <button class="quick-color" style="background:#ffffff;" onmousedown="event.preventDefault(); applyColor('color', '#ffffff')"></button>
+            <button class="quick-color" style="background:#01adee;" onmousedown="event.preventDefault(); applyColor('color', '#01adee')"></button>
+            <button class="quick-color" style="background:#db1010;" onmousedown="event.preventDefault(); applyColor('color', '#db1010')"></button>
+            <input type="color" class="tool-input" style="padding: 0; height: 20px; flex:1;" onchange="applyColor('color', this.value)">
+          </div>
+        </div>
+        <div class="tool-row">
+          <span class="tool-label">Màu nền:</span>
+          <div style="display:flex; gap: 5px; flex: 1;">
+            <button class="quick-color" style="background:#000000;" onmousedown="event.preventDefault(); applyColor('backgroundColor', '#000000')"></button>
+            <button class="quick-color" style="background:#ffffff;" onmousedown="event.preventDefault(); applyColor('backgroundColor', '#ffffff')"></button>
+            <button class="quick-color" style="background:#01adee;" onmousedown="event.preventDefault(); applyColor('backgroundColor', '#01adee')"></button>
+            <button class="quick-color" style="background:#db1010;" onmousedown="event.preventDefault(); applyColor('backgroundColor', '#db1010')"></button>
+            <input type="color" class="tool-input" style="padding: 0; height: 20px; flex:1;" onchange="applyColor('backgroundColor', this.value)">
+          </div>
+        </div>
+        <hr style="border-bottom: 1px dashed var(--gray-border); margin: 15px 0;">
+        <div style="font-weight: bold; margin-bottom: 8px; color: var(--blue); font-size: 12px;">
+          <span style="display:inline-block;width:1em;height:1em;vertical-align:-0.125em;margin-right:4px;">
+            <svg viewBox="0 0 48 48" width="1em" height="1em" aria-hidden="true">
+              <path fill="#4285F4" d="M24 9.5c3.54 0 6.72 1.22 9.22 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+              <path fill="#34A853" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+              <path fill="#FBBC05" d="M10.53 28.59A14.4 14.4 0 0 1 9.75 24c0-1.59.28-3.14.78-4.59l-7.98-6.19A23.94 23.94 0 0 0 0 24c0 3.87.92 7.53 2.56 10.78l7.97-6.19z" />
+              <path fill="#EA4335" d="M24 48c6.47 0 11.9-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+            </svg>
+          </span>Fonts Google
+        </div>
+        <div class="tool-row" style="margin-top:10px;">
+          <input type="text" id="newFontLink" class="tool-input" placeholder="Dán thẻ 
+														<link> của Google Font">
+        </div>
+        <button class="tool-btn" style="width:100%; justify-content:center;" onclick="applyGoogleFontFromLink()">
+          <i class="fas fa-font"></i> Nạp & Áp dụng Font </button>
+        <div style="font-weight: bold; margin-top: 15px; margin-bottom: 8px; color: var(--blue); font-size: 12px;">Font đã nạp:</div>
+        <select id="fontSelect" class="tool-input" onchange="applyGoogleFontToSelection(this.value);">
+          <option value="Segoe UI, sans-serif" style="font-family: 'Segoe UI', sans-serif">Segoe UI</option>
+        </select>
+      </div>
+      <div id="tabBlocks" class="ptab-content">
+        <button class="tool-btn" style="width: 100%; justify-content: center; background: var(--blue); color: var(--white); margin-bottom: 15px;" onclick="openHtmlModal()">
+          <i class="fas fa-code"></i> Viết Mã HTML </button>
+        <hr style="border-bottom: 1px dashed var(--gray-border); margin: 15px 0;">
+        <div style="font-weight: bold; margin-bottom: 8px; color: var(--red); font-size: 12px;">
+          <i class="fas fa-box"></i> Lưu Khối HTML Mới:
+        </div>
+        <div style="border: 0.5px solid var(--gray-border); padding: 8px; background: #fdfdfd; margin-bottom: 15px; border-radius: 3px;">
+          <select id="tplCatSelect" class="tool-input" style="margin-bottom:5px;" onchange="checkNewCategory(this)">
+            <option value="">-- Chọn Phân loại --</option>
+            <option value="NEW" style="color:var(--blue); font-weight:bold;">+ Thêm...</option>
+          </select>
+          <textarea id="tplHtmlInput" class="tool-input" style="height: 60px; resize: none; margin-bottom: 5px; font-family: monospace;" placeholder="Dán mã HTML vào đây để xem trước..." oninput="updateTemplatePreview()"></textarea>
+          <div style="font-size:11px; margin-bottom:5px; color:#555;">Xem trước:</div>
+          <div id="tplPreviewBox" style="border:0.5px dashed var(--gray-border); padding:5px; margin-bottom:5px; min-height:20px; background:#fff; overflow:hidden;"></div>
+          <button class="tool-btn" style="width: 100%; justify-content: center;" onclick="saveTemplateToSheet()">
+            <i class="fas fa-save"></i> Lưu Mẫu Lên Sheet </button>
+        </div>
+        <div style="font-weight: bold; margin-bottom: 8px; color: var(--blue); font-size: 12px;">Kho Mẫu (Click để chèn):</div>
+        <div id="templatesList"></div>
+      </div>
+    </div>
+  </div>
+  <button id="vbModeToggleBtn" class="vb-mode-btn" onclick="toggleVietbaiMode()">
+        <i class="fas fa-eye"></i> <span>Xem trước</span>
+  </button>
+</div>
+<div class="popup-menu" id="emojiMenu">
+  <div class="emoji-grid" id="emojiGrid"></div>
+</div>
+<div class="modal-overlay" id="htmlModal">
+  <div class="modal-box" style="width: 95vw; max-width: 1600px; height: 90vh; padding: 0; display: flex; flex-direction: column;">
+    <div style="padding: 10px 15px; background: var(--gray-light); border-bottom: 1px solid var(--gray-border); font-weight: bold; display: flex; justify-content: space-between; color: var(--blue); flex-shrink: 0;">
+      <span>
+        <i class="fas fa-code"></i> Viết Mã HTML/JS/CSS & Bản xem trước </span>
+      <i class="fas fa-times" style="cursor: pointer; color: var(--red);" onclick="closeHtmlModal()"></i>
+    </div>
+    <div class="code-container" style="display: flex; flex: 1; height: calc(100% - 90px); overflow: hidden; background: #ffffff;">
+      <div style="width: 50%; display: flex; background: #1e1e1e; height: 100%; border-right: 2px solid var(--gray-border);">
+        <div class="line-numbers" id="htmlLineNumbers">1</div>
+        <textarea id="htmlEditorTextarea" class="html-textarea" wrap="off" oninput="updateHtmlLineNumbers(); updateHtmlLivePreview();" onscroll="syncHtmlScroll()" style="flex: 1; height: 100%;"></textarea>
+      </div>
+      <div style="width: 50%; height: 100%; background: #f4f6f8; padding: 15px; overflow: auto; box-sizing: border-box;">
+        <div style="font-size: 11px; font-weight: bold; color: #777; margin-bottom: 5px; text-transform: uppercase;">
+          <i class="fas fa-eye"></i> Bản Xem Trước:
+        </div>
+        <div style="width: 100%; height: calc(100% - 20px); background: #ffffff; border: 0.5px solid var(--gray-border); overflow: hidden; position: relative; border-radius: 4px;">
+          <div id="htmlLivePreview" style="position: absolute; top: 0; left: 0; width: 142%; height: 142%; transform: scale(0.7); transform-origin: top left; padding: 20px; box-sizing: border-box; overflow: auto;"></div>
+        </div>
+      </div>
+    </div>
+    <div style="padding: 10px 15px; text-align: right; background: var(--gray-light); border-top: 1px solid var(--gray-border); flex-shrink: 0;">
+      <button class="tool-btn save-btn" onclick="insertHtmlBlock()">
+        <i class="fas fa-check"></i> Chèn vào bài viết </button>
+    </div>
+  </div>
+</div>
+<!--wordMiniToolbar-->
+<div id="wordMiniToolbar" class="word-mini-toolbar" style="display: none;">
+  <select id="miniFontFamily" class="word-mini-select" onchange="miniApplyFontFamily(this.value)">
+    <option value="Segoe UI">Fonts chữ</option>
+  </select>
+  <div class="size-controller" style="width: 80px; height: 24px; margin-left: 2px; flex: 0 0 80px;">
+    <button class="size-btn" style="width: 22px;" onmousedown="event.preventDefault(); updateMiniSizePx(-1)">
+      <i class="fas fa-minus" style="font-size:10px;"></i>
+    </button>
+    <input type="number" id="miniFontSizeInput" class="size-input" value="15" oninput="miniApplyFontSize(this.value)" style="height: 24px; width: 34px; flex-shrink: 0;">
+    <button class="size-btn" style="width: 22px;" onmousedown="event.preventDefault(); updateMiniSizePx(1)">
+      <i class="fas fa-plus" style="font-size:10px;"></i>
+    </button>
+  </div>
+  <div class="word-mini-divider"></div>
+  <div class="tool-dropdown-wrapper" style="width: auto;">
+    <button class="word-mini-btn" id="btnDynamicStyle" title="A Style" onclick="openDynamicStylePopup(this)">
+      <i class="fas fa-heading" id="iconDynamicStyle" style="color: #01adee;"></i>▾ </button>
+    <div class="vb-mini-popup" id="popupDynamicStyles" style="width: 280px; padding: 8px; max-height: 320px; overflow-y: auto; top: auto; bottom: 100%; margin-bottom: 5px;">
+      <div style="font-size:11px; font-weight:bold; color:#777; margin-bottom:5px; border-bottom:1px solid #eee; padding-bottom:5px;" id="dynamicStyleTitle">CHỌN MẪU GIAO DIỆN</div>
+      <div id="dynamicStyleGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;"></div>
+    </div>
+  </div>
+  <div class="word-mini-divider"></div>
+  <button class="word-mini-btn" title="Bold" onclick="miniFormat('bold')">
+    <i class="fas fa-bold"></i>
+  </button>
+  <button class="word-mini-btn" title="Italic" onclick="miniFormat('italic')">
+    <i class="fas fa-italic"></i>
+  </button>
+  <button class="word-mini-btn" title="Underline" onclick="miniFormat('underline')">
+    <i class="fas fa-underline"></i>
+  </button>
+  <div class="word-mini-divider"></div>
+  <button class="word-mini-btn" title="Align Left" onclick="miniFormat('left')">
+    <i class="fas fa-align-left"></i>
+  </button>
+  <button class="word-mini-btn" title="Align Center" onclick="miniFormat('center')">
+    <i class="fas fa-align-center"></i>
+  </button>
+  <button class="word-mini-btn" title="Align Right" onclick="miniFormat('right')">
+    <i class="fas fa-align-right"></i>
+  </button>
+  <div class="word-mini-divider"></div>
+  <div style="position:relative; display:inline-block;">
+    <button class="word-mini-btn" title="Text Color">
+      <i class="fas fa-font"></i>
+      <span id="miniTextColorIndicator" style="border-bottom:3px solid #000; display:inline-block; width:10px; margin-left:2px;"></span>▾ </button>
+    <input type="color" oninput="miniApplyTextColorRealtime(this.value)" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
+  </div>
+  <div style="position:relative; display:inline-block;">
+    <button class="word-mini-btn" title="Cell Background">
+      <i class="fas fa-fill-drip"></i>▾ </button>
+    <input type="color" oninput="miniApplyCellBgRealtime(this.value)" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
+  </div>
+  <div class="tool-dropdown-wrapper" style="width: auto;">
+    <button class="word-mini-btn" title="Borders" onclick="openToolPopup('popupMiniBorders', this)">
+      <i class="fas fa-border-all"></i>▾ </button>
+    <div class="vb-mini-popup" id="popupMiniBorders" style="min-width: 140px;">
+      <div class="popup-item" onclick="miniApplyBorders('all')">
+        <i class="fas fa-border-all"></i> Tất cả viền
+      </div>
+      <div class="popup-item" onclick="miniApplyBorders('outside')">
+        <i class="fas fa-square"></i> Viền ngoài
+      </div>
+      <div class="popup-item" onclick="miniApplyBorders('none')">
+        <i class="fas fa-border-none" style="color:#999;"></i> Bỏ viền
+      </div>
+    </div>
+  </div>
+</div>
+<!--wordMiniToolbar-->
+<div id="wordContextMenu" class="word-context-menu" style="display: none;">
+  <div class="word-menu-item">
+    <i class="fas fa-search word-menu-icon"></i> Review selection in Editor
+  </div>
+  <div class="word-menu-separator"></div>
+  <div class="word-menu-item" onclick="editorCopy(true)">
+    <i class="fas fa-cut word-menu-icon"></i> Cut
+  </div>
+  <div class="word-menu-item" onclick="editorCopy(false)">
+    <i class="fas fa-copy word-menu-icon"></i> Copy
+  </div>
+  <div class="word-menu-item word-has-submenu">
+    <span>
+      <i class="fas fa-paste word-menu-icon"></i> Paste Options </span>
+    <div class="word-submenu">
+      <div class="word-menu-item" onclick="editorPaste('keepSource')">
+        <i class="fas fa-paint-brush word-menu-icon"></i> Keep Source Formatting
+      </div>
+      <div class="word-menu-item" onclick="editorPaste('merge')">
+        <i class="fas fa-compress-alt word-menu-icon"></i> Merge Formatting (M)
+      </div>
+      <div class="word-menu-item" onclick="editorPaste('keepText')">
+        <i class="fas fa-font word-menu-icon"></i> Keep Text Only
+      </div>
+    </div>
+  </div>
+  <div class="word-menu-separator"></div>
+  <div class="word-menu-item word-has-submenu">
+    <span>
+      <i class="fas fa-plus word-menu-icon"></i> Insert </span>
+    <div class="word-submenu">
+      <div class="word-menu-item" onclick="insertTableElements('rowAbove')">
+        <i class="fas fa-arrow-up word-menu-icon"></i> Insert Row Above
+      </div>
+      <div class="word-menu-item" onclick="insertTableElements('rowBelow')">
+        <i class="fas fa-arrow-down word-menu-icon"></i> Insert Row Below
+      </div>
+      <div class="word-menu-item" onclick="insertTableElements('colLeft')">
+        <i class="fas fa-arrow-left word-menu-icon"></i> Insert Column Left
+      </div>
+      <div class="word-menu-item" onclick="insertTableElements('colRight')">
+        <i class="fas fa-arrow-right word-menu-icon"></i> Insert Column Right
+      </div>
+    </div>
+  </div>
+  <div class="word-menu-item word-has-submenu">
+    <span>
+      <i class="fas fa-trash word-menu-icon"></i> Delete </span>
+    <div class="word-submenu">
+      <div class="word-menu-item" onclick="deleteTableElements('cells')">
+        <i class="fas fa-minus-square word-menu-icon"></i> Delete Cells...
+      </div>
+      <div class="word-menu-item" onclick="deleteTableElements('cols')">
+        <i class="fas fa-columns word-menu-icon"></i> Delete Columns
+      </div>
+      <div class="word-menu-item" onclick="deleteTableElements('rows')">
+        <i class="fas fa-bars word-menu-icon"></i> Delete Rows
+      </div>
+      <div class="word-menu-item" onclick="deleteTableElements('table')">
+        <i class="fas fa-table word-menu-icon"></i> Delete Table
+      </div>
+    </div>
+  </div>
+  <div class="word-menu-separator"></div>
+  <div class="word-menu-item" id="menuMergeSplit">
+    <i class="fas fa-compress-arrows-alt word-menu-icon"></i> Merge Cells
+  </div>
+  <div class="word-menu-item">
+    <i class="fas fa-arrows-alt-v word-menu-icon"></i> Distribute Rows Evenly
+  </div>
+  <div class="word-menu-item">
+    <i class="fas fa-arrows-alt-h word-menu-icon"></i> Distribute Columns Evenly
+  </div>
+  <div class="word-menu-item word-has-submenu">
+    <span>
+      <i class="fas fa-border-all word-menu-icon"></i> Border Styles </span>
+    <div class="word-submenu" style="padding: 10px; width: 270px; cursor: default;" onclick="event.stopPropagation()">
+      <div style="display:flex; gap:10px; margin-bottom:10px; align-items:center;">
+        <div class="size-controller" style="width: 85px; height: 26px; border: 0.5px solid #c8c8c8;">
+          <button class="size-btn" onclick="updateContextBorderWidth(-1)">-</button>
+          <input type="number" id="ctxBorderWidth" class="size-input" value="1" oninput="applyContextBorderRealtime()">
+          <button class="size-btn" onclick="updateContextBorderWidth(1)">+</button>
+        </div>
+        <input type="color" id="ctxBorderColor" value="#000000" oninput="applyContextBorderRealtime()" style="flex:1; height: 26px; border:0.5px solid #c8c8c8; cursor:pointer; padding:0;">
+      </div>
+      <div id="ctxBorderGrid" style="display:grid; grid-template-columns: repeat(7, 1fr); gap: 2px;"></div>
+    </div>
+  </div>
+  <div class="word-menu-separator"></div>
+  <div class="word-menu-item">
+    <i class="fas fa-text-height word-menu-icon"></i> Text Direction...
+  </div>
+  <div class="word-menu-item" onclick="openTableProperties()">
+    <i class="fas fa-table word-menu-icon"></i> Table Properties...
+  </div>
+  <div class="word-menu-item">
+    <i class="fas fa-comment word-menu-icon"></i> New Comment
+  </div>
+</div>
+<div class="vb-alert-overlay" id="tablePropsOverlay" style="z-index: 100005;">
+  <div class="vb-alert-box" style="width: 450px; background: #fff;">
+    <div style="font-weight:bold; font-size:16px; margin-bottom:15px; color:var(--blue);">
+      <i class="fas fa-table"></i> Căn Chỉnh Bảng (Table Properties)
+    </div>
+    <div style="display:flex; justify-content:space-between; gap:15px;">
+      <div id="align-box-left" style="flex:1; border:0.5px solid #01adee; padding:10px; border-radius:4px; text-align:center; transition: 0.2s; cursor:pointer;" onclick="applyTblAlign('left')">
+        <div style="height:50px; border:0.5px solid #ccc; margin-bottom:10px; display:flex; align-items:center; padding-left:5px; background:#f9f9f9;">
+          <div style="width:24px; height:20px; border:0.5px solid #333; display:grid; grid-template-columns:1fr 1fr; background:#fff;">
+            <div style="border-right:1px solid #333; border-bottom:1px solid #333;"></div>
+            <div style="border-bottom:1px solid #333;"></div>
+            <div style="border-right:1px solid #333;"></div>
+            <div></div>
+          </div>
+        </div>
+        <div style="font-weight:bold; font-size:12px; margin-bottom:8px;">Căn Trái</div>
+        <div class="size-controller" style="border-color:#ccc;" onclick="event.stopPropagation()">
+          <button class="size-btn" onclick="updateTblMargin('right', -5)">-</button>
+          <input type="number" id="tblMargRight" value="0" class="size-input" oninput="applyTblAlign('left')">
+          <button class="size-btn" onclick="updateTblMargin('right', 5)">+</button>
+        </div>
+        <div style="font-size:10px; color:#777; margin-top:5px;">(Ép lề phải)</div>
+      </div>
+      <div id="align-box-center" style="flex:1; border:0.5px solid #ddd; padding:10px; border-radius:4px; text-align:center; transition: 0.2s; cursor:pointer;" onclick="applyTblAlign('center')">
+        <div style="height:50px; border:0.5px solid #ccc; margin-bottom:10px; display:flex; align-items:center; justify-content:center; background:#f9f9f9;">
+          <div style="width:24px; height:20px; border:0.5px solid #333; display:grid; grid-template-columns:1fr 1fr; background:#fff;">
+            <div style="border-right:1px solid #333; border-bottom:1px solid #333;"></div>
+            <div style="border-bottom:1px solid #333;"></div>
+            <div style="border-right:1px solid #333;"></div>
+            <div></div>
+          </div>
+        </div>
+        <div style="font-weight:bold; font-size:12px; margin-bottom:8px;">Căn Giữa</div>
+        <div class="size-controller" style="border-color:#ccc;" onclick="event.stopPropagation()">
+          <button class="size-btn" onclick="updateTblMargin('center', -5)">-</button>
+          <input type="number" id="tblMargCenter" value="0" class="size-input" oninput="applyTblAlign('center')">
+          <button class="size-btn" onclick="updateTblMargin('center', 5)">+</button>
+        </div>
+        <div style="font-size:10px; color:#777; margin-top:5px;">(Ép 2 bên)</div>
+      </div>
+      <div id="align-box-right" style="flex:1; border:0.5px solid #ddd; padding:10px; border-radius:4px; text-align:center; transition: 0.2s; cursor:pointer;" onclick="applyTblAlign('right')">
+        <div style="height:50px; border:0.5px solid #ccc; margin-bottom:10px; display:flex; align-items:center; justify-content:flex-end; padding-right:5px; background:#f9f9f9;">
+          <div style="width:24px; height:20px; border:0.5px solid #333; display:grid; grid-template-columns:1fr 1fr; background:#fff;">
+            <div style="border-right:1px solid #333; border-bottom:1px solid #333;"></div>
+            <div style="border-bottom:1px solid #333;"></div>
+            <div style="border-right:1px solid #333;"></div>
+            <div></div>
+          </div>
+        </div>
+        <div style="font-weight:bold; font-size:12px; margin-bottom:8px;">Căn Phải</div>
+        <div class="size-controller" style="border-color:#ccc;" onclick="event.stopPropagation()">
+          <button class="size-btn" onclick="updateTblMargin('left', -5)">-</button>
+          <input type="number" id="tblMargLeft" value="0" class="size-input" oninput="applyTblAlign('right')">
+          <button class="size-btn" onclick="updateTblMargin('left', 5)">+</button>
+        </div>
+        <div style="font-size:10px; color:#777; margin-top:5px;">(Ép lề trái)</div>
+      </div>
+    </div>
+    <div style="text-align:right; margin-top:15px;">
+      <button class="tool-btn save-btn" onclick="document.getElementById('tablePropsOverlay').style.display='none'">Hoàn Tất</button>
+    </div>
+  </div>
+</div>
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+
+    let sysData = { sheets: {} }; 
+    let draftData = null;
+    let actionQueue = [];
+    let currentSyncToken = 0;
+    let hasPendingUpdate = false; 
+    let currentPostId = null; 
+    let isVBDirty = false;
+    let savedRange = null; 
+    let syncTimer = null;
+
+    // Kiểm tra xem người dùng có đang gõ chữ không
+    function checkIsEditing() {
+        let active = document.activeElement;
+        if (!active) return false;
+        if (active.isContentEditable) return true;
+        if (['INPUT', 'TEXTAREA'].includes(active.tagName)) return true;
+        return false;
+    }
+
+    // Nút bấm tải lại dữ liệu an toàn
+    function forceFetchData() {
+        if (isVBDirty) {
+            if (!confirm("Bạn đang có thay đổi chưa lưu! Nếu làm mới từ máy chủ, các chữ vừa gõ sẽ bị mất. Vẫn tiếp tục tải lại?")) return;
+            isVBDirty = false; 
+        } else if (checkIsEditing()) {
+            return alert("Vui lòng click chuột ra ngoài vùng gõ chữ để làm mới dữ liệu!"); 
+        }
+        fetchDataFromServer(true);
+    }
+
+    // KÍCH HOẠT KHI TẢI TRANG
+    window.addEventListener('load', async () => {
+        // 1. Phục hồi sự kiện bôi đen cho Editor
+        let editors = ['postContent', 'postTitle', 'postSapo'];
+        editors.forEach(id => {
+            let el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('mouseup', () => { saveSelection(); updateToolbarState(); });
+                el.addEventListener('keyup', () => { saveSelection(); updateToolbarState(); });
+                el.addEventListener('mouseleave', saveSelection);
+                el.addEventListener('input', () => { 
+                    isVBDirty = true; 
+                    let s = document.getElementById('syncStatusVB');
+                    if (s.innerText !== "⏳ Đang lưu nền...") {
+                        s.innerText = "⚠️ Chưa lưu";
+                        s.style.color = "var(--red)";
+                    }
+                });
+            }
+        });
+
+        // 2. Ép dán văn bản thuần cho Tiêu đề và Sapo
+        ['postTitle', 'postSapo'].forEach(id => {
+            let el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('paste', function(e) {
+                    e.preventDefault();
+                    let text = (e.originalEvent || e).clipboardData.getData('text/plain');
+                    if (id === 'postTitle') text = text.replace(/(\r\n|\n|\r)/gm, " ");
+                    document.execCommand('insertText', false, text);
+                });
+            }
+        });
+
+        // 3. Khởi tạo dữ liệu từ Local Cache
+        try {
+            let cached = localStorage.getItem("MKT_DATA");
+            if (cached) {
+                let parsed = JSON.parse(cached);
+                if (parsed && parsed.sheets) {
+                    sysData = parsed;
+                    currentSyncToken = sysData.syncToken || 0;
+                    document.getElementById('syncStatusVB').innerHTML = "⚡ Chế độ nhanh (Local)";
+                }
+            }
+            loadDraftData();
+
+            let urlParams = new URLSearchParams(window.location.search);
+            currentPostId = urlParams.get('id') || (draftData ? draftData.data[0] : null);
+            if (currentPostId) loadPostIntoEditor(currentPostId);
+
+            processAndRenderPostUI();
+        } catch (err) { console.error("Lỗi nạp Cache:", err); }
+
+        // 4. Kéo máy chủ và đặt lịch quét tự động 20s/lần
+        fetchDataFromServer();
+        setInterval(() => {
+            if (!checkIsEditing() && actionQueue.length === 0) fetchDataFromServer();
+        }, 20000);
+
+        // 5. Lắng nghe đồng bộ liên Tab
+        window.addEventListener('storage', function(e) {
+            if (e.key === "MKT_DATA") {
+                try {
+                    let newData = JSON.parse(e.newValue);
+                    if (newData && newData.sheets) { sysData = newData; processAndRenderPostUI(); }
+                } catch(err) {}
+            }
+        });
+
+        // 6. Tự động áp dụng dữ liệu mới khi click ra ngoài
+        ['mousedown', 'focusout'].forEach(evt => {
+            document.addEventListener(evt, () => {
+                setTimeout(() => {
+                    if (hasPendingUpdate && !checkIsEditing()) { hasPendingUpdate = false; fetchDataFromServer(true); }
+                }, 200);
+            });
+        });
+    });
+    function processAndRenderPostUI() {
+        loadGoogleFontsFromSheet(sysData);
+        loadEmojisFromSheet(sysData);
+        loadTemplatesFromSheet(sysData);
+
+        // Tự động nạp dữ liệu từ _PLAN_DATA_ vào đệm nháp
+        if (draftData && draftData.planRowIndex !== undefined && sysData.sheets["_PLAN_DATA_"]) {
+            let planRow = sysData.sheets["_PLAN_DATA_"][draftData.planRowIndex];
+            if (planRow && planRow[2]) {
+                try {
+                    draftData.data = JSON.parse(planRow[2]);
+                    localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
+                } catch(e) {}
+            }
+        }
+        loadDraftData();
+
+        let urlParams = new URLSearchParams(window.location.search);
+        let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[0] : null);
+        if (postIdToLoad && !isVBDirty) {
+            currentPostId = postIdToLoad;
+            loadPostIntoEditor(postIdToLoad);
+        }
+    }
+
+    async function fetchDataFromServer(forceFromGoogle = false) {
+        try {
+            if (actionQueue.length === 0) {
+                document.getElementById('syncStatusVB').innerText = "🔄 Đang tải...";
+                document.getElementById('syncStatusVB').style.color = "var(--blue)";
+            }
+            let fetchUrl = (!forceFromGoogle && window.location.hostname !== 'localhost') ? "/api/get-brain" : API_URL + "?t=" + new Date().getTime();
+            let res = await fetch(fetchUrl);
+            let json = await res.json();
+
+            if (fetchUrl === "/api/get-brain") {
+                if (!json.success || (json.success && json.data.syncToken < currentSyncToken)) {
+                    res = await fetch(API_URL + "?t=" + new Date().getTime());
+                    json = await res.json();
+                }
+            }
+
+            if (json.success) { 
+                sysData = json.data; 
+                currentSyncToken = sysData.syncToken;
+                localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
+
+                if (!checkIsEditing()) {
+                    processAndRenderPostUI();
+                    document.getElementById('syncStatusVB').innerText = "✅ Sẵn sàng"; 
+                    document.getElementById('syncStatusVB').style.color = "#27ae60";
+                    hasPendingUpdate = false;
+                } else {
+                    document.getElementById('syncStatusVB').innerText = "⚠️ Có dữ liệu mới"; 
+                    document.getElementById('syncStatusVB').style.color = "#f39c12";
+                    hasPendingUpdate = true;
+                }
+            }
+        } catch(e) { 
+            document.getElementById('syncStatusVB').innerText = "⚠️ Ngoại tuyến"; 
+            document.getElementById('syncStatusVB').style.color = "var(--red)";
+        }
+    }
+
+    function pushQueue(action) {
+        actionQueue.push(action); 
+        localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+        let s = document.getElementById('syncStatusVB'); 
+        s.innerText = "⏳ Gom dữ liệu..."; s.style.color = "#f39c12";
+        clearTimeout(syncTimer);
+
+        syncTimer = setTimeout(() => {
+            let batch = [...actionQueue]; actionQueue = []; 
+            s.innerText = "⏳ Đang lưu nền...";
+            fetch(API_URL, { method: "POST", body: JSON.stringify(batch), headers: { "Content-Type": "text/plain;charset=utf-8" } })
+            .then(res => res.json())
+            .then(json => { 
+                if (json.success) { 
+                    s.innerText = "✅ Đã lưu an toàn"; s.style.color = "#27ae60"; 
+                    if (json.syncToken > currentSyncToken) {
+                        currentSyncToken = json.syncToken;
+                        if (!checkIsEditing()) fetchDataFromServer(true);
+                        else { s.innerText = "⚠️ Có dữ liệu mới"; s.style.color = "#f39c12"; hasPendingUpdate = true; }
+                    }
+                } 
+            }).catch(e => { s.innerText = "⚠️ Lỗi mạng"; s.style.color = "var(--red)"; });
+        }, 1500); 
+    }
+
+    // NẠP BẢI VIẾT VÀO EDITOR
+    function loadPostIntoEditor(postId) {
+        if (!postId || !sysData || !sysData.sheets || !sysData.sheets["Bài viết_hidden"]) return;
+        let bvTab = sysData.sheets["Bài viết_hidden"];
+        for (let r = 1; r < bvTab.length; r++) {
+            if (bvTab[r][0] == postId) {
+                document.getElementById("postTitle").innerHTML = bvTab[r][1] || "";
+                document.getElementById("postSapo").innerHTML = bvTab[r][2] || "";
+                document.getElementById("coverUrlInput").value = bvTab[r][3] || "";
+
+                let tempDiv = document.createElement('div');
+                tempDiv.innerHTML = bvTab[r][4] || "";
+                let bodyInside = tempDiv.querySelector('.post-body');
+                document.getElementById("postContent").innerHTML = bodyInside ? bodyInside.innerHTML : (bvTab[r][4] || "");
+
+                updateCoverPreview();
+                isVBDirty = false;
+                setTimeout(globalHeadingSyncTrigger, 500);
+                break;
+            }
+        }
+    }
+
+    // NẠP DỮ LIỆU NGUỒN BÊN PANEL TRÁI
+    function loadDraftData() {
+        let draftStr = localStorage.getItem("DRAFT_POST_DATA");
+        if (!draftStr) return;
+        try {
+            draftData = JSON.parse(draftStr);
+            if (!draftData || !draftData.headers) return;
+            let container = document.getElementById("sourceDataContainer");
+            let tabName = draftData.tabName || draftData.sourceTab || "Kế Hoạch";
+
+            let orderArray = [];
+            if (sysData && sysData.sheets && sysData.sheets["thutuHeader_hidden"]) {
+                let ttSheet = sysData.sheets["thutuHeader_hidden"];
+                for (let r = 1; r < ttSheet.length; r++) {
+                    if (ttSheet[r][0] === tabName) { try { orderArray = JSON.parse(ttSheet[r][1]); } catch(e){} break; }
+                }
+            }
+
+            let sortedIndices = [];
+            orderArray.forEach(h => { let idx = draftData.headers.indexOf(h); if (idx !== -1) sortedIndices.push(idx); });
+            draftData.headers.forEach((h, i) => { if (!sortedIndices.includes(i)) sortedIndices.push(i); });
+
+            let html = `<div style="font-weight:bold; color:var(--blue); margin-bottom:10px; border-bottom:1px dashed #ccc; padding-bottom:5px;"><i class="fas fa-layer-group"></i> Nguồn: ${tabName}</div>`;
+            sortedIndices.forEach(i => {
+                let h = draftData.headers[i]; let val = draftData.data[i];
+                let displayVal = (val !== undefined && val !== "") ? val : "<i style='color:#ccc;'>Trống</i>";
+                if (String(displayVal).startsWith("http")) displayVal = `<a href="${displayVal}" target="_blank" style="color:var(--blue); word-break:break-all;">Link đính kèm</a>`;
+                
+                html += `<div class="data-row" draggable="true" data-header="${h}"><div class="data-label"><i class="fas fa-grip-vertical" style="color:#bbb; cursor:grab;"></i> ${h}</div><div class="data-val editable" contenteditable="true" spellcheck="false" onblur="updateDraftValue('${h}', this)">${displayVal}</div></div>`;
+            });
+            container.innerHTML = html;
+            initDragDropLeftPanel();
+        } catch(e) {}
+    }
+
+    function initDragDropLeftPanel() {
+        let container = document.getElementById("sourceDataContainer");
+        if (container.dataset.dndInit) return; container.dataset.dndInit = "true";
+        let draggedItem = null;
+        container.addEventListener('dragstart', e => { let row = e.target.closest('.data-row'); if (!row) return; draggedItem = row; e.dataTransfer.effectAllowed = 'move'; setTimeout(() => row.style.opacity = '0.4', 0); });
+        container.addEventListener('dragover', e => { e.preventDefault(); let target = e.target.closest('.data-row'); if (!target || target === draggedItem) return; let rect = target.getBoundingClientRect(); container.insertBefore(draggedItem, ((e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5) ? target.nextSibling : target); });
+        container.addEventListener('dragend', e => { if (draggedItem) draggedItem.style.opacity = '1'; draggedItem = null; savePlanDataOrder(); });
+    }
+
+    function savePlanDataOrder() {
+        if (!draftData) return;
+        let newOrder = []; document.getElementById("sourceDataContainer").querySelectorAll('.data-row').forEach(row => newOrder.push(row.dataset.header));
+        let tabName = draftData.tabName || draftData.sourceTab || "Kế Hoạch"; let orderJson = JSON.stringify(newOrder);
+
+        if (!sysData.sheets["thutuHeader_hidden"]) {
+            sysData.tabOrder.push("thutuHeader_hidden"); sysData.sheets["thutuHeader_hidden"] = [["Tên tab sheet", "Thứ tự tiêu đề"]];
+            pushQueue({type:'MANAGE_TAB', action:'create', tab: "thutuHeader_hidden"});
+            pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "Tên tab sheet", tab: "thutuHeader_hidden"});
+            pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Thứ tự tiêu đề", tab: "thutuHeader_hidden"});
+        }
+        let ttSheet = sysData.sheets["thutuHeader_hidden"]; let targetRow = -1;
+        for (let r = 1; r < ttSheet.length; r++) { if (ttSheet[r][0] === tabName) { targetRow = r; break; } }
+
+        if (targetRow !== -1) { ttSheet[targetRow][1] = orderJson; pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: orderJson, tab: "thutuHeader_hidden"}); } 
+        else { targetRow = ttSheet.length; ttSheet.push([tabName, orderJson]); pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow+1, count: 1, tab: "thutuHeader_hidden"}); pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 1, val: tabName, tab: "thutuHeader_hidden"}); pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: orderJson, tab: "thutuHeader_hidden"}); }
+    }
+
+    function updateDraftValue(headerName, el) {
+        if (!draftData || !draftData.headers) return;
+        let hIndex = draftData.headers.indexOf(headerName); if (hIndex === -1) return;
+        let cleanVal = el.innerHTML;
+        let textCheck = el.innerText.trim(); if (!textCheck || (textCheck === "Trống" && el.querySelector('i'))) cleanVal = "";
+        if (cleanVal === (draftData.data[hIndex] || "")) return; 
+
+        draftData.data[hIndex] = cleanVal; localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
+        if (!sysData.sheets["_PLAN_DATA_"]) return;
+        let planRowIndex = draftData.planRowIndex; 
+
+        if (planRowIndex !== undefined && sysData.sheets["_PLAN_DATA_"][planRowIndex]) {
+            let newJsonData = JSON.stringify(draftData.data);
+            sysData.sheets["_PLAN_DATA_"][planRowIndex][2] = newJsonData; localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+            pushQueue({ type: 'SYNC_CELL', row: planRowIndex + 1, col: 3, val: newJsonData, tab: "_PLAN_DATA_" });
+            el.style.backgroundColor = "#e8f5e9"; setTimeout(() => el.style.backgroundColor = "", 1000);
+        } else { el.style.backgroundColor = "#ffcdd2"; setTimeout(() => el.style.backgroundColor = "", 1000); }
+    }
+    
+    function vbShowAlert(msg) {
+        document.getElementById('vbAlertMsg').innerHTML = msg;
+        document.getElementById('vbPromptInput').style.display = 'none';
+        document.getElementById('vbAlertCancel').style.display = 'none';
+        document.getElementById('vbAlertOverlay').style.display = 'flex';
+        vbPromptCallback = null;
+    }
+
+    function vbShowPrompt(msg, callback) {
+        document.getElementById('vbAlertMsg').innerHTML = msg;
+        document.getElementById('vbPromptInput').style.display = 'block';
+        document.getElementById('vbPromptInput').value = '';
+        document.getElementById('vbAlertCancel').style.display = 'inline-block';
+        document.getElementById('vbAlertOverlay').style.display = 'flex';
+        vbPromptCallback = callback;
+    }
+
+    function vbCloseAlert(isOk) {
+        document.getElementById('vbAlertOverlay').style.display = 'none';
+        if (isOk && vbPromptCallback) {
+            vbPromptCallback(document.getElementById('vbPromptInput').value);
+        }
+    }
+
+    // ==========================================
+    // SELECTION MEMORY (GIỮ BÔI ĐEN KHI CLICK)
+    // ==========================================
+    function saveSelection() {
+        let sel = window.getSelection();
+        if (sel.getRangeAt && sel.rangeCount > 0) {
+            savedRange = sel.getRangeAt(0);
+        }
+    }
+
+    function restoreSelection() {
+        if (savedRange) {
+            let sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(savedRange);
+        }
+    }
+
+    window.addEventListener('load', () => {
+        let editors = ['postContent', 'postTitle', 'postSapo'];
+        editors.forEach(id => {
+            let editor = document.getElementById(id);
+            if (editor) {
+                editor.addEventListener('mouseup', () => { saveSelection(); updateToolbarState(); });
+                editor.addEventListener('keyup', () => { saveSelection(); updateToolbarState(); });
+                editor.addEventListener('mouseleave', saveSelection);
+            }
+        });
+        // Ép dán văn bản thuần túy cho Tiêu đề và Sapo để chống rác HTML
+        ['postTitle', 'postSapo'].forEach(id => {
+            let el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('paste', function(e) {
+                    e.preventDefault();
+                    let text = (e.originalEvent || e).clipboardData.getData('text/plain');
+                    document.execCommand('insertText', false, text);
+                });
+            }
+        });
+    });
+    
+
+    document.getElementById('editorContainer').addEventListener('input', function() {
+        isVBDirty = true;
+        document.getElementById('syncStatusVB').innerHTML = "⚠️ Chưa lưu";
+        document.getElementById('syncStatusVB').style.color = "var(--red)";
+    });
+
+    // ==========================================
+    // ĐỒNG BỘ HEADING MƯỢT MÀ SAU KHI SỬA ĐỔI (ĐÃ FIX LỖI SPAN ẨN)
+    // ==========================================
+    function globalHeadingSyncTrigger() {
+        ['H1', 'H2', 'H3', 'H4'].forEach(tag => {
+            let editor = document.getElementById("postContent");
+            let headings = Array.from(editor.getElementsByTagName(tag));
+            if (headings.length <= 1) return;
+
+            // Xác định thẻ Heading đang được thao tác để đo lường chính xác
+            let sel = window.getSelection();
+            let activeHeading = headings[0];
+            if (sel.rangeCount > 0) {
+                let node = sel.anchorNode;
+                if (node && node.nodeType === 3) node = node.parentNode;
+                let closestH = node ? node.closest(tag) : null;
+                if (closestH && headings.includes(closestH)) {
+                    activeHeading = closestH;
+                }
+            }
+
+            // Quét sâu vào thẻ con để lấy style thực tế (vì execCommand thường bọc span bên trong H)
+            let targetToMeasure = activeHeading;
+            let child = activeHeading.firstElementChild;
+            while(child && ['SPAN', 'FONT', 'B', 'I', 'U'].includes(child.tagName)) {
+                targetToMeasure = child;
+                child = child.firstElementChild;
+            }
+
+            let computed = window.getComputedStyle(targetToMeasure);
+            let color = computed.color;
+            let bgColor = computed.backgroundColor !== 'rgba(0, 0, 0, 0)' ? computed.backgroundColor : '';
+            let fontSize = computed.fontSize;
+            let fontFamily = computed.fontFamily;
+            let lineHeight = computed.lineHeight;
+            
+            let masterComputed = window.getComputedStyle(activeHeading);
+            let textAlign = masterComputed.textAlign;
+            let fontWeight = masterComputed.fontWeight;
+
+            headings.forEach(h => {
+                if (h === activeHeading) return; // Bỏ qua thẻ đang sửa trực tiếp để không làm đứt selection
+
+                h.style.color = color;
+                h.style.backgroundColor = bgColor;
+                h.style.fontSize = fontSize;
+                h.style.fontFamily = fontFamily;
+                h.style.lineHeight = lineHeight;
+                h.style.textAlign = textAlign;
+                h.style.fontWeight = fontWeight;
+
+                // Cào sạch các thẻ HTML con để ép style áp dụng trực tiếp lên thẻ vỏ (H)
+                let plainText = h.innerText || h.textContent;
+                h.innerHTML = plainText; 
+            });
+        });
+    }
+
+
+    function loadGoogleFontsFromSheet(cacheData) {
+        let sheet = (cacheData && cacheData.sheets) ? cacheData.sheets["Google Fonts_hidden"] : null;
+        let select = document.getElementById("fontSelect");
+        select.innerHTML = '<option value="Segoe UI" style="font-family: \'Segoe UI\', sans-serif">Segoe UI</option>';
+        if(!sheet) return;
+
+        for(let i=1; i<sheet.length; i++) {
+            let fontName = sheet[i][0];
+            let link = sheet[i][1]; 
+            let family = sheet[i][2];
+            
+            if(link) {
+                let urlMatch = link.match(/href="([^"]+)"/);
+                let url = urlMatch ? urlMatch[1] : link;
+                if(url && !document.head.querySelector(`link[href="${url}"]`)) {
+                    let linkEl = document.createElement('link');
+                    linkEl.rel = 'stylesheet';
+                    linkEl.href = url.replace(/&amp;/g, '&');
+                    document.head.appendChild(linkEl);
+                }
+            }
+            if(family) {
+                let cleanFamily = family.replace(/['"]/g, '').split(',')[0].trim();
+                if(!fontName) fontName = cleanFamily;
+                
+                let exists = Array.from(select.options).some(opt => opt.value === cleanFamily);
+                if (!exists) {
+                    select.innerHTML += `<option value="${cleanFamily}" style="font-family: '${cleanFamily}'">${fontName}</option>`;
+                }
+            }
+        }
+    }
+
+    function loadEmojisFromSheet(cacheData) {
+        let sheet = (cacheData && cacheData.sheets) ? cacheData.sheets["emoji_hidden"] : null;
+        let grid = document.getElementById("emojiGrid");
+        grid.innerHTML = "";
+        if(!sheet) { grid.innerHTML = "<i>Chưa cấu hình Emoji</i>"; return; }
+
+        for(let i=1; i<sheet.length; i++) {
+            let char = sheet[i][0];
+            if(char) {
+                grid.innerHTML += `<span class="emoji-item" onmousedown="event.preventDefault(); insertTextAtCursor('${char}')">${char}</span>`;
+            }
+        }
+    }
+
+    function loadTemplatesFromSheet(cacheData) {
+        let sheet = (cacheData && cacheData.sheets) ? cacheData.sheets["Mẫu html_hidden"] : null;
+        let list = document.getElementById("templatesList");
+        let catSelect = document.getElementById("tplCatSelect");
+        list.innerHTML = "";
+        catSelect.innerHTML = '<option value="">-- Chọn Phân loại --</option><option value="NEW" style="color:var(--blue); font-weight:bold;">+ Thêm...</option>';
+        
+        if(!sheet) return;
+
+        let categories = {};
+        for(let i=1; i<sheet.length; i++) {
+            let cat = sheet[i][0] || "Khác";
+            let htmlStr = sheet[i][2];
+            if(!htmlStr) continue;
+
+            if(!categories[cat]) categories[cat] = [];
+            categories[cat].push({html: htmlStr});
+        }
+
+        for(let cat in categories) {
+            catSelect.innerHTML += `<option value="${cat}">${cat}</option>`;
+            let catHeader = document.createElement("div");
+            catHeader.className = "mega-row-cat";
+            catHeader.innerHTML = `<span>${cat}</span> <i class="fas fa-chevron-down"></i>`;
+            let catContent = document.createElement("div");
+            catContent.className = "cat-content";
+            catHeader.onclick = function() { catContent.classList.toggle("open"); };
+
+            categories[cat].forEach(item => {
+                let div = document.createElement("div");
+                div.className = "template-item";
+                div.innerHTML = `<div class="template-item-content">${item.html}</div>`; 
+                div.onmousedown = function(e) {
+                    e.preventDefault();
+                    document.getElementById("postContent").focus();
+                    restoreSelection();
+                    formatDoc('insertHTML', item.html);
+                    saveSelection();
+                };
+                catContent.appendChild(div);
+            });
+            list.appendChild(catHeader);
+            list.appendChild(catContent);
+        }
+    }
+
+    function savePostToSheet() {
+        let title = document.getElementById("postTitle").innerHTML;
+        let sapo = document.getElementById("postSapo").innerHTML;
+        let coverUrl = document.getElementById("coverUrlInput").value.trim();
+        let content = document.getElementById("postContent").innerHTML;
+        let finalHtml = `<div class="post-body">${content}</div>`;
+
+        let planId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_" + new Date().getTime());
+        currentPostId = planId;
+
+        if (draftData && (!draftData.data[0] || draftData.data[0] !== planId)) {
+            draftData.data[0] = planId; localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
+            if (sysData.sheets["_PLAN_DATA_"] && draftData.planRowIndex !== undefined) {
+                let newJsonData = JSON.stringify(draftData.data);
+                sysData.sheets["_PLAN_DATA_"][draftData.planRowIndex][2] = newJsonData;
+                pushQueue({ type: 'SYNC_CELL', row: draftData.planRowIndex + 1, col: 3, val: newJsonData, tab: "_PLAN_DATA_" });
+            }
+        }
+
+        if (!sysData.sheets["Bài viết_hidden"]) {
+            sysData.tabOrder.push("Bài viết_hidden");
+            sysData.sheets["Bài viết_hidden"] = [["ID", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML"]];
+            pushQueue({type:'MANAGE_TAB', action:'create', tab: "Bài viết_hidden"});
+            pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "ID", tab: "Bài viết_hidden"});
+            pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Tiêu đề", tab: "Bài viết_hidden"});
+            pushQueue({type:'SYNC_CELL', row: 1, col: 3, val: "Sapo", tab: "Bài viết_hidden"});
+            pushQueue({type:'SYNC_CELL', row: 1, col: 4, val: "Ảnh Bìa", tab: "Bài viết_hidden"});
+            pushQueue({type:'SYNC_CELL', row: 1, col: 5, val: "Nội Dung HTML", tab: "Bài viết_hidden"});
+        }
+
+        let bvTab = sysData.sheets["Bài viết_hidden"];
+        let targetRow = -1; for(let r=1; r<bvTab.length; r++) { if(bvTab[r][0] === planId) { targetRow = r; break; } }
+
+        document.getElementById('syncStatusVB').innerHTML = "⏳ Đang lưu nền...";
+        document.getElementById('syncStatusVB').style.color = "#f39c12";
+
+        if (targetRow !== -1) {
+            bvTab[targetRow] = [planId, title, sapo, coverUrl, finalHtml];
+            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết_hidden"});
+            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết_hidden"});
+            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết_hidden"});
+            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết_hidden"});
+        } else {
+            targetRow = bvTab.length; bvTab.push([planId, title, sapo, coverUrl, finalHtml]);
+            pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow+1, count: 1, tab: "Bài viết_hidden"});
+            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 1, val: planId, tab: "Bài viết_hidden"});
+            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết_hidden"});
+            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết_hidden"});
+            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết_hidden"});
+            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết_hidden"});
+        }
+        isVBDirty = false;
+    }
+
+    function applyGoogleFontFromLink() {
+        let linkHtml = document.getElementById("newFontLink").value.trim();
+        if(!linkHtml) return;
+
+        let cssUrlMatch = linkHtml.match(/href="(https:\/\/fonts\.googleapis\.com\/css[^"]+)"/);
+        let cssUrl = cssUrlMatch ? cssUrlMatch[1] : (linkHtml.startsWith("http") && linkHtml.includes("fonts.googleapis.com/css") ? linkHtml : "");
+        
+        if(!cssUrl) {
+            vbShowAlert("Link không hợp lệ! Vui lòng copy toàn bộ thẻ <link> chuẩn từ Google Fonts.");
+            return;
+        }
+
+        cssUrl = cssUrl.replace(/&amp;/g, '&');
+
+        if(!document.head.querySelector(`link[href="${cssUrl}"]`)) {
+            let linkEl = document.createElement('link');
+            linkEl.rel = 'stylesheet';
+            linkEl.href = cssUrl;
+            document.head.appendChild(linkEl);
+        }
+
+        let urlObj;
+        try { urlObj = new URL(cssUrl); } catch(e) { return; }
+        
+        let families = urlObj.searchParams.getAll('family');
+        if(families.length === 0) return;
+
+        let select = document.getElementById("fontSelect");
+        let lastFontFamily = "";
+
+        families.forEach(rawName => {
+            let fontNameMatch = rawName.split(':')[0]; 
+            let fontName = fontNameMatch.replace(/\+/g, ' '); 
+            let fontFamily = fontName; 
+            lastFontFamily = fontFamily;
+
+            let exists = Array.from(select.options).some(opt => opt.text === fontName);
+            if (!exists) {
+                select.innerHTML += `<option value="${fontFamily}" style="font-family: '${fontFamily}'">${fontName}</option>`;
+            }
+
+            if (typeof actionQueue !== 'undefined') {
+                let sysDataCache = JSON.parse(localStorage.getItem('MKT_OFFLINE_CACHE_' + activeSpreadsheetId) || "{}");
+                if(sysDataCache.sheets && sysDataCache.sheets["Google Fonts_hidden"]) {
+                    let fontTab = sysDataCache.sheets["Google Fonts_hidden"];
+                    let alreadyInTab = fontTab.some(row => row[0] === fontName);
+if (!alreadyInTab) {
+                        let newRow = fontTab.length;
+                        fontTab.push([fontName, `<link href="${cssUrl}" rel="stylesheet">`, fontFamily]);
+                        
+                        pushQueue({type:'STRUCTURAL', action:'insertRow', index: newRow+1, count: 1, tab: "Google Fonts_hidden"});
+                        pushQueue({type:'SYNC_CELL', row: newRow+1, col: 1, val: fontName, tab: "Google Fonts_hidden"});
+                        pushQueue({type:'SYNC_CELL', row: newRow+1, col: 2, val: `<link href="${cssUrl}" rel="stylesheet">`, tab: "Google Fonts_hidden"});
+                        pushQueue({type:'SYNC_CELL', row: newRow+1, col: 3, val: fontFamily, tab: "Google Fonts_hidden"});
+                    }
+                }
+            }
+        });
+        if(lastFontFamily) {
+            applyGoogleFontToSelection(lastFontFamily);
+            select.value = lastFontFamily;
+        }
+        document.getElementById("newFontLink").value = "";
+    }
+
+    function applyGoogleFontToSelection(fontFamilyStr) {
+        restoreSelection();
+        let sel = window.getSelection();
+        if (sel.rangeCount > 0 && !sel.isCollapsed) {
+            document.execCommand("styleWithCSS", false, true);
+            document.execCommand("fontName", false, fontFamilyStr);
+            
+            let range = sel.getRangeAt(0);
+            let container = range.commonAncestorContainer;
+            if (container.nodeType === 3) container = container.parentNode;
+
+            ['H1', 'H2', 'H3', 'H4', 'P', 'LI', 'DIV'].forEach(tag => {
+                let els = container.getElementsByTagName ? container.getElementsByTagName(tag) : [];
+                if (container.tagName === tag) els = [container];
+                for(let el of els) {
+                    if (sel.containsNode(el, true) || el === container) {
+                        el.style.fontFamily = `'${fontFamilyStr}'`;
+                    }
+                }
+            });
+
+            let editors = ['postTitle', 'postSapo', 'postContent'];
+            editors.forEach(id => {
+                let divContainer = document.getElementById(id);
+                if(divContainer) {
+                    let fontTags = divContainer.querySelectorAll("font[face]");
+                    fontTags.forEach(f => {
+                        let span = document.createElement("span");
+                        let faceVal = f.getAttribute("face");
+                        span.style.fontFamily = `'${faceVal}'`;
+                        while(f.firstChild) span.appendChild(f.firstChild);
+                        f.parentNode.replaceChild(span, f);
+                    });
+                }
+            });
+        }
+        saveSelection();
+        globalHeadingSyncTrigger();
+    }
+
+function updateToolbarState() {
+        let sel = window.getSelection();
+        if (!sel.rangeCount) return;
+        
+        let node = sel.anchorNode;
+        if (!node || (node.nodeType === 3 && !node.parentNode)) return;
+        if (node.nodeType === 3) node = node.parentNode;
+        
+        // Nhận diện vùng click (bao gồm cả khối văn bản thường và khối HTML)
+        let isEditable = node.closest('#postContent, #postTitle, #postSapo, .custom-html-block');
+        if (!isEditable) return;
+
+        // Lấy toàn bộ CSS thực tế của vị trí con trỏ
+        let computed = window.getComputedStyle(node);
+        
+        // 1. CẬP NHẬT THẺ HEADING (H1, H2, P...)
+        let blockTag = "P";
+        let currNode = node;
+        while(currNode && currNode !== document.body && currNode.id !== 'editorContainer') {
+            if(["H1", "H2", "H3", "H4"].includes(currNode.tagName)) {
+                blockTag = currNode.tagName;
+                break;
+            }
+            currNode = currNode.parentNode;
+        }
+        document.getElementById("formatSelect").value = blockTag;
+        
+        // 2. CẬP NHẬT CỠ CHỮ VÀ DÃN DÒNG
+        let fontSize = parseInt(computed.fontSize);
+        if(!isNaN(fontSize)) document.getElementById("fontSizeInput").value = fontSize;
+        let lineHeight = parseInt(computed.lineHeight);
+        if(!isNaN(lineHeight)) document.getElementById("lineHeightInput").value = lineHeight;
+        
+        // 3. THUẬT TOÁN NHẬN DIỆN FONT CHỮ CHUẨN XÁC
+        let fontFamily = computed.fontFamily;
+        let fontSelect = document.getElementById("fontSelect");
+        
+        // Trích xuất tên font gốc đang dùng (Bỏ dấu nháy và các font dự phòng phía sau dấu phẩy)
+        let currentFont = fontFamily.split(',')[0].replace(/['"]/g, '').trim().toLowerCase();
+        let isFontMatched = false;
+
+        for(let i = 0; i < fontSelect.options.length; i++) {
+            // Chuẩn hóa tên font trong menu <select> để so sánh
+            let optVal = fontSelect.options[i].value.split(',')[0].replace(/['"]/g, '').trim().toLowerCase();
+            
+            // So sánh chéo: Trùng tên gốc hoặc chứa tên
+            if(currentFont === optVal || fontFamily.replace(/['"]/g, '').toLowerCase().includes(optVal)) {
+                fontSelect.value = fontSelect.options[i].value;
+                isFontMatched = true;
+                break;
+            }
+        }
+        
+        // Fallback: Nếu vị trí đang click dùng 1 font chưa được nạp, tự động nhảy về Font mặc định (thường là Segoe UI)
+        if (!isFontMatched && fontSelect.options.length > 0) {
+            fontSelect.selectedIndex = 0;
+        }
+    }
+    function checkNewCategory(sel) {
+        if(sel.value === "NEW") {
+            vbShowPrompt("Nhập tên Phân loại khối mẫu HTML mới:", function(newCat) {
+                if(newCat) {
+                    let opt = document.createElement("option");
+                    opt.value = newCat; opt.text = newCat;
+                    sel.add(opt, sel.options[1]);
+                    sel.value = newCat;
+                } else {
+                    sel.value = "";
+                }
+            });
+        }
+    }
+
+    function updateTemplatePreview() {
+        let htmlStr = document.getElementById("tplHtmlInput").value;
+        document.getElementById("tplPreviewBox").innerHTML = htmlStr;
+    }
+
+    function saveTemplateToSheet() {
+        let cat = document.getElementById("tplCatSelect").value;
+        let htmlStr = document.getElementById("tplHtmlInput").value.trim();
+        
+        if(!cat || !htmlStr || cat === "NEW") { 
+            vbShowAlert("Vui lòng chọn Phân loại và dán Mã HTML trước khi lưu!");
+            return; 
+        }
+
+        if (typeof actionQueue !== 'undefined') {
+            let sysDataCache = JSON.parse(localStorage.getItem('MKT_OFFLINE_CACHE_' + activeSpreadsheetId) || "{}");
+            if(!sysDataCache.sheets["Mẫu html_hidden"]) return;
+            
+            let tplTab = sysData.sheets["Mẫu html_hidden"];
+            let newRow = tplTab.length;
+            tplTab.push([cat, `Khối ${newRow}`, htmlStr]);
+            
+            pushQueue({type:'STRUCTURAL', action:'insertRow', index: newRow+1, count: 1, tab: "Mẫu html_hidden"});
+            pushQueue({type:'SYNC_CELL', row: newRow+1, col: 1, val: cat, tab: "Mẫu html_hidden"});
+            pushQueue({type:'SYNC_CELL', row: newRow+1, col: 2, val: `Khối ${newRow}`, tab: "Mẫu html_hidden"});
+            pushQueue({type:'SYNC_CELL', row: newRow+1, col: 3, val: htmlStr, tab: "Mẫu html_hidden"});
+            
+            document.getElementById("tplHtmlInput").value = "";
+            document.getElementById("tplPreviewBox").innerHTML = "";
+            loadTemplatesFromSheet(sysData);
+            vbShowAlert("Tuyệt vời! Đã lưu Mẫu HTML mới thành công lên Server!");
+            
+            document.getElementById("tplHtmlInput").value = "";
+            document.getElementById("tplPreviewBox").innerHTML = "";
+            loadTemplatesFromSheet(sysDataCache);
+            vbShowAlert("Tuyệt vời! Đã lưu Mẫu HTML mới thành công lên Server!");
+        }
+    }
+
+    function switchRightTab(tabId, btn, event) {
+        if(event) event.preventDefault();
+        document.querySelectorAll('.ptab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.ptab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active'); 
+        document.getElementById(tabId).classList.add('active');
+        restoreSelection(); 
+    }
+
+    function togglePanelVB(side) {
+        let panel = side === 'left' ? document.getElementById('panelLeft') : document.getElementById('panelRight');
+        panel.style.width = panel.style.width === '0px' ? '15vw' : '0px';
+        panel.style.minWidth = panel.style.width === '0px' ? '0' : '250px';
+        panel.style.overflow = panel.style.width === '0px' ? 'hidden' : 'visible';
+    }
+
+    function formatDoc(cmd, value = null) {
+        restoreSelection();
+        document.execCommand(cmd, false, value);
+        saveSelection();
+        if (cmd === 'formatBlock') {
+            globalHeadingSyncTrigger();
+        }
+    }
+
+    function applyColor(styleName, val) {
+        restoreSelection(); 
+        let sel = window.getSelection();
+        if (!sel.rangeCount || sel.isCollapsed) return;
+
+        document.execCommand("styleWithCSS", false, true); 
+        if (styleName === 'color') {
+            document.execCommand("foreColor", false, val);
+        } else if (styleName === 'backgroundColor') {
+            document.execCommand("hiliteColor", false, val);
+            document.execCommand("backColor", false, val);
+        }
+        
+        saveSelection();
+        globalHeadingSyncTrigger();
+    }
+
+    // ==========================================
+    // KHẮC PHỤC LỖI TĂNG GIẢM SIZE CỠ CHỮ / DÃN DÒNG LIÊN TỤC LÀM MẤT FONT CHỮ
+    // ==========================================
+    function toggleSpanStyle(styleProp, valStr) {
+        restoreSelection();
+        let sel = window.getSelection();
+        if (!sel.rangeCount || sel.isCollapsed) return;
+
+        document.execCommand("styleWithCSS", false, true);
+        document.execCommand("fontSize", false, "7");
+
+        let modifiedNodes = [];
+        let editors = ['postTitle', 'postSapo', 'postContent'];
+        
+        editors.forEach(id => {
+            let divContainer = document.getElementById(id);
+            if(divContainer) {
+                let fonts = divContainer.querySelectorAll("font[size='7']");
+                fonts.forEach(f => {
+                    let span = document.createElement("span");
+                    
+                    // Kế thừa lại CSS cũ nếu có để không bị đè mất các thuộc tính đang có
+                    if (f.style.cssText) span.style.cssText = f.style.cssText;
+                    
+                    // Phục hồi font chữ và màu sắc bị trình duyệt ném ra attribute face/color
+                    let face = f.getAttribute("face");
+                    if (face) span.style.fontFamily = `'${face.replace(/['"]/g, '')}'`;
+                    let col = f.getAttribute("color");
+                    if (col) span.style.color = col;
+
+                    // Cuối cùng mới áp dụng size / line height
+                    span.style[styleProp] = valStr;
+                    
+                    while(f.firstChild) span.appendChild(f.firstChild);
+                    f.parentNode.replaceChild(span, f);
+                    modifiedNodes.push(span);
+                });
+            }
+        });
+
+        if (modifiedNodes.length > 0) {
+            let newRange = document.createRange();
+            newRange.setStartBefore(modifiedNodes[0]);
+            newRange.setEndAfter(modifiedNodes[modifiedNodes.length - 1]);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            saveSelection();
+        } else {
+            let range = sel.getRangeAt(0);
+            let container = range.commonAncestorContainer;
+            if(container.nodeType === 3) container = container.parentNode;
+            if(container && container.style) {
+                container.style[styleProp] = valStr;
+            }
+            saveSelection();
+        }
+    }
+
+    function applySizePx(type) {
+        let val = document.getElementById(type + "Input").value;
+        toggleSpanStyle(type, val + 'px');
+        globalHeadingSyncTrigger();
+    }
+
+    function updateSizePx(type, delta) {
+        let input = document.getElementById(type + "Input");
+        let current = parseFloat(input.value);
+        input.value = (current + delta).toFixed(0);
+        applySizePx(type);
+    }
+
+    function insertTextAtCursor(text) {
+        document.getElementById("postContent").focus();
+        restoreSelection();
+        document.execCommand('insertText', false, text);
+        saveSelection();
+        document.getElementById("emojiMenu").style.display = "none";
+    }
+
+function openEmojiMenu(e) {
+        let menu = document.getElementById("emojiMenu");
+        if(menu.style.display === "block") {
+            menu.style.display = "none";
+            return;
+        }
+        
+        menu.style.display = "block";
+        let rect = e.currentTarget.getBoundingClientRect();
+        menu.style.top = (rect.bottom + 5) + "px";
+        
+        // Radar quét va chạm cho cửa sổ chính (Window)
+        let menuWidth = menu.offsetWidth || 280;
+        let leftPos = rect.left;
+        
+        // Ép menu không vượt quá lề phải của toàn màn hình
+        if(leftPos + menuWidth > window.innerWidth - 10) {
+            leftPos = window.innerWidth - menuWidth - 10;
+        }
+        menu.style.left = leftPos + "px";
+    }
+
+    function updateCoverPreview() {
+        let url = document.getElementById("coverUrlInput").value.trim();
+        let img = document.getElementById("coverPreview");
+        if(url) { img.src = url; img.style.display = "block"; } else { img.style.display = "none"; }
+    }
+
+    let activeEditingHtmlBlock = null;
+    function openHtmlModal() {
+        document.getElementById('htmlModal').style.display = 'flex';
+        let sel = window.getSelection();
+        if (sel.rangeCount > 0) {
+            let node = sel.getRangeAt(0).commonAncestorContainer;
+            if (node.nodeType === 3) node = node.parentNode;
+            let blockWrapper = node.closest('.custom-html-block');
+            if (blockWrapper && document.getElementById('postContent').contains(blockWrapper)) {
+                activeEditingHtmlBlock = blockWrapper;
+                let rawCode = blockWrapper.querySelector('.html-code-render').innerHTML;
+                document.getElementById('htmlEditorTextarea').value = rawCode;
+                updateHtmlLivePreview();
+                updateHtmlLineNumbers();
+                return;
+            }
+        }
+        
+        activeEditingHtmlBlock = null;
+        document.getElementById('htmlEditorTextarea').value = '';
+        document.getElementById('htmlLivePreview').innerHTML = '';
+        updateHtmlLineNumbers();
+    }
+    
+    function closeHtmlModal() {
+        document.getElementById('htmlModal').style.display = 'none';
+    }
+
+    function updateHtmlLivePreview() {
+        let htmlStr = document.getElementById('htmlEditorTextarea').value;
+        document.getElementById('htmlLivePreview').innerHTML = htmlStr;
+    }
+    
+function insertHtmlBlock() {
+    let htmlStr = document.getElementById('htmlEditorTextarea').value;
+
+    if (activeEditingHtmlBlock) {
+        activeEditingHtmlBlock.querySelector('.html-code-render').innerHTML = htmlStr;
+    } else {
+        // Chú ý: ruột của .block-del-btn giờ để rỗng hoàn toàn
+        let wrappedBlockHtml = `
+        <div class="custom-html-block" contenteditable="false">
+            <div class="block-del-btn top" contenteditable="false" onclick="this.parentElement.remove()" title="Xóa khối"></div>
+            <div class="html-code-render" contenteditable="true">${htmlStr}</div>
+            <div class="block-del-btn bottom" contenteditable="false" onclick="this.parentElement.remove()" title="Xóa khối"></div>
+        </div><p><br></p>`;
+        
+        document.getElementById("postContent").focus();
+        restoreSelection();
+        formatDoc('insertHTML', wrappedBlockHtml);
+        saveSelection();
+    }
+    closeHtmlModal();
+}
+
+    function updateHtmlLineNumbers() {
+        let text = document.getElementById('htmlEditorTextarea').value;
+        let lines = text.split('\n').length;
+        let nums = Array.from({length: lines}, (_, i) => i + 1).join('\n');
+        document.getElementById('htmlLineNumbers').innerText = nums;
+    }
+    
+    function syncHtmlScroll() {
+        document.getElementById('htmlLineNumbers').scrollTop = document.getElementById('htmlEditorTextarea').scrollTop;
+    }
+
+    // ==========================================
+    // LOGIC ĐÓNG MỞ DROPDOWN POPUP
+    // ==========================================
+    document.addEventListener("click", function(e) {
+        if(!e.target.closest('.fmt-btn') && !e.target.closest('#emojiMenu')) {
+            document.getElementById("emojiMenu").style.display = "none";
+        }
+        if (!e.target.closest('.tool-dropdown-wrapper')) {
+            closeAllToolPopups();
+        }
+    });
+
+    function closeAllToolPopups() {
+        document.querySelectorAll('.vb-mini-popup').forEach(p => p.style.display = 'none');
+        cancelTablePreview(); 
+    }
+
+function openToolPopup(popupId, btn) {
+        let popup = document.getElementById(popupId);
+        let isVisible = popup.style.display === 'block';
+        closeAllToolPopups();
+        if (!isVisible) {
+            // Bước 1: Cho hiển thị mồi ở bên trái trước để lấy kích thước thực
+            popup.style.left = '0';
+            popup.style.right = 'auto';
+            popup.style.display = 'block';
+            
+            // Bước 2: Radar quét va chạm lề phải của Panel
+            let rect = popup.getBoundingClientRect();
+            let panelRect = document.getElementById('panelRight').getBoundingClientRect();
+            
+            // Nếu cạnh phải popup vượt quá cạnh phải của panel (trừ hao 5px) -> lật sang trái
+            if (rect.right > panelRect.right - 5) {
+                popup.style.left = 'auto';
+                popup.style.right = '0';
+            }
+            saveSelection(); 
+        }
+    }
+
+    // ==========================================
+    // LOGIC CUSTOM BULLET & NUMBER LIST
+    // ==========================================
+    function applyListStyle(tagType, listTypeAttr) {
+        document.getElementById("postContent").focus();
+        restoreSelection();
+        let cmd = tagType === 'OL' ? 'insertOrderedList' : 'insertUnorderedList';
+        document.execCommand(cmd, false, null);
+
+        let sel = window.getSelection();
+        if (sel.rangeCount > 0) {
+            let node = sel.anchorNode;
+            if (node.nodeType === 3) node = node.parentNode;
+            let listNode = node.closest(tagType);
+            if (listNode) {
+                if (tagType === 'OL') {
+                    listNode.type = listTypeAttr; // '1', 'a', 'A', 'i', 'I'
+                    listNode.style.listStyleType = ''; 
+                } else {
+                    listNode.style.listStyleType = `"${listTypeAttr} "`; // Dấu custom
+                }
+            }
+        }
+        saveSelection();
+        closeAllToolPopups();
+    }
+
+    // ==========================================
+    // LOGIC ĐỔI VIẾT HOA / VIẾT THƯỜNG (aA)
+    // ==========================================
+    function changeTextCase(type) {
+        restoreSelection();
+        let sel = window.getSelection();
+        if (!sel.rangeCount || sel.isCollapsed) return;
+        let text = sel.toString();
+        if(!text) return;
+
+        let newText = text;
+        if (type === 'aa') newText = text.toLowerCase();
+        else if (type === 'AA') newText = text.toUpperCase();
+        else if (type === 'Aa') {
+            newText = text.toLowerCase().replace(/(?:^|\s)\S/g, a => a.toUpperCase());
+        }
+        document.execCommand("insertText", false, newText);
+        saveSelection();
+        closeAllToolPopups();
+    }
+
+    // ==========================================
+    // LOGIC TẠO BẢNG REAL-TIME
+    // ==========================================
+    let isTablePreviewing = false;
+
+    function openTablePopup(btn) {
+        openToolPopup('popupTable', btn);
+        let grid = document.getElementById('tcGrid');
+        grid.innerHTML = '';
+        for (let r = 1; r <= 6; r++) {
+            for (let c = 1; c <= 7; c++) {
+                grid.innerHTML += `<div class="tc-cell" data-r="${r}" data-c="${c}" onmouseover="handleTableHover(${r}, ${c})" onmousedown="event.preventDefault(); finalizeTable()"></div>`;
+            }
+        }
+        document.getElementById('tcStatus').innerText = "0x0";
+    }
+
+    function handleTableHover(r, c) {
+        document.getElementById('tcStatus').innerText = `${c} x ${r}`;
+        let cells = document.querySelectorAll('.tc-cell');
+        cells.forEach(cell => {
+            let cr = parseInt(cell.getAttribute('data-r'));
+            let cc = parseInt(cell.getAttribute('data-c'));
+            if (cr <= r && cc <= c) {
+                cell.classList.add('active');
+            } else {
+                cell.classList.remove('active');
+            }
+        });
+        renderTempTable(r, c);
+    }
+
+function renderTempTable(rows, cols) {
+        restoreSelection();
+        let sel = window.getSelection();
+        if(!sel.rangeCount) return;
+
+        let tempTable = document.getElementById('vb-temp-table');
+        let newTbody = '';
+        for (let i = 0; i < rows; i++) {
+            newTbody += '<tr>';
+            for (let j = 0; j < cols; j++) {
+                // Xóa height cố định, chèn <br> để ô tự động thở theo kích thước chữ hiện tại
+                newTbody += '<td style="border: 0.5px solid black; padding: 8px; min-width: 30px;"><br></td>';
+            }
+            newTbody += '</tr>';
+        }
+
+        if (!tempTable) {
+            isTablePreviewing = true;
+            let tableHtml = `<table id="vb-temp-table" style="border-collapse: collapse; width: 100%; border: 0.5px solid black; margin-bottom: 10px;"><tbody>${newTbody}</tbody></table><br id="vb-temp-br">`;
+            document.execCommand('insertHTML', false, tableHtml);
+        } else {
+            tempTable.querySelector('tbody').innerHTML = newTbody;
+        }
+        saveSelection();
+    }
+
+    function finalizeTable() {
+        let tempTable = document.getElementById('vb-temp-table');
+        if (tempTable) {
+            tempTable.removeAttribute('id'); // Chốt hạ bảng vào HTML
+            let br = document.getElementById('vb-temp-br');
+            if(br) br.removeAttribute('id');
+            isTablePreviewing = false;
+            
+            // Đẩy con trỏ nháy vào ô đầu tiên của bảng vừa tạo để gõ ngay
+            let firstCell = tempTable.querySelector('td');
+            if (firstCell) {
+                let range = document.createRange();
+                range.selectNodeContents(firstCell);
+                range.collapse(true);
+                let sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+                saveSelection();
+            }
+        }
+        closeAllToolPopups();
+    }
+
+    function cancelTablePreview() {
+        if (isTablePreviewing) {
+            let tempTable = document.getElementById('vb-temp-table');
+            if (tempTable) tempTable.remove();
+            let br = document.getElementById('vb-temp-br');
+            if(br) br.remove();
+            isTablePreviewing = false;
+            restoreSelection(); 
+        }
+    }
+  /* =========================================
+   TABLE EDITOR CORE LOGIC (PHẦN 1: 4 CHỨC NĂNG ĐẦU)
+   ========================================= */
+
+/* =========================================
+   TABLE EDITOR CORE LOGIC (BẢN CẬP NHẬT 2 - ĐỒNG BỘ REALTIME & FORCE APPLY)
+   ========================================= */
+
+const TableEditor = (function() {
+    let isDragging = false;
+    let startCell = null;
+    let currentTable = null;
+    let selectedCellsArr = [];
+
+    const contextMenu = document.getElementById('wordContextMenu');
+    const miniToolbar = document.getElementById('wordMiniToolbar');
+    const editor = document.getElementById('postContent');
+
+    function clearSelection() {
+        selectedCellsArr.forEach(cell => cell.classList.remove('vb-selected-cell'));
+        selectedCellsArr = [];
+        currentTable = null;
+    }
+
+    function selectCells(start, end) {
+        clearSelection();
+        if (!start || !end || start.closest('table') !== end.closest('table')) return;
+        currentTable = start.closest('table');
+        
+        const minRow = Math.min(start.parentElement.rowIndex, end.parentElement.rowIndex);
+        const maxRow = Math.max(start.parentElement.rowIndex, end.parentElement.rowIndex);
+        const minCol = Math.min(start.cellIndex, end.cellIndex);
+        const maxCol = Math.max(start.cellIndex, end.cellIndex);
+
+        const rows = currentTable.rows;
+        for (let r = minRow; r <= maxRow; r++) {
+            for (let c = minCol; c <= maxCol; c++) {
+                if (rows[r] && rows[r].cells[c]) {
+                    const cell = rows[r].cells[c];
+                    cell.classList.add('vb-selected-cell');
+                    selectedCellsArr.push(cell);
+                }
+            }
+        }
+    }
+
+    editor.addEventListener('mousedown', function(e) {
+        if (e.button === 0) hideMenus();
+        const td = e.target.closest('td, th');
+        if (td && e.button === 0) {
+            isDragging = true;
+            startCell = td;
+            selectCells(td, td);
+        } else if (!td && e.button === 0) {
+            clearSelection();
+        }
+    });
+
+    editor.addEventListener('mouseover', function(e) {
+        if (!isDragging || !startCell) return;
+        const td = e.target.closest('td, th');
+        if (td && td.closest('table') === startCell.closest('table')) selectCells(startCell, td);
+    });
+
+// [THAY THẾ]: Bôi đen chữ thường vẫn hiện Mini Toolbar
+    document.addEventListener('mouseup', function(e) {
+        if (isDragging) {
+            isDragging = false;
+            if (selectedCellsArr.length > 0 && e.button === 0) showMiniToolbar(e.pageX, e.pageY);
+        } else {
+            // Kiểm tra bôi đen chữ thuần (không dính bảng)
+            if (e.button === 0 && e.target.closest('#postContent')) {
+                const sel = window.getSelection();
+                if (!sel.isCollapsed) showMiniToolbar(e.pageX, e.pageY);
+            }
+        }
+    });
+
+
+// [THAY THẾ]: Mở rộng Context Menu hoạt động ở mọi nơi
+    // [CẬP NHẬT]: Mở rộng Context Menu & Tự động đổi Merge/Split
+    editor.addEventListener('contextmenu', function(e) {
+        e.preventDefault(); 
+        const td = e.target.closest('td, th');
+        if (td) {
+            if (!td.classList.contains('vb-selected-cell')) {
+                startCell = td;
+                selectCells(td, td);
+            }
+            
+            // --- THUẬT TOÁN ĐỔI TÊN MENU MERGE / SPLIT ---
+            let mergeSplitItem = document.getElementById('menuMergeSplit');
+            if (mergeSplitItem) {
+                if (selectedCellsArr.length > 1) {
+                    mergeSplitItem.innerHTML = `<i class="fas fa-compress-arrows-alt word-menu-icon"></i> Merge Cells`;
+                    mergeSplitItem.onclick = window.mergeSelectedCells;
+                } else {
+                    mergeSplitItem.innerHTML = `<i class="fas fa-columns word-menu-icon"></i> Split Cells`;
+                    mergeSplitItem.onclick = window.splitSelectedCell;
+                }
+            }
+            // ----------------------------------------------
+            
+        } else {
+            clearSelection(); 
+        }
+        const cMenuRect = showContextMenu(e.pageX, e.pageY);
+        showMiniToolbar(e.pageX, e.pageY, cMenuRect);
+    });
+/* =========================================
+   HỆ THỐNG CLIPBOARD NÂNG CAO (CUT, COPY, PASTE)
+   ========================================= */
+
+/* =========================================
+   HỆ THỐNG CLIPBOARD NÂNG CAO (CUT, COPY, PASTE GIỮ 100% ĐỊNH DẠNG HTML)
+   ========================================= */
+
+window.editorCopy = async function(isCut = false) {
+    let cells = TableEditor.getSelectedCells();
+
+    if (cells.length > 0) {
+        // [1] NẾU ĐANG BÔI ĐEN BẢNG: Chỉ lấy đúng mảng ô đã chọn và giữ 100% định dạng
+        let minR = Math.min(...cells.map(c => c.parentElement.rowIndex));
+        let maxR = Math.max(...cells.map(c => c.parentElement.rowIndex));
+        let minC = Math.min(...cells.map(c => c.cellIndex));
+        let maxC = Math.max(...cells.map(c => c.cellIndex));
+
+        let tempTable = document.createElement('table');
+        // Kế thừa các thuộc tính của bảng gốc
+        let tableObj = cells[0].closest('table');
+        tempTable.style.cssText = tableObj.style.cssText || "border-collapse: collapse; width: 100%; border: 0.5px solid #000;";
+        
+        for (let r = minR; r <= maxR; r++) {
+            let newRow = tempTable.insertRow();
+            for (let c = minC; c <= maxC; c++) {
+                let originalCell = tableObj.rows[r].cells[c];
+                let newCell = newRow.insertCell();
+                if (originalCell) {
+                    newCell.innerHTML = originalCell.innerHTML;
+                    newCell.style.cssText = originalCell.style.cssText; // Bê nguyên CSS của ô gốc sang
+                    if (isCut) originalCell.innerHTML = "<br>"; // Xóa rỗng ô nếu là lệnh Cut
+                }
+            }
+        }
+        
+        let htmlToCopy = tempTable.outerHTML;
+        let textToCopy = tempTable.innerText;
+        
+        // Ghi vào bộ nhớ tạm của hệ thống
+        try {
+            await navigator.clipboard.write([
+                new ClipboardItem({
+                    "text/html": new Blob([htmlToCopy], { type: "text/html" }),
+                    "text/plain": new Blob([textToCopy], { type: "text/plain" })
+                })
+            ]);
+        } catch(e) {
+            // Fallback nếu trình duyệt không hỗ trợ ClipboardItem (Ví dụ Firefox cũ)
+            let tempDiv = document.createElement("div");
+            tempDiv.contentEditable = true;
+            tempDiv.innerHTML = htmlToCopy;
+            document.body.appendChild(tempDiv);
+            tempDiv.focus();
+            document.execCommand('selectAll');
+            document.execCommand(isCut ? 'cut' : 'copy');
+            document.body.removeChild(tempDiv);
+        }
+    } else {
+        // [2] NẾU LÀ GIAO DIỆN HTML/VĂN BẢN BÌNH THƯỜNG
+        // Khôi phục lại vùng bôi đen bị mất khi click chuột phải vào menu
+        restoreSelection(); 
+        
+        // Gọi lệnh copy nguyên thủy của trình duyệt. 
+        // Lệnh này cực kỳ thông minh, nó sẽ tự động lấy toàn bộ thẻ HTML, style, class của vùng đang bôi đen.
+        document.execCommand(isCut ? 'cut' : 'copy');
+    }
+    
+    TableEditor.hideMenus();
+};
+
+window.editorPaste = async function(mode) {
+    TableEditor.hideMenus();
+    document.getElementById("postContent").focus();
+    restoreSelection(); // Đưa con trỏ nháy về đúng vị trí trước khi click menu
+
+    try {
+        // Đọc dữ liệu từ Clipboard hệ thống
+        const clipboardItems = await navigator.clipboard.read();
+        let htmlData = "";
+        let textData = "";
+
+        for (const item of clipboardItems) {
+            if (item.types.includes("text/html")) htmlData = await (await item.getType("text/html")).text();
+            if (item.types.includes("text/plain")) textData = await (await item.getType("text/plain")).text();
+        }
+
+        // Nếu chỉ có text thuần, convert xuống dòng thành thẻ <br>
+        if (!htmlData && textData) htmlData = textData.replace(/\n/g, "<br>");
+        if (!htmlData) return;
+
+        let finalHtml = htmlData;
+
+        // XỬ LÝ 3 TÙY CHỌN DÁN (PASTE OPTIONS)
+        if (mode === 'keepSource') {
+            // Tùy chọn 1: Giữ nguyên 100% định dạng nguồn (Paste nguyên mã HTML)
+            finalHtml = htmlData;
+            
+        } else if (mode === 'merge') {
+            // Tùy chọn 2: Merge Formatting - Giữ cấu trúc, loại bỏ font chữ và màu sắc để ăn theo web hiện tại
+            let tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlData;
+            tempDiv.querySelectorAll('*').forEach(el => {
+                el.style.fontFamily = ''; 
+                el.style.color = ''; 
+                el.style.backgroundColor = '';
+            });
+            finalHtml = tempDiv.innerHTML;
+            
+        } else if (mode === 'keepText') {
+            // Tùy chọn 3: Keep Text Only - Lột bỏ mọi định dạng
+            let tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlData;
+            
+            // Lột sạch class và style
+            tempDiv.querySelectorAll('*').forEach(el => {
+                el.removeAttribute('style'); 
+                el.removeAttribute('class');
+            });
+            
+            // Xóa viền bảng (Tàng hình bảng)
+            tempDiv.querySelectorAll('table').forEach(t => {
+                t.style.border = "none";
+                t.style.borderCollapse = "collapse";
+                t.querySelectorAll('td, th').forEach(c => c.style.border = "none");
+            });
+            
+            // Tháo gỡ các thẻ in đậm, in nghiêng, màu sắc...
+            ['B', 'I', 'U', 'STRONG', 'EM', 'STRIKE', 'FONT', 'SPAN'].forEach(tag => {
+                tempDiv.querySelectorAll(tag).forEach(el => {
+                    let frag = document.createDocumentFragment();
+                    while(el.firstChild) frag.appendChild(el.firstChild);
+                    el.parentNode.replaceChild(frag, el); // Đưa ruột text ra ngoài, xóa vỏ thẻ
+                });
+            });
+            finalHtml = tempDiv.innerHTML;
+        }
+
+        // Chèn HTML đã xử lý vào vị trí con trỏ
+        document.execCommand('insertHTML', false, finalHtml);
+
+    } catch (err) {
+        // Cảnh báo nếu trình duyệt của người dùng cấu hình chặn API tự động đọc Clipboard
+        alert("Trình duyệt bảo mật ngăn chặn lấy dữ liệu Clipboard tự động. Vui lòng bấm phím Ctrl + V (hoặc Cmd + V) trên bàn phím để dán!");
+    }
+};
+
+/* =========================================
+   HỆ THỐNG INSERT & DELETE BẢNG REAL-TIME
+   ========================================= */
+
+window.insertTableElements = function(position) {
+    let cells = TableEditor.getSelectedCells();
+    if (!cells.length) return;
+    let table = cells[0].closest('table');
+    
+    if (position === 'rowAbove' || position === 'rowBelow') {
+        let rowIndices = [...new Set(cells.map(c => c.parentElement.rowIndex))].sort();
+        let count = rowIndices.length; // Chèn đúng số lượng hàng đang bôi đen
+        let targetIdx = position === 'rowAbove' ? rowIndices[0] : rowIndices[rowIndices.length - 1] + 1;
+        let refRow = table.rows[rowIndices[0]];
+
+        for(let i=0; i<count; i++) {
+            let newRow = table.insertRow(targetIdx + i);
+            for(let j=0; j<refRow.cells.length; j++) {
+                let newCell = newRow.insertCell(j);
+                newCell.style.cssText = refRow.cells[j].style.cssText; // Kế thừa định dạng
+                newCell.innerHTML = "<br>";
+            }
+        }
+    } else if (position === 'colLeft' || position === 'colRight') {
+        let colIndices = [...new Set(cells.map(c => c.cellIndex))].sort();
+        let count = colIndices.length; // Chèn đúng số lượng cột đang bôi đen
+        let targetIdx = position === 'colLeft' ? colIndices[0] : colIndices[colIndices.length - 1] + 1;
+
+        for(let r=0; r<table.rows.length; r++) {
+            let row = table.rows[r];
+            let refCell = row.cells[colIndices[0]];
+            for(let i=0; i<count; i++) {
+                let newCell = row.insertCell(targetIdx + i);
+                if(refCell) newCell.style.cssText = refCell.style.cssText; // Kế thừa định dạng
+                newCell.innerHTML = "<br>";
+            }
+        }
+    }
+    TableEditor.hideMenus();
+};
+
+window.deleteTableElements = function(type) {
+    let cells = TableEditor.getSelectedCells();
+    if (!cells.length) return;
+    let table = cells[0].closest('table');
+
+    if (type === 'table') {
+        table.remove();
+    } else if (type === 'rows') {
+        let rowIndices = [...new Set(cells.map(c => c.parentElement.rowIndex))].sort((a,b)=>b-a);
+        rowIndices.forEach(idx => table.deleteRow(idx)); // Xóa từ dưới lên để không sai index
+    } else if (type === 'cols') {
+        let colIndices = [...new Set(cells.map(c => c.cellIndex))].sort((a,b)=>b-a);
+        for(let r=0; r<table.rows.length; r++) {
+            colIndices.forEach(idx => {
+                if(table.rows[r].cells[idx]) table.rows[r].deleteCell(idx);
+            });
+        }
+    } else if (type === 'cells') {
+        cells.forEach(c => c.innerHTML = "<br>");
+    }
+    
+    TableEditor.hideMenus();
+    TableEditor.hideMenus(); // Hàm mượn trigger ẩn popup
+};
+    function showContextMenu(x, y) {
+        contextMenu.style.display = 'block';
+        const rect = contextMenu.getBoundingClientRect();
+        
+        let finalX = x;
+        let finalY = y;
+        
+        // Điều chỉnh nếu menu bị tràn khỏi màn hình bên phải/dưới
+        if (finalX + rect.width > window.innerWidth) finalX = window.innerWidth - rect.width - 5;
+        if (finalY + rect.height > window.innerHeight) finalY = window.innerHeight - rect.height - 5;
+        
+        contextMenu.style.left = finalX + 'px';
+        contextMenu.style.top = finalY + 'px';
+        
+        // Trả về bounding box để Mini Toolbar tính toán né tránh
+        return {
+            left: finalX,
+            top: finalY,
+            width: rect.width,
+            height: rect.height,
+            bottom: finalY + rect.height
+        };
+    }
+/* =========================================
+   HỆ THỐNG GỘP Ô (MERGE) VÀ TÁCH Ô (SPLIT)
+   ========================================= */
+
+window.mergeSelectedCells = function() {
+    let cells = TableEditor.getSelectedCells();
+    if (cells.length <= 1) return;
+
+    // Tìm tọa độ Min / Max để thiết lập khung gộp
+    let minR = Math.min(...cells.map(c => c.parentElement.rowIndex));
+    let maxR = Math.max(...cells.map(c => c.parentElement.rowIndex));
+    let rowSpan = maxR - minR + 1;
+    
+    // Đếm số lượng cột chứa trong dòng đầu tiên để làm colSpan chuẩn
+    let firstRowCells = cells.filter(c => c.parentElement.rowIndex === minR);
+    let colSpan = firstRowCells.reduce((sum, c) => sum + (c.colSpan || 1), 0);
+
+    // Sắp xếp mảng ô theo thứ tự từ trên xuống dưới, trái sang phải
+    cells.sort((a, b) => {
+        if (a.parentElement.rowIndex === b.parentElement.rowIndex) return a.cellIndex - b.cellIndex;
+        return a.parentElement.rowIndex - b.parentElement.rowIndex;
+    });
+    
+    let targetCell = cells[0]; // Lấy ô góc trái trên cùng làm ô gốc
+    let mergedHtml = "";
+
+    // Gom toàn bộ nội dung của các ô lại với nhau
+    cells.forEach(c => {
+        let content = c.innerHTML.trim();
+        if (content && content !== '<br>') {
+            mergedHtml += (mergedHtml ? "<br>" : "") + content;
+        }
+    });
+
+    // Cập nhật ô gốc
+    targetCell.innerHTML = mergedHtml || "<br>";
+    targetCell.rowSpan = rowSpan;
+    targetCell.colSpan = colSpan;
+
+    // Xóa tất cả các ô còn thừa
+    for (let i = 1; i < cells.length; i++) {
+        cells[i].remove();
+    }
+
+    TableEditor.hideMenus();
+};
+
+window.splitSelectedCell = function() {
+    let cells = TableEditor.getSelectedCells();
+    if (cells.length !== 1) return;
+
+    let targetCell = cells[0];
+    let table = targetCell.closest('table');
+    
+    if (targetCell.colSpan > 1) {
+        // TRƯỜNG HỢP 1: Ô này vốn đã được gộp từ trước (colspan > 1) -> Chỉ cần cắt đôi Colspan
+        let originalSpan = targetCell.colSpan;
+        let leftSpan = Math.ceil(originalSpan / 2);
+        let rightSpan = Math.floor(originalSpan / 2);
+        
+        targetCell.colSpan = leftSpan;
+        
+        let newCell = document.createElement('td');
+        newCell.innerHTML = "<br>";
+        newCell.style.cssText = targetCell.style.cssText; // Kế thừa định dạng
+        newCell.colSpan = rightSpan;
+        targetCell.parentNode.insertBefore(newCell, targetCell.nextSibling);
+        
+    } else {
+        // TRƯỜNG HỢP 2: Ô đơn thuần -> Tách thành 2 ô, ép các dòng khác phải tăng Colspan để lưới bảng không bị thò thụt
+        let targetRowIndex = targetCell.parentElement.rowIndex;
+        let targetColIndex = targetCell.cellIndex;
+
+        for (let i = 0; i < table.rows.length; i++) {
+            let row = table.rows[i];
+            if (i === targetRowIndex) {
+                // Tại dòng đang click: Tạo thêm 1 ô mới ngay bên cạnh
+                let newCell = document.createElement('td');
+                newCell.innerHTML = "<br>";
+                newCell.style.cssText = targetCell.style.cssText;
+                
+                // Tràn đều width (Nếu ô đang có width %)
+                let currentWidth = targetCell.style.width;
+                if (currentWidth && currentWidth.includes('%')) {
+                    let w = parseFloat(currentWidth);
+                    targetCell.style.width = (w / 2) + '%';
+                    newCell.style.width = (w / 2) + '%';
+                }
+                
+                row.insertBefore(newCell, targetCell.nextSibling);
+            } else {
+                // Tại các dòng khác: Tăng Colspan của ô cùng cột lên 1 để duy trì khung bảng đều
+                let cellToExpand = row.cells[targetColIndex];
+                if (cellToExpand) {
+                    cellToExpand.colSpan = (cellToExpand.colSpan || 1) + 1;
+                }
+            }
+        }
+    }
+
+    TableEditor.hideMenus();
+};
+    // 1. CẬP NHẬT HÀM HIỂN THỊ MINI TOOLBAR (FIX LỖI TỰ NHẬN DIỆN ĐỊNH DẠNG)
+function showMiniToolbar(x, y, contextRect = null) {
+    // ĐỒNG BỘ FONT CHỮ VÀ CỠ CHỮ TỪ MAIN TOOLBAR (Đã được hệ thống nhận diện)
+    const sourceFonts = document.getElementById('fontSelect');
+    const miniFonts = document.getElementById('miniFontFamily');
+    if (sourceFonts && miniFonts) {
+        miniFonts.innerHTML = sourceFonts.innerHTML;
+        miniFonts.value = sourceFonts.value; // Hút đúng font đang đứng
+    }
+
+    const sourceSize = document.getElementById('fontSizeInput');
+    const miniSize = document.getElementById('miniFontSizeInput');
+    if (sourceSize && miniSize) {
+        miniSize.value = sourceSize.value; // Hút đúng size đang đứng
+    }
+
+    miniToolbar.style.display = 'flex';
+    
+    // Logic đổi Icon nút Style (Bảng / Văn bản)
+    const btnDynamic = document.getElementById('btnDynamicStyle');
+    const iconDynamic = document.getElementById('iconDynamicStyle');
+    if (btnDynamic && iconDynamic) {
+        const cells = typeof TableEditor !== 'undefined' ? TableEditor.getSelectedCells() : [];
+        if (cells.length > 0) {
+            btnDynamic.title = "Table Style";
+            iconDynamic.className = "fas fa-table";
+            btnDynamic.setAttribute('data-mode', 'table');
+        } else {
+            btnDynamic.title = "Heading Style";
+            iconDynamic.className = "fas fa-heading";
+            btnDynamic.setAttribute('data-mode', 'text');
+        }
+    }
+    
+    const rect = miniToolbar.getBoundingClientRect();
+    let finalX = x;
+    let finalY = y;
+
+    if (contextRect) {
+        finalY = contextRect.top - rect.height - 5;
+        finalX = contextRect.left;
+        if (finalY < 0) finalY = contextRect.bottom + 5;
+    } else {
+        finalY = y - rect.height - 15;
+        if (finalY < 0) finalY = y + 20; 
+    }
+
+    if (finalX + rect.width > window.innerWidth) finalX = window.innerWidth - rect.width - 10;
+    miniToolbar.style.left = finalX + 'px';
+    miniToolbar.style.top = finalY + 'px';
+}
+
+    function hideMenus() {
+        contextMenu.style.display = 'none';
+        miniToolbar.style.display = 'none';
+    }
+
+// Đã sửa: Thêm ngoại lệ không mất bôi đen bảng khi click vào Popup Table Properties
+    document.addEventListener('mousedown', function(e) {
+        if (!e.target.closest('#wordContextMenu') && 
+            !e.target.closest('#wordMiniToolbar') && 
+            !e.target.closest('#postContent') && 
+            !e.target.closest('.tool-dropdown-wrapper') &&
+            !e.target.closest('#tablePropsOverlay')) { // <-- Bổ sung dòng này
+            hideMenus();
+            clearSelection();
+        }
+    });
+
+    document.getElementById('mainEditorArea').addEventListener('scroll', hideMenus);
+
+    return {
+        getSelectedCells: () => selectedCellsArr,
+        hideMenus: hideMenus
+    };
+})();
+
+/* =========================================
+   CÁC HÀM ÁP DỤNG ĐỊNH DẠNG (ÉP ĐỒNG BỘ & REALTIME)
+   ========================================= */
+
+// Hàm xử lý chung: B, I, U, Align
+// Hàm xử lý chung: B, I, U, Align
+window.miniFormat = function(cmd) {
+    const cells = TableEditor.getSelectedCells();
+    
+    // Chuẩn hóa tên lệnh cho Căn lề
+    let mappedCmd = cmd;
+    if(cmd === 'left') mappedCmd = 'justifyLeft';
+    if(cmd === 'center') mappedCmd = 'justifyCenter';
+    if(cmd === 'right') mappedCmd = 'justifyRight';
+
+    if (cells.length > 0) {
+        const editor = document.getElementById('postContent');
+        editor.focus(); // Ép focus để trình duyệt đọc trạng thái text chính xác
+
+        const sel = window.getSelection();
+        const range = document.createRange();
+
+        const toggleCmds = ['bold', 'italic', 'underline', 'strikeThrough'];
+
+        if (toggleCmds.includes(mappedCmd)) {
+            // BƯỚC 1: Khám ô đầu tiên để lấy làm trạng thái chuẩn
+            range.selectNodeContents(cells[0]);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            
+            // Đo lường xem ô đầu đang tắt hay bật chức năng này
+            const isFirstCellActive = document.queryCommandState(mappedCmd);
+            // Mục tiêu: Nếu ô đầu đang bật -> muốn tắt hết. Nếu đang tắt -> muốn bật hết.
+            const targetState = !isFirstCellActive; 
+
+            // BƯỚC 2: Ép toàn bộ các ô phải tuân theo targetState
+            cells.forEach(cell => {
+                range.selectNodeContents(cell);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                
+                // Kiểm tra xem ô hiện tại đang bật hay tắt
+                const currentState = document.queryCommandState(mappedCmd);
+                
+                // Chỉ chạy lệnh đảo (toggle) nếu ô này CHƯA giống trạng thái mục tiêu
+                if (currentState !== targetState) {
+                    document.execCommand(mappedCmd, false, null);
+                }
+            });
+        } else {
+            // Với lệnh Căn lề (Align), không có trạng thái toggle nên ép thẳng vào từng ô
+            cells.forEach(cell => {
+                range.selectNodeContents(cell);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                document.execCommand(mappedCmd, false, null);
+            });
+        }
+        
+        sel.removeAllRanges(); // Dọn dẹp con trỏ sau khi xử lý xong
+    } else {
+        // Fallback: Nếu không bôi đen bảng thì gọi hàm soạn thảo mặc định
+        formatDoc(mappedCmd);
+    }
+};
+
+// Hàm đổi Cỡ Chữ (px)
+window.updateMiniSizePx = function(delta) {
+    let input = document.getElementById("miniFontSizeInput");
+    let current = parseFloat(input.value) || 15;
+    input.value = (current + delta).toFixed(0);
+    miniApplyFontSize(input.value);
+};
+
+// 2. FIX HÀM ĐỔI CỠ CHỮ
+window.miniApplyFontSize = function(sizePx) {
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length > 0) {
+        // Áp dụng cho Bảng
+        cells.forEach(cell => {
+            const elements = [cell, ...cell.querySelectorAll('*')];
+            elements.forEach(el => el.style.fontSize = sizePx + "px");
+        });
+    } else {
+        // Fallback: Chuyển lệnh cho văn bản thường / khối HTML
+        document.getElementById('fontSizeInput').value = sizePx;
+        applySizePx('fontSize');
+    }
+};
+
+// 3. FIX HÀM ĐỔI FONT CHỮ
+window.miniApplyFontFamily = function(fontFamilyStr) {
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length > 0) {
+        // Áp dụng cho Bảng
+        cells.forEach(cell => {
+            const elements = [cell, ...cell.querySelectorAll('*')];
+            elements.forEach(el => el.style.fontFamily = `'${fontFamilyStr}'`);
+        });
+    } else {
+        // Fallback: Chuyển lệnh cho văn bản thường / khối HTML
+        document.getElementById('fontSelect').value = fontFamilyStr;
+        applyGoogleFontToSelection(fontFamilyStr);
+    }
+};
+
+// 4. FIX HÀM ĐỔI MÀU CHỮ
+window.miniApplyTextColorRealtime = function(color) {
+    document.getElementById('miniTextColorIndicator').style.borderColor = color;
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length > 0) {
+        // Áp dụng cho Bảng
+        cells.forEach(cell => {
+            const elements = [cell, ...cell.querySelectorAll('*')];
+            elements.forEach(el => el.style.color = color);
+        });
+    } else {
+        // Fallback: Đổi màu chữ văn bản thường
+        applyColor('color', color);
+    }
+};
+
+// 5. FIX HÀM ĐỔI MÀU NỀN
+window.miniApplyCellBgRealtime = function(color) {
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length > 0) {
+        // Áp dụng màu vỏ Ô bảng (Cell)
+        cells.forEach(cell => {
+            cell.style.backgroundColor = color; 
+        });
+    } else {
+        // Fallback: Highlight nền văn bản thường (Highlight Text)
+        applyColor('backgroundColor', color);
+    }
+};
+
+// Hàm Kẻ Viền Bảng
+window.miniApplyBorders = function(type) {
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length === 0) return;
+
+    if (type === 'all') {
+        cells.forEach(cell => cell.style.border = "1px solid #000");
+    } else if (type === 'none') {
+        cells.forEach(cell => cell.style.border = "none");
+    } else if (type === 'outside') {
+        const minRow = Math.min(...cells.map(c => c.parentElement.rowIndex));
+        const maxRow = Math.max(...cells.map(c => c.parentElement.rowIndex));
+        const minCol = Math.min(...cells.map(c => c.cellIndex));
+        const maxCol = Math.max(...cells.map(c => c.cellIndex));
+
+        cells.forEach(cell => {
+            cell.style.border = "none"; // Xóa viền cũ
+            const r = cell.parentElement.rowIndex;
+            const c = cell.cellIndex;
+            if (r === minRow) cell.style.borderTop = "1px solid #000";
+            if (r === maxRow) cell.style.borderBottom = "1px solid #000";
+            if (c === minCol) cell.style.borderLeft = "1px solid #000";
+            if (c === maxCol) cell.style.borderRight = "1px solid #000";
+        });
+    }
+    closeAllToolPopups(); 
+};
+/* =========================================
+   1. LOGIC BORDER STYLES (MA TRẬN & REALTIME)
+   ========================================= */
+
+window.currentBorderType = 'solid';
+
+// Khởi tạo Lưới Ma trận Viền khi Web tải xong
+(function initBorderGrid() {
+    const colors = ['#000000', '#01ADEE', '#DB1010', '#A5A5A5', '#FFC000', '#5B9BD5', '#70AD47'];
+    const styles = [
+        { type: 'solid', w: 1 },  // Nét liền mảnh
+        { type: 'solid', w: 3 },  // Nét liền đậm
+        { type: 'double', w: 3 }  // Nét đôi
+    ];
+    let gridHtml = '';
+    styles.forEach(st => {
+        colors.forEach(col => {
+            gridHtml += `<div onclick="setContextBorderStyle('${st.type}', ${st.w}, '${col}')" 
+                style="height: 24px; border: 0.5px solid transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; border-radius:2px;" 
+                onmouseover="this.style.backgroundColor='#e6f7ff'; this.style.borderColor='#99d1fa'" 
+                onmouseout="this.style.backgroundColor='transparent'; this.style.borderColor='transparent'">
+                <div style="width: 80%; border-bottom: ${st.w}px ${st.type} ${col};"></div>
+            </div>`;
+        });
+    });
+    // Gắn vào DOM nếu tồn tại (Sử dụng setTimeout để chắc chắn phần tử đã render)
+    setTimeout(() => {
+        let gridEl = document.getElementById('ctxBorderGrid');
+        if(gridEl) gridEl.innerHTML = gridHtml;
+    }, 500);
+})();
+
+// Bấm vào Lưới Ma trận -> Áp dụng ngay
+window.setContextBorderStyle = function(type, width, color) {
+    document.getElementById('ctxBorderWidth').value = width;
+    document.getElementById('ctxBorderColor').value = color;
+    window.currentBorderType = type;
+    applyContextBorderRealtime();
+};
+
+// Nút +/- Cỡ viền
+window.updateContextBorderWidth = function(delta) {
+    let input = document.getElementById('ctxBorderWidth');
+    let val = parseInt(input.value) || 1;
+    val = Math.max(0, val + delta); // Ngăn không cho về số âm
+    input.value = val;
+    applyContextBorderRealtime();
+};
+
+// Hàm bắn thẳng lệnh vẽ viền lên các ô đang chọn
+window.applyContextBorderRealtime = function() {
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length === 0) return;
+    
+    let w = document.getElementById('ctxBorderWidth').value;
+    let c = document.getElementById('ctxBorderColor').value;
+    let t = window.currentBorderType || 'solid';
+    
+    cells.forEach(cell => {
+        cell.style.border = `${w}px ${t} ${c}`;
+    });
+};
+
+
+/* =========================================
+   2. LOGIC TABLE PROPERTIES (CĂN CHỈNH & ÉP LỀ REALTIME)
+   ========================================= */
+
+// Cập nhật 1: Hàm mở popup thông minh hơn (Đọc đúng trạng thái ép lề hiện tại)
+window.openTableProperties = function() {
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length === 0) return;
+    
+    // Tắt Menu Chuột Phải, Bật Modal Properties
+    TableEditor.hideMenus();
+    document.getElementById('tablePropsOverlay').style.display = 'flex';
+    
+    let table = cells[0].closest('table');
+    
+    // Đặt lại giao diện về 0 trước khi đọc
+    ['left', 'center', 'right'].forEach(m => document.getElementById('align-box-' + m).style.borderColor = '#ddd');
+    document.getElementById('tblMargRight').value = 0;
+    document.getElementById('tblMargCenter').value = 0;
+    document.getElementById('tblMargLeft').value = 0;
+
+    // Đọc thông số lề hiện tại của bảng
+    let mLeft = parseInt(table.style.marginLeft) || 0;
+    let mRight = parseInt(table.style.marginRight) || 0;
+
+    // Phân tích trạng thái để hiển thị đúng viền xanh và số px
+    if (mLeft > 0 && mRight > 0 && mLeft === mRight) {
+        document.getElementById('align-box-center').style.borderColor = '#01adee';
+        document.getElementById('tblMargCenter').value = mLeft;
+    } else if (mLeft > 0 && mRight === 0) {
+        document.getElementById('align-box-right').style.borderColor = '#01adee';
+        document.getElementById('tblMargLeft').value = mLeft;
+    } else if (mRight > 0 && mLeft === 0) {
+        document.getElementById('align-box-left').style.borderColor = '#01adee';
+        document.getElementById('tblMargRight').value = mRight;
+    } else {
+        document.getElementById('align-box-left').style.borderColor = '#01adee';
+    }
+};
+
+// Hàm điều khiển nút +/-
+window.updateTblMargin = function(type, delta) {
+    let inputMap = { 'right': 'tblMargRight', 'center': 'tblMargCenter', 'left': 'tblMargLeft' };
+    let input = document.getElementById(inputMap[type]);
+    let val = parseInt(input.value) || 0;
+    input.value = Math.max(0, val + delta); // Ngăn về âm để bảng không bị tràn khung
+    
+    // Đẩy sang áp dụng Realtime
+    let alignMode = 'left';
+    if(type === 'center') alignMode = 'center';
+    if(type === 'left') alignMode = 'right';
+    
+    applyTblAlign(alignMode);
+};
+
+// Cập nhật 2: Hàm Ép lề sử dụng calc() để chống tràn bảng (Tuyệt đối không đẩy bảng)
+window.applyTblAlign = function(mode) {
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length === 0) return;
+    let table = cells[0].closest('table');
+    
+    // Gỡ viền xanh báo hiệu đang Active ở tất cả các Khối
+    ['left', 'center', 'right'].forEach(m => {
+        document.getElementById('align-box-' + m).style.borderColor = '#ddd';
+    });
+    // Tô viền xanh cho Khối đang tương tác
+    document.getElementById('align-box-' + mode).style.borderColor = '#01adee';
+
+    // THUẬT TOÁN ÉP LỀ CHUẨN: Canh margin và dùng calc(100% - tổng margin) để bóp width
+    if (mode === 'left') {
+        let v = parseInt(document.getElementById('tblMargRight').value) || 0;
+        table.style.marginLeft = '0px';
+        table.style.marginRight = v + 'px';
+        table.style.width = `calc(100% - ${v}px)`; // Trừ đi lề phải để ép bảng về trái
+        
+    } else if (mode === 'center') {
+        let v = parseInt(document.getElementById('tblMargCenter').value) || 0;
+        table.style.marginLeft = v + 'px';
+        table.style.marginRight = v + 'px';
+        table.style.width = `calc(100% - ${v * 2}px)`; // Trừ đi cả 2 lề để ép bảng vào giữa
+        
+    } else if (mode === 'right') {
+        let v = parseInt(document.getElementById('tblMargLeft').value) || 0;
+        table.style.marginLeft = v + 'px';
+        table.style.marginRight = '0px';
+        table.style.width = `calc(100% - ${v}px)`; // Trừ đi lề trái để ép bảng về phải
+    }
+};
+/* =========================================
+   HỆ THỐNG DYNAMIC STYLE (HEADING & BẢNG) SIÊU VIỆT
+   ========================================= */
+
+window.openDynamicStylePopup = function(btn) {
+    let mode = btn.getAttribute('data-mode');
+    let targetCategory = mode === 'table' ? "Bảng" : "Heading";
+    
+    document.getElementById('dynamicStyleTitle').innerText = `CHỌN MẪU ${targetCategory.toUpperCase()}`;
+    let grid = document.getElementById('dynamicStyleGrid');
+    grid.innerHTML = '';
+
+    let sysDataCache;
+    try { sysDataCache = JSON.parse(localStorage.getItem('MKT_DATA') || "{}"); } catch(e){}
+
+    if (!sysDataCache || !sysDataCache.sheets || !sysDataCache.sheets["Mẫu html_hidden"]) {
+        grid.innerHTML = '<div style="grid-column: span 2; text-align:center; color:#999; font-size:11px;">Chưa có mẫu!</div>';
+    } else {
+        let sheet = sysDataCache.sheets["Mẫu html_hidden"];
+        let found = false;
+        
+        for(let i=1; i<sheet.length; i++) {
+            let cat = sheet[i][0] ? sheet[i][0].trim() : "";
+            if (cat === targetCategory && sheet[i][2]) {
+                found = true;
+                let htmlStr = sheet[i][2];
+                let item = document.createElement('div');
+                item.style.cssText = "cursor:pointer; border:0.5px solid #ddd; height:70px; overflow:hidden; position:relative; border-radius:3px; background:#fff; transition:0.2s;";
+                item.onmouseover = () => { item.style.borderColor = "#01adee"; item.style.boxShadow = "0 2px 5px rgba(0,0,0,0.1)"; };
+                item.onmouseout = () => { item.style.borderColor = "#ddd"; item.style.boxShadow = "none"; };
+                
+                item.innerHTML = `<div style="transform: scale(0.3); transform-origin: top left; width: 333%; height: 333%; pointer-events: none; padding: 10px; box-sizing:border-box;">${htmlStr}</div>`;
+                
+                item.onmousedown = function(e) {
+                    e.preventDefault();
+                    if (mode === 'table') applyTableTemplateStyle(htmlStr);
+                    else applyHeadingTemplateStyle(htmlStr);
+                    closeAllToolPopups();
+                    TableEditor.hideMenus();
+                };
+                grid.appendChild(item);
+            }
+        }
+        if (!found) grid.innerHTML = `<div style="padding:10px; text-align:center; color:#999; font-size:11px; grid-column: span 2;">Không tìm thấy mẫu loại "${targetCategory}"</div>`;
+    }
+    openToolPopup('popupDynamicStyles', btn);
+};
+
+// --- ÁP DỤNG STYLE HEADING CHO VĂN BẢN (ĐÃ FIX LỖI HÚT DÒNG) ---
+window.applyHeadingTemplateStyle = function(templateHtml) {
+    restoreSelection();
+    let sel = window.getSelection();
+    if (!sel.rangeCount) return;
+    
+    let node = sel.anchorNode;
+    if(node && node.nodeType === 3) node = node.parentNode;
+    let block = node ? node.closest('h1, h2, h3, h4, h5, h6, p, div') : null;
+    
+    let selectedText = sel.toString().trim();
+    let selectedHtml = "";
+    let range = sel.getRangeAt(0);
+
+    // 1. Phân tích vùng chọn một cách cẩn thận
+    if (!range.collapsed && selectedText.length > 0) {
+        // CÓ BÔI ĐEN: Chỉ lấy đúng đoạn được bôi đen, KHÔNG mở rộng vùng chọn (Tránh hút dòng dưới)
+        let div = document.createElement('div');
+        div.appendChild(range.cloneContents());
+        selectedHtml = div.innerHTML;
+    } else {
+        // KHÔNG BÔI ĐEN (Chỉ đặt con trỏ nháy): Bắt buộc phải mở rộng lấy toàn Block
+        if (block && block.id !== 'postContent') {
+            selectedHtml = block.innerHTML;
+            selectedText = block.innerText.trim();
+            
+            // Lệnh này giờ chỉ chạy khi user KHÔNG bôi đen
+            let newRange = document.createRange();
+            newRange.selectNode(block);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+        } else {
+            selectedHtml = "Nội dung mẫu...";
+            selectedText = "Nội dung mẫu...";
+        }
+    }
+
+    let originalTagName = (block && block.id !== 'postContent') ? block.tagName : 'P';
+
+    let temp = document.createElement('div');
+    temp.innerHTML = templateHtml;
+    
+    // Bơm Thẻ <style> trực tiếp vào DOM 
+    let styles = temp.querySelectorAll('style, link');
+    let editor = document.getElementById('postContent');
+    styles.forEach(s => {
+        let existing = Array.from(editor.querySelectorAll('style, link')).some(ex => ex.outerHTML.trim() === s.outerHTML.trim());
+        if (!existing) editor.insertBefore(s.cloneNode(true), editor.firstChild);
+        s.remove();
+    });
+
+    let mainTplNode = temp.firstElementChild;
+    if (!mainTplNode) return;
+
+    let newBlock = document.createElement(originalTagName);
+    Array.from(mainTplNode.attributes).forEach(attr => newBlock.setAttribute(attr.name, attr.value));
+    newBlock.innerHTML = mainTplNode.innerHTML;
+
+    let textNodes = [];
+    let walker = document.createTreeWalker(newBlock, NodeFilter.SHOW_TEXT, null, false);
+    let n;
+    while (n = walker.nextNode()) {
+        if (n.nodeValue.trim().length > 0) textNodes.push(n);
+    }
+    
+    if (textNodes.length > 0) {
+        textNodes.sort((a,b) => b.nodeValue.trim().length - a.nodeValue.trim().length);
+        let targetNode = textNodes[0];
+        
+        let wrapper = document.createElement('span');
+        wrapper.innerHTML = selectedHtml || selectedText;
+        targetNode.parentNode.replaceChild(wrapper, targetNode);
+
+        for (let i = 1; i < textNodes.length; i++) textNodes[i].nodeValue = ""; 
+    } else {
+        newBlock.innerHTML = selectedHtml || selectedText;
+    }
+
+    // Chèn HTML vào đúng vị trí 
+    document.execCommand('insertHTML', false, newBlock.outerHTML);
+    saveSelection();
+};
+
+
+// --- ÁP DỤNG STYLE BẢNG (ĐÃ FIX LỖI CỘT MA DO ĐỘ LỆCH COLUMN) ---
+// --- ÁP DỤNG STYLE BẢNG (BẢN FIX ĐỨT ĐIỂM LỖI THỦNG LƯỚI BẢNG & CỘT MA) ---
+window.applyTableTemplateStyle = function(templateHtml) {
+    let cells = TableEditor.getSelectedCells();
+    if (cells.length === 0) return;
+    
+    let originalTable = cells[0].closest('table');
+    
+    // TẠO KHUNG TÀNG HÌNH ĐỂ TRÌNH DUYỆT RENDER MẪU (HÚT MÀU THỰC TẾ)
+    let tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.visibility = 'hidden';
+    tempContainer.innerHTML = templateHtml;
+    document.body.appendChild(tempContainer);
+
+    // Bơm Thẻ <style> vào đỉnh Editor 
+    let styles = tempContainer.querySelectorAll('style, link');
+    let editor = document.getElementById('postContent');
+    styles.forEach(s => {
+        let existing = Array.from(editor.querySelectorAll('style, link')).some(ex => ex.outerHTML.trim() === s.outerHTML.trim());
+        if (!existing) editor.insertBefore(s.cloneNode(true), editor.firstChild);
+    });
+
+    let sourceTable = tempContainer.querySelector('table');
+    if (!sourceTable) {
+        document.body.removeChild(tempContainer);
+        return;
+    }
+
+    let targetTable = originalTable.cloneNode(true);
+    
+    // [HỦY DIỆT RÁC]: Xóa sạch colgroup, col VÀ ép tự do kích thước TẤT CẢ các ô
+    targetTable.querySelectorAll('colgroup, col').forEach(cg => cg.remove());
+    targetTable.querySelectorAll('td, th').forEach(cell => {
+        cell.style.width = '';
+        cell.style.minWidth = '';
+        cell.style.maxWidth = '';
+        cell.removeAttribute('width');
+        // Gỡ luôn class bôi đen nếu vô tình bị clone dính vào
+        cell.classList.remove('vb-selected-cell');
+    });
+
+    let sourceRows = Array.from(sourceTable.rows);
+    let isColMismatch = false;
+    if (sourceRows.length > 0) {
+        let sColCount = sourceRows[0].cells.length;
+        let tColCount = targetTable.rows[0] ? targetTable.rows[0].cells.length : 0;
+        isColMismatch = sColCount !== tColCount;
+    }
+
+    let computedTable = window.getComputedStyle(sourceTable);
+    Array.from(sourceTable.attributes).forEach(attr => targetTable.setAttribute(attr.name, attr.value));
+    
+    // Ép table tự co giãn, luôn full 100% để lấp đầy khoảng trống
+    targetTable.style.tableLayout = 'auto'; 
+    targetTable.style.width = '100%';
+    
+    if (isColMismatch) {
+        targetTable.removeAttribute('class');
+        targetTable.style.margin = computedTable.margin;
+        targetTable.style.borderCollapse = computedTable.borderCollapse;
+    }
+    
+    if (sourceRows.length > 0) {
+        let headerStyleRow = sourceRows[0];
+        let bodyStyleRow = sourceRows.length > 1 ? sourceRows[1] : sourceRows[0];
+        let altStyleRow = sourceRows.length > 2 ? sourceRows[2] : bodyStyleRow;
+
+        let targetRows = Array.from(targetTable.rows);
+        
+        for (let i = 0; i < targetRows.length; i++) {
+            let tRow = targetRows[i];
+            let sRow = (i === 0 && sourceRows.length > 1 && (tRow.querySelector('th') || headerStyleRow.querySelector('th') || true)) 
+                       ? headerStyleRow 
+                       : ((i % 2 !== 0) ? bodyStyleRow : altStyleRow);
+
+            Array.from(sRow.attributes).forEach(attr => tRow.setAttribute(attr.name, attr.value));
+            if (isColMismatch) tRow.removeAttribute('class');
+
+            let sCells = Array.from(sRow.cells);
+            let tCells = Array.from(tRow.cells);
+            
+            for (let j = 0; j < tCells.length; j++) {
+                let tCell = tCells[j];
+                let sCell = sCells[j % sCells.length]; 
+                
+                if (sCell) {
+                    // [CHỐT CHẶN TỬ HUYỆT - FIX LỖI MẤT Ô GÓC PHẢI]:
+                    // Phải hút dòng và cột TRƯỚC KHI bị replace thẻ để không làm rách lưới bảng
+                    let rSpan = tCell.getAttribute('rowspan');
+                    let cSpan = tCell.getAttribute('colspan');
+
+                    if (tCell.tagName !== sCell.tagName) {
+                        let newCell = document.createElement(sCell.tagName);
+                        newCell.innerHTML = tCell.innerHTML;
+                        tRow.replaceChild(newCell, tCell);
+                        tCell = newCell; 
+                    }
+
+                    if (!isColMismatch && sCell.className) {
+                        tCell.className = sCell.className;
+                    } else {
+                        tCell.removeAttribute('class');
+                    }
+
+                    // HÚT CSS TỪ MẪU
+                    let computedS = window.getComputedStyle(sCell);
+                    tCell.style.cssText = sCell.style.cssText; 
+                    
+                    // [SÁT THỦ DIỆT CỘT MA]: Ép xóa Width bị dính từ template làm phình bảng
+                    tCell.style.width = '';
+                    tCell.style.minWidth = '';
+                    tCell.style.maxWidth = '';
+                    tCell.removeAttribute('width');
+                    
+                    if (computedS.backgroundColor !== 'rgba(0, 0, 0, 0)' && computedS.backgroundColor !== 'transparent') tCell.style.backgroundColor = computedS.backgroundColor;
+                    if (computedS.color) tCell.style.color = computedS.color;
+                    if (computedS.borderTop && computedS.borderTop !== 'none') tCell.style.borderTop = computedS.borderTop;
+                    if (computedS.borderRight && computedS.borderRight !== 'none') tCell.style.borderRight = computedS.borderRight;
+                    if (computedS.borderBottom && computedS.borderBottom !== 'none') tCell.style.borderBottom = computedS.borderBottom;
+                    if (computedS.borderLeft && computedS.borderLeft !== 'none') tCell.style.borderLeft = computedS.borderLeft;
+                    if (computedS.fontWeight && computedS.fontWeight !== '400' && computedS.fontWeight !== 'normal') tCell.style.fontWeight = computedS.fontWeight;
+                    if (computedS.padding) tCell.style.padding = computedS.padding;
+                    if (computedS.textAlign && computedS.textAlign !== 'start') tCell.style.textAlign = computedS.textAlign;
+                    if (computedS.verticalAlign) tCell.style.verticalAlign = computedS.verticalAlign;
+
+                    // TRẢ LẠI GIAO DIỆN LƯỚI SAU KHI ĐÃ REPLACE THẺ
+                    if (rSpan) tCell.setAttribute('rowspan', rSpan);
+                    if (cSpan) tCell.setAttribute('colspan', cSpan);
+
+                    tCell.removeAttribute('bgcolor');
+                    tCell.removeAttribute('background');
+                    
+                    let innerElements = tCell.querySelectorAll('*');
+                    innerElements.forEach(el => {
+                        el.style.backgroundColor = '';
+                        el.style.color = '';
+                        el.style.borderColor = '';
+                        el.removeAttribute('bgcolor');
+                        el.removeAttribute('color');
+                        if(el.tagName === 'FONT') {
+                            el.removeAttribute('color');
+                            el.removeAttribute('face');
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+    let finalHtml = '';
+    let sourceWrapper = sourceTable.parentElement;
+    let currentWrapper = originalTable.parentElement;
+    let nodeToReplace = originalTable;
+    let hasOldWrapper = (currentWrapper && currentWrapper.id !== 'postContent' && currentWrapper.tagName === 'DIV' && (currentWrapper.className.includes('template') || currentWrapper.className.includes('vl-')));
+
+    if (sourceWrapper && sourceWrapper.tagName === 'DIV' && sourceWrapper !== tempContainer) {
+        let wrapperClone = document.createElement(sourceWrapper.tagName);
+        if (!isColMismatch && sourceWrapper.className) wrapperClone.className = sourceWrapper.className;
+        
+        wrapperClone.style.cssText = sourceWrapper.style.cssText;
+        if (isColMismatch) {
+            let computedWrapper = window.getComputedStyle(sourceWrapper);
+            wrapperClone.style.fontFamily = computedWrapper.fontFamily;
+            wrapperClone.style.fontSize = computedWrapper.fontSize;
+            wrapperClone.style.lineHeight = computedWrapper.lineHeight;
+            wrapperClone.style.marginBottom = computedWrapper.marginBottom;
+            wrapperClone.style.boxSizing = computedWrapper.boxSizing;
+        }
+
+        wrapperClone.appendChild(targetTable);
+        finalHtml = wrapperClone.outerHTML;
+        if (hasOldWrapper) nodeToReplace = currentWrapper;
+    } else {
+        finalHtml = targetTable.outerHTML;
+        if (hasOldWrapper) nodeToReplace = currentWrapper;
+    }
+
+    document.body.removeChild(tempContainer);
+
+    // GHI ĐÈ TRỰC TIẾP BẰNG OUTERHTML (An toàn tuyệt đối trong vùng mã)
+    window.getSelection().removeAllRanges();
+    nodeToReplace.outerHTML = finalHtml;
+    
+    TableEditor.hideMenus();
+};
+let isVbPreviewing = false;
+
+function toggleVietbaiMode() {
+    isVbPreviewing = !isVbPreviewing;
+    
+    const modeBtn = document.getElementById('vbModeToggleBtn');
+    const adminSidebar = document.getElementById('adminSidebar'); // Vỏ bọc bên Admin.html
+    const toolbar = document.querySelector('.toolbar');
+    const coverUrlInput = document.getElementById('coverUrlInput');
+    const panelLeft = document.getElementById('panelLeft');
+    const panelRight = document.getElementById('panelRight');
+    const resizers = document.querySelectorAll('.panel-resizer');
+    const workspace = document.getElementById('workspaceArea');
+
+    if (isVbPreviewing) {
+        // 1. Biến hình thành nút "Chỉnh sửa"
+        modeBtn.innerHTML = '<i class="fas fa-pen"></i> <span>Chỉnh sửa</span>';
+        
+        // 2. "Xóa" hoàn toàn các vách ngăn khỏi luồng render Flexbox
+        if (adminSidebar) adminSidebar.style.display = 'none';
+        if (toolbar) toolbar.style.display = 'none';
+        if (coverUrlInput) coverUrlInput.style.display = 'none';
+        if (panelLeft) panelLeft.style.display = 'none';
+        if (panelRight) panelRight.style.display = 'none';
+        resizers.forEach(r => r.style.display = 'none'); // Giấu luôn 2 thanh kéo
+
+        // 3. Bù lại vệt hụt 45px do mất thanh Toolbar
+        if (workspace) workspace.style.height = '100%';
+
+        // 4. [Tính năng nâng cao]: Khóa bàn phím
+        ['postTitle', 'postSapo', 'postContent'].forEach(id => {
+            let el = document.getElementById(id);
+            if (el) el.setAttribute('contenteditable', 'false');
+        });
+
+    } else {
+        // 1. Trả về nút "Xem trước"
+        modeBtn.innerHTML = '<i class="fas fa-eye"></i> <span>Xem trước</span>';
+
+        // 2. Gỡ lệnh ẩn -> Các panel tự bung lại kích thước cũ
+        if (adminSidebar) adminSidebar.style.display = '';
+        if (toolbar) toolbar.style.display = '';
+        if (coverUrlInput) coverUrlInput.style.display = '';
+        if (panelLeft) panelLeft.style.display = '';
+        if (panelRight) panelRight.style.display = '';
+        resizers.forEach(r => r.style.display = '');
+
+        // 3. Trả lại công thức calc(100vh - 45px)
+        if (workspace) workspace.style.height = '';
+
+        // 4. Mở khóa cho gõ phím lại
+        ['postTitle', 'postSapo', 'postContent'].forEach(id => {
+            let el = document.getElementById(id);
+            if (el) el.setAttribute('contenteditable', 'true');
+        });
+    }
+}
+</script>
+</body>
+</html>
