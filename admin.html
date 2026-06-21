@@ -132,20 +132,36 @@
         function logout() { localStorage.clear(); window.location.href = 'index.html'; }
         function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
         
-        function loadModule(url, element) {
-            document.querySelectorAll('.menu-item-side').forEach(el => el.classList.remove('active')); 
-            element.classList.add('active');
-            
-            let targetId = 'frame-' + url.replace('.html', '');
-            
-            document.querySelectorAll('.module-frame').forEach(frame => {
-                frame.classList.remove('active-frame');
-            });
-            document.getElementById(targetId).classList.add('active-frame');
+// TÌM HÀM loadModule TRONG FILE: admin.html VÀ SỬA LẠI THÀNH THẾ NÀY:
 
-            localStorage.setItem('MKT_ACTIVE_MODULE', url);
-            document.getElementById('globalSearch').value = "";
-        }
+function loadModule(url, element) {
+    document.querySelectorAll('.menu-item-side').forEach(el => el.classList.remove('active')); 
+    element.classList.add('active');
+    
+    let targetId = 'frame-' + url.replace('.html', '');
+    let targetFrame = document.getElementById(targetId); // <--- Nắm đầu iframe
+
+    document.querySelectorAll('.module-frame').forEach(frame => {
+        frame.classList.remove('active-frame');
+    });
+    targetFrame.classList.add('active-frame');
+
+    // ================= BẮT TAY KÍCH HOẠT =================
+    if (url === 'post.html' && targetFrame.contentWindow) {
+        // Tránh lỗi rủi ro iframe chưa kịp mount DOM vào t=0
+        setTimeout(() => {
+            if (typeof targetFrame.contentWindow.forceReloadDraft === 'function') {
+                targetFrame.contentWindow.forceReloadDraft();
+            } else {
+                targetFrame.contentWindow.location.reload(); // Lưới an toàn fallback
+            }
+        }, 50);
+    }
+    // =====================================================
+
+    localStorage.setItem('MKT_ACTIVE_MODULE', url);
+    document.getElementById('globalSearch').value = "";
+}
 
         function executeGlobalSearch() {
             let kw = document.getElementById('globalSearch').value.trim(); 

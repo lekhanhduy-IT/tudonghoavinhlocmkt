@@ -3250,6 +3250,38 @@ function toggleVietbaiMode() {
         });
     }
 }
+// BỔ SUNG HÀM NÀY VÀO CUỐI THẺ <script> CỦA FILE: post.html
+
+window.forceReloadDraft = function() {
+    // 1. Nạp lại dữ liệu cột bên Panel trái từ localStorage vừa bị Plan ghi đè
+    loadDraftData();
+
+    // 2. Lấy ID bài viết (thường nằm ở cột 0 của dòng Kế hoạch)
+    let postIdToLoad = (draftData && draftData.data) ? draftData.data[0] : null;
+
+    // 3. Phân nhánh xử lý:
+    if (postIdToLoad && String(postIdToLoad).startsWith("POST_")) {
+        // Trúng bài cũ -> Bê nội dung từ Sheet "Bài viết_hidden" đè vào Editor
+        currentPostId = postIdToLoad;
+        loadPostIntoEditor(postIdToLoad);
+    } else {
+        // NẾU LÀ DÒNG KẾ HOẠCH MỚI TINH: Phải dọn sạch rác của bài gõ trước đó!
+        currentPostId = null;
+        document.getElementById("postTitle").innerHTML = "";
+        document.getElementById("postSapo").innerHTML = "";
+        document.getElementById("coverUrlInput").value = "";
+        document.getElementById("postContent").innerHTML = "";
+        updateCoverPreview();
+        isVBDirty = false;
+    }
+
+    // Chớp đèn tín hiệu cho user biết đã ăn dòng mới
+    let syncStatus = document.getElementById('syncStatusVB');
+    if (syncStatus) {
+        syncStatus.innerText = "⚡ Đã nạp Kế hoạch mới";
+        syncStatus.style.color = "#27ae60";
+    }
+};
 </script>
 </body>
 </html>
