@@ -25,7 +25,9 @@
         nav ul li a { color: var(--blue); text-decoration: none; font-weight: bold; transition: 0.2s; }
         nav ul li a:hover { color: var(--red); }
         
-        .login-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; padding: 20px; }
+        .login-box { background: var(--white); padding: 40px; border: none;   max-width: 450px; width: 100%; text-align: center; }
+        .login-box h2 { color: var(--blue); margin-bottom: 10px; }
+        .login-box p { font-size: 14px; color: var(--text-main); margin-bottom: 30px; }
         
     </style>
 </head>
@@ -408,7 +410,7 @@
   </footer>
 
    <div
-  id="loginErrorContainer"
+  id="login-container"
   style="
     position:fixed;
     top:100px;
