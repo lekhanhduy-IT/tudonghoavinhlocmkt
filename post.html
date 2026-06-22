@@ -1266,7 +1266,7 @@
       <div class="vb-image-upload-status" id="vbImageUploadStatus"></div>
 
       <div class="vb-image-actions">
-        <button class="tool-btn save-btn" onclick="applyImageProperties()"><i class="fas fa-check"></i> Cập nhật</button>
+        <button class="tool-btn save-btn" id="vbImageUpdateBtn" onclick="applyImageProperties()"><i class="fas fa-check"></i> Cập nhật</button>
         <button class="tool-btn" onclick="copyActiveImage(false)"><i class="fas fa-copy"></i> Sao chép</button>
         <button class="tool-btn" onclick="copyActiveImage(true)"><i class="fas fa-cut"></i> Cắt</button>
         <button class="tool-btn" onclick="pasteImageFromClipboard()"><i class="fas fa-paste"></i> Dán</button>
@@ -4177,6 +4177,9 @@ function createManagedImage(source, role = "content", metadata = {}) {
     img.style.display = "block";
     img.style.margin = "0";
     writeImageMetadata(img, metadata);
+    if (metadata && metadata._frame) {
+        try { img.dataset.vbFrameState = JSON.stringify(metadata._frame); } catch(e) {}
+    }
     setManagedImageSource(img, source);
     bindManagedImage(img);
     return img;
@@ -4586,9 +4589,9 @@ function populateImagePropertiesForm(img, options = {}) {
     document.querySelectorAll("#vbMetadataTable .vb-meta-label[data-meta-label-key]").forEach(cell => {
         cell.textContent = meta._labels?.[cell.dataset.metaLabelKey] || VB_DEFAULT_IMAGE_LABELS[cell.dataset.metaLabelKey] || "";
     });
-    setMetadataLabelLock(false);
-    clearMetadataSelection();
-    document.getElementById("vbImageUploadStatus").style.display = "none";
+    if (!options.preserveLock) setMetadataLabelLock(false);
+    if (!options.preserveSelection) clearMetadataSelection();
+    if (!options.preserveStatus) document.getElementById("vbImageUploadStatus").style.display = "none";
     if (options.resetHistory !== false) resetImageHistory();
 }
 
@@ -4629,6 +4632,15 @@ function collectMetadataFromGrid() {
     return meta;
 }
 
+function broadcastImageStateRealtime(img = vbActiveImage) {
+    if (!img) return;
+    try {
+        window.vbRealtimeImageBridge?.publish?.(img);
+    } catch (err) {
+        console.warn("Không thể phát trạng thái ảnh realtime:", err);
+    }
+}
+
 function markImageDirty(commitHistory = true) {
     isVBDirty = true;
     const status = document.getElementById("syncStatusVB");
@@ -4636,6 +4648,7 @@ function markImageDirty(commitHistory = true) {
         status.innerText = "⚠️ Chưa lưu";
         status.style.color = "var(--red)";
     }
+    broadcastImageStateRealtime(vbActiveImage);
     if (commitHistory) scheduleImageHistoryCommit();
 }
 
@@ -4707,15 +4720,165 @@ function initImagePropertyRealtimeControls() {
     });
 }
 
-function applyImageProperties() {
+function getCurrentPostIdForImageSave() {
+    const draftId = draftData && draftData.data ? draftData.data[0] : "";
+    const urlId = new URLSearchParams(window.location.search).get("id") || "";
+    const postId = currentPostId || urlId || draftId || ("POST_" + Date.now());
+    currentPostId = postId;
+    return postId;
+}
+
+function ensurePostSheetCacheForImmediateSave(actions) {
+    if (!sysData.tabOrder) sysData.tabOrder = [];
+    if (!sysData.sheets) sysData.sheets = {};
+    if (!sysData.sheets["Bài viết_hidden"]) {
+        if (!sysData.tabOrder.includes("Bài viết_hidden")) sysData.tabOrder.push("Bài viết_hidden");
+        sysData.sheets["Bài viết_hidden"] = [["ID", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML", "Metadata Ảnh Bìa"]];
+        actions.push({type:"MANAGE_TAB", action:"create", tab:"Bài viết_hidden"});
+        sysData.sheets["Bài viết_hidden"][0].forEach((header, index) => {
+            actions.push({type:"SYNC_CELL", row:1, col:index + 1, val:header, tab:"Bài viết_hidden"});
+        });
+    } else {
+        const header = sysData.sheets["Bài viết_hidden"][0] || (sysData.sheets["Bài viết_hidden"][0] = []);
+        const required = ["ID", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML", "Metadata Ảnh Bìa"];
+        required.forEach((name, index) => {
+            if (header[index] !== name) {
+                header[index] = name;
+                actions.push({type:"SYNC_CELL", row:1, col:index + 1, val:name, tab:"Bài viết_hidden"});
+            }
+        });
+    }
+    return sysData.sheets["Bài viết_hidden"];
+}
+
+async function flushSheetActionsImmediately(extraActions = []) {
+    clearTimeout(syncTimer);
+    const batch = [...actionQueue, ...extraActions];
+    actionQueue = [];
+    if (!batch.length) return {success:true, syncToken:currentSyncToken};
+
+    const response = await fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify(batch),
+        headers: {"Content-Type":"text/plain;charset=utf-8"}
+    });
+    const json = await response.json();
+    if (!json?.success) throw new Error(json?.error || "Apps Script không xác nhận cập nhật Sheet.");
+    if (json.syncToken && json.syncToken > currentSyncToken) currentSyncToken = json.syncToken;
+    if (sysData) sysData.syncToken = Math.max(Number(sysData.syncToken) || 0, Number(json.syncToken) || 0);
+    localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+    return json;
+}
+
+function buildCurrentPostRowForImmediateSave(postId) {
+    const title = document.getElementById("postTitle")?.innerHTML || "";
+    const sapo = document.getElementById("postSapo")?.innerHTML || "";
+    const coverImg = document.querySelector("#coverEditor img.vb-managed-image, #coverEditor img");
+    let coverUrl = "";
+    let coverMetadata = "";
+
+    if (coverImg) {
+        const coverMeta = readImageMetadata(coverImg);
+        coverMeta._frame = readImageFrameState(coverImg);
+        writeImageMetadata(coverImg, coverMeta);
+        coverUrl = coverImg.dataset.driveUrl || normalizeDriveUrlForSheet(coverImg.getAttribute("src") || "");
+        coverMetadata = JSON.stringify(coverMeta);
+    }
+
+    const content = serializeEditorContentForSheet();
+    return [postId, title, sapo, coverUrl, `<div class="post-body">${content}</div>`, coverMetadata];
+}
+
+async function persistCurrentImageChangesToSheet(image) {
+    const postId = getCurrentPostIdForImageSave();
+    const status = document.getElementById("vbImageUploadStatus");
+    if (status) {
+        status.style.display = "block";
+        status.textContent = "Đang lưu ảnh và metadata trực tiếp vào Sheet...";
+    }
+
+    // Đảm bảo Sheet không bao giờ nhận base64/URL tạm. Nếu còn ảnh chưa lưu,
+    // nút Cập nhật sẽ tải chúng lên Shared Drive trước khi ghi dòng bài viết.
+    await uploadAllPendingPostImages(postId);
+    broadcastImageStateRealtime(image);
+
+    const actions = [];
+    const sheet = ensurePostSheetCacheForImmediateSave(actions);
+    const rowData = buildCurrentPostRowForImmediateSave(postId);
+    let rowIndex = -1;
+    for (let r = 1; r < sheet.length; r++) {
+        if (String(sheet[r]?.[0] || "") === String(postId)) { rowIndex = r; break; }
+    }
+
+    if (rowIndex < 0) {
+        rowIndex = sheet.length;
+        sheet.push(rowData);
+        actions.push({type:"STRUCTURAL", action:"insertRow", index:rowIndex + 1, count:1, tab:"Bài viết_hidden"});
+    } else {
+        sheet[rowIndex] = rowData;
+    }
+
+    rowData.forEach((value, colIndex) => {
+        actions.push({type:"SYNC_CELL", row:rowIndex + 1, col:colIndex + 1, val:value, tab:"Bài viết_hidden"});
+    });
+
+    localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+    await flushSheetActionsImmediately(actions);
+
+    if (draftData?.data && draftData.data[0] !== postId) {
+        draftData.data[0] = postId;
+        localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
+    }
+
+    isVBDirty = false;
+    const globalStatus = document.getElementById("syncStatusVB");
+    if (globalStatus) {
+        globalStatus.innerText = "✅ Metadata ảnh đã cập nhật vào Sheet";
+        globalStatus.style.color = "#27ae60";
+    }
+    if (status) status.textContent = "Đã cập nhật ảnh và metadata vào Sheet.";
+}
+
+async function applyImageProperties() {
     if (!vbActiveImage) return;
-    const newUrl = document.getElementById("vbImgUrl").value.trim();
-    const oldUrl = vbActiveImage.dataset.driveUrl || vbActiveImage.dataset.originalSource || vbActiveImage.getAttribute("src") || "";
-    if (newUrl && newUrl !== oldUrl) setManagedImageSource(vbActiveImage, newUrl);
-    writeImageMetadata(vbActiveImage, collectMetadataFromGrid());
-    commitImageHistoryNow();
-    markImageDirty(false);
-    closeImageProperties();
+    const image = vbActiveImage;
+    const button = document.getElementById("vbImageUpdateBtn");
+    const oldButtonHtml = button?.innerHTML || "";
+
+    try {
+        if (button) {
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang cập nhật';
+        }
+
+        const newUrl = document.getElementById("vbImgUrl").value.trim();
+        const oldUrl = image.dataset.driveUrl || image.dataset.originalSource || image.getAttribute("src") || "";
+        if (newUrl && newUrl !== oldUrl) setManagedImageSource(image, newUrl);
+
+        const metadata = collectMetadataFromGrid();
+        metadata._frame = readImageFrameState(image);
+        writeImageMetadata(image, metadata);
+        commitImageHistoryNow();
+        markImageDirty(false);
+        broadcastImageStateRealtime(image);
+
+        await persistCurrentImageChangesToSheet(image);
+        setTimeout(() => {
+            if (vbActiveImage === image) closeImageProperties();
+        }, 450);
+    } catch (err) {
+        const status = document.getElementById("vbImageUploadStatus");
+        if (status) {
+            status.style.display = "block";
+            status.textContent = "Lỗi cập nhật: " + (err?.message || String(err));
+        }
+        vbShowAlert("Không thể cập nhật metadata ảnh vào Sheet:<br><br>" + escapeHtmlText(err?.message || String(err)));
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = oldButtonHtml || '<i class="fas fa-check"></i> Cập nhật';
+        }
+    }
 }
 
 function captureActiveImageSnapshot() {
@@ -5555,6 +5718,7 @@ async function downloadActiveImageWithMetadata() {
     
     const myPresenceRef = db.ref(`collab_rooms/${roomId}/users/${safeUserKey}`);
     const domSyncRef = db.ref(`collab_rooms/${roomId}/dom_state`);
+    const imageStateRootRef = db.ref(`collab_rooms/${roomId}/image_state`);
 
     myPresenceRef.set({
         name: myName, email: myEmail, avatar: myAvatar, color: myColor,
@@ -5671,6 +5835,69 @@ async function downloadActiveImageWithMetadata() {
     // =================================================================
     let isApplyingRemoteDOM = false;
     let lastBroadcastedDOMHash = '';
+    const imageRealtimeStartedAt = Date.now();
+
+    function findManagedImageById(imageId) {
+        if (!imageId) return null;
+        return Array.from(document.querySelectorAll('#coverEditor img[data-image-id], #postContent img[data-image-id]'))
+            .find(img => img.dataset.imageId === imageId) || null;
+    }
+
+    window.vbRealtimeImageBridge = {
+        publish(img) {
+            if (!img || isApplyingRemoteDOM) return;
+            const imageId = img.dataset.imageId || (img.dataset.imageId = createImageClientId());
+            const meta = readImageMetadata(img);
+            const frame = readImageFrameState(img);
+            imageStateRootRef.child(imageId).set({
+                imageId,
+                role: img.closest('#coverEditor') ? 'cover' : 'content',
+                metadata: meta,
+                frame,
+                url: img.dataset.driveUrl || img.dataset.originalSource || img.getAttribute('src') || '',
+                sender: myDeviceId,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+        }
+    };
+
+    function applyRemoteImageState(snapshot) {
+        const data = snapshot.val();
+        if (!data || data.sender === myDeviceId) return;
+        if (data.timestamp && data.timestamp < imageRealtimeStartedAt - 5000) return;
+
+        const imageId = data.imageId || snapshot.key;
+        const img = findManagedImageById(imageId);
+        if (!img) return;
+
+        isApplyingRemoteDOM = true;
+        try {
+            if (data.url) {
+                const currentUrl = img.dataset.driveUrl || img.dataset.originalSource || img.getAttribute('src') || '';
+                if (data.url !== currentUrl) setManagedImageSource(img, data.url, {archived: !!extractDriveFileId(data.url)});
+            }
+            if (data.metadata) writeImageMetadata(img, data.metadata);
+            if (data.frame) applyImageFrameState(img, {...data.frame, role:data.role || data.frame.role});
+
+            const popupOpen = document.getElementById('vbImagePopupOverlay')?.style.display === 'flex';
+            const activeId = vbActiveImage?.dataset?.imageId || '';
+            if (popupOpen && activeId === imageId) {
+                vbActiveImage = img;
+                ensureManagedImageFrame(img, data.role || img.dataset.imageRole || 'content').classList.add('vb-image-active');
+                populateImagePropertiesForm(img, {
+                    resetHistory:false,
+                    preserveLock:true,
+                    preserveSelection:true,
+                    preserveStatus:true
+                });
+            }
+        } finally {
+            setTimeout(() => { isApplyingRemoteDOM = false; }, 20);
+        }
+    }
+
+    imageStateRootRef.on('child_added', applyRemoteImageState);
+    imageStateRootRef.on('child_changed', applyRemoteImageState);
 
     const domCamera = new MutationObserver(() => {
         if (isApplyingRemoteDOM) return; // Nếu DOM bị sửa do Firebase đẩy về -> Khóa không cho phát ngược lại
@@ -5720,6 +5947,9 @@ async function downloadActiveImageWithMetadata() {
             }
         }
 
+        const activePopupImageId = vbActiveImage?.dataset?.imageId || '';
+        const imagePopupWasOpen = document.getElementById('vbImagePopupOverlay')?.style.display === 'flex';
+
         smartInject('postTitle', domData.postTitle);
         smartInject('postSapo', domData.postSapo);
 
@@ -5737,6 +5967,20 @@ async function downloadActiveImageWithMetadata() {
         smartInject('postContent', domData.postContent);
         hydrateManagedImages(document.getElementById('coverEditor'), 'cover');
         hydrateManagedImages(document.getElementById('postContent'), 'content');
+
+        if (imagePopupWasOpen && activePopupImageId) {
+            const replacement = findManagedImageById(activePopupImageId);
+            if (replacement) {
+                vbActiveImage = replacement;
+                ensureManagedImageFrame(replacement, replacement.closest('#coverEditor') ? 'cover' : 'content').classList.add('vb-image-active');
+                populateImagePropertiesForm(replacement, {
+                    resetHistory:false,
+                    preserveLock:true,
+                    preserveSelection:true,
+                    preserveStatus:true
+                });
+            }
+        }
 
         setTimeout(() => { isApplyingRemoteDOM = false; }, 30);
     });
