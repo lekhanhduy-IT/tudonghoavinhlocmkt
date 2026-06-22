@@ -67,7 +67,8 @@
                 let res = await fetch(API_URL + "?action=get_admins&t=" + new Date().getTime()); let data = await res.json();
 
                 if (data.success && data.admins.includes(email)) {
-                    localStorage.setItem('admin_session', 'verified_admin'); localStorage.setItem('admin_email', email); localStorage.setItem('admin_name', profile.name || 'Admin'); window.location.href = 'admin.html';
+                    localStorage.setItem('admin_session', 'verified_admin'); localStorage.setItem('admin_email', email); localStorage.setItem('admin_name', profile.name || 'Admin');localStorage.setItem('admin_avatar', profile.picture || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png');
+                     window.location.href = 'admin.html';
                 } else {
                     localStorage.removeItem('admin_session'); document.getElementById('loginError').style.background = 'var(--red)'; document.getElementById('loginError').innerText = "Quyền truy cập bị từ chối. Tài khoản của bạn không nằm trong danh sách Admin.";
                 }

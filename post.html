@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Viết Bài Blog</title>
@@ -333,6 +335,112 @@
     background: var(--blue, #01adee);
     color: var(--white, #ffffff);
 }
+/* =========================================================
+   HỆ THỐNG GIAO DIỆN COLLAB (AVATAR BAR & LIVE CURSORS)
+========================================================= */
+
+/* Khay Avatar trải dài ra 2 bên, chồng đè lên nhau kiểu Canva */
+.collab-avatars-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: row-reverse; /* Để người vào sau xếp chồng lên người vào trước */
+    gap: -10px; /* Hiệu ứng thò thụt chồng đè */
+    padding: 0 15px;
+    min-width: 100px;
+}
+
+.collab-user-node {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid var(--peer-color, #01adee);
+    box-shadow: 0 0 0 2px #ffffff;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+    user-select: none;
+    background: #fff;
+}
+
+.collab-user-node img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.collab-user-node:hover {
+    transform: translateY(-5px) scale(1.15);
+    z-index: 1000 !important;
+}
+
+/* Biển tên xổ ra khi hover Avatar */
+.collab-user-tooltip {
+    position: absolute;
+    top: 115%;
+    left: 50%;
+    transform: translateX(-50%) scale(0);
+    background-color: var(--peer-color, #01adee);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 3px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    transition: transform 0.15s ease;
+}
+.collab-user-node:hover .collab-user-tooltip { transform: translateX(-50%) scale(1); }
+
+
+/* Con trỏ chuột lơ lửng trên màn hình */
+.peer-cursor {
+    position: absolute;
+    top: 0; left: 0;
+    pointer-events: none;
+    transition: transform 0.08s linear; /* Nội suy chuyển động mượt */
+    display: flex;
+    flex-direction: column;
+}
+
+.peer-cursor-arrow {
+    width: 18px;
+    height: 18px;
+    fill: var(--peer-color, #01adee);
+    filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.4));
+    transform: rotate(-15deg);
+}
+
+.peer-cursor-label {
+    background-color: var(--peer-color, #01adee);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 0px 6px 6px 6px;
+    white-space: nowrap;
+    margin-left: 12px;
+    margin-top: -4px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.peer-typing-balloon {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid var(--peer-color);
+    color: #222;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-left: 12px;
+    margin-top: 3px;
+    max-width: 220px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.peer-typing-balloon .field-name { font-weight: bold; color: var(--peer-color); font-size: 9px; display: block;}
+.peer-typing-balloon .typed-val { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
 </style>
   </head>
 <body>
@@ -348,19 +456,17 @@
 </div>
 <div class="toolbar">
   <div style="display: flex; align-items: center; gap: 10px;">
-    <button class="tool-btn" onclick="togglePanelVB('left')" title="Bật/Tắt Dữ Liệu Nguồn">
-      <i class="fas fa-bars"></i> Dữ liệu </button>
-    <span style="font-weight: bold; color: var(--blue); font-size: 14px; margin-left: 5px;">
-      <i class="fas fa-edit"></i> Trình Soạn Thảo Blog </span>
+    <button class="tool-btn" onclick="togglePanelVB('left')"><i class="fas fa-bars"></i> Dữ liệu</button>
+    <span style="font-weight: bold; color: var(--blue); font-size: 14px; margin-left: 5px;"><i class="fas fa-edit"></i> Trình Soạn Thảo Blog</span>
   </div>
-  <div style="display: flex; align-items: center;">
-   <span id="syncStatusVB" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60;">✅ Đã đồng bộ</span>
 
-<span id="syncStatusVB" onclick="forceFetchData()" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60; cursor: pointer;">✅ Khởi tạo...</span>
-    <button class="tool-btn" onclick="togglePanelVB('right')" style="margin-right: 10px;">
-      <i class="fas fa-toolbox"></i> Công cụ </button>
-    <button class="tool-btn save-btn" onclick="savePostToSheet()">
-      <i class="fas fa-save"></i> Lưu bài viết </button>
+  <div id="collabAvatarList" class="collab-avatars-bar">
+     </div>
+
+  <div style="display: flex; align-items: center;">
+    <span id="syncStatusVB" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60;">✅ Đã đồng bộ</span>
+    <button class="tool-btn" onclick="togglePanelVB('right')" style="margin-right: 10px;"><i class="fas fa-toolbox"></i> Công cụ</button>
+    <button class="tool-btn save-btn" onclick="savePostToSheet()"><i class="fas fa-save"></i> Lưu bài viết</button>
   </div>
 </div>
 <div class="workspace" id="workspaceArea">
@@ -3282,6 +3388,180 @@ window.forceReloadDraft = function() {
         syncStatus.style.color = "#27ae60";
     }
 };
+/* ====================================================================
+   ĐỘNG CƠ CỘNG TÁC THỜI GIAN THỰC (REALTIME COLLABORATION ENGINE)
+==================================================================== */
+
+(function initRealtimeEngine() {
+    // 1. LẤY THÔNG TIN NGƯỜI DÙNG TỪ LOCALSTORAGE
+    const myEmail = localStorage.getItem('admin_email') || 'anonymous_' + Math.floor(Math.random()*1000) + '@gmail.com';
+    const myName = localStorage.getItem('admin_name') || myEmail.split('@')[0];
+    const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
+
+    // 2. BẮT ID BÀI VIẾT (ROOM ID)
+    const urlParams = new URLSearchParams(window.location.search);
+    let roomId = urlParams.get('id');
+    if (!roomId) {
+        try { roomId = JSON.parse(localStorage.getItem('DRAFT_POST_DATA')).data[0]; } catch(e){}
+    }
+    roomId = roomId ? roomId.replace(/[\.\#\$\[\]]/g, '_') : 'DRAFT_ROOM_GENERAL';
+
+    // 3. TẠO MÃ MÀU CANVA RIÊNG BIỆT CHO MỖI GMAIL (Băm chuỗi cố định)
+    const PALETTE = ['#01adee', '#db1010', '#8e44ad', '#27ae60', '#d35400', '#f39c12', '#16a085', '#2980b9', '#c0392b'];
+    let hash = 0; for(let i=0; i<myEmail.length; i++) hash = myEmail.charCodeAt(i) + ((hash << 5) - hash);
+    const myColor = PALETTE[Math.abs(hash) % PALETTE.length];
+
+    // Cấu hình Firebase Database (BẠN SẼ THAY KHOÁ CỦA BẠN VÀO ĐÂY Ở BƯỚC 5)
+    const firebaseConfig = {
+        databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/
+    };
+
+    if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    
+    // Chuẩn hóa Email làm Key Firebase (Tránh ký tự cấm)
+    const safeUserKey = myEmail.replace(/[\.\#\$\[\]]/g, '_');
+    const myPresenceRef = db.ref(`collab_rooms/${roomId}/${safeUserKey}`);
+
+    // Dữ liệu trạng thái của Tôi
+    let myLiveState = {
+        name: myName,
+        email: myEmail,
+        avatar: myAvatar,
+        color: myColor,
+        x: -100, y: -100,
+        field: '',
+        text: '',
+        updatedAt: firebase.database.ServerValue.TIMESTAMP
+    };
+
+    // Khi tôi vừa vào mạng -> Báo danh & Cài bẫy TỰ ĐỘNG XÓA TÊN khi đóng Tab
+    myPresenceRef.set(myLiveState);
+    myPresenceRef.onDisconnect().remove();
+
+    // ========================================================
+    // PHẦN A: BẮT CHUYỂN ĐỘNG CỦA TÔI ĐẨY LÊN FIREBASE
+    // ========================================================
+    
+    let lastSend = 0;
+    window.addEventListener('mousemove', (e) => {
+        const now = Date.now();
+        if (now - lastSend < 60) return; // Giới hạn 15 hình/giây để tiết kiệm băng thông
+        lastSend = now;
+
+        myLiveState.x = e.pageX;
+        myLiveState.y = e.pageY;
+        myPresenceRef.update({ x: e.pageX, y: e.pageY, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+    });
+
+    // Bắt sự kiện gõ phím ở MỌI NGÓC NGÁCH (Tiêu đề, Sapo, Content, Kế hoạch...)
+    document.addEventListener('focusin', (e) => {
+        let el = e.target;
+        let fieldName = el.id;
+        if(!fieldName && el.classList.contains('data-val')) {
+            let row = el.closest('.data-row');
+            fieldName = row ? `[Kế Hoạch]: ${row.dataset.header}` : 'Bảng Kế Hoạch';
+        }
+        if(!fieldName && el.closest('#postContent')) fieldName = 'Nội dung bài (Content)';
+
+        if (fieldName) {
+            myLiveState.field = fieldName === 'postTitle' ? 'Tiêu đề' : (fieldName === 'postSapo' ? 'Sapo' : fieldName);
+            myLiveState.text = el.value || el.innerText || '';
+            myPresenceRef.update({ field: myLiveState.field, text: myLiveState.text });
+        }
+    });
+
+    document.addEventListener('focusout', () => {
+        myLiveState.field = ''; myLiveState.text = '';
+        myPresenceRef.update({ field: '', text: '' });
+    });
+
+    document.addEventListener('input', (e) => {
+        if(myLiveState.field) {
+            let val = e.target.value || e.target.innerText || '';
+            myPresenceRef.update({ text: val });
+        }
+    });
+
+    // ========================================================
+    // PHẦN B: LẮNG NGHE MỌI NGƯỜI TRONG PHÒNG VÀ VẼ RA MÀN HÌNH
+    // ========================================================
+
+    const roomRef = db.ref(`collab_rooms/${roomId}`);
+    const avatarContainer = document.getElementById('collabAvatarList');
+    const cursorsLayer = document.getElementById('collab-cursors-layer');
+
+    roomRef.on('value', (snapshot) => {
+        const users = snapshot.val() || {};
+        
+        // 1. Quét dọn các con trỏ chuột của những người đã thoát
+        Array.from(cursorsLayer.children).forEach(cursorDom => {
+            if (!users[cursorDom.id.replace('cursor_', '')]) cursorDom.remove();
+        });
+
+        // Đặt lại khay Avatar
+        let avatarHtml = '';
+        let onlineCount = 0;
+
+        for (let key in users) {
+            let peer = users[key];
+            onlineCount++;
+
+            // --- VẼ AVATAR LÊN THANH TOOLBAR ---
+            avatarHtml += `
+            <div class="collab-user-node" style="--peer-color: ${peer.color}; z-index: ${onlineCount};">
+                <img src="${peer.avatar}" alt="${peer.name}" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'">
+                <div class="collab-user-tooltip">${peer.name}</div>
+            </div>`;
+
+            if (peer.email === myEmail) continue; // Bỏ qua chính mình
+
+            // --- VẼ CON TRỞ CHUỘT & NỘI DUNG HỌ ĐANG GÕ ---
+            let cursorDom = document.getElementById(`cursor_${key}`);
+            if (!cursorDom) {
+                cursorDom = document.createElement('div');
+                cursorDom.id = `cursor_${key}`;
+                cursorDom.className = 'peer-cursor';
+                cursorDom.style.setProperty('--peer-color', peer.color);
+
+                cursorDom.innerHTML = `
+                <svg class="peer-cursor-arrow" viewBox="0 0 32 32"><polygon points="0,0 32,16 16,20 12,32"/></svg>
+                <div class="peer-cursor-label">${peer.name}</div>
+                <div class="peer-typing-balloon" style="display:none;">
+                     <span class="field-name"></span>
+                     <span class="typed-val"></span>
+                </div>`;
+                cursorsLayer.appendChild(cursorDom);
+            }
+
+            // Nội suy tọa độ
+            cursorDom.style.transform = `translate(${peer.x}px, ${peer.y}px)`;
+
+            // Hiển thị khung gõ chữ Realtime
+            let balloon = cursorDom.querySelector('.peer-typing-balloon');
+            if (peer.field && peer.text) {
+                balloon.style.display = 'block';
+                balloon.querySelector('.field-name').innerText = `✏️ Đang nhập ${peer.field}:`;
+                balloon.querySelector('.typed-val').innerText = peer.text;
+                
+                // Hiệu ứng bôi viền đỏ/xanh phần tử DOM họ đang gõ (chống va chạm)
+                let targetDom = document.getElementById(peer.field === 'Tiêu đề' ? 'postTitle' : (peer.field === 'Sapo' ? 'postSapo' : ''));
+                if(targetDom) targetDom.style.boxShadow = `0 0 0 2px ${peer.color}`;
+            } else {
+                balloon.style.display = 'none';
+                // Xóa bôi viền
+                ['postTitle', 'postSapo'].forEach(id => {
+                    let d = document.getElementById(id); if(d) d.style.boxShadow = 'none';
+                });
+            }
+        }
+
+        avatarContainer.innerHTML = avatarHtml;
+    });
+
+})();
 </script>
+
+<div id="collab-cursors-layer" style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events: none; z-index: 999999; overflow: hidden;"></div>
 </body>
 </html>
