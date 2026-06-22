@@ -3356,18 +3356,22 @@ function toggleVietbaiMode() {
 // BỔ SUNG HÀM NÀY VÀO CUỐI THẺ <script> CỦA FILE: post.html
 
 window.forceReloadDraft = function() {
-    // 1. Nạp lại dữ liệu cột bên Panel trái từ localStorage vừa bị Plan ghi đè
     loadDraftData();
-
-    // 2. Lấy ID bài viết (thường nằm ở cột 0 của dòng Kế hoạch)
     let postIdToLoad = (draftData && draftData.data) ? draftData.data[0] : null;
 
-    // 3. Phân nhánh xử lý:
-    if (postIdToLoad && String(postIdToLoad).startsWith("POST_")) {
-        // Trúng bài cũ -> Bê nội dung từ Sheet "Bài viết_hidden" đè vào Editor
-        currentPostId = postIdToLoad;
-        loadPostIntoEditor(postIdToLoad);
-    } else {
+    // =========================================================================
+    // CHỐT CHẶN PHÂN LẬP PHÒNG: Kiểm tra xem ID bài gửi sang có khớp ID trên URL không?
+    // =========================================================================
+    const urlParams = new URLSearchParams(window.location.search);
+    let currentUrlId = urlParams.get('id');
+
+    if (postIdToLoad && postIdToLoad !== currentUrlId) {
+        // Phát hiện user vừa bấm Viết bài cho một dòng khác bên Kế Hoạch!
+        // -> Ra lệnh tải lại toàn bộ trang Post sạch sẽ với URL mới để giết chết vĩnh viễn socket cũ
+        window.location.replace('post.html?id=' + encodeURIComponent(postIdToLoad));
+        return; 
+    }
+    else {
         // NẾU LÀ DÒNG KẾ HOẠCH MỚI TINH: Phải dọn sạch rác của bài gõ trước đó!
         currentPostId = null;
         document.getElementById("postTitle").innerHTML = "";
@@ -3395,9 +3399,22 @@ window.forceReloadDraft = function() {
     const myName = localStorage.getItem('admin_name') || myEmail.split('@')[0];
     const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
 
+// 1. Ưu tiên tóm ID từ thanh URL trước
     const urlParams = new URLSearchParams(window.location.search);
-    let roomId = urlParams.get('id') || 'DRAFT_ROOM_GENERAL';
-    roomId = roomId.replace(/[\.\#\$\[\]]/g, '_');
+    let roomId = urlParams.get('id');
+    // 2. Fallback: Nếu user mở trực tiếp post.html mà quên dán tham số -> Tự lục LocalStorage gắn vào URL!
+    if (!roomId) {
+        try {
+            let draft = JSON.parse(localStorage.getItem('DRAFT_POST_DATA'));
+            if (draft && draft.data && draft.data[0]) {
+                roomId = draft.data[0];
+                // Lệnh ma thuật: Sửa URL bar của trình duyệt thành ?id=... ngay lập tức mà không làm giật trang
+                window.history.replaceState(null, '', '?id=' + encodeURIComponent(roomId));
+            }
+        } catch(e) {}
+    }
+// Chuẩn hóa tên phòng (xóa ký tự cấm của Firebase)
+    roomId = (roomId || 'DRAFT_ROOM_GENERAL').replace(/[\.\#\$\[\]]/g, '_');
 
     const myDeviceId = 'dev_' + Math.random().toString(36).substring(2, 7);
     const safeUserKey = myEmail.replace(/[\.\#\$\[\]]/g, '_') + '_' + myDeviceId;

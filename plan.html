@@ -249,8 +249,8 @@
         
         function closeModal() { document.getElementById("systemModal").style.display = "none"; }
 
-        function transferToPost() {
-            document.getElementById("planContextMenu").style.display = "none"; // Ẩn context menu nếu đang mở
+function transferToPost() {
+            document.getElementById("planContextMenu").style.display = "none"; 
             
             if(!selectedRowData || selectedPlanIndexes.length !== 1) {
                 showModal("Lưu ý", "<p style='font-size: 14px; color: var(--text-main);'>Vui lòng chỉ click chọn <b>một dòng</b> dữ liệu bên dưới để tiến hành viết bài!</p>", [
@@ -259,18 +259,44 @@
                 return;
             }
             
+            // =================================================================
+            // NÂNG CẤP 1: Tự động cấp Giấy khai sinh (ID) cho dòng kế hoạch mới
+            // =================================================================
+            let rowId = selectedRowData.data[0];
+            if (!rowId || String(rowId).trim() === "") {
+                // Đẻ ra ID chuẩn format: POST_[thời_gian]_[vị_trí_dòng]
+                rowId = "POST_" + Date.now() + "_" + selectedPlanIndexes[0];
+                selectedRowData.data[0] = rowId;
+                
+                // Ghi ngược ID này vào Google Sheet để ghim vĩnh viễn cho dòng này
+                updatePlanCell(selectedPlanIndexes[0], 0, rowId);
+            }
+
+            // Cập nhật lại giỏ hàng LocalStorage (đã có chứa ID)
             localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(selectedRowData));
             
+            // =================================================================
+            // NÂNG CẤP 2: Ép hướng iframe đích danh tới URL có tham số ?id=...
+            // =================================================================
+            let targetPostUrl = 'post.html?id=' + encodeURIComponent(rowId);
+
             if(window.parent && typeof window.parent.loadModule === 'function') {
                 let sideItems = window.parent.document.querySelectorAll('.menu-item-side');
                 let postItem = Array.from(sideItems).find(el => el.innerText.includes('BÀI VIẾT'));
+                
                 if(postItem) {
+                    // Thò tay vào iframe Post, bóp cổ bắt nó phải chuyển sang link có ID
+                    let postFrame = window.parent.document.getElementById('frame-post');
+                    if (postFrame) {
+                        postFrame.contentWindow.location.replace(targetPostUrl);
+                    }
+                    // Báo Admin mở màn hình Post lên
                     window.parent.loadModule('post.html', postItem);
                 } else {
-                    window.location.href = 'post.html';
+                    window.location.href = targetPostUrl;
                 }
             } else {
-                window.location.href = 'post.html';
+                window.location.href = targetPostUrl;
             }
         }
 
