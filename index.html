@@ -441,28 +441,128 @@
   </p>
 </div>
 
-    <script>
-        if (localStorage.getItem('admin_session') === 'verified_admin') window.location.href = 'admin.html';
-        async function handleCredentialResponse(response) {
-            try {
-                const base64Url = response.credential.split('.')[1];
-                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-                const profile = JSON.parse(decodeURIComponent(window.atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')));
-                const email = profile.email ? profile.email.toLowerCase().trim() : "";
+<script>
+  if (
+    localStorage.getItem('admin_session') === 'verified_admin'
+  ) {
+    window.location.href = 'admin.html';
+  }
 
-                const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
-                document.getElementById('loginError').style.display = 'block'; document.getElementById('loginError').style.background = '#01adee'; document.getElementById('loginError').innerText = "Đang kiểm tra quyền truy cập...";
-                let res = await fetch(API_URL + "?action=get_admins&t=" + new Date().getTime()); let data = await res.json();
+  function showLoginMessage(message, backgroundColor) {
+    const container = document.getElementById('loginErrorContainer');
+    const messageElement = document.getElementById('loginError');
 
-                if (data.success && data.admins.includes(email)) {
-                    localStorage.setItem('admin_session', 'verified_admin'); localStorage.setItem('admin_email', email); localStorage.setItem('admin_name', profile.name || 'Admin');localStorage.setItem('admin_avatar', profile.picture || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png');
-                     window.location.href = 'admin.html';
-                } else {
-                    localStorage.removeItem('admin_session'); document.getElementById('loginError').style.background = 'var(--red)'; document.getElementById('loginError').innerText = "Quyền truy cập bị từ chối. Tài khoản của bạn không nằm trong danh sách Admin.";
-                }
-            } catch (error) { document.getElementById('loginError').style.background = 'var(--red)'; document.getElementById('loginError').innerText = "Lỗi kết nối đến máy chủ xác thực."; }
-        }
-    </script>
+    if (!container || !messageElement) {
+      console.error('Không tìm thấy vùng hiển thị thông báo đăng nhập.');
+      return;
+    }
+
+    messageElement.innerText = message;
+    messageElement.style.background = backgroundColor;
+    container.style.display = 'block';
+  }
+
+  async function handleCredentialResponse(response) {
+    try {
+      showLoginMessage(
+        'Đang xác thực...',
+        '#01ADEE'
+      );
+
+      const base64Url = response.credential.split('.')[1];
+
+      const base64 = base64Url
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+
+      const profile = JSON.parse(
+        decodeURIComponent(
+          window
+            .atob(base64)
+            .split('')
+            .map(function (character) {
+              return (
+                '%' +
+                ('00' + character.charCodeAt(0).toString(16)).slice(-2)
+              );
+            })
+            .join('')
+        )
+      );
+
+      const email = profile.email
+        ? profile.email.toLowerCase().trim()
+        : '';
+
+      const API_URL =
+        'https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec';
+
+      const responseAdmin = await fetch(
+        API_URL +
+          '?action=get_admins&t=' +
+          new Date().getTime()
+      );
+
+      if (!responseAdmin.ok) {
+        throw new Error(
+          'HTTP error: ' + responseAdmin.status
+        );
+      }
+
+      const data = await responseAdmin.json();
+
+      if (
+        data.success &&
+        Array.isArray(data.admins) &&
+        data.admins.includes(email)
+      ) {
+        localStorage.setItem(
+          'admin_session',
+          'verified_admin'
+        );
+
+        localStorage.setItem(
+          'admin_email',
+          email
+        );
+
+        localStorage.setItem(
+          'admin_name',
+          profile.name || 'Admin'
+        );
+
+        localStorage.setItem(
+          'admin_avatar',
+          profile.picture ||
+            'https://i.postimg.cc/xCjmFrb4/Untitled-design.png'
+        );
+
+        showLoginMessage(
+          'Xác thực thành công...',
+          '#01ADEE'
+        );
+
+        setTimeout(function () {
+          window.location.href = 'admin.html';
+        }, 500);
+      } else {
+        localStorage.removeItem('admin_session');
+
+        showLoginMessage(
+          'Quyền truy cập bị từ chối. Tài khoản của bạn không nằm trong danh sách Admin.',
+          '#DB1010'
+        );
+      }
+    } catch (error) {
+      console.error('Lỗi xác thực:', error);
+
+      showLoginMessage(
+        'Lỗi kết nối đến máy chủ xác thực.',
+        '#DB1010'
+      );
+    }
+  }
+</script>
     <!---->
 </body>
 </html>
