@@ -448,19 +448,19 @@
     window.location.href = 'admin.html';
   }
 
-  function showLoginMessage(message, backgroundColor) {
-    const container = document.getElementById('loginErrorContainer');
-    const messageElement = document.getElementById('loginError');
+function showLoginMessage(message, backgroundColor) {
+  const container = document.getElementById('login-container');
+  const messageElement = document.getElementById('loginError');
 
-    if (!container || !messageElement) {
-      console.error('Không tìm thấy vùng hiển thị thông báo đăng nhập.');
-      return;
-    }
-
-    messageElement.innerText = message;
-    messageElement.style.background = backgroundColor;
-    container.style.display = 'block';
+  if (!container || !messageElement) {
+    console.error('Không tìm thấy vùng hiển thị thông báo đăng nhập.');
+    return;
   }
+
+  messageElement.textContent = message;
+  messageElement.style.backgroundColor = backgroundColor;
+  container.style.display = 'block';
+}
 
   async function handleCredentialResponse(response) {
     try {
