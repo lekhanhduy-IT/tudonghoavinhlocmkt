@@ -948,6 +948,18 @@
     </div>
   </div>
 </div>
+<div
+    id="collab-cursors-layer"
+    style="
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        pointer-events: none;
+        z-index: 999999;
+        overflow: hidden;
+    "
+></div>
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
 
@@ -3486,18 +3498,32 @@ window.forceReloadDraft = function() {
     // ========================================================
     // PHẦN B: LẮNG NGHE MỌI NGƯỜI TRONG PHÒNG VÀ VẼ RA MÀN HÌNH
     // ========================================================
+const roomRef = db.ref(`collab_rooms/${roomId}`);
 
-    const roomRef = db.ref(`collab_rooms/${roomId}`);
-    const avatarContainer = document.getElementById('collabAvatarList');
-    const cursorsLayer = document.getElementById('collab-cursors-layer');
+const avatarContainer =
+    document.getElementById('collabAvatarList');
 
-    roomRef.on('value', (snapshot) => {
-        const users = snapshot.val() || {};
-        
-        // 1. Quét dọn các con trỏ chuột của những người đã thoát
-        Array.from(cursorsLayer.children).forEach(cursorDom => {
-            if (!users[cursorDom.id.replace('cursor_', '')]) cursorDom.remove();
-        });
+const cursorsLayer =
+    document.getElementById('collab-cursors-layer');
+
+if (!avatarContainer || !cursorsLayer) {
+    console.error("Không tìm thấy vùng hiển thị cộng tác realtime", {
+        avatarContainer,
+        cursorsLayer
+    });
+    return;
+}
+
+roomRef.on('value', snapshot => {
+    const users = snapshot.val() || {};
+
+    Array.from(cursorsLayer.children).forEach(cursorDom => {
+        const userKey = cursorDom.id.replace('cursor_', '');
+
+        if (!users[userKey]) {
+            cursorDom.remove();
+        }
+    });
 
         // Đặt lại khay Avatar
         let avatarHtml = '';
@@ -3562,6 +3588,5 @@ window.forceReloadDraft = function() {
 })();
 </script>
 
-<div id="collab-cursors-layer" style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events: none; z-index: 999999; overflow: hidden;"></div>
 </body>
 </html>
