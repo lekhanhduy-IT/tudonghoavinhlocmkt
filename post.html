@@ -41,16 +41,48 @@
     #postContent ul, #postContent ol { padding-left: 30px; margin-top: 5px; margin-bottom: 10px; }
     #postContent li { margin-bottom: 5px; }
 
-    .cover-area { padding: 10px 20px; border-bottom: 1px dashed var(--gray-border); background: var(--white); }
-    .cover-input { width: 100%; padding: 6px 10px; border: 0.5px solid var(--gray-border); outline: none; font-size: 12px; border-radius: 2px; margin-bottom: 5px; color: var(--blue); }
-.cover-preview { 
-    width: 100%;
-    height: auto;        /* Tự động tính toán chiều cao bám theo đúng tỷ lệ gốc của ảnh */
-    max-height: none;    /* Phá bỏ giới hạn gán cứng 300px cũ */
-    display: none;
-    border: 0.5px solid var(--gray-border);
-    margin-top: 5px;
-}
+    .cover-area {
+        padding: 10px 20px;
+        border-bottom: 1px dashed var(--gray-border);
+        background: var(--white);
+    }
+    .cover-rich-editor {
+        width: 100%;
+        min-height: 86px;
+        padding: 10px;
+        border: 0.5px dashed var(--gray-border);
+        outline: none;
+        border-radius: 3px;
+        position: relative;
+        background: #fff;
+        overflow: hidden;
+        cursor: text;
+    }
+    .cover-rich-editor:empty::before {
+        content: attr(data-placeholder);
+        color: #aaa;
+        pointer-events: none;
+        display: block;
+        text-align: center;
+        padding: 20px 8px;
+    }
+    .cover-rich-editor:focus {
+        border-color: var(--blue);
+        box-shadow: inset 0 0 0 1px rgba(1, 173, 238, 0.08);
+    }
+    .cover-rich-editor img,
+    #postContent img.vb-managed-image {
+        display: block;
+        max-width: 100% !important;
+        height: auto;
+        margin: 10px auto;
+        cursor: pointer;
+        object-fit: contain;
+    }
+    .cover-rich-editor img {
+        width: 100%;
+        margin: 0 auto;
+    }
     .data-row { margin-bottom: 8px; border: 0.5px solid var(--gray-border); border-radius: 3px; overflow: hidden; }
     .data-label { background: var(--gray-light); padding: 6px 8px; font-weight: bold; border-bottom: 1px solid var(--gray-border); font-size: 11px; color: var(--text-main); }
     .data-val { padding: 8px; background: var(--white); word-wrap: break-word; font-size: 13px; line-height: 1.5; }
@@ -434,6 +466,152 @@
 
 .peer-typing-balloon .field-name { font-weight: bold; color: var(--peer-color); font-size: 9px; display: block;}
 .peer-typing-balloon .typed-val { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+
+/* =========================================================
+   QUẢN LÝ ẢNH BÌA, ẢNH NỘI DUNG VÀ METADATA
+========================================================= */
+.vb-managed-image {
+    outline: 1px solid transparent;
+    transition: outline-color .15s ease, box-shadow .15s ease;
+}
+.vb-managed-image:hover,
+.vb-managed-image.vb-image-active {
+    outline-color: var(--blue);
+    box-shadow: 0 0 0 3px rgba(1, 173, 238, .12);
+}
+.vb-image-pending {
+    opacity: .88;
+}
+.vb-image-popup-box {
+    width: min(760px, 94vw);
+    max-height: 92vh;
+    overflow: auto;
+    background: #fff;
+    border-radius: 5px;
+    border-top: 3px solid var(--blue);
+    box-shadow: 0 12px 36px rgba(0,0,0,.28);
+}
+.vb-image-popup-head {
+    padding: 12px 15px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--gray-border);
+    background: var(--gray-light);
+    color: var(--blue);
+    font-weight: 700;
+}
+.vb-image-popup-body {
+    padding: 15px;
+}
+.vb-image-prop-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 12px;
+    margin-bottom: 12px;
+}
+.vb-image-field {
+    display: grid;
+    grid-template-columns: 74px 1fr;
+    align-items: center;
+    gap: 7px;
+}
+.vb-image-field.full {
+    grid-column: 1 / -1;
+}
+.vb-image-field label {
+    font-size: 11px;
+    color: #666;
+    font-weight: 700;
+}
+.vb-image-field input {
+    width: 100%;
+    min-width: 0;
+    height: 30px;
+    border: .5px solid var(--gray-border);
+    border-radius: 3px;
+    padding: 5px 8px;
+    outline: none;
+    font-size: 12px;
+}
+.vb-image-field input:focus {
+    border-color: var(--blue);
+}
+.vb-dimension-pair {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 6px;
+    align-items: center;
+}
+.vb-metadata-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    margin-top: 6px;
+    user-select: none;
+}
+.vb-metadata-table th,
+.vb-metadata-table td {
+    border: .5px solid #cfd8dc;
+    min-height: 30px;
+    padding: 7px 9px;
+    font-size: 12px;
+    vertical-align: middle;
+}
+.vb-metadata-table th {
+    width: 185px;
+    text-align: left;
+    background: #f6f8f9;
+    color: #444;
+}
+.vb-metadata-table td {
+    background: #fff;
+    outline: none;
+    user-select: text;
+    word-break: break-word;
+}
+.vb-metadata-table td.vb-meta-selected {
+    box-shadow: inset 0 0 0 9999px rgba(1,173,238,.15);
+    outline: 1px solid var(--blue);
+}
+.vb-image-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    justify-content: flex-end;
+    border-top: 1px solid var(--gray-border);
+    padding-top: 12px;
+    margin-top: 12px;
+}
+.vb-image-actions .tool-btn.danger {
+    color: var(--red);
+}
+.vb-image-actions .tool-btn.danger:hover {
+    background: var(--red);
+    border-color: var(--red);
+    color: #fff;
+}
+.vb-image-upload-status {
+    display: none;
+    margin: 8px 0 0;
+    padding: 8px 10px;
+    border-radius: 3px;
+    background: #eef9fd;
+    color: #087ca7;
+    font-size: 12px;
+    font-weight: 600;
+}
+.vb-image-dropdown .popup-item i {
+    width: 18px;
+    text-align: center;
+    margin-right: 5px;
+}
+@media (max-width: 680px) {
+    .vb-image-prop-grid { grid-template-columns: 1fr; }
+    .vb-image-field.full { grid-column: auto; }
+    .vb-metadata-table th { width: 120px; }
+}
+
 </style>
   </head>
 <body>
@@ -481,8 +659,14 @@
       <h1 class="rich-input" contenteditable="true" id="postTitle" data-placeholder="Nhập Tiêu đề bài viết tại đây..."></h1>
       <div class="rich-input" contenteditable="true" id="postSapo" data-placeholder="Nhập Sapo (Đoạn tóm tắt) tại đây..."></div>
       <div class="cover-area" id="coverArea">
-        <input type="text" id="coverUrlInput" class="cover-input" placeholder="Dán URL ảnh bìa (Thumbnail) vào đây..." oninput="updateCoverPreview()">
-        <img id="coverPreview" class="cover-preview">
+        <div
+          id="coverEditor"
+          class="cover-rich-editor"
+          contenteditable="true"
+          spellcheck="false"
+          data-placeholder="Dán ảnh bìa, thả ảnh hoặc dán URL ảnh bìa vào đây..."
+          aria-label="Ảnh bìa bài viết"
+        ></div>
       </div>
       <div class="rich-input" contenteditable="true" id="postContent" data-placeholder="Soạn thảo nội dung chi tiết bài viết..."></div>
     </div>
@@ -765,6 +949,23 @@
       <i class="fas fa-fill-drip"></i>▾ </button>
     <input type="color" oninput="miniApplyCellBgRealtime(this.value)" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
   </div>
+  <div class="tool-dropdown-wrapper vb-image-dropdown" style="width: auto;">
+    <button class="word-mini-btn" type="button" title="Chèn hình ảnh" onclick="openImageToolPopup(this)">
+      <i class="fas fa-image" style="color:#01adee;"></i>▾
+    </button>
+    <div class="vb-mini-popup" id="popupMiniImage" style="min-width: 165px; top:auto; bottom:100%; margin-bottom:5px;">
+      <div class="popup-item" onclick="chooseImageSource('upload')">
+        <i class="fas fa-upload" style="color:#01adee;"></i> Upload
+      </div>
+      <div class="popup-item" onclick="chooseImageSource('drive')">
+        <i class="fab fa-google-drive" style="color:#34a853;"></i> Drive
+      </div>
+      <div class="popup-item" onclick="chooseImageSource('url')">
+        <i class="fas fa-link" style="color:#db1010;"></i> URL
+      </div>
+    </div>
+  </div>
+  <div class="word-mini-divider"></div>
   <div class="tool-dropdown-wrapper" style="width: auto;">
     <button class="word-mini-btn" title="Borders" onclick="openToolPopup('popupMiniBorders', this)">
       <i class="fas fa-border-all"></i>▾ </button>
@@ -782,6 +983,66 @@
   </div>
 </div>
 <!--wordMiniToolbar-->
+<input id="vbImageFileInput" type="file" accept="image/*" multiple hidden>
+<div class="modal-overlay" id="vbImagePopupOverlay" style="z-index:100120;">
+  <div class="vb-image-popup-box" role="dialog" aria-modal="true" aria-labelledby="vbImagePopupTitle">
+    <div class="vb-image-popup-head">
+      <span id="vbImagePopupTitle"><i class="fas fa-image"></i> Thông tin ảnh</span>
+      <i class="fas fa-times" style="cursor:pointer;color:var(--red);" onclick="closeImageProperties()"></i>
+    </div>
+    <div class="vb-image-popup-body">
+      <div class="vb-image-prop-grid">
+        <div class="vb-image-field">
+          <label>Kích thước</label>
+          <div class="vb-dimension-pair">
+            <input type="number" min="1" id="vbImgWidth" placeholder="Width px">
+            <span>×</span>
+            <input type="number" min="1" id="vbImgHeight" placeholder="Height px">
+          </div>
+        </div>
+        <div class="vb-image-field">
+          <label>Tỷ lệ</label>
+          <div class="vb-dimension-pair">
+            <input type="number" min="1" step="0.01" id="vbRatioWidth" placeholder="Width">
+            <span>:</span>
+            <input type="number" min="1" step="0.01" id="vbRatioHeight" placeholder="Height">
+          </div>
+        </div>
+        <div class="vb-image-field full">
+          <label>URL ảnh</label>
+          <input type="text" id="vbImgUrl" placeholder="https:// hoặc data:image/...">
+        </div>
+      </div>
+
+      <div style="font-size:12px;font-weight:700;color:var(--blue);margin:5px 0 6px;">
+        Metadata ảnh
+      </div>
+      <table class="vb-metadata-table" id="vbMetadataTable">
+        <tbody>
+          <tr><th>File name</th><td class="vb-meta-value" contenteditable="true" data-meta-key="fileName"></td></tr>
+          <tr><th>Alt text</th><td class="vb-meta-value" contenteditable="true" data-meta-key="altText"></td></tr>
+          <tr><th>Caption</th><td class="vb-meta-value" contenteditable="true" data-meta-key="caption"></td></tr>
+          <tr><th>Title (IPTC)</th><td class="vb-meta-value" contenteditable="true" data-meta-key="title"></td></tr>
+          <tr><th>Description (IPTC)</th><td class="vb-meta-value" contenteditable="true" data-meta-key="description"></td></tr>
+          <tr><th>Author</th><td class="vb-meta-value" contenteditable="true" data-meta-key="author"></td></tr>
+          <tr><th>Copy right</th><td class="vb-meta-value" contenteditable="true" data-meta-key="copyright"></td></tr>
+        </tbody>
+      </table>
+
+      <div class="vb-image-upload-status" id="vbImageUploadStatus"></div>
+
+      <div class="vb-image-actions">
+        <button class="tool-btn save-btn" onclick="applyImageProperties()"><i class="fas fa-check"></i> Cập nhật</button>
+        <button class="tool-btn" onclick="copyActiveImage(false)"><i class="fas fa-copy"></i> Sao chép</button>
+        <button class="tool-btn" onclick="copyActiveImage(true)"><i class="fas fa-cut"></i> Cắt</button>
+        <button class="tool-btn" onclick="pasteImageFromClipboard()"><i class="fas fa-paste"></i> Dán</button>
+        <button class="tool-btn danger" onclick="deleteActiveImage()"><i class="fas fa-trash"></i> Xóa</button>
+        <button class="tool-btn" onclick="closeImageProperties()"><i class="fas fa-times"></i> Hủy</button>
+        <button class="tool-btn" onclick="downloadActiveImageWithMetadata()"><i class="fas fa-download"></i> Tải xuống</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div id="wordContextMenu" class="word-context-menu" style="display: none;">
   <div class="word-menu-item">
     <i class="fas fa-search word-menu-icon"></i> Review selection in Editor
@@ -947,6 +1208,9 @@
 
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+const POST_IMAGE_SHARED_DRIVE_FOLDER_ID = "11ad-tiEWqSeJdm0kv_q-_b2x0qWD9b6b";
+const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
+
 
     let sysData = { sheets: {} }; 
     let draftData = null;
@@ -980,8 +1244,11 @@ const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR
 
     // KÍCH HOẠT KHI TẢI TRANG
     window.addEventListener('load', async () => {
+        // 0. Khởi tạo trình quản lý ảnh bìa và ảnh nội dung.
+        initVbImageManager();
+
         // 1. Phục hồi sự kiện bôi đen cho Editor
-        let editors = ['postContent', 'postTitle', 'postSapo'];
+        let editors = ['postContent', 'postTitle', 'postSapo', 'coverEditor'];
         editors.forEach(id => {
             let el = document.getElementById(id);
             if (el) {
@@ -1061,6 +1328,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR
         loadGoogleFontsFromSheet(sysData);
         loadEmojisFromSheet(sysData);
         loadTemplatesFromSheet(sysData);
+        prewarmPostImagesFromBrain(sysData);
 
         // Tự động nạp dữ liệu từ _PLAN_DATA_ vào đệm nháp
         if (draftData && draftData.planRowIndex !== undefined && sysData.sheets["_PLAN_DATA_"]) {
@@ -1146,22 +1414,35 @@ const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR
         }, 1500); 
     }
 
-    // NẠP BẢI VIẾT VÀO EDITOR
+    // NẠP BÀI VIẾT VÀO EDITOR
     function loadPostIntoEditor(postId) {
         if (!postId || !sysData || !sysData.sheets || !sysData.sheets["Bài viết_hidden"]) return;
         let bvTab = sysData.sheets["Bài viết_hidden"];
+
         for (let r = 1; r < bvTab.length; r++) {
             if (bvTab[r][0] == postId) {
                 document.getElementById("postTitle").innerHTML = bvTab[r][1] || "";
                 document.getElementById("postSapo").innerHTML = bvTab[r][2] || "";
-                document.getElementById("coverUrlInput").value = bvTab[r][3] || "";
+
+                const coverEditor = document.getElementById("coverEditor");
+                coverEditor.innerHTML = "";
+                const coverDriveUrl = bvTab[r][3] || "";
+                let coverMetadata = {};
+                try { coverMetadata = bvTab[r][5] ? JSON.parse(bvTab[r][5]) : {}; } catch(e) {}
+
+                if (coverDriveUrl) {
+                    const coverImg = createManagedImage(coverDriveUrl, "cover", coverMetadata);
+                    coverImg.dataset.archivedDrive = "1";
+                    coverEditor.appendChild(coverImg);
+                }
 
                 let tempDiv = document.createElement('div');
                 tempDiv.innerHTML = bvTab[r][4] || "";
                 let bodyInside = tempDiv.querySelector('.post-body');
                 document.getElementById("postContent").innerHTML = bodyInside ? bodyInside.innerHTML : (bvTab[r][4] || "");
 
-                updateCoverPreview();
+                hydrateManagedImages(document.getElementById("postContent"), "content");
+                hydrateManagedImages(coverEditor, "cover");
                 isVBDirty = false;
                 setTimeout(globalHeadingSyncTrigger, 500);
                 break;
@@ -1293,7 +1574,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR
     }
 
     window.addEventListener('load', () => {
-        let editors = ['postContent', 'postTitle', 'postSapo'];
+        let editors = ['postContent', 'postTitle', 'postSapo', 'coverEditor'];
         editors.forEach(id => {
             let editor = document.getElementById(id);
             if (editor) {
@@ -1474,20 +1755,36 @@ const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR
         }
     }
 
-    function savePostToSheet() {
-        let title = document.getElementById("postTitle").innerHTML;
-        let sapo = document.getElementById("postSapo").innerHTML;
-        let coverUrl = document.getElementById("coverUrlInput").value.trim();
-        let content = document.getElementById("postContent").innerHTML;
-        let finalHtml = `<div class="post-body">${content}</div>`;
-
-        let planId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_" + new Date().getTime());
+    async function savePostToSheet() {
+        const title = document.getElementById("postTitle").innerHTML;
+        const sapo = document.getElementById("postSapo").innerHTML;
+        const planId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_" + new Date().getTime());
         currentPostId = planId;
 
+        const status = document.getElementById('syncStatusVB');
+        status.innerHTML = "⏳ Đang lưu ảnh vào Shared Drive...";
+        status.style.color = "#f39c12";
+
+        try {
+            await uploadAllPendingPostImages(planId);
+        } catch (uploadErr) {
+            status.innerHTML = "⚠️ Lỗi lưu ảnh";
+            status.style.color = "var(--red)";
+            vbShowAlert("Không thể lưu toàn bộ ảnh vào Shared Drive:<br><br>" + escapeHtmlText(uploadErr.message || String(uploadErr)));
+            return;
+        }
+
+        const coverImg = document.querySelector("#coverEditor img.vb-managed-image");
+        const coverUrl = coverImg ? (coverImg.dataset.driveUrl || normalizeDriveUrlForSheet(coverImg.getAttribute("src") || "")) : "";
+        const coverMetadata = coverImg ? JSON.stringify(readImageMetadata(coverImg)) : "";
+        const content = serializeEditorContentForSheet();
+        const finalHtml = `<div class="post-body">${content}</div>`;
+
         if (draftData && (!draftData.data[0] || draftData.data[0] !== planId)) {
-            draftData.data[0] = planId; localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
+            draftData.data[0] = planId;
+            localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
             if (sysData.sheets["_PLAN_DATA_"] && draftData.planRowIndex !== undefined) {
-                let newJsonData = JSON.stringify(draftData.data);
+                const newJsonData = JSON.stringify(draftData.data);
                 sysData.sheets["_PLAN_DATA_"][draftData.planRowIndex][2] = newJsonData;
                 pushQueue({ type: 'SYNC_CELL', row: draftData.planRowIndex + 1, col: 3, val: newJsonData, tab: "_PLAN_DATA_" });
             }
@@ -1495,37 +1792,50 @@ const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR
 
         if (!sysData.sheets["Bài viết_hidden"]) {
             sysData.tabOrder.push("Bài viết_hidden");
-            sysData.sheets["Bài viết_hidden"] = [["ID", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML"]];
+            sysData.sheets["Bài viết_hidden"] = [["ID", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML", "Metadata Ảnh Bìa"]];
             pushQueue({type:'MANAGE_TAB', action:'create', tab: "Bài viết_hidden"});
-            pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "ID", tab: "Bài viết_hidden"});
-            pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Tiêu đề", tab: "Bài viết_hidden"});
-            pushQueue({type:'SYNC_CELL', row: 1, col: 3, val: "Sapo", tab: "Bài viết_hidden"});
-            pushQueue({type:'SYNC_CELL', row: 1, col: 4, val: "Ảnh Bìa", tab: "Bài viết_hidden"});
-            pushQueue({type:'SYNC_CELL', row: 1, col: 5, val: "Nội Dung HTML", tab: "Bài viết_hidden"});
+            ["ID", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML", "Metadata Ảnh Bìa"].forEach((header, i) => {
+                pushQueue({type:'SYNC_CELL', row: 1, col: i + 1, val: header, tab: "Bài viết_hidden"});
+            });
+        } else {
+            // Tương thích Sheet cũ: bổ sung tiêu đề cột metadata nếu chưa có.
+            const header = sysData.sheets["Bài viết_hidden"][0] || [];
+            if (header[5] !== "Metadata Ảnh Bìa") {
+                header[5] = "Metadata Ảnh Bìa";
+                pushQueue({type:'SYNC_CELL', row: 1, col: 6, val: "Metadata Ảnh Bìa", tab: "Bài viết_hidden"});
+            }
         }
 
-        let bvTab = sysData.sheets["Bài viết_hidden"];
-        let targetRow = -1; for(let r=1; r<bvTab.length; r++) { if(bvTab[r][0] === planId) { targetRow = r; break; } }
+        const bvTab = sysData.sheets["Bài viết_hidden"];
+        let targetRow = -1;
+        for (let r = 1; r < bvTab.length; r++) {
+            if (bvTab[r][0] === planId) { targetRow = r; break; }
+        }
 
-        document.getElementById('syncStatusVB').innerHTML = "⏳ Đang lưu nền...";
-        document.getElementById('syncStatusVB').style.color = "#f39c12";
+        status.innerHTML = "⏳ Đang ghi Sheet...";
+        status.style.color = "#f39c12";
+
+        const rowData = [planId, title, sapo, coverUrl, finalHtml, coverMetadata];
 
         if (targetRow !== -1) {
-            bvTab[targetRow] = [planId, title, sapo, coverUrl, finalHtml];
-            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết_hidden"});
-            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết_hidden"});
-            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết_hidden"});
-            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết_hidden"});
+            bvTab[targetRow] = rowData;
+            for (let c = 1; c <= rowData.length; c++) {
+                pushQueue({type:'SYNC_CELL', row: targetRow + 1, col: c, val: rowData[c - 1], tab: "Bài viết_hidden"});
+            }
         } else {
-            targetRow = bvTab.length; bvTab.push([planId, title, sapo, coverUrl, finalHtml]);
-            pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow+1, count: 1, tab: "Bài viết_hidden"});
-            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 1, val: planId, tab: "Bài viết_hidden"});
-            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: title, tab: "Bài viết_hidden"});
-            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 3, val: sapo, tab: "Bài viết_hidden"});
-            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 4, val: coverUrl, tab: "Bài viết_hidden"});
-            pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 5, val: finalHtml, tab: "Bài viết_hidden"});
+            targetRow = bvTab.length;
+            bvTab.push(rowData);
+            pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow + 1, count: 1, tab: "Bài viết_hidden"});
+            for (let c = 1; c <= rowData.length; c++) {
+                pushQueue({type:'SYNC_CELL', row: targetRow + 1, col: c, val: rowData[c - 1], tab: "Bài viết_hidden"});
+            }
         }
+
+        // Cập nhật cache cục bộ ngay để lần mở kế tiếp không phải chờ mạng.
+        localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
         isVBDirty = false;
+        status.innerHTML = "✅ Ảnh đã lưu Drive, đang đồng bộ";
+        status.style.color = "#27ae60";
     }
 
     function applyGoogleFontFromLink() {
@@ -1888,10 +2198,17 @@ function openEmojiMenu(e) {
         menu.style.left = leftPos + "px";
     }
 
-    function updateCoverPreview() {
-        let url = document.getElementById("coverUrlInput").value.trim();
-        let img = document.getElementById("coverPreview");
-        if(url) { img.src = url; img.style.display = "block"; } else { img.style.display = "none"; }
+    // Giữ tên hàm cũ để các đoạn code ngoài post.html vẫn gọi được.
+    function updateCoverPreview(urlValue) {
+        const editor = document.getElementById("coverEditor");
+        const url = String(urlValue || "").trim();
+        if (!editor) return;
+        if (!url) {
+            editor.innerHTML = "";
+            return;
+        }
+        editor.innerHTML = "";
+        editor.appendChild(createManagedImage(url, "cover", {}));
     }
 
     let activeEditingHtmlBlock = null;
@@ -3300,55 +3617,39 @@ let isVbPreviewing = false;
 
 function toggleVietbaiMode() {
     isVbPreviewing = !isVbPreviewing;
-    
+
     const modeBtn = document.getElementById('vbModeToggleBtn');
-    const adminSidebar = document.getElementById('adminSidebar'); // Vỏ bọc bên Admin.html
+    const adminSidebar = document.getElementById('adminSidebar');
     const toolbar = document.querySelector('.toolbar');
-    const coverUrlInput = document.getElementById('coverUrlInput');
     const panelLeft = document.getElementById('panelLeft');
     const panelRight = document.getElementById('panelRight');
     const resizers = document.querySelectorAll('.panel-resizer');
     const workspace = document.getElementById('workspaceArea');
 
     if (isVbPreviewing) {
-        // 1. Biến hình thành nút "Chỉnh sửa"
         modeBtn.innerHTML = '<i class="fas fa-pen"></i> <span>Chỉnh sửa</span>';
-        
-        // 2. "Xóa" hoàn toàn các vách ngăn khỏi luồng render Flexbox
         if (adminSidebar) adminSidebar.style.display = 'none';
         if (toolbar) toolbar.style.display = 'none';
-        if (coverUrlInput) coverUrlInput.style.display = 'none';
         if (panelLeft) panelLeft.style.display = 'none';
         if (panelRight) panelRight.style.display = 'none';
-        resizers.forEach(r => r.style.display = 'none'); // Giấu luôn 2 thanh kéo
-
-        // 3. Bù lại vệt hụt 45px do mất thanh Toolbar
+        resizers.forEach(r => r.style.display = 'none');
         if (workspace) workspace.style.height = '100%';
 
-        // 4. [Tính năng nâng cao]: Khóa bàn phím
-        ['postTitle', 'postSapo', 'postContent'].forEach(id => {
-            let el = document.getElementById(id);
+        ['postTitle', 'postSapo', 'postContent', 'coverEditor'].forEach(id => {
+            const el = document.getElementById(id);
             if (el) el.setAttribute('contenteditable', 'false');
         });
-
     } else {
-        // 1. Trả về nút "Xem trước"
         modeBtn.innerHTML = '<i class="fas fa-eye"></i> <span>Xem trước</span>';
-
-        // 2. Gỡ lệnh ẩn -> Các panel tự bung lại kích thước cũ
         if (adminSidebar) adminSidebar.style.display = '';
         if (toolbar) toolbar.style.display = '';
-        if (coverUrlInput) coverUrlInput.style.display = '';
         if (panelLeft) panelLeft.style.display = '';
         if (panelRight) panelRight.style.display = '';
         resizers.forEach(r => r.style.display = '');
-
-        // 3. Trả lại công thức calc(100vh - 45px)
         if (workspace) workspace.style.height = '';
 
-        // 4. Mở khóa cho gõ phím lại
-        ['postTitle', 'postSapo', 'postContent'].forEach(id => {
-            let el = document.getElementById(id);
+        ['postTitle', 'postSapo', 'postContent', 'coverEditor'].forEach(id => {
+            const el = document.getElementById(id);
             if (el) el.setAttribute('contenteditable', 'true');
         });
     }
@@ -3376,9 +3677,8 @@ window.forceReloadDraft = function() {
         currentPostId = null;
         document.getElementById("postTitle").innerHTML = "";
         document.getElementById("postSapo").innerHTML = "";
-        document.getElementById("coverUrlInput").value = "";
+        document.getElementById("coverEditor").innerHTML = "";
         document.getElementById("postContent").innerHTML = "";
-        updateCoverPreview();
         isVBDirty = false;
     }
 
@@ -3389,6 +3689,1098 @@ window.forceReloadDraft = function() {
         syncStatus.style.color = "#27ae60";
     }
 };
+
+/* ====================================================================
+   TRÌNH QUẢN LÝ ẢNH BÌA + ẢNH NỘI DUNG + METADATA
+==================================================================== */
+let vbActiveImage = null;
+let vbImageClipboardHtml = "";
+let vbImageTargetMode = "content";
+let vbLastContentImageRange = null;
+let vbMetaDragSelecting = false;
+let vbSelectedMetaCells = [];
+
+const VB_DEFAULT_IMAGE_META = Object.freeze({
+    fileName: "",
+    altText: "",
+    caption: "",
+    title: "",
+    description: "",
+    author: "Tu Dong Hoa Vinh Loc",
+    copyright: "tudonghoavinhloc.com"
+});
+
+function escapeHtmlText(value) {
+    return String(value ?? "").replace(/[&<>"']/g, ch => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+    }[ch]));
+}
+
+function createImageClientId() {
+    return "img_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+}
+
+function extractDriveFileId(url) {
+    const text = String(url || "");
+    const patterns = [
+        /\/d\/([a-zA-Z0-9_-]{10,})/,
+        /[?&]id=([a-zA-Z0-9_-]{10,})/,
+        /\/thumbnail\?id=([a-zA-Z0-9_-]{10,})/
+    ];
+    for (const pattern of patterns) {
+        const m = text.match(pattern);
+        if (m) return m[1];
+    }
+    return "";
+}
+
+function canonicalDriveImageUrl(fileId) {
+    return fileId ? `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileId)}` : "";
+}
+
+function runtimeImageUrl(url) {
+    const fileId = extractDriveFileId(url);
+    return fileId ? DRIVE_IMAGE_PROXY_ENDPOINT + encodeURIComponent(fileId) : url;
+}
+
+function normalizeDriveUrlForSheet(url) {
+    const fileId = extractDriveFileId(url);
+    return fileId ? canonicalDriveImageUrl(fileId) : String(url || "");
+}
+
+function readImageMetadata(img) {
+    let stored = {};
+    try { stored = img?.dataset?.vbMeta ? JSON.parse(img.dataset.vbMeta) : {}; } catch(e) {}
+    return {
+        ...VB_DEFAULT_IMAGE_META,
+        ...stored,
+        fileName: stored.fileName || img?.dataset?.fileName || "",
+        altText: stored.altText || img?.getAttribute("alt") || "",
+        caption: stored.caption || img?.dataset?.caption || "",
+        title: stored.title || img?.getAttribute("title") || "",
+        description: stored.description || img?.dataset?.description || "",
+        author: stored.author || img?.dataset?.author || VB_DEFAULT_IMAGE_META.author,
+        copyright: stored.copyright || img?.dataset?.copyright || VB_DEFAULT_IMAGE_META.copyright
+    };
+}
+
+function writeImageMetadata(img, metadata) {
+    if (!img) return;
+    const meta = { ...VB_DEFAULT_IMAGE_META, ...(metadata || {}) };
+    img.dataset.vbMeta = JSON.stringify(meta);
+    img.dataset.fileName = meta.fileName || "";
+    img.dataset.caption = meta.caption || "";
+    img.dataset.description = meta.description || "";
+    img.dataset.author = meta.author || "";
+    img.dataset.copyright = meta.copyright || "";
+    img.alt = meta.altText || "";
+    img.title = meta.title || "";
+}
+
+function setManagedImageSource(img, source, options = {}) {
+    if (!img) return;
+    const cleanSource = String(source || "").trim();
+    const fileId = extractDriveFileId(cleanSource);
+
+    if (fileId) {
+        const driveUrl = canonicalDriveImageUrl(fileId);
+        img.dataset.driveFileId = fileId;
+        img.dataset.driveUrl = driveUrl;
+        img.dataset.originalSource = options.archived ? "" : driveUrl;
+        if (options.archived) img.dataset.archivedDrive = "1";
+        else delete img.dataset.archivedDrive;
+        img.src = runtimeImageUrl(driveUrl);
+        img.classList.remove("vb-image-pending");
+    } else {
+        if (!options.keepDrive) {
+            delete img.dataset.driveFileId;
+            delete img.dataset.driveUrl;
+            delete img.dataset.archivedDrive;
+        }
+        img.dataset.originalSource = cleanSource;
+        img.src = cleanSource;
+        if (/^data:image\//i.test(cleanSource)) img.classList.add("vb-image-pending");
+    }
+}
+
+function createManagedImage(source, role = "content", metadata = {}) {
+    const img = document.createElement("img");
+    img.className = "vb-managed-image";
+    img.dataset.imageId = createImageClientId();
+    img.dataset.imageRole = role;
+    img.setAttribute("contenteditable", "false");
+    img.setAttribute("draggable", "true");
+    img.style.maxWidth = "100%";
+    img.style.height = "auto";
+    img.style.display = "block";
+    img.style.margin = role === "cover" ? "0 auto" : "10px auto";
+    if (role === "cover") img.style.width = "100%";
+    writeImageMetadata(img, metadata);
+    setManagedImageSource(img, source);
+    bindManagedImage(img);
+    return img;
+}
+
+function hydrateManagedImages(root, role = "content") {
+    if (!root) return;
+    root.querySelectorAll("img").forEach(img => {
+        if (!img.dataset.imageId) img.dataset.imageId = createImageClientId();
+        if (!img.dataset.imageRole) img.dataset.imageRole = role;
+        img.classList.add("vb-managed-image");
+        img.setAttribute("contenteditable", "false");
+        img.setAttribute("draggable", "true");
+        img.style.maxWidth = "100%";
+        const isComplexLayoutImage = !!img.closest(".custom-html-block, table, .template-item, .tool-dropdown-wrapper");
+        if (!isComplexLayoutImage) {
+            img.style.display = "block";
+            img.style.margin = role === "cover" ? "0 auto" : "10px auto";
+        }
+        if (!img.style.height) img.style.height = "auto";
+
+        const srcAttr = img.getAttribute("src") || "";
+        const fileId = img.dataset.driveFileId || extractDriveFileId(img.dataset.driveUrl || srcAttr);
+        if (fileId) {
+            img.dataset.driveFileId = fileId;
+            img.dataset.driveUrl = canonicalDriveImageUrl(fileId);
+            if (srcAttr !== runtimeImageUrl(img.dataset.driveUrl)) img.src = runtimeImageUrl(img.dataset.driveUrl);
+        }
+
+        writeImageMetadata(img, readImageMetadata(img));
+        bindManagedImage(img);
+    });
+}
+
+function bindManagedImage(img) {
+    if (!img || img.dataset.vbBound === "1") return;
+    img.dataset.vbBound = "1";
+
+    img.addEventListener("click", e => {
+        e.preventDefault();
+        e.stopPropagation();
+        openImageProperties(img);
+    });
+    img.addEventListener("contextmenu", e => {
+        e.preventDefault();
+        e.stopPropagation();
+        openImageProperties(img);
+    });
+    img.addEventListener("dragstart", e => {
+        vbImageClipboardHtml = img.outerHTML;
+        if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = "copyMove";
+            e.dataTransfer.setData("text/html", img.outerHTML);
+            e.dataTransfer.setData("text/plain", img.dataset.driveUrl || img.src);
+        }
+    });
+    img.addEventListener("error", () => {
+        const driveUrl = img.dataset.driveUrl;
+        if (driveUrl && img.src !== driveUrl) img.src = driveUrl;
+    });
+}
+
+function rememberImageInsertionTarget(mode) {
+    vbImageTargetMode = mode;
+    if (mode === "content") {
+        const sel = window.getSelection();
+        if (sel.rangeCount) {
+            const range = sel.getRangeAt(0);
+            const root = document.getElementById("postContent");
+            if (root.contains(range.commonAncestorContainer)) vbLastContentImageRange = range.cloneRange();
+        }
+    }
+}
+
+function insertManagedImage(img, mode = vbImageTargetMode) {
+    if (!img) return;
+    const coverEditor = document.getElementById("coverEditor");
+    const contentEditor = document.getElementById("postContent");
+
+    if (mode === "cover") {
+        img.dataset.imageRole = "cover";
+        img.style.width = img.style.width || "100%";
+        img.style.height = "auto";
+        img.style.margin = "0 auto";
+        coverEditor.innerHTML = "";
+        coverEditor.appendChild(img);
+        rememberImageInsertionTarget("cover");
+    } else {
+        img.dataset.imageRole = "content";
+        img.style.maxWidth = "100%";
+        img.style.height = img.style.height || "auto";
+        img.style.margin = "10px auto";
+        contentEditor.focus();
+
+        const sel = window.getSelection();
+        let range = vbLastContentImageRange;
+        if (!range || !contentEditor.contains(range.commonAncestorContainer)) {
+            range = document.createRange();
+            range.selectNodeContents(contentEditor);
+            range.collapse(false);
+        }
+
+        sel.removeAllRanges();
+        sel.addRange(range);
+        range.deleteContents();
+        range.insertNode(img);
+
+        const spacer = document.createElement("p");
+        spacer.innerHTML = "<br>";
+        img.parentNode.insertBefore(spacer, img.nextSibling);
+
+        const nextRange = document.createRange();
+        nextRange.selectNodeContents(spacer);
+        nextRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(nextRange);
+        vbLastContentImageRange = nextRange.cloneRange();
+    }
+
+    bindManagedImage(img);
+    isVBDirty = true;
+    const status = document.getElementById("syncStatusVB");
+    if (status) {
+        status.innerText = "⚠️ Chưa lưu";
+        status.style.color = "var(--red)";
+    }
+}
+
+function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(reader.error || new Error("Không đọc được file ảnh."));
+        reader.readAsDataURL(file);
+    });
+}
+
+async function insertImageFiles(files, mode = vbImageTargetMode) {
+    const imageFiles = Array.from(files || []).filter(file => file && /^image\//i.test(file.type));
+    for (const file of imageFiles) {
+        const dataUrl = await fileToDataUrl(file);
+        const metadata = {
+            ...VB_DEFAULT_IMAGE_META,
+            fileName: file.name || ""
+        };
+        const img = createManagedImage(dataUrl, mode, metadata);
+        insertManagedImage(img, mode);
+        if (mode === "cover") break;
+    }
+}
+
+function looksLikeSingleImageUrl(text) {
+    const clean = String(text || "").trim();
+    if (!/^https?:\/\//i.test(clean) || /\s/.test(clean)) return false;
+    return /\.(png|jpe?g|gif|webp|avif|svg)(?:[?#].*)?$/i.test(clean)
+        || /drive\.google\.com/i.test(clean)
+        || /googleusercontent\.com/i.test(clean)
+        || /postimg\.cc|i\.imgur\.com|cloudinary\.com|images\.unsplash\.com/i.test(clean);
+}
+
+async function handleManagedImagePaste(event, mode) {
+    rememberImageInsertionTarget(mode);
+    const clipboard = event.clipboardData;
+    if (!clipboard) return;
+
+    const files = Array.from(clipboard.files || []).filter(f => /^image\//i.test(f.type));
+    if (files.length) {
+        event.preventDefault();
+        await insertImageFiles(files, mode);
+        return;
+    }
+
+    const html = clipboard.getData("text/html") || "";
+    if (html && /<img[\s>]/i.test(html)) {
+        event.preventDefault();
+        const temp = document.createElement("div");
+        temp.innerHTML = html;
+        const imgs = Array.from(temp.querySelectorAll("img"));
+        for (const sourceImg of imgs) {
+            const meta = readImageMetadata(sourceImg);
+            const img = createManagedImage(sourceImg.getAttribute("src") || "", mode, meta);
+            if (sourceImg.style.width) img.style.width = sourceImg.style.width;
+            if (sourceImg.style.height) img.style.height = sourceImg.style.height;
+            insertManagedImage(img, mode);
+            if (mode === "cover") break;
+        }
+        return;
+    }
+
+    const text = clipboard.getData("text/plain") || "";
+    if (mode === "cover") {
+        event.preventDefault();
+        if (looksLikeSingleImageUrl(text)) {
+            insertManagedImage(createManagedImage(text.trim(), "cover", {}), "cover");
+        } else if (text.trim()) {
+            vbShowAlert("Ô ảnh bìa chỉ nhận file ảnh hoặc một URL ảnh hợp lệ.");
+        }
+    }
+}
+
+function initVbImageManager() {
+    const cover = document.getElementById("coverEditor");
+    const content = document.getElementById("postContent");
+    const fileInput = document.getElementById("vbImageFileInput");
+    const overlay = document.getElementById("vbImagePopupOverlay");
+
+    if (!cover || cover.dataset.vbImageReady === "1") return;
+    cover.dataset.vbImageReady = "1";
+
+    [cover, content].forEach((el, index) => {
+        const mode = index === 0 ? "cover" : "content";
+        ["focusin", "mouseup", "keyup"].forEach(evt => {
+            el.addEventListener(evt, () => rememberImageInsertionTarget(mode));
+        });
+        el.addEventListener("paste", e => handleManagedImagePaste(e, mode));
+        el.addEventListener("dragover", e => {
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+        });
+        el.addEventListener("drop", async e => {
+            const files = Array.from(e.dataTransfer?.files || []).filter(f => /^image\//i.test(f.type));
+            const droppedText = e.dataTransfer?.getData("text/plain") || "";
+
+            if (files.length) {
+                e.preventDefault();
+                rememberImageInsertionTarget(mode);
+                await insertImageFiles(files, mode);
+                return;
+            }
+
+            if (mode === "cover" && looksLikeSingleImageUrl(droppedText)) {
+                e.preventDefault();
+                insertManagedImage(createManagedImage(droppedText.trim(), "cover", {}), "cover");
+            }
+        });
+    });
+
+    cover.addEventListener("keydown", e => {
+        const allowedControl = e.ctrlKey || e.metaKey || e.altKey;
+        const allowedKeys = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab", "Escape"];
+        if (!allowedControl && !allowedKeys.includes(e.key)) e.preventDefault();
+    });
+    cover.addEventListener("input", () => {
+        Array.from(cover.childNodes).forEach(node => {
+            if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) node.remove();
+            if (node.nodeType === Node.ELEMENT_NODE && node.tagName !== "IMG") {
+                const nestedImg = node.querySelector?.("img");
+                if (nestedImg) cover.replaceChild(nestedImg, node);
+                else node.remove();
+            }
+        });
+        const images = Array.from(cover.querySelectorAll("img"));
+        images.slice(0, -1).forEach(img => img.remove());
+        hydrateManagedImages(cover, "cover");
+    });
+
+    fileInput?.addEventListener("change", async () => {
+        try { await insertImageFiles(fileInput.files, vbImageTargetMode); }
+        finally { fileInput.value = ""; }
+    });
+
+    overlay?.addEventListener("mousedown", e => {
+        if (e.target === overlay) closeImageProperties();
+    });
+
+    initMetadataGridClipboard();
+    hydrateManagedImages(cover, "cover");
+    hydrateManagedImages(content, "content");
+
+    document.addEventListener("keydown", e => {
+        if (!vbActiveImage || document.getElementById("vbImagePopupOverlay")?.style.display !== "flex") return;
+        if (!(e.ctrlKey || e.metaKey)) return;
+        const key = e.key.toLowerCase();
+        if (key === "c") { e.preventDefault(); copyActiveImage(false); }
+        if (key === "x") { e.preventDefault(); copyActiveImage(true); }
+        if (key === "v") { e.preventDefault(); pasteImageFromClipboard(); }
+    });
+}
+
+function openImageToolPopup(btn) {
+    const active = document.activeElement;
+    if (active?.id === "coverEditor" || active?.closest?.("#coverEditor")) rememberImageInsertionTarget("cover");
+    else rememberImageInsertionTarget("content");
+    openToolPopup("popupMiniImage", btn);
+}
+
+function chooseImageSource(type) {
+    closeAllToolPopups();
+    if (type === "upload") {
+        document.getElementById("vbImageFileInput")?.click();
+        return;
+    }
+
+    if (type === "drive") {
+        window.open("https://drive.google.com/drive/u/0/my-drive", "_blank", "noopener");
+        vbShowPrompt("Google Drive đã được mở ở thẻ mới.<br>Hãy chọn ảnh, sao chép liên kết chia sẻ rồi dán vào đây:", url => {
+            if (!url) return;
+            insertManagedImage(createManagedImage(url.trim(), vbImageTargetMode, {}), vbImageTargetMode);
+        });
+        return;
+    }
+
+    vbShowPrompt("Dán URL ảnh (https:// hoặc data:image/...):", url => {
+        if (!url) return;
+        insertManagedImage(createManagedImage(url.trim(), vbImageTargetMode, {}), vbImageTargetMode);
+    });
+}
+
+function greatestCommonDivisor(a, b) {
+    a = Math.max(1, Math.round(Math.abs(a || 1)));
+    b = Math.max(1, Math.round(Math.abs(b || 1)));
+    while (b) [a, b] = [b, a % b];
+    return a || 1;
+}
+
+function openImageProperties(img) {
+    if (!img) return;
+    document.querySelectorAll(".vb-image-active").forEach(el => el.classList.remove("vb-image-active"));
+    vbActiveImage = img;
+    img.classList.add("vb-image-active");
+    const imageMode = img.closest("#coverEditor") ? "cover" : "content";
+    rememberImageInsertionTarget(imageMode);
+
+    if (imageMode === "content") {
+        const afterImage = document.createRange();
+        afterImage.setStartAfter(img);
+        afterImage.collapse(true);
+        vbLastContentImageRange = afterImage;
+    }
+
+    const rect = img.getBoundingClientRect();
+    const width = Math.max(1, Math.round(rect.width || img.naturalWidth || 1));
+    const height = Math.max(1, Math.round(rect.height || img.naturalHeight || 1));
+    const naturalW = img.naturalWidth || width;
+    const naturalH = img.naturalHeight || height;
+    const gcd = greatestCommonDivisor(naturalW, naturalH);
+
+    const widthInput = document.getElementById("vbImgWidth");
+    const heightInput = document.getElementById("vbImgHeight");
+    const ratioWidthInput = document.getElementById("vbRatioWidth");
+    const ratioHeightInput = document.getElementById("vbRatioHeight");
+
+    widthInput.value = width;
+    heightInput.value = height;
+    widthInput.dataset.originalValue = String(width);
+    heightInput.dataset.originalValue = String(height);
+
+    ratioWidthInput.value = Math.max(1, Math.round(naturalW / gcd));
+    ratioHeightInput.value = Math.max(1, Math.round(naturalH / gcd));
+    ratioWidthInput.dataset.originalValue = ratioWidthInput.value;
+    ratioHeightInput.dataset.originalValue = ratioHeightInput.value;
+    document.getElementById("vbImgUrl").value = img.dataset.driveUrl || img.dataset.originalSource || img.getAttribute("src") || "";
+
+    const meta = readImageMetadata(img);
+    document.querySelectorAll("#vbMetadataTable [data-meta-key]").forEach(cell => {
+        cell.textContent = meta[cell.dataset.metaKey] || "";
+    });
+    clearMetadataSelection();
+    document.getElementById("vbImageUploadStatus").style.display = "none";
+    document.getElementById("vbImagePopupOverlay").style.display = "flex";
+}
+
+function closeImageProperties() {
+    document.getElementById("vbImagePopupOverlay").style.display = "none";
+    document.querySelectorAll(".vb-image-active").forEach(el => el.classList.remove("vb-image-active"));
+    vbActiveImage = null;
+    clearMetadataSelection();
+}
+
+function collectMetadataFromGrid() {
+    const meta = { ...VB_DEFAULT_IMAGE_META };
+    document.querySelectorAll("#vbMetadataTable [data-meta-key]").forEach(cell => {
+        meta[cell.dataset.metaKey] = cell.innerText.replace(/\u00a0/g, " ").trim();
+    });
+    return meta;
+}
+
+function applyImageProperties() {
+    if (!vbActiveImage) return;
+    const width = parseFloat(document.getElementById("vbImgWidth").value);
+    const height = parseFloat(document.getElementById("vbImgHeight").value);
+    const ratioW = parseFloat(document.getElementById("vbRatioWidth").value);
+    const ratioH = parseFloat(document.getElementById("vbRatioHeight").value);
+    const newUrl = document.getElementById("vbImgUrl").value.trim();
+    const oldCanonical = vbActiveImage.dataset.driveUrl || vbActiveImage.dataset.originalSource || vbActiveImage.getAttribute("src") || "";
+
+    const widthInput = document.getElementById("vbImgWidth");
+    const heightInput = document.getElementById("vbImgHeight");
+    const ratioWidthInput = document.getElementById("vbRatioWidth");
+    const ratioHeightInput = document.getElementById("vbRatioHeight");
+
+    const widthChanged = String(widthInput.value) !== String(widthInput.dataset.originalValue || "");
+    const heightChanged = String(heightInput.value) !== String(heightInput.dataset.originalValue || "");
+    const ratioChanged =
+        String(ratioWidthInput.value) !== String(ratioWidthInput.dataset.originalValue || "") ||
+        String(ratioHeightInput.value) !== String(ratioHeightInput.dataset.originalValue || "");
+
+    if (widthChanged) {
+        if (width > 0) vbActiveImage.style.width = Math.round(width) + "px";
+        else vbActiveImage.style.removeProperty("width");
+    }
+
+    if (heightChanged) {
+        if (height > 0) vbActiveImage.style.height = Math.round(height) + "px";
+        else vbActiveImage.style.height = "auto";
+    }
+
+    if (ratioChanged && ratioW > 0 && ratioH > 0 && width > 0) {
+        const ratioHeight = Math.round(width * ratioH / ratioW);
+        heightInput.value = ratioHeight;
+        vbActiveImage.style.height = ratioHeight + "px";
+    }
+
+    if (newUrl && newUrl !== oldCanonical) {
+        setManagedImageSource(vbActiveImage, newUrl);
+    }
+
+    writeImageMetadata(vbActiveImage, collectMetadataFromGrid());
+    isVBDirty = true;
+    closeImageProperties();
+}
+
+async function copyActiveImage(isCut) {
+    if (!vbActiveImage) return;
+
+    const cleanCopy = vbActiveImage.cloneNode(true);
+    cleanCopy.classList.remove("vb-image-active");
+    cleanCopy.removeAttribute("data-vb-bound");
+    vbImageClipboardHtml = cleanCopy.outerHTML;
+    const plainUrl = vbActiveImage.dataset.driveUrl || vbActiveImage.src;
+
+    try {
+        await navigator.clipboard.write([
+            new ClipboardItem({
+                "text/html": new Blob([vbImageClipboardHtml], {type: "text/html"}),
+                "text/plain": new Blob([plainUrl], {type: "text/plain"})
+            })
+        ]);
+    } catch(e) {
+        // Fallback cũ vẫn giữ HTML và toàn bộ data-* metadata.
+        const holder = document.createElement("div");
+        holder.contentEditable = "true";
+        holder.style.position = "fixed";
+        holder.style.left = "-9999px";
+        holder.innerHTML = vbImageClipboardHtml;
+        document.body.appendChild(holder);
+        const range = document.createRange();
+        range.selectNodeContents(holder);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand("copy");
+        holder.remove();
+        sel.removeAllRanges();
+    }
+
+    const toRemove = isCut ? vbActiveImage : null;
+    closeImageProperties();
+    if (toRemove) {
+        toRemove.remove();
+        isVBDirty = true;
+    }
+}
+
+function cloneManagedImageFromHtml(html) {
+    const temp = document.createElement("div");
+    temp.innerHTML = html || "";
+    const source = temp.querySelector("img");
+    if (!source) return null;
+    const clone = source.cloneNode(true);
+    clone.dataset.imageId = createImageClientId();
+    clone.dataset.vbBound = "0";
+    clone.classList.add("vb-managed-image");
+    clone.style.maxWidth = "100%";
+    if (!clone.style.height) clone.style.height = "auto";
+    if (!clone.style.display) clone.style.display = "block";
+    if (!clone.style.margin) clone.style.margin = "10px auto";
+    writeImageMetadata(clone, readImageMetadata(source));
+    bindManagedImage(clone);
+    return clone;
+}
+
+async function pasteImageFromClipboard() {
+    let html = "";
+    try {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+            const imageType = item.types.find(t => /^image\//i.test(t));
+            if (imageType) {
+                const blob = await item.getType(imageType);
+                const file = new File([blob], "clipboard-image." + (imageType.split("/")[1] || "png"), {type: imageType});
+                await insertImageFiles([file], vbImageTargetMode);
+                closeImageProperties();
+                return;
+            }
+            if (item.types.includes("text/html")) {
+                html = await (await item.getType("text/html")).text();
+            }
+        }
+    } catch(e) {}
+
+    html = html || vbImageClipboardHtml;
+    const clone = cloneManagedImageFromHtml(html);
+    if (!clone) {
+        vbShowAlert("Clipboard chưa có ảnh phù hợp để dán.");
+        return;
+    }
+    insertManagedImage(clone, vbImageTargetMode);
+    closeImageProperties();
+}
+
+function deleteActiveImage() {
+    if (!vbActiveImage) return;
+    const img = vbActiveImage;
+    closeImageProperties();
+    img.remove();
+    isVBDirty = true;
+}
+
+function clearMetadataSelection() {
+    vbSelectedMetaCells.forEach(cell => cell.classList.remove("vb-meta-selected"));
+    vbSelectedMetaCells = [];
+}
+
+function initMetadataGridClipboard() {
+    const table = document.getElementById("vbMetadataTable");
+    if (!table || table.dataset.ready === "1") return;
+    table.dataset.ready = "1";
+
+    const cells = Array.from(table.querySelectorAll(".vb-meta-value"));
+    cells.forEach(cell => {
+        cell.addEventListener("mousedown", e => {
+            if (!e.ctrlKey && !e.metaKey && !e.shiftKey) clearMetadataSelection();
+            vbMetaDragSelecting = true;
+            if (!vbSelectedMetaCells.includes(cell)) {
+                vbSelectedMetaCells.push(cell);
+                cell.classList.add("vb-meta-selected");
+            }
+        });
+        cell.addEventListener("mouseenter", () => {
+            if (!vbMetaDragSelecting) return;
+            if (!vbSelectedMetaCells.includes(cell)) {
+                vbSelectedMetaCells.push(cell);
+                cell.classList.add("vb-meta-selected");
+            }
+        });
+        cell.addEventListener("focus", () => {
+            if (!vbSelectedMetaCells.includes(cell)) {
+                clearMetadataSelection();
+                vbSelectedMetaCells = [cell];
+                cell.classList.add("vb-meta-selected");
+            }
+        });
+    });
+
+    document.addEventListener("mouseup", () => vbMetaDragSelecting = false);
+
+    table.addEventListener("paste", e => {
+        const text = e.clipboardData?.getData("text/plain") || "";
+        if (!text) return;
+        e.preventDefault();
+
+        const parsedRows = text
+            .replace(/\r/g, "")
+            .split("\n")
+            .filter(line => line.trim() !== "")
+            .map(line => line.split("\t").map(v => v.replace(/^\s*[-•▪◦●]+\s*/, "").trim()));
+
+        let values = [];
+        parsedRows.forEach(row => {
+            if (row.length >= 2) values.push(row[row.length - 1]);
+            else values.push(row[0] || "");
+        });
+
+        const orderedCells = cells.slice();
+        let targets = vbSelectedMetaCells.length ? vbSelectedMetaCells.slice() : [];
+        if (!targets.length) {
+            const active = document.activeElement?.closest?.(".vb-meta-value");
+            const start = Math.max(0, orderedCells.indexOf(active));
+            targets = orderedCells.slice(start);
+        }
+
+        targets.sort((a, b) => orderedCells.indexOf(a) - orderedCells.indexOf(b));
+        values.forEach((value, i) => {
+            if (targets[i]) targets[i].textContent = value;
+        });
+    });
+
+    table.addEventListener("copy", e => {
+        if (!vbSelectedMetaCells.length) return;
+        e.preventDefault();
+        const ordered = cells.filter(c => vbSelectedMetaCells.includes(c));
+        const text = ordered.map(c => c.innerText.trim()).join("\n");
+        e.clipboardData.setData("text/plain", text);
+    });
+
+    table.addEventListener("cut", e => {
+        if (!vbSelectedMetaCells.length) return;
+        e.preventDefault();
+        const ordered = cells.filter(c => vbSelectedMetaCells.includes(c));
+        const text = ordered.map(c => c.innerText.trim()).join("\n");
+        e.clipboardData.setData("text/plain", text);
+        ordered.forEach(c => c.textContent = "");
+    });
+}
+
+function sanitizeUploadFileName(name, fallback) {
+    const clean = String(name || fallback || "image")
+        .replace(/[\\/:*?"<>|#%{}\[\]~]/g, "-")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^\.+/, "")
+        .slice(0, 180);
+    return clean || "image";
+}
+
+function inferExtensionFromSource(source, mime) {
+    const mimeMap = {
+        "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+        "image/gif": "gif", "image/svg+xml": "svg", "image/avif": "avif"
+    };
+    if (mimeMap[mime]) return mimeMap[mime];
+    const match = String(source || "").match(/\.([a-zA-Z0-9]{2,5})(?:[?#]|$)/);
+    return match ? match[1].toLowerCase() : "jpg";
+}
+
+function getUploadSourceForImage(img) {
+    if (img.dataset.archivedDrive === "1" && img.dataset.driveUrl && img.dataset.driveFileId) return "";
+    const original = img.dataset.originalSource || img.dataset.driveUrl || img.getAttribute("src") || "";
+    if (original.startsWith(location.origin + DRIVE_IMAGE_PROXY_ENDPOINT)) return img.dataset.driveUrl || "";
+    return original;
+}
+
+async function uploadImageBatch(postId, images) {
+    const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {"Content-Type": "text/plain;charset=utf-8"},
+        body: JSON.stringify({
+            action: "UPLOAD_POST_IMAGES",
+            postId,
+            folderId: POST_IMAGE_SHARED_DRIVE_FOLDER_ID,
+            images
+        })
+    });
+    const json = await response.json();
+    if (!json || !Array.isArray(json.files)) {
+        throw new Error(json?.error || "Phản hồi lưu ảnh từ Apps Script không hợp lệ.");
+    }
+    return json.files;
+}
+
+async function uploadAllPendingPostImages(postId) {
+    const coverImages = Array.from(document.querySelectorAll("#coverEditor img"));
+    const contentImages = Array.from(document.querySelectorAll("#postContent img.vb-managed-image, #postContent img"));
+    const allImages = [...coverImages, ...contentImages];
+
+    hydrateManagedImages(document.getElementById("coverEditor"), "cover");
+    hydrateManagedImages(document.getElementById("postContent"), "content");
+
+    const remotePending = allImages.find(img => img.dataset.pendingRemoteImage === "1");
+    if (remotePending) {
+        throw new Error("Có ảnh từ thiết bị khác vẫn đang chờ được lưu vào Drive. Hãy chờ máy đang chỉnh sửa hoàn tất lưu bài rồi thử lại.");
+    }
+
+    const pending = [];
+    allImages.forEach((img, index) => {
+        const source = getUploadSourceForImage(img);
+        if (!source) return;
+
+        const metadata = readImageMetadata(img);
+        const mimeMatch = source.match(/^data:([^;,]+)/i);
+        const mimeType = mimeMatch ? mimeMatch[1] : "";
+        let fileName = metadata.fileName;
+        if (!/\.[a-zA-Z0-9]{2,5}$/.test(fileName || "")) {
+            const role = img.closest("#coverEditor") ? "cover" : "content";
+            fileName = `${postId}-${role}-${index + 1}.${inferExtensionFromSource(source, mimeType)}`;
+        }
+
+        pending.push({
+            clientId: img.dataset.imageId || (img.dataset.imageId = createImageClientId()),
+            role: img.closest("#coverEditor") ? "cover" : "content",
+            source,
+            mimeType,
+            fileName: sanitizeUploadFileName(fileName, `${postId}-image-${index + 1}.jpg`),
+            metadata
+        });
+    });
+
+    if (!pending.length) return;
+
+    const byClientId = new Map(allImages.map(img => [img.dataset.imageId, img]));
+    const statusBox = document.getElementById("vbImageUploadStatus");
+
+    // Gửi từng ảnh để tránh giới hạn payload khi bài có nhiều base64 lớn.
+    for (let i = 0; i < pending.length; i++) {
+        if (statusBox) {
+            statusBox.style.display = "block";
+            statusBox.textContent = `Đang lưu ảnh ${i + 1}/${pending.length} vào Shared Drive...`;
+        }
+
+        const files = await uploadImageBatch(postId, [pending[i]]);
+        const result = files[0];
+        if (!result?.success) throw new Error(result?.error || `Không lưu được ảnh ${i + 1}.`);
+
+        const img = byClientId.get(result.clientId);
+        if (!img) continue;
+        img.dataset.driveFileId = result.fileId;
+        img.dataset.driveUrl = result.driveUrl;
+        img.dataset.originalSource = "";
+        img.dataset.archivedDrive = "1";
+        img.classList.remove("vb-image-pending");
+        img.src = runtimeImageUrl(result.driveUrl);
+    }
+
+    if (statusBox) {
+        statusBox.textContent = "Đã lưu toàn bộ ảnh vào Shared Drive.";
+        setTimeout(() => statusBox.style.display = "none", 1500);
+    }
+}
+
+function serializeEditorContentForSheet() {
+    const clone = document.getElementById("postContent").cloneNode(true);
+    clone.querySelectorAll("img").forEach(img => {
+        const driveUrl = img.dataset.driveUrl || normalizeDriveUrlForSheet(img.getAttribute("src") || "");
+        img.setAttribute("src", driveUrl);
+        img.removeAttribute("data-vb-bound");
+        img.classList.remove("vb-image-active", "vb-image-pending");
+    });
+    return clone.innerHTML;
+}
+
+function serializeRealtimeSafeHtml(element) {
+    if (!element) return "";
+    const clone = element.cloneNode(true);
+    clone.querySelectorAll("img").forEach(img => {
+        const driveUrl = img.dataset.driveUrl || "";
+        if (driveUrl) {
+            img.setAttribute("src", runtimeImageUrl(driveUrl));
+        } else if (/^data:image\//i.test(img.getAttribute("src") || "")) {
+            img.setAttribute("src", "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(
+                '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540"><rect width="100%" height="100%" fill="#f4f6f8"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#888" font-family="Arial" font-size="24">Ảnh đang chờ lưu vào Drive</text></svg>'
+            ));
+            img.dataset.pendingRemoteImage = "1";
+        }
+        img.removeAttribute("data-vb-bound");
+        img.classList.remove("vb-image-active");
+    });
+    return clone.innerHTML;
+}
+
+function prewarmPostImagesFromBrain(data) {
+    const sheet = data?.sheets?.["Bài viết_hidden"];
+    if (!sheet || !Array.isArray(sheet)) return;
+
+    const urls = new Set();
+    for (let r = 1; r < sheet.length; r++) {
+        if (sheet[r][3]) urls.add(sheet[r][3]);
+        if (sheet[r][4]) {
+            const temp = document.createElement("div");
+            temp.innerHTML = sheet[r][4];
+            temp.querySelectorAll("img[src]").forEach(img => urls.add(img.getAttribute("src")));
+        }
+    }
+
+    const list = Array.from(urls).filter(Boolean).slice(0, 120);
+    const warm = () => {
+        list.forEach((url, index) => {
+            setTimeout(() => {
+                const img = new Image();
+                img.decoding = "async";
+                img.loading = "eager";
+                img.src = runtimeImageUrl(url);
+            }, index * 35);
+        });
+    };
+
+    if ("requestIdleCallback" in window) requestIdleCallback(warm, {timeout: 1500});
+    else setTimeout(warm, 200);
+}
+
+// ---------- TẢI ẢNH KÈM METADATA XMP / PNG iTXt ----------
+function xmlEscape(value) {
+    return String(value ?? "").replace(/[<>&'"]/g, ch => ({
+        "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;"
+    }[ch]));
+}
+
+function buildXmpPacket(meta) {
+    return `<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>` +
+`<x:xmpmeta xmlns:x="adobe:ns:meta/">` +
+`<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">` +
+`<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/" xmlns:Iptc4xmpCore="http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/" xmlns:xmpRights="http://ns.adobe.com/xap/1.0/rights/">` +
+`<dc:title><rdf:Alt><rdf:li xml:lang="x-default">${xmlEscape(meta.title)}</rdf:li></rdf:Alt></dc:title>` +
+`<dc:description><rdf:Alt><rdf:li xml:lang="x-default">${xmlEscape(meta.description)}</rdf:li></rdf:Alt></dc:description>` +
+`<dc:creator><rdf:Seq><rdf:li>${xmlEscape(meta.author)}</rdf:li></rdf:Seq></dc:creator>` +
+`<dc:rights><rdf:Alt><rdf:li xml:lang="x-default">${xmlEscape(meta.copyright)}</rdf:li></rdf:Alt></dc:rights>` +
+`<photoshop:Headline>${xmlEscape(meta.caption)}</photoshop:Headline>` +
+`<Iptc4xmpCore:AltTextAccessibility><rdf:Alt><rdf:li xml:lang="x-default">${xmlEscape(meta.altText)}</rdf:li></rdf:Alt></Iptc4xmpCore:AltTextAccessibility>` +
+`<Iptc4xmpCore:Scene><rdf:Bag><rdf:li>${xmlEscape(meta.fileName)}</rdf:li></rdf:Bag></Iptc4xmpCore:Scene>` +
+`<xmpRights:Marked>True</xmpRights:Marked>` +
+`</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>`;
+}
+
+function concatUint8Arrays(parts) {
+    const total = parts.reduce((sum, part) => sum + part.length, 0);
+    const out = new Uint8Array(total);
+    let offset = 0;
+    parts.forEach(part => { out.set(part, offset); offset += part.length; });
+    return out;
+}
+
+function embedXmpIntoJpeg(bytes, meta) {
+    const prefix = new TextEncoder().encode("http://ns.adobe.com/xap/1.0/\0");
+    const xmp = new TextEncoder().encode(buildXmpPacket(meta));
+    const payload = concatUint8Arrays([prefix, xmp]);
+    if (payload.length + 2 > 65535) throw new Error("Metadata quá dài để nhúng vào JPEG.");
+
+    const segment = new Uint8Array(payload.length + 4);
+    segment[0] = 0xFF; segment[1] = 0xE1;
+    const length = payload.length + 2;
+    segment[2] = (length >> 8) & 0xFF;
+    segment[3] = length & 0xFF;
+    segment.set(payload, 4);
+
+    if (bytes[0] !== 0xFF || bytes[1] !== 0xD8) throw new Error("File không phải JPEG hợp lệ.");
+    return concatUint8Arrays([bytes.slice(0, 2), segment, bytes.slice(2)]);
+}
+
+function crc32(bytes) {
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) {
+        crc ^= bytes[i];
+        for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (0xEDB88320 & -(crc & 1));
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+function makePngChunk(type, data) {
+    const typeBytes = new TextEncoder().encode(type);
+    const length = data.length;
+    const chunk = new Uint8Array(12 + length);
+    const view = new DataView(chunk.buffer);
+    view.setUint32(0, length);
+    chunk.set(typeBytes, 4);
+    chunk.set(data, 8);
+    view.setUint32(8 + length, crc32(concatUint8Arrays([typeBytes, data])));
+    return chunk;
+}
+
+function makePngITXtChunk(keyword, text) {
+    const enc = new TextEncoder();
+    const key = enc.encode(keyword.slice(0, 79));
+    const value = enc.encode(String(text || ""));
+    const data = concatUint8Arrays([
+        key, new Uint8Array([0, 0, 0, 0, 0]), value
+    ]);
+    return makePngChunk("iTXt", data);
+}
+
+function embedMetadataIntoPng(bytes, meta) {
+    const signature = bytes.slice(0, 8);
+    const chunks = [];
+    let offset = 8;
+    let inserted = false;
+
+    while (offset + 12 <= bytes.length) {
+        const view = new DataView(bytes.buffer, bytes.byteOffset + offset);
+        const length = view.getUint32(0);
+        const total = 12 + length;
+        const type = new TextDecoder().decode(bytes.slice(offset + 4, offset + 8));
+
+        if (type === "IEND" && !inserted) {
+            const entries = {
+                "FileName": meta.fileName,
+                "AltText": meta.altText,
+                "Caption": meta.caption,
+                "Title": meta.title,
+                "Description": meta.description,
+                "Author": meta.author,
+                "Copyright": meta.copyright
+            };
+            Object.entries(entries).forEach(([key, value]) => chunks.push(makePngITXtChunk(key, value)));
+            inserted = true;
+        }
+        chunks.push(bytes.slice(offset, offset + total));
+        offset += total;
+    }
+
+    return concatUint8Arrays([signature, ...chunks]);
+}
+
+async function convertBlobToPng(blob) {
+    const bitmap = await createImageBitmap(blob);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close?.();
+    const pngBlob = await new Promise((resolve, reject) => {
+        canvas.toBlob(result => result ? resolve(result) : reject(new Error("Không chuyển được ảnh sang PNG.")), "image/png");
+    });
+    return pngBlob;
+}
+
+async function downloadActiveImageWithMetadata() {
+    if (!vbActiveImage) return;
+    const img = vbActiveImage;
+    const meta = collectMetadataFromGrid();
+    writeImageMetadata(img, meta);
+
+    const status = document.getElementById("vbImageUploadStatus");
+    status.style.display = "block";
+    status.textContent = "Đang tạo file ảnh kèm metadata...";
+
+    try {
+        const source = img.dataset.driveUrl ? runtimeImageUrl(img.dataset.driveUrl) : img.src;
+        const response = await fetch(source);
+        if (!response.ok) throw new Error("Không tải được dữ liệu ảnh.");
+        let blob = await response.blob();
+        let mime = blob.type || "application/octet-stream";
+        let bytes = new Uint8Array(await blob.arrayBuffer());
+        let extension = inferExtensionFromSource(source, mime);
+
+        if (mime === "image/jpeg" || mime === "image/jpg") {
+            bytes = embedXmpIntoJpeg(bytes, meta);
+            extension = "jpg";
+            mime = "image/jpeg";
+        } else {
+            if (mime !== "image/png") {
+                blob = await convertBlobToPng(blob);
+                bytes = new Uint8Array(await blob.arrayBuffer());
+                mime = "image/png";
+            }
+            bytes = embedMetadataIntoPng(bytes, meta);
+            extension = "png";
+        }
+
+        let fileName = sanitizeUploadFileName(meta.fileName || `image-${Date.now()}.${extension}`);
+        const currentExtMatch = fileName.match(/\.([a-zA-Z0-9]{2,5})$/);
+        const currentExt = currentExtMatch ? currentExtMatch[1].toLowerCase() : "";
+        const compatibleJpegExt = extension === "jpg" && (currentExt === "jpg" || currentExt === "jpeg");
+        if (!currentExt || (!compatibleJpegExt && currentExt !== extension)) {
+            fileName = fileName.replace(/\.[a-zA-Z0-9]{2,5}$/, "") + "." + extension;
+        }
+
+        const downloadBlob = new Blob([bytes], {type: mime});
+        const url = URL.createObjectURL(downloadBlob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+        status.textContent = "Đã tạo file ảnh kèm metadata.";
+        setTimeout(() => status.style.display = "none", 1500);
+    } catch (err) {
+        status.style.display = "none";
+        vbShowAlert("Không thể tải ảnh kèm metadata:<br><br>" + escapeHtmlText(err.message || String(err)));
+    }
+}
+
+
 /* ====================================================================
    ĐỘNG CƠ CỘNG TÁC & ĐỒNG BỘ SIÊU TỐC (V3 - THEO LOGIC GOOGLE DOCS)
 ==================================================================== */
@@ -3524,7 +4916,7 @@ window.forceReloadDraft = function() {
                 }
             }
         } 
-        // Trường hợp B: Đang gõ trong thẻ <input> (ví dụ dán link ảnh bìa)
+        // Trường hợp B: Đang gõ trong thẻ <input>/<textarea> của công cụ
         else if (['INPUT', 'TEXTAREA'].includes(activeEl.tagName)) {
             const rect = activeEl.getBoundingClientRect();
             caretX = rect.right - paperRect.left - 5;  // Ghim vào đít ô input
@@ -3555,13 +4947,13 @@ window.forceReloadDraft = function() {
         const payload = {
             postTitle: document.getElementById('postTitle')?.innerHTML || '',
             postSapo: document.getElementById('postSapo')?.innerHTML || '',
-            coverUrl: document.getElementById('coverUrlInput')?.value || '',
-            postContent: document.getElementById('postContent')?.innerHTML || '',
+            coverHtml: serializeRealtimeSafeHtml(document.getElementById('coverEditor')),
+            postContent: serializeRealtimeSafeHtml(document.getElementById('postContent')),
             sender: myDeviceId,
             timestamp: Date.now()
         };
 
-        const currentHash = payload.postTitle + payload.postSapo + payload.coverUrl + payload.postContent;
+        const currentHash = payload.postTitle + payload.postSapo + payload.coverHtml + payload.postContent;
         if (currentHash !== lastBroadcastedDOMHash) {
             lastBroadcastedDOMHash = currentHash;
             domSyncRef.set(payload);
@@ -3571,12 +4963,6 @@ window.forceReloadDraft = function() {
     if (paperElem) {
         domCamera.observe(paperElem, { childList: true, subtree: true, characterData: true, attributes: true });
     }
-
-    // Riêng ô Input URL ảnh bìa (vì sửa thẻ <input> không kích hoạt MutationObserver)
-    document.getElementById('coverUrlInput')?.addEventListener('input', e => {
-        if (isApplyingRemoteDOM) return;
-        domSyncRef.update({ coverUrl: e.target.value, sender: myDeviceId });
-    });
 
     // =================================================================
     // PHẦN 3: LẮNG NGHE MÁY KHÁC & ÁP DỤNG LÊN DOM REALTIME
@@ -3605,13 +4991,21 @@ window.forceReloadDraft = function() {
 
         smartInject('postTitle', domData.postTitle);
         smartInject('postSapo', domData.postSapo);
-        smartInject('postContent', domData.postContent);
 
-        const coverInput = document.getElementById('coverUrlInput');
-        if (coverInput && coverInput.value !== domData.coverUrl) {
-            coverInput.value = domData.coverUrl || '';
-            if(typeof updateCoverPreview === 'function') updateCoverPreview();
+        // Tương thích dữ liệu realtime cũ chỉ có coverUrl.
+        if (domData.coverHtml !== undefined) {
+            smartInject('coverEditor', domData.coverHtml || '');
+        } else if (domData.coverUrl) {
+            const cover = document.getElementById('coverEditor');
+            if (cover) {
+                cover.innerHTML = '';
+                cover.appendChild(createManagedImage(domData.coverUrl, 'cover', {}));
+            }
         }
+
+        smartInject('postContent', domData.postContent);
+        hydrateManagedImages(document.getElementById('coverEditor'), 'cover');
+        hydrateManagedImages(document.getElementById('postContent'), 'content');
 
         setTimeout(() => { isApplyingRemoteDOM = false; }, 30);
     });
