@@ -26,11 +26,7 @@
         nav ul li a:hover { color: var(--red); }
         
         .login-container { flex-grow: 1; display: flex; justify-content: center; align-items: center; padding: 20px; }
-        .login-box { background: var(--white); padding: 40px; border: none;   max-width: 450px; width: 100%; text-align: center; }
-        .login-box h2 { color: var(--blue); margin-bottom: 10px; }
-        .login-box p { font-size: 14px; color: var(--text-main); margin-bottom: 30px; }
         
-        #loginError { color: var(--white); background: var(--red); margin-top: 120px; display: none; font-size: 14px; font-weight: bold; padding: 10px; border-radius: 6px; }
     </style>
 </head>
 <body
@@ -389,6 +385,8 @@
 
   </main>
 
+
+
   <footer style="padding:28px 24px 38px; border-top:1px solid rgba(1,173,238,0.10); background:#ffffff;">
     <div style="max-width:1240px; margin:0 auto; display:flex; justify-content:space-between; align-items:center; gap:20px; flex-wrap:wrap;">
       <div style="display:flex; align-items:center; gap:12px;">
@@ -409,7 +407,37 @@
     </div>
   </footer>
 
-    <div class="login-container"> <p id="loginError">Quyền truy cập bị từ chối.</p> </div>
+   <div
+  id="loginErrorContainer"
+  style="
+    position:fixed;
+    top:100px;
+    left:50%;
+    transform:translateX(-50%);
+    z-index:10000;
+    width:calc(100% - 32px);
+    max-width:520px;
+    display:none;
+  "
+>
+  <p
+    id="loginError"
+    style="
+      margin:0;
+      padding:13px 18px;
+      border-radius:10px;
+      background:#DB1010;
+      color:#FFFFFF;
+      font-size:14px;
+      line-height:1.5;
+      font-weight:700;
+      text-align:center;
+      box-shadow:0 10px 30px rgba(15,23,42,0.16);
+    "
+  >
+    Quyền truy cập bị từ chối.
+  </p>
+</div>
 
     <script>
         if (localStorage.getItem('admin_session') === 'verified_admin') window.location.href = 'admin.html';
