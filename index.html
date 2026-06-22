@@ -9,7 +9,13 @@
     <style>
         :root { --white: #ffffff; --blue: #01adee; --red: #db1010; --text-main: #333333; --gray-border: #e0e0e0; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
-        body { background-color: var(--white); color: var(--blue); display: flex; flex-direction: column; height: 100vh; }
+        body { background-color: var(--white); color: var(--blue); display: flex; flex-direction: column; height: 100vh;
+            margin:0;
+    padding-top:82px;
+    background:#ffffff;
+    color:#1f2937;
+    font-family:Nunito,Arial,sans-serif;
+    overflow-x:hidden;}
         
         nav { background: var(--white); border-bottom: 0.5px solid var(--gray-border); display: flex; padding: 10px 30px; justify-content: space-between; align-items: center; }
         .logo { display: flex; align-items: center; font-weight: 900; font-size: 20px; color: var(--blue); }
@@ -27,11 +33,38 @@
         #loginError { color: var(--white); background: var(--red); margin-top: 20px; display: none; font-size: 14px; font-weight: bold; padding: 10px; border-radius: 6px; }
     </style>
 </head>
-<body>
+<body
+  style="
+    margin:0;
+    padding-top:82px;
+    background:#ffffff;
+    color:#1f2937;
+    font-family:Nunito,Arial,sans-serif;
+    overflow-x:hidden;
+  "
+>
+  <div style="position:fixed; inset:0; pointer-events:none; z-index:-2; background:linear-gradient(135deg,#ffffff 0%,#f4fbfe 55%,#fff6f6 100%);"></div>
+  <div style="position:fixed; width:520px; height:520px; top:-250px; right:-170px; z-index:-1; pointer-events:none; border-radius:46% 54% 62% 38% / 35% 45% 55% 65%; background:rgba(1,173,238,0.12); filter:blur(3px);"></div>
+  <div style="position:fixed; width:380px; height:380px; bottom:-210px; left:-150px; z-index:-1; pointer-events:none; border-radius:58% 42% 39% 61% / 55% 61% 39% 45%; background:rgba(219,16,16,0.08); filter:blur(4px);"></div>
 
-    <nav>
-        <div class="logo">
-            <a href="#trang-chu" style="display:flex; align-items:center; gap:12px; text-decoration:none; color:#1f2937;">
+  <header
+  style="
+    position:fixed;
+    top:0;
+    left:0;
+    right:0;
+    width:100%;
+    z-index:9999;
+    box-sizing:border-box;
+    background:rgba(255,255,255,0.96);
+    backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);
+    border-bottom:1px solid rgba(1,173,238,0.12);
+    box-shadow:0 5px 20px rgba(15,23,42,0.07);
+  "
+>
+    <div style="max-width:1240px; margin:0 auto; padding:14px 24px; display:flex; align-items:center; justify-content:space-between; gap:22px; flex-wrap:wrap;">
+<a href="#trang-chu" style="display:flex; align-items:center; gap:12px; text-decoration:none; color:#1f2937;">
   <img
     src="https://i.postimg.cc/xCjmFrb4/Untitled-design.png"
     alt="Logo Tự Động Hóa Vĩnh Lộc"
@@ -54,7 +87,8 @@
     </span>
   </div>
 </a>
-        </div>
+
+      <nav style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
         <ul>
             <li><a href="#">TRANG CHỦ</a></li>
             <li><a href="#">GIỚI THIỆU</a></li>
@@ -64,9 +98,10 @@
                 <div class="g_id_signin" data-type="icon" data-shape="circle" data-theme="outline" data-size="large"></div>
             </li>
         </ul>
-    </nav>
+      </nav>
+    </div>
+  </header>
 
-    <div class="login-container"> <p id="loginError">Quyền truy cập bị từ chối.</p> </div>
   <main id="trang-chu" style="display:block;">
 
     <section style="position:relative; max-width:1240px; margin:0 auto; padding:78px 24px 66px;">
@@ -373,6 +408,8 @@
       <div style="font-size:12px; color:#98A2B3;">© 2026 Công Ty TNHH Thiết Bị Công Nghiệp Vĩnh Lộc</div>
     </div>
   </footer>
+
+    <div class="login-container"> <p id="loginError">Quyền truy cập bị từ chối.</p> </div>
 
     <script>
         if (localStorage.getItem('admin_session') === 'verified_admin') window.location.href = 'admin.html';
