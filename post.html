@@ -3498,51 +3498,57 @@ window.forceReloadDraft = function() {
     // ========================================================
     // PHẦN B: LẮNG NGHE MỌI NGƯỜI TRONG PHÒNG VÀ VẼ RA MÀN HÌNH
     // ========================================================
-const roomRef = db.ref(`collab_rooms/${roomId}`);
+    const roomRef = db.ref(`collab_rooms/${roomId}`);
+    const avatarContainer = document.getElementById('collabAvatarList');
+    const cursorsLayer = document.getElementById('collab-cursors-layer');
 
-const avatarContainer =
-    document.getElementById('collabAvatarList');
+    if (!avatarContainer || !cursorsLayer) return;
 
-const cursorsLayer =
-    document.getElementById('collab-cursors-layer');
+    // CHỐT CHẶN: Lưu lại "mặt mũi" danh sách user cũ
+    let lastUsersListHash = '';
 
-if (!avatarContainer || !cursorsLayer) {
-    console.error("Không tìm thấy vùng hiển thị cộng tác realtime", {
-        avatarContainer,
-        cursorsLayer
-    });
-    return;
-}
+    roomRef.on('value', snapshot => {
+        const users = snapshot.val() || {};
 
-roomRef.on('value', snapshot => {
-    const users = snapshot.val() || {};
+        // 1. Quét dọn con trỏ chuột của những người đã tắt tab
+        Array.from(cursorsLayer.children).forEach(cursorDom => {
+            const userKey = cursorDom.id.replace('cursor_', '');
+            if (!users[userKey]) cursorDom.remove();
+        });
 
-    Array.from(cursorsLayer.children).forEach(cursorDom => {
-        const userKey = cursorDom.id.replace('cursor_', '');
+        // =================================================================
+        // CHỐT CHẶN VÀNG: Kiểm tra xem "Danh sách nhân sự" có thay đổi không?
+        // =================================================================
+        let currentUsersHash = Object.keys(users).sort().join('|');
 
-        if (!users[userKey]) {
-            cursorDom.remove();
+        if (currentUsersHash !== lastUsersListHash) {
+            lastUsersListHash = currentUsersHash; // Cập nhật danh sách mới
+            
+            let avatarHtml = '';
+            let onlineCount = 0;
+
+            for (let key in users) {
+                let peer = users[key];
+                if (!peer || !peer.email) continue;
+                onlineCount++;
+
+                // Đã bơm sẵn referrerpolicy="no-referrer" để trị Google tát 403
+                avatarHtml += `
+                <div class="collab-user-node" style="--peer-color: ${peer.color}; z-index: ${onlineCount};">
+                    <img src="${peer.avatar}" alt="${peer.name}" referrerpolicy="no-referrer" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'">
+                    <div class="collab-user-tooltip">${peer.name}</div>
+                </div>`;
+            }
+            avatarContainer.innerHTML = avatarHtml;
         }
-    });
 
-        // Đặt lại khay Avatar
-        let avatarHtml = '';
-        let onlineCount = 0;
-
+        // =================================================================
+        // 2. VẼ CON TRỎ CHUỘT & NỘI DUNG GÕ (Chạy liên tục 60 FPS độc lập)
+        // =================================================================
         for (let key in users) {
             let peer = users[key];
-            onlineCount++;
+            if (!peer || !peer.email || peer.email === myEmail) continue;
 
-            // --- VẼ AVATAR LÊN THANH TOOLBAR ---
-            avatarHtml += `
-            <div class="collab-user-node" style="--peer-color: ${peer.color}; z-index: ${onlineCount};">
-                <img src="${peer.avatar}" alt="${peer.name}" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'">
-                <div class="collab-user-tooltip">${peer.name}</div>
-            </div>`;
-
-            if (peer.email === myEmail) continue; // Bỏ qua chính mình
-
-            // --- VẼ CON TRỞ CHUỘT & NỘI DUNG HỌ ĐANG GÕ ---
             let cursorDom = document.getElementById(`cursor_${key}`);
             if (!cursorDom) {
                 cursorDom = document.createElement('div');
@@ -3560,32 +3566,28 @@ roomRef.on('value', snapshot => {
                 cursorsLayer.appendChild(cursorDom);
             }
 
-            // Nội suy tọa độ
+            // Nội suy tọa độ chuột
             cursorDom.style.transform = `translate(${peer.x}px, ${peer.y}px)`;
 
-            // Hiển thị khung gõ chữ Realtime
+            // Hiển thị khung gõ chữ
             let balloon = cursorDom.querySelector('.peer-typing-balloon');
             if (peer.field && peer.text) {
                 balloon.style.display = 'block';
                 balloon.querySelector('.field-name').innerText = `✏️ Đang nhập ${peer.field}:`;
                 balloon.querySelector('.typed-val').innerText = peer.text;
                 
-                // Hiệu ứng bôi viền đỏ/xanh phần tử DOM họ đang gõ (chống va chạm)
                 let targetDom = document.getElementById(peer.field === 'Tiêu đề' ? 'postTitle' : (peer.field === 'Sapo' ? 'postSapo' : ''));
                 if(targetDom) targetDom.style.boxShadow = `0 0 0 2px ${peer.color}`;
             } else {
                 balloon.style.display = 'none';
-                // Xóa bôi viền
                 ['postTitle', 'postSapo'].forEach(id => {
                     let d = document.getElementById(id); if(d) d.style.boxShadow = 'none';
                 });
             }
         }
-
-        avatarContainer.innerHTML = avatarHtml;
     });
 
-})();
+})(); // <--- Sát ngay trên cái đít này nè!
 </script>
 
 </body>
