@@ -3463,18 +3463,18 @@ window.forceReloadDraft = function() {
         walk(el);
     }
 
-    // =================================================================
-    // PHẦN 1: BẮT TỌA ĐỘ CHUỘT THEO KHUNG GIẤY (Paper-relative coordinates)
+   // =================================================================
+    // PHẦN 1: BẮT TỌA ĐỘ CHUỘT & TỌA ĐỘ VẠCH GÕ CHỮ (CARET TRACKING)
     // =================================================================
     let lastMouseTime = 0;
     const paperElem = document.getElementById('editorContainer');
 
+    // 1.1 Bắn tọa độ khi tay "Rê chuột"
     function broadcastMouse(clientX, clientY) {
-        if (!paperElem || Date.now() - lastMouseTime < 35) return; // ~30 FPS
+        if (!paperElem || Date.now() - lastMouseTime < 35) return; 
         lastMouseTime = Date.now();
 
         const rect = paperElem.getBoundingClientRect();
-        // Tọa độ chuột tuyệt đối = Vị trí chuột trên màn hình trừ đi lề Trái/Trên của tờ giấy
         const paperX = clientX - rect.left;
         const paperY = clientY - rect.top;
 
@@ -3484,6 +3484,48 @@ window.forceReloadDraft = function() {
     window.addEventListener('mousemove', e => broadcastMouse(e.clientX, e.clientY));
     window.addEventListener('touchmove', e => { if(e.touches[0]) broadcastMouse(e.touches[0].clientX, e.touches[0].clientY); });
 
+    // 1.2 Bắn tọa độ khi tay "Gõ phím" (Hút con trỏ bám chặt vào đuôi ký tự)
+    function broadcastCaretPosition() {
+        if (!paperElem) return;
+        const activeEl = document.activeElement;
+        if (!activeEl) return;
+
+        const paperRect = paperElem.getBoundingClientRect();
+        let caretX = 0; let caretY = 0; let isValid = false;
+
+        // Trường hợp A: Đang gõ trong Tiêu đề, Sapo, Nội dung bài hoặc Bảng
+        if (activeEl.isContentEditable) {
+            const sel = window.getSelection();
+            if (sel.rangeCount > 0) {
+                const range = sel.getRangeAt(0);
+                // getBoundingClientRect() của 1 vạch nháy trả về đúng tọa độ X,Y của vạch đó!
+                const rect = range.getBoundingClientRect(); 
+                if (rect.left !== 0 && rect.top !== 0) {
+                    caretX = rect.left - paperRect.left;
+                    caretY = rect.bottom - paperRect.top; // Ghim mũi tên vào góc dưới bên phải ký tự
+                    isValid = true;
+                }
+            }
+        } 
+        // Trường hợp B: Đang gõ trong thẻ <input> (ví dụ dán link ảnh bìa)
+        else if (['INPUT', 'TEXTAREA'].includes(activeEl.tagName)) {
+            const rect = activeEl.getBoundingClientRect();
+            caretX = rect.right - paperRect.left - 5;  // Ghim vào đít ô input
+            caretY = rect.bottom - paperRect.top;
+            isValid = true;
+        }
+
+        if (isValid) {
+            myPresenceRef.update({ x: caretX, y: caretY, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+        }
+    }
+
+    // Bắt mọi khoảnh khắc vạch gõ chữ dịch chuyển (gõ phím, bôi đen, click chuột vào giữa câu)
+    ['keyup', 'input', 'mouseup', 'focusin'].forEach(evt => {
+        document.addEventListener(evt, () => {
+            setTimeout(broadcastCaretPosition, 10); // Trễ 10ms để DOM kịp nảy ký tự mới ra
+        });
+    });
     // =================================================================
     // PHẦN 2: "CAMERA" MUTATION OBSERVER GIÁM SÁT MỌI BIẾN ĐỘNG TRÊN GIẤY
     // =================================================================
