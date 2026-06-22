@@ -400,9 +400,10 @@
     position: absolute;
     top: 0; left: 0;
     pointer-events: none;
-    transition: transform 0.08s linear; /* Nội suy chuyển động mượt */
+    transition: transform 0.05s linear; /* Giảm thời gian nội suy xuống 50ms cho chuột mượt như lướt ván */
     display: flex;
     flex-direction: column;
+    z-index: 99999;
 }
 
 .peer-cursor-arrow {
@@ -426,17 +427,9 @@
     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 
+/* Ẩn vĩnh viễn cái bong bóng chat rườm rà dưới đuôi chuột */
 .peer-typing-balloon {
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid var(--peer-color);
-    color: #222;
-    font-size: 11px;
-    padding: 4px 8px;
-    border-radius: 4px;
-    margin-left: 12px;
-    margin-top: 3px;
-    max-width: 220px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    display: none !important; 
 }
 
 .peer-typing-balloon .field-name { font-weight: bold; color: var(--peer-color); font-size: 9px; display: block;}
@@ -480,8 +473,11 @@
     </div>
   </div>
   <div class="panel-resizer"></div>
-  <div class="main-editor-area" id="mainEditorArea">
-    <div class="editor-container" id="editorContainer">
+<div class="main-editor-area" id="mainEditorArea">
+
+  <div class="editor-container" id="editorContainer" style="position: relative;">
+
+    <div id="collab-cursors-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 99999; overflow: hidden;"></div>
       <h1 class="rich-input" contenteditable="true" id="postTitle" data-placeholder="Nhập Tiêu đề bài viết tại đây..."></h1>
       <div class="rich-input" contenteditable="true" id="postSapo" data-placeholder="Nhập Sapo (Đoạn tóm tắt) tại đây..."></div>
       <div class="cover-area" id="coverArea">
@@ -948,18 +944,7 @@
     </div>
   </div>
 </div>
-<div
-    id="collab-cursors-layer"
-    style="
-        position: fixed;
-        inset: 0;
-        width: 100vw;
-        height: 100vh;
-        pointer-events: none;
-        z-index: 999999;
-        overflow: hidden;
-    "
-></div>
+
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
 
@@ -3401,29 +3386,26 @@ window.forceReloadDraft = function() {
     }
 };
 /* ====================================================================
-   ĐỘNG CƠ CỘNG TÁC THỜI GIAN THỰC (REALTIME COLLABORATION ENGINE)
+   ĐỘNG CƠ CỘNG TÁC & ĐỒNG BỘ SIÊU TỐC (V3 - THEO LOGIC GOOGLE DOCS)
 ==================================================================== */
 
 (function initRealtimeEngine() {
-    // 1. LẤY THÔNG TIN NGƯỜI DÙNG TỪ LOCALSTORAGE
-    const myEmail = localStorage.getItem('admin_email') || 'anonymous_' + Math.floor(Math.random()*1000) + '@gmail.com';
+    let rawEmail = localStorage.getItem('admin_email');
+    const myEmail = (rawEmail && rawEmail !== "undefined") ? rawEmail : ('anon_' + Math.floor(Math.random()*1000) + '@gmail.com');
     const myName = localStorage.getItem('admin_name') || myEmail.split('@')[0];
     const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
 
-    // 2. BẮT ID BÀI VIẾT (ROOM ID)
     const urlParams = new URLSearchParams(window.location.search);
-    let roomId = urlParams.get('id');
-    if (!roomId) {
-        try { roomId = JSON.parse(localStorage.getItem('DRAFT_POST_DATA')).data[0]; } catch(e){}
-    }
-    roomId = roomId ? roomId.replace(/[\.\#\$\[\]]/g, '_') : 'DRAFT_ROOM_GENERAL';
+    let roomId = urlParams.get('id') || 'DRAFT_ROOM_GENERAL';
+    roomId = roomId.replace(/[\.\#\$\[\]]/g, '_');
 
-    // 3. TẠO MÃ MÀU CANVA RIÊNG BIỆT CHO MỖI GMAIL (Băm chuỗi cố định)
-    const PALETTE = ['#01adee', '#db1010', '#8e44ad', '#27ae60', '#d35400', '#f39c12', '#16a085', '#2980b9', '#c0392b'];
+    const myDeviceId = 'dev_' + Math.random().toString(36).substring(2, 7);
+    const safeUserKey = myEmail.replace(/[\.\#\$\[\]]/g, '_') + '_' + myDeviceId;
+
+    const PALETTE = ['#01adee', '#db1010', '#8e44ad', '#27ae60', '#d35400', '#f39c12', '#16a085', '#2980b9'];
     let hash = 0; for(let i=0; i<myEmail.length; i++) hash = myEmail.charCodeAt(i) + ((hash << 5) - hash);
     const myColor = PALETTE[Math.abs(hash) % PALETTE.length];
 
-    // Cấu hình Firebase Database (BẠN SẼ THAY KHOÁ CỦA BẠN VÀO ĐÂY Ở BƯỚC 5)
     const firebaseConfig = {
         databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/"
     };
@@ -3431,163 +3413,199 @@ window.forceReloadDraft = function() {
     if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     
-    // Chuẩn hóa Email làm Key Firebase (Tránh ký tự cấm)
-    const safeUserKey = myEmail.replace(/[\.\#\$\[\]]/g, '_');
-    const myPresenceRef = db.ref(`collab_rooms/${roomId}/${safeUserKey}`);
+    const myPresenceRef = db.ref(`collab_rooms/${roomId}/users/${safeUserKey}`);
+    const domSyncRef = db.ref(`collab_rooms/${roomId}/dom_state`);
 
-    // Dữ liệu trạng thái của Tôi
-    let myLiveState = {
-        name: myName,
-        email: myEmail,
-        avatar: myAvatar,
-        color: myColor,
-        x: -100, y: -100,
-        field: '',
-        text: '',
-        updatedAt: firebase.database.ServerValue.TIMESTAMP
-    };
-
-    // Khi tôi vừa vào mạng -> Báo danh & Cài bẫy TỰ ĐỘNG XÓA TÊN khi đóng Tab
-    myPresenceRef.set(myLiveState);
+    myPresenceRef.set({
+        name: myName, email: myEmail, avatar: myAvatar, color: myColor,
+        x: -9999, y: -9999, updatedAt: firebase.database.ServerValue.TIMESTAMP
+    });
     myPresenceRef.onDisconnect().remove();
 
-    // ========================================================
-    // PHẦN A: BẮT CHUYỂN ĐỘNG CỦA TÔI ĐẨY LÊN FIREBASE
-    // ========================================================
-    
-    let lastSend = 0;
-    window.addEventListener('mousemove', (e) => {
-        const now = Date.now();
-        if (now - lastSend < 60) return; // Giới hạn 15 hình/giây để tiết kiệm băng thông
-        lastSend = now;
-
-        myLiveState.x = e.pageX;
-        myLiveState.y = e.pageY;
-        myPresenceRef.update({ x: e.pageX, y: e.pageY, updatedAt: firebase.database.ServerValue.TIMESTAMP });
-    });
-
-    // Bắt sự kiện gõ phím ở MỌI NGÓC NGÁCH (Tiêu đề, Sapo, Content, Kế hoạch...)
-    document.addEventListener('focusin', (e) => {
-        let el = e.target;
-        let fieldName = el.id;
-        if(!fieldName && el.classList.contains('data-val')) {
-            let row = el.closest('.data-row');
-            fieldName = row ? `[Kế Hoạch]: ${row.dataset.header}` : 'Bảng Kế Hoạch';
+    // =================================================================
+    // HÀM BẢO TOÀN VỊ TRÍ CON TRỎ (Caret Preservation)
+    // Huyệt tử: Giúp người B đang gõ không bị văng con trỏ về đầu câu khi DOM cập nhật
+    // =================================================================
+    function getCaretCharacterOffsetWithin(el) {
+        let caretOffset = 0;
+        const sel = window.getSelection();
+        if (sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            const preCaretRange = range.cloneRange();
+            preCaretRange.selectNodeContents(el);
+            preCaretRange.setEnd(range.endContainer, range.endOffset);
+            caretOffset = preCaretRange.toString().length;
         }
-        if(!fieldName && el.closest('#postContent')) fieldName = 'Nội dung bài (Content)';
+        return caretOffset;
+    }
 
-        if (fieldName) {
-            myLiveState.field = fieldName === 'postTitle' ? 'Tiêu đề' : (fieldName === 'postSapo' ? 'Sapo' : fieldName);
-            myLiveState.text = el.value || el.innerText || '';
-            myPresenceRef.update({ field: myLiveState.field, text: myLiveState.text });
+    function setCaretPositionWithin(el, offset) {
+        const sel = window.getSelection();
+        const range = document.createRange();
+        let charIndex = 0, found = false;
+
+        function walk(node) {
+            if (found) return;
+            if (node.nodeType === Node.TEXT_NODE) {
+                const next = charIndex + node.length;
+                if (offset <= next) {
+                    range.setStart(node, offset - charIndex);
+                    range.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                    found = true;
+                }
+                charIndex = next;
+            } else {
+                for (let i = 0; i < node.childNodes.length; i++) walk(node.childNodes[i]);
+            }
+        }
+        walk(el);
+    }
+
+    // =================================================================
+    // PHẦN 1: BẮT TỌA ĐỘ CHUỘT THEO KHUNG GIẤY (Paper-relative coordinates)
+    // =================================================================
+    let lastMouseTime = 0;
+    const paperElem = document.getElementById('editorContainer');
+
+    function broadcastMouse(clientX, clientY) {
+        if (!paperElem || Date.now() - lastMouseTime < 35) return; // ~30 FPS
+        lastMouseTime = Date.now();
+
+        const rect = paperElem.getBoundingClientRect();
+        // Tọa độ chuột tuyệt đối = Vị trí chuột trên màn hình trừ đi lề Trái/Trên của tờ giấy
+        const paperX = clientX - rect.left;
+        const paperY = clientY - rect.top;
+
+        myPresenceRef.update({ x: paperX, y: paperY, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+    }
+
+    window.addEventListener('mousemove', e => broadcastMouse(e.clientX, e.clientY));
+    window.addEventListener('touchmove', e => { if(e.touches[0]) broadcastMouse(e.touches[0].clientX, e.touches[0].clientY); });
+
+    // =================================================================
+    // PHẦN 2: "CAMERA" MUTATION OBSERVER GIÁM SÁT MỌI BIẾN ĐỘNG TRÊN GIẤY
+    // =================================================================
+    let isApplyingRemoteDOM = false;
+    let lastBroadcastedDOMHash = '';
+
+    const domCamera = new MutationObserver(() => {
+        if (isApplyingRemoteDOM) return; // Nếu DOM bị sửa do Firebase đẩy về -> Khóa không cho phát ngược lại
+
+        const payload = {
+            postTitle: document.getElementById('postTitle')?.innerHTML || '',
+            postSapo: document.getElementById('postSapo')?.innerHTML || '',
+            coverUrl: document.getElementById('coverUrlInput')?.value || '',
+            postContent: document.getElementById('postContent')?.innerHTML || '',
+            sender: myDeviceId,
+            timestamp: Date.now()
+        };
+
+        const currentHash = payload.postTitle + payload.postSapo + payload.coverUrl + payload.postContent;
+        if (currentHash !== lastBroadcastedDOMHash) {
+            lastBroadcastedDOMHash = currentHash;
+            domSyncRef.set(payload);
         }
     });
 
-    document.addEventListener('focusout', () => {
-        myLiveState.field = ''; myLiveState.text = '';
-        myPresenceRef.update({ field: '', text: '' });
+    if (paperElem) {
+        domCamera.observe(paperElem, { childList: true, subtree: true, characterData: true, attributes: true });
+    }
+
+    // Riêng ô Input URL ảnh bìa (vì sửa thẻ <input> không kích hoạt MutationObserver)
+    document.getElementById('coverUrlInput')?.addEventListener('input', e => {
+        if (isApplyingRemoteDOM) return;
+        domSyncRef.update({ coverUrl: e.target.value, sender: myDeviceId });
     });
 
-    document.addEventListener('input', (e) => {
-        if(myLiveState.field) {
-            let val = e.target.value || e.target.innerText || '';
-            myPresenceRef.update({ text: val });
+    // =================================================================
+    // PHẦN 3: LẮNG NGHE MÁY KHÁC & ÁP DỤNG LÊN DOM REALTIME
+    // =================================================================
+
+    // 3.1 Nhận Dữ liệu Text & Định dạng
+    domSyncRef.on('value', snapshot => {
+        const domData = snapshot.val();
+        if (!domData || domData.sender === myDeviceId) return; // Bỏ qua dữ liệu do chính máy mình vừa phát
+
+        isApplyingRemoteDOM = true; // Bật khiên chống dội Observer
+
+        function smartInject(elementId, incomingHtml) {
+            const el = document.getElementById(elementId);
+            if (!el || el.innerHTML === incomingHtml) return;
+
+            // Nếu user B đang để con trỏ gõ chữ bên trong thẻ này -> Áp dụng thuật toán giữ Caret
+            if (document.activeElement === el || el.contains(document.activeElement)) {
+                const caretPos = getCaretCharacterOffsetWithin(el);
+                el.innerHTML = incomingHtml;
+                setCaretPositionWithin(el, caretPos);
+            } else {
+                el.innerHTML = incomingHtml; // Ghi đè tức thì
+            }
         }
+
+        smartInject('postTitle', domData.postTitle);
+        smartInject('postSapo', domData.postSapo);
+        smartInject('postContent', domData.postContent);
+
+        const coverInput = document.getElementById('coverUrlInput');
+        if (coverInput && coverInput.value !== domData.coverUrl) {
+            coverInput.value = domData.coverUrl || '';
+            if(typeof updateCoverPreview === 'function') updateCoverPreview();
+        }
+
+        setTimeout(() => { isApplyingRemoteDOM = false; }, 30);
     });
 
-    // ========================================================
-    // PHẦN B: LẮNG NGHE MỌI NGƯỜI TRONG PHÒNG VÀ VẼ RA MÀN HÌNH
-    // ========================================================
-    const roomRef = db.ref(`collab_rooms/${roomId}`);
-    const avatarContainer = document.getElementById('collabAvatarList');
-    const cursorsLayer = document.getElementById('collab-cursors-layer');
+    // 3.2 Nhận tọa độ chuột & vẽ lên mặt giấy
+    const usersListRef = db.ref(`collab_rooms/${roomId}/users`);
+    const cursorsCanvas = document.getElementById('collab-cursors-layer');
+    const avtBar = document.getElementById('collabAvatarList');
+    let lastAvtHash = '';
 
-    if (!avatarContainer || !cursorsLayer) return;
-
-    // CHỐT CHẶN: Lưu lại "mặt mũi" danh sách user cũ
-    let lastUsersListHash = '';
-
-    roomRef.on('value', snapshot => {
+    usersListRef.on('value', snapshot => {
         const users = snapshot.val() || {};
 
-        // 1. Quét dọn con trỏ chuột của những người đã tắt tab
-        Array.from(cursorsLayer.children).forEach(cursorDom => {
-            const userKey = cursorDom.id.replace('cursor_', '');
-            if (!users[userKey]) cursorDom.remove();
-        });
-
-        // =================================================================
-        // CHỐT CHẶN VÀNG: Kiểm tra xem "Danh sách nhân sự" có thay đổi không?
-        // =================================================================
-        let currentUsersHash = Object.keys(users).sort().join('|');
-
-        if (currentUsersHash !== lastUsersListHash) {
-            lastUsersListHash = currentUsersHash; // Cập nhật danh sách mới
-            
-            let avatarHtml = '';
-            let onlineCount = 0;
-
-            for (let key in users) {
-                let peer = users[key];
-                if (!peer || !peer.email) continue;
-                onlineCount++;
-
-                // Đã bơm sẵn referrerpolicy="no-referrer" để trị Google tát 403
-                avatarHtml += `
-                <div class="collab-user-node" style="--peer-color: ${peer.color}; z-index: ${onlineCount};">
-                    <img src="${peer.avatar}" alt="${peer.name}" referrerpolicy="no-referrer" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'">
-                    <div class="collab-user-tooltip">${peer.name}</div>
-                </div>`;
-            }
-            avatarContainer.innerHTML = avatarHtml;
+        if(cursorsCanvas) {
+            Array.from(cursorsCanvas.children).forEach(c => {
+                if (!users[c.id.replace('cursor_', '')]) c.remove();
+            });
         }
 
-        // =================================================================
-        // 2. VẼ CON TRỎ CHUỘT & NỘI DUNG GÕ (Chạy liên tục 60 FPS độc lập)
-        // =================================================================
-        for (let key in users) {
-            let peer = users[key];
-            if (!peer || !peer.email || peer.email === myEmail) continue;
+        // Render dải Avatar
+        let activeEmails = Object.keys(users).sort().join('|');
+        if (activeEmails !== lastAvtHash && avtBar) {
+            lastAvtHash = activeEmails;
+            let avtHtml = ''; let c = 0;
+            for(let k in users) {
+                if(!users[k].email) continue; c++;
+                avtHtml += `<div class="collab-user-node" style="--peer-color: ${users[k].color}; z-index: ${c};"><img src="${users[k].avatar}" alt="${users[k].name}" referrerpolicy="no-referrer" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'"><div class="collab-user-tooltip">${users[k].name}</div></div>`;
+            }
+            avtBar.innerHTML = avtHtml;
+        }
 
-            let cursorDom = document.getElementById(`cursor_${key}`);
+        // Render con trỏ chuột
+        if(!cursorsCanvas) return;
+        for(let k in users) {
+            let peer = users[k];
+            if (!peer || peer.email === myEmail) continue;
+
+            let cursorDom = document.getElementById(`cursor_${k}`);
             if (!cursorDom) {
                 cursorDom = document.createElement('div');
-                cursorDom.id = `cursor_${key}`;
+                cursorDom.id = `cursor_${k}`;
                 cursorDom.className = 'peer-cursor';
                 cursorDom.style.setProperty('--peer-color', peer.color);
-
-                cursorDom.innerHTML = `
-                <svg class="peer-cursor-arrow" viewBox="0 0 32 32"><polygon points="0,0 32,16 16,20 12,32"/></svg>
-                <div class="peer-cursor-label">${peer.name}</div>
-                <div class="peer-typing-balloon" style="display:none;">
-                     <span class="field-name"></span>
-                     <span class="typed-val"></span>
-                </div>`;
-                cursorsLayer.appendChild(cursorDom);
+                cursorDom.innerHTML = `<svg class="peer-cursor-arrow" viewBox="0 0 32 32"><polygon points="0,0 32,16 16,20 12,32"/></svg><div class="peer-cursor-label">${peer.name}</div>`;
+                cursorsCanvas.appendChild(cursorDom);
             }
 
-            // Nội suy tọa độ chuột
+            // Tọa độ chuột lúc này hoàn toàn ghim theo tờ giấy, không phụ thuộc màn hình
             cursorDom.style.transform = `translate(${peer.x}px, ${peer.y}px)`;
-
-            // Hiển thị khung gõ chữ
-            let balloon = cursorDom.querySelector('.peer-typing-balloon');
-            if (peer.field && peer.text) {
-                balloon.style.display = 'block';
-                balloon.querySelector('.field-name').innerText = `✏️ Đang nhập ${peer.field}:`;
-                balloon.querySelector('.typed-val').innerText = peer.text;
-                
-                let targetDom = document.getElementById(peer.field === 'Tiêu đề' ? 'postTitle' : (peer.field === 'Sapo' ? 'postSapo' : ''));
-                if(targetDom) targetDom.style.boxShadow = `0 0 0 2px ${peer.color}`;
-            } else {
-                balloon.style.display = 'none';
-                ['postTitle', 'postSapo'].forEach(id => {
-                    let d = document.getElementById(id); if(d) d.style.boxShadow = 'none';
-                });
-            }
         }
     });
 
-})(); // <--- Sát ngay trên cái đít này nè!
+})();
 </script>
 
 </body>
