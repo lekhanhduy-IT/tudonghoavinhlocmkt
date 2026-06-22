@@ -611,7 +611,66 @@
     .vb-image-field.full { grid-column: auto; }
     .vb-metadata-table th { width: 120px; }
 }
+/* =========================================================
+   BỘ CSS NÂNG CẤP: METADATA SPREADSHEET & CROP PANNING
+========================================================= */
 
+/* 1. Giao diện Spreadsheet & Ổ khóa */
+#vbMetadataTable th {
+    position: relative;
+    padding-left: 28px !important;
+}
+.meta-lock-icon {
+    position: absolute;
+    left: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    font-size: 11px;
+    color: #999;
+    transition: all 0.2s;
+    user-select: none;
+    z-index: 2;
+}
+.meta-lock-icon:hover { transform: translateY(-50%) scale(1.3); color: var(--blue); }
+.meta-lock-icon.unlocked { color: var(--red); }
+
+.vb-meta-value.locked {
+    background-color: #f4f6f8 !important;
+    color: #888;
+    cursor: not-allowed;
+}
+
+/* 2. Khay nút Undo/Redo */
+.vb-history-group {
+    display: inline-flex;
+    gap: 4px;
+    background: #eef2f5;
+    padding: 2px 4px;
+    border-radius: 4px;
+    margin-left: 15px;
+    border: 0.5px solid #dcdcdc;
+}
+.vb-history-btn {
+    background: #fff;
+    border: 0.5px solid #ccc;
+    color: #444;
+    padding: 3px 8px;
+    font-size: 11px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: 0.15s;
+}
+.vb-history-btn:hover:not(:disabled) { background: var(--blue); color: #fff; border-color: var(--blue); }
+.vb-history-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* 3. Con trỏ kéo Pan khi Cắt ảnh */
+.vb-managed-image.vb-is-cropping {
+    cursor: grab !important;
+}
+.vb-managed-image.vb-is-cropping:active {
+    cursor: grabbing !important;
+}
 </style>
   </head>
 <body>
@@ -987,45 +1046,52 @@
 <div class="modal-overlay" id="vbImagePopupOverlay" style="z-index:100120;">
   <div class="vb-image-popup-box" role="dialog" aria-modal="true" aria-labelledby="vbImagePopupTitle">
     <div class="vb-image-popup-head">
-      <span id="vbImagePopupTitle"><i class="fas fa-image"></i> Thông tin ảnh</span>
+      <div style="display: flex; align-items: center;">
+          <span id="vbImagePopupTitle"><i class="fas fa-crop-alt"></i> Thông tin & Cắt ảnh</span>
+          <div class="vb-history-group">
+              <button class="vb-history-btn" id="btnImgUndo" onclick="vbImageUndo()" title="Hoàn tác (Ctrl + Z)" disabled><i class="fas fa-undo"></i></button>
+              <button class="vb-history-btn" id="btnImgRedo" onclick="vbImageRedo()" title="Làm lại (Ctrl + Y)" disabled><i class="fas fa-redo"></i></button>
+          </div>
+      </div>
       <i class="fas fa-times" style="cursor:pointer;color:var(--red);" onclick="closeImageProperties()"></i>
     </div>
     <div class="vb-image-popup-body">
       <div class="vb-image-prop-grid">
         <div class="vb-image-field">
-          <label>Kích thước</label>
+          <label>Kích thước (px)</label>
           <div class="vb-dimension-pair">
-            <input type="number" min="1" id="vbImgWidth" placeholder="Width px">
+            <input type="number" min="1" id="vbImgWidth" placeholder="W px" oninput="triggerImageRealtime('px', 'w')">
             <span>×</span>
-            <input type="number" min="1" id="vbImgHeight" placeholder="Height px">
+            <input type="number" min="1" id="vbImgHeight" placeholder="H px" oninput="triggerImageRealtime('px', 'h')">
           </div>
         </div>
         <div class="vb-image-field">
-          <label>Tỷ lệ</label>
+          <label>Tỷ lệ (Scale)</label>
           <div class="vb-dimension-pair">
-            <input type="number" min="1" step="0.01" id="vbRatioWidth" placeholder="Width">
+            <input type="number" min="0.1" step="0.01" id="vbRatioWidth" placeholder="W" oninput="triggerImageRealtime('ratio', 'rw')">
             <span>:</span>
-            <input type="number" min="1" step="0.01" id="vbRatioHeight" placeholder="Height">
+            <input type="number" min="0.1" step="0.01" id="vbRatioHeight" placeholder="H" oninput="triggerImageRealtime('ratio', 'rh')">
           </div>
         </div>
         <div class="vb-image-field full">
           <label>URL ảnh</label>
-          <input type="text" id="vbImgUrl" placeholder="https:// hoặc data:image/...">
+          <input type="text" id="vbImgUrl" placeholder="https:// hoặc data:image/..." onchange="triggerImageRealtime('url')">
         </div>
       </div>
 
-      <div style="font-size:12px;font-weight:700;color:var(--blue);margin:5px 0 6px;">
-        Metadata ảnh
+      <div style="font-size:12px;font-weight:700;color:var(--blue);margin:5px 0 6px; display:flex; justify-content:space-between;">
+        <span>Bảng Metadata (Hỗ trợ Paste Excel/Bullets)</span>
+        <span style="font-size:10px; color:#777; font-weight:normal;">🔒 Click biểu tượng khóa để mở/khóa ô</span>
       </div>
       <table class="vb-metadata-table" id="vbMetadataTable">
         <tbody>
-          <tr><th>File name</th><td class="vb-meta-value" contenteditable="true" data-meta-key="fileName"></td></tr>
-          <tr><th>Alt text</th><td class="vb-meta-value" contenteditable="true" data-meta-key="altText"></td></tr>
-          <tr><th>Caption</th><td class="vb-meta-value" contenteditable="true" data-meta-key="caption"></td></tr>
-          <tr><th>Title (IPTC)</th><td class="vb-meta-value" contenteditable="true" data-meta-key="title"></td></tr>
-          <tr><th>Description (IPTC)</th><td class="vb-meta-value" contenteditable="true" data-meta-key="description"></td></tr>
-          <tr><th>Author</th><td class="vb-meta-value" contenteditable="true" data-meta-key="author"></td></tr>
-          <tr><th>Copy right</th><td class="vb-meta-value" contenteditable="true" data-meta-key="copyright"></td></tr>
+          <tr><th><span class="meta-lock-icon" onclick="toggleMetaLock(this)">🔒</span>File name</th><td class="vb-meta-value locked" contenteditable="false" data-meta-key="fileName"></td></tr>
+          <tr><th><span class="meta-lock-icon" onclick="toggleMetaLock(this)">🔒</span>Alt text</th><td class="vb-meta-value locked" contenteditable="false" data-meta-key="altText"></td></tr>
+          <tr><th><span class="meta-lock-icon" onclick="toggleMetaLock(this)">🔒</span>Caption</th><td class="vb-meta-value locked" contenteditable="false" data-meta-key="caption"></td></tr>
+          <tr><th><span class="meta-lock-icon" onclick="toggleMetaLock(this)">🔒</span>Title (IPTC)</th><td class="vb-meta-value locked" contenteditable="false" data-meta-key="title"></td></tr>
+          <tr><th><span class="meta-lock-icon" onclick="toggleMetaLock(this)">🔒</span>Description</th><td class="vb-meta-value locked" contenteditable="false" data-meta-key="description"></td></tr>
+          <tr><th><span class="meta-lock-icon" onclick="toggleMetaLock(this)">🔒</span>Author</th><td class="vb-meta-value locked" contenteditable="false" data-meta-key="author"></td></tr>
+          <tr><th><span class="meta-lock-icon" onclick="toggleMetaLock(this)">🔒</span>Copyright</th><td class="vb-meta-value locked" contenteditable="false" data-meta-key="copyright"></td></tr>
         </tbody>
       </table>
 
@@ -1037,8 +1103,7 @@
         <button class="tool-btn" onclick="copyActiveImage(true)"><i class="fas fa-cut"></i> Cắt</button>
         <button class="tool-btn" onclick="pasteImageFromClipboard()"><i class="fas fa-paste"></i> Dán</button>
         <button class="tool-btn danger" onclick="deleteActiveImage()"><i class="fas fa-trash"></i> Xóa</button>
-        <button class="tool-btn" onclick="closeImageProperties()"><i class="fas fa-times"></i> Hủy</button>
-        <button class="tool-btn" onclick="downloadActiveImageWithMetadata()"><i class="fas fa-download"></i> Tải xuống</button>
+        <button class="tool-btn" onclick="closeImageProperties()"><i class="fas fa-times"></i> Đóng</button>
       </div>
     </div>
   </div>
@@ -4340,14 +4405,41 @@ function clearMetadataSelection() {
     vbSelectedMetaCells = [];
 }
 
+/* ====================================================================
+   LÕI ĐỘNG CƠ V2: SPREADSHEET PASTE, REALTIME CROP & PANNING
+==================================================================== */
+
+// 1. Hệ thống Khóa/Mở Metadata
+function toggleMetaLock(iconEl) {
+    const td = iconEl.closest('tr').querySelector('.vb-meta-value');
+    const isLocked = iconEl.innerText === '🔒';
+
+    if (isLocked) {
+        iconEl.innerText = '🔓';
+        iconEl.classList.add('unlocked');
+        td.setAttribute('contenteditable', 'true');
+        td.classList.remove('locked');
+        td.focus();
+    } else {
+        iconEl.innerText = '🔒';
+        iconEl.classList.remove('unlocked');
+        td.setAttribute('contenteditable', 'false');
+        td.classList.add('locked');
+    }
+    pushImgHistory();
+}
+
+// 2. Nâng cấp Bảng Metadata thành Spreadsheet
 function initMetadataGridClipboard() {
     const table = document.getElementById("vbMetadataTable");
-    if (!table || table.dataset.ready === "1") return;
-    table.dataset.ready = "1";
+    if (!table || table.dataset.readyV2 === "1") return;
+    table.dataset.readyV2 = "1";
 
     const cells = Array.from(table.querySelectorAll(".vb-meta-value"));
+
     cells.forEach(cell => {
         cell.addEventListener("mousedown", e => {
+            if (cell.classList.contains('locked')) return;
             if (!e.ctrlKey && !e.metaKey && !e.shiftKey) clearMetadataSelection();
             vbMetaDragSelecting = true;
             if (!vbSelectedMetaCells.includes(cell)) {
@@ -4356,16 +4448,9 @@ function initMetadataGridClipboard() {
             }
         });
         cell.addEventListener("mouseenter", () => {
-            if (!vbMetaDragSelecting) return;
+            if (!vbMetaDragSelecting || cell.classList.contains('locked')) return;
             if (!vbSelectedMetaCells.includes(cell)) {
                 vbSelectedMetaCells.push(cell);
-                cell.classList.add("vb-meta-selected");
-            }
-        });
-        cell.addEventListener("focus", () => {
-            if (!vbSelectedMetaCells.includes(cell)) {
-                clearMetadataSelection();
-                vbSelectedMetaCells = [cell];
                 cell.classList.add("vb-meta-selected");
             }
         });
@@ -4373,54 +4458,267 @@ function initMetadataGridClipboard() {
 
     document.addEventListener("mouseup", () => vbMetaDragSelecting = false);
 
+    // THUẬT TOÁN PASTE DỮ LIỆU THÔNG MINH
     table.addEventListener("paste", e => {
-        const text = e.clipboardData?.getData("text/plain") || "";
-        if (!text) return;
         e.preventDefault();
+        const html = e.clipboardData?.getData("text/html") || "";
+        const text = e.clipboardData?.getData("text/plain") || "";
+        if (!text && !html) return;
 
-        const parsedRows = text
-            .replace(/\r/g, "")
-            .split("\n")
-            .filter(line => line.trim() !== "")
-            .map(line => line.split("\t").map(v => v.replace(/^\s*[-•▪◦●]+\s*/, "").trim()));
+        let valuesToPaste = [];
 
-        let values = [];
-        parsedRows.forEach(row => {
-            if (row.length >= 2) values.push(row[row.length - 1]);
-            else values.push(row[0] || "");
-        });
-
-        const orderedCells = cells.slice();
-        let targets = vbSelectedMetaCells.length ? vbSelectedMetaCells.slice() : [];
-        if (!targets.length) {
-            const active = document.activeElement?.closest?.(".vb-meta-value");
-            const start = Math.max(0, orderedCells.indexOf(active));
-            targets = orderedCells.slice(start);
+        // Trường hợp A: Copy từ 1 Bảng (Web/Excel/Word) -> Cào lấy cột cuối
+        if (html.includes("<table")) {
+            const temp = document.createElement("div");
+            temp.innerHTML = html;
+            temp.querySelectorAll("tr").forEach(row => {
+                const colCells = row.querySelectorAll("td, th");
+                if (colCells.length > 0) {
+                    valuesToPaste.push(colCells[colCells.length - 1].innerText.trim());
+                }
+            });
+        } 
+        // Trường hợp B: Copy danh sách Bullet hoặc Text thường
+        else {
+            valuesToPaste = text.replace(/\r/g, "").split("\n")
+                .map(line => line.replace(/^[\s\-\*\•\▪\➢\➤\+]+/, "").trim()) // Lột sạch ký tự đầu dòng
+                .filter(line => line.length > 0);
         }
 
-        targets.sort((a, b) => orderedCells.indexOf(a) - orderedCells.indexOf(b));
-        values.forEach((value, i) => {
-            if (targets[i]) targets[i].textContent = value;
+        if (valuesToPaste.length === 0) return;
+
+        const unlockedCells = cells.filter(c => !c.classList.contains('locked'));
+        let targetList = vbSelectedMetaCells.filter(c => !c.classList.contains('locked'));
+
+        // Tự động rải xuống dưới nếu user chỉ đặt con trỏ ở 1 ô
+        if (targetList.length <= 1) {
+            const activeTd = document.activeElement.closest('.vb-meta-value');
+            const startIdx = unlockedCells.indexOf(activeTd);
+            targetList = startIdx !== -1 ? unlockedCells.slice(startIdx) : unlockedCells;
+        } else {
+            targetList.sort((a, b) => cells.indexOf(a) - cells.indexOf(b));
+        }
+
+        // Bơm 1-1 chính xác
+        valuesToPaste.forEach((val, i) => {
+            if (targetList[i]) targetList[i].innerText = val;
         });
-    });
 
-    table.addEventListener("copy", e => {
-        if (!vbSelectedMetaCells.length) return;
-        e.preventDefault();
-        const ordered = cells.filter(c => vbSelectedMetaCells.includes(c));
-        const text = ordered.map(c => c.innerText.trim()).join("\n");
-        e.clipboardData.setData("text/plain", text);
-    });
-
-    table.addEventListener("cut", e => {
-        if (!vbSelectedMetaCells.length) return;
-        e.preventDefault();
-        const ordered = cells.filter(c => vbSelectedMetaCells.includes(c));
-        const text = ordered.map(c => c.innerText.trim()).join("\n");
-        e.clipboardData.setData("text/plain", text);
-        ordered.forEach(c => c.textContent = "");
+        triggerImageRealtime('meta');
     });
 }
+
+// 3. Động cơ Realtime: PX (Cắt) vs RATIO (Scale)
+let isRealtimeMuted = false;
+
+function triggerImageRealtime(mode, field) {
+    if (!vbActiveImage || isRealtimeMuted) return;
+
+    const wInput = document.getElementById("vbImgWidth");
+    const hInput = document.getElementById("vbImgHeight");
+    const rwInput = document.getElementById("vbRatioWidth");
+    const rhInput = document.getElementById("vbRatioHeight");
+
+    let w = parseFloat(wInput.value) || 0;
+    let h = parseFloat(hInput.value) || 0;
+    let rw = parseFloat(rwInput.value) || 1;
+    let rh = parseFloat(rhInput.value) || 1;
+
+    isRealtimeMuted = true; // Khóa dội ngược
+
+    // CHẾ ĐỘ A: NHẬP PX -> CẮT (CROP)
+    if (mode === 'px') {
+        if (w > 0) vbActiveImage.style.width = w + "px";
+        if (h > 0) vbActiveImage.style.height = h + "px";
+        
+        vbActiveImage.style.objectFit = "cover";
+        vbActiveImage.style.removeProperty("aspect-ratio");
+
+        // Tính ngược lại tỷ lệ rút gọn hiển thị cho đẹp
+        if (w > 0 && h > 0) {
+            let gcd = greatestCommonDivisor(w, h);
+            rwInput.value = parseFloat((w / gcd).toFixed(2));
+            rhInput.value = parseFloat((h / gcd).toFixed(2));
+        }
+        vbActiveImage.classList.add("vb-is-cropping");
+    } 
+    // CHẾ ĐỘ B: NHẬP TỶ LỆ -> SCALE CO GIÃN TỰ ĐỘNG
+    else if (mode === 'ratio') {
+        if (rw > 0 && rh > 0) {
+            vbActiveImage.style.aspectRatio = `${rw} / ${rh}`;
+            vbActiveImage.style.objectFit = "contain";
+            
+            if (w > 0) {
+                vbActiveImage.style.width = w + "px";
+                vbActiveImage.style.height = "auto";
+                hInput.value = Math.round(w * (rh / rw)); // Hiển thị số px tương ứng
+            }
+        }
+        vbActiveImage.classList.remove("vb-is-cropping");
+    }
+
+    if (mode === 'url') {
+        const u = document.getElementById("vbImgUrl").value.trim();
+        if (u) vbActiveImage.src = u;
+    }
+
+    writeImageMetadata(vbActiveImage, collectMetadataFromGrid());
+    isRealtimeMuted = false;
+    pushImgHistory();
+}
+
+// 4. Kéo chuột Panning bên trong ảnh đã Cắt
+let panStartX = 0, panStartY = 0;
+let currPanX = 0, currPanY = 0;
+let isPanningImage = false;
+
+window.addEventListener('load', () => {
+    const workspace = document.getElementById("workspaceArea");
+    if (!workspace) return;
+
+    workspace.addEventListener('mousedown', e => {
+        if (vbActiveImage && e.target === vbActiveImage && vbActiveImage.style.objectFit === 'cover') {
+            isPanningImage = true;
+            panStartX = e.clientX;
+            panStartY = e.clientY;
+            currPanX = parseFloat(vbActiveImage.dataset.panX) || 0;
+            currPanY = parseFloat(vbActiveImage.dataset.panY) || 0;
+            e.preventDefault();
+        }
+    });
+
+    window.addEventListener('mousemove', e => {
+        if (!isPanningImage || !vbActiveImage) return;
+
+        let dx = e.clientX - panStartX;
+        let dy = e.clientY - panStartY;
+
+        let newPanX = currPanX + dx;
+        let newPanY = currPanY + dy;
+
+        vbActiveImage.dataset.panX = newPanX;
+        vbActiveImage.dataset.panY = newPanY;
+
+        // Dịch chuyển tiêu cự ảnh ngay lập tức
+        vbActiveImage.style.objectPosition = `calc(50% + ${newPanX}px) calc(50% + ${newPanY}px)`;
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (isPanningImage) {
+            isPanningImage = false;
+            pushImgHistory();
+        }
+    });
+});
+
+// 5. Ngăn xếp Lịch sử (Undo / Redo) cho ảnh
+let imgHistoryStack = [];
+let imgHistoryIndex = -1;
+let isApplyingHistory = false;
+
+function captureImageSnapshot(img) {
+    if (!img) return null;
+    return {
+        w: img.style.width,
+        h: img.style.height,
+        fit: img.style.objectFit,
+        pos: img.style.objectPosition,
+        aspect: img.style.aspectRatio,
+        panX: img.dataset.panX || "0",
+        panY: img.dataset.panY || "0",
+        src: img.src,
+        meta: readImageMetadata(img),
+        wInput: document.getElementById('vbImgWidth')?.value || "",
+        hInput: document.getElementById('vbImgHeight')?.value || "",
+        rwInput: document.getElementById('vbRatioWidth')?.value || "",
+        rhInput: document.getElementById('vbRatioHeight')?.value || ""
+    };
+}
+
+function initImgHistory() {
+    imgHistoryStack = [];
+    imgHistoryIndex = -1;
+    if (vbActiveImage) pushImgHistory();
+}
+
+function pushImgHistory() {
+    if (!vbActiveImage || isApplyingHistory) return;
+    const snap = captureImageSnapshot(vbActiveImage);
+    
+    if (imgHistoryIndex >= 0 && JSON.stringify(imgHistoryStack[imgHistoryIndex]) === JSON.stringify(snap)) return;
+
+    imgHistoryStack = imgHistoryStack.slice(0, imgHistoryIndex + 1);
+    imgHistoryStack.push(snap);
+    imgHistoryIndex++;
+    updateHistoryButtonsState();
+}
+
+function updateHistoryButtonsState() {
+    document.getElementById('btnImgUndo').disabled = (imgHistoryIndex <= 0);
+    document.getElementById('btnImgRedo').disabled = (imgHistoryIndex >= imgHistoryStack.length - 1);
+}
+
+function restoreImageSnapshot(snap) {
+    if (!snap || !vbActiveImage) return;
+    isApplyingHistory = true;
+
+    vbActiveImage.style.width = snap.w;
+    vbActiveImage.style.height = snap.h;
+    vbActiveImage.style.objectFit = snap.fit;
+    vbActiveImage.style.objectPosition = snap.pos;
+    vbActiveImage.style.aspectRatio = snap.aspect;
+    vbActiveImage.dataset.panX = snap.panX;
+    vbActiveImage.dataset.panY = snap.panY;
+    vbActiveImage.src = snap.src;
+
+    if (document.getElementById('vbImgWidth')) document.getElementById('vbImgWidth').value = snap.wInput;
+    if (document.getElementById('vbImgHeight')) document.getElementById('vbImgHeight').value = snap.hInput;
+    if (document.getElementById('vbRatioWidth')) document.getElementById('vbRatioWidth').value = snap.rwInput;
+    if (document.getElementById('vbRatioHeight')) document.getElementById('vbRatioHeight').value = snap.rhInput;
+
+    writeImageMetadata(vbActiveImage, snap.meta);
+    document.querySelectorAll("#vbMetadataTable [data-meta-key]").forEach(td => {
+        td.innerText = snap.meta[td.dataset.metaKey] || "";
+    });
+
+    isApplyingHistory = false;
+    updateHistoryButtonsState();
+}
+
+function vbImageUndo() {
+    if (imgHistoryIndex > 0) {
+        imgHistoryIndex--;
+        restoreImageSnapshot(imgHistoryStack[imgHistoryIndex]);
+    }
+}
+
+function vbImageRedo() {
+    if (imgHistoryIndex < imgHistoryStack.length - 1) {
+        imgHistoryIndex++;
+        restoreImageSnapshot(imgHistoryStack[imgHistoryIndex]);
+    }
+}
+
+// Bắt phím tắt Ctrl+Z / Ctrl+Y khi mở Modal
+document.addEventListener("keydown", e => {
+    if (!vbActiveImage || document.getElementById("vbImagePopupOverlay")?.style.display !== "flex") return;
+    if (e.ctrlKey || e.metaKey) {
+        const k = e.key.toLowerCase();
+        if (k === 'z') { e.preventDefault(); vbImageUndo(); }
+        if (k === 'y') { e.preventDefault(); vbImageRedo(); }
+    }
+});
+
+// GHI ĐÈ HOOK KHỞI TẠO VÀO HÀM openImageProperties GỐC:
+const originalOpenImgProps = window.openImageProperties;
+window.openImageProperties = function(img) {
+    originalOpenImgProps(img);
+    initImgHistory();
+    // Đọc trạng thái pan cũ nếu có
+    if (img && img.style.objectFit === 'cover') {
+        img.classList.add('vb-is-cropping');
+    }
+};
 
 function sanitizeUploadFileName(name, fallback) {
     const clean = String(name || fallback || "image")
