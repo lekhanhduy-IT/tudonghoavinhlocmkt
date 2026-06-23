@@ -20,18 +20,109 @@
         /* TĂNG TỐC TRƯỢT TỪ 0.3s XUỐNG 0.1s */
         .sidebar { width: 250px; background: var(--white); border:none; display: flex; flex-direction: column; transition: width 0.1s ease-out; white-space: nowrap; flex-shrink: 0; z-index: 50; }
         .sidebar.collapsed { width: 50px; }
-        .sidebar-header { height: 50px; display: flex; align-items: center; border:none;}
-        .toggle-btn { width: 50px; height: 50px; background: transparent; border: none; font-size: 20px; color: var(--text-main); opacity: 0.7; cursor: pointer; flex-shrink: 0; display: flex; justify-content: center; align-items: center; }
-        
-        /* TĂNG TỐC HIỆN LOGO TỪ 0.2s XUỐNG 0.05s */
-        .brand { font-size: 14px; font-weight: 300; color: #000000; opacity: 1; transition: opacity 0.05s; display: flex; align-items: center; }
-        .brand img { height: 30px; margin-right: 10px; }
-        .sidebar.collapsed .brand { opacity: 0; pointer-events: none; }
-        
-        .menu-item-side { padding: 0; display: flex; align-items: center; cursor: pointer; border:none; transition: 0.1s; color: #000000; text-decoration: none;}
-        .menu-item-side:hover, .menu-item-side.active { background: var(--blue); color: var(--white); }
-        .icon { width: 60px; height: 50px; display: flex; justify-content: center; align-items: center; font-size: 18px; flex-shrink: 0; }
-        
+        /* ================= 1. CỤM HEADER & TRÁO ĐỔI LOGO ================= */
+        .sidebar-header { 
+            height: 50px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; /* Đẩy Logo sang trái, Toggle sang phải */
+            padding-left: 12px; 
+            border: none;
+            position: relative;
+        }
+
+        .toggle-btn { 
+            width: 50px; 
+            height: 50px; 
+            background: transparent; 
+            border: none; 
+            font-size: 18px; 
+            color: var(--text-main); 
+            opacity: 0.7; 
+            cursor: pointer; 
+            flex-shrink: 0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            transition: opacity 0.15s ease;
+        }
+        .toggle-btn:hover { opacity: 1; }
+
+        .brand { 
+            font-size: 14px; 
+            font-weight: 500; 
+            color: #000000; 
+            display: flex; 
+            align-items: center; 
+        }
+        .brand img { 
+            height: 30px; 
+            margin-right: 10px; 
+            transition: opacity 0.15s ease;
+        }
+        .brand-text {
+            transition: opacity 0.05s;
+            white-space: nowrap;
+        }
+
+        /* --- TRẠNG THÁI SIDEBAR ĐÓNG (.collapsed) --- */
+        .sidebar.collapsed .sidebar-header {
+            padding-left: 0; 
+            justify-content: center;
+        }
+        .sidebar.collapsed .brand-text { 
+            display: none; /* Ẩn dòng chữ WEB MKT */
+        }
+        .sidebar.collapsed .brand img {
+            margin-right: 0; /* Trả logo về đứng giữa tâm 50px */
+        }
+        .sidebar.collapsed .toggle-btn {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 50px;
+            height: 50px;
+            opacity: 0; /* Mặc định ẩn nút 3 gạch */
+            pointer-events: none; /* Vô hiệu hóa click khi đang tàng hình */
+            background: var(--white); /* Lớp nền trắng che logo bên dưới khi hiện lên */
+        }
+
+        /* HOVER VÀO HEADER KHI ĐANG ĐÓNG -> HIỆN NÚT 3 GẠCH, MỜ LOGO */
+        .sidebar.collapsed .sidebar-header:hover .brand img {
+            opacity: 0;
+        }
+        .sidebar.collapsed .sidebar-header:hover .toggle-btn {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+
+        /* ================= 2. CỤM MENU ITEMS ================= */
+        .menu-item-side { 
+            padding: 0; 
+            display: flex; 
+            align-items: center; 
+            cursor: pointer; 
+            border: none; 
+            transition: 0.1s; 
+            color: #000000; 
+            text-decoration: none;
+        }
+        .menu-item-side:hover, 
+        .menu-item-side.active { 
+            background: var(--white); /* Giữ nguyên nền trắng */
+            color: var(--blue);       /* Đổi icon + text sang màu xanh hệ thống */
+        }
+
+        .icon { 
+            width: 50px; /* <-- CHỐT HẠ: Sửa 60px thành 50px để khớp tuyệt đối với width sidebar */
+            height: 50px; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            font-size: 18px; 
+            flex-shrink: 0; 
+        }        
         /* TĂNG TỐC HIỆN CHỮ TỪ 0.2s XUỐNG 0.05s */
         .text { font-weight: 300; font-size: 14px; transition: opacity 0.05s; opacity: 1; }
         .sidebar.collapsed .text { opacity: 0; pointer-events: none; }
@@ -74,8 +165,11 @@
 <body>
     <div class="sidebar collapsed" id="sidebar">
         <div class="sidebar-header">
+            <div class="brand">
+                <img src="https://i.postimg.cc/xCjmFrb4/Untitled-design.png">
+                <span class="brand-text">WEB MKT</span>
+            </div>
             <button class="toggle-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
-            <div class="brand"><img src="https://i.postimg.cc/xCjmFrb4/Untitled-design.png"> WEB MKT</div>
         </div>
         <a href="#" class="menu-item-side" onclick="loadModule('idea.html', this)" data-target="idea"><div class="icon"><i class="fas fa-lightbulb"></i></div><div class="text">Ý TƯỞNG</div></a>
         <a href="#" class="menu-item-side" onclick="loadModule('plan.html', this)" data-target="plan"><div class="icon"><i class="fas fa-calendar-alt"></i></div><div class="text">KẾ HOẠCH</div></a>
