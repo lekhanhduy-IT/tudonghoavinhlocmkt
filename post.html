@@ -2859,7 +2859,11 @@ const TableEditor = (function() {
     });
 
     document.getElementById('mainEditorArea').addEventListener('scroll', hideMenus);
-    return { getSelectedCells: () => selectedCellsArr, hideMenus: hideMenus };
+   return { 
+    getSelectedCells: () => selectedCellsArr, 
+    hideMenus: hideMenus,
+    clearSelection: clearSelection // <-- Mở cổng cho hàm này
+};
 })();
 
 // Hàm định vị chính xác thẻ Text / HTML đang bị tác động
@@ -4692,6 +4696,7 @@ async function uploadAllPendingPostImages(postId) {
 function serializeEditorContentForSheet() {
     const clone = document.getElementById("postContent").cloneNode(true);
     clone.querySelectorAll(".vb-image-frame").forEach(frame => frame.classList.remove("vb-image-active", "vb-crop-dragging"));
+ clone.querySelectorAll(".vb-selected-cell").forEach(cell => cell.classList.remove("vb-selected-cell"));
     clone.querySelectorAll("img").forEach(img => {
         const driveUrl = img.dataset.driveUrl || normalizeDriveUrlForSheet(img.getAttribute("src") || "");
         img.setAttribute("src", driveUrl);
@@ -4705,6 +4710,7 @@ function serializeRealtimeSafeHtml(element) {
     if (!element) return "";
     const clone = element.cloneNode(true);
     clone.querySelectorAll(".vb-image-frame").forEach(frame => frame.classList.remove("vb-image-active", "vb-crop-dragging"));
+ clone.querySelectorAll(".vb-selected-cell").forEach(cell => cell.classList.remove("vb-selected-cell"));
     clone.querySelectorAll("img").forEach(img => {
         const driveUrl = img.dataset.driveUrl || "";
         if (driveUrl) {
@@ -5103,37 +5109,6 @@ async function downloadActiveImageWithMetadata() {
     let isApplyingRemoteDOM = false;
     let lastBroadcastedDOMHash = '';
 
-    // =========================================================================
-    // "MÁY LỌC NƯỚC": Lột sạch mọi dấu vết bôi đen/chọn ô trước khi gửi lên mạng
-    // =========================================================================
-    function sanitizeMasterHtmlForSync(rawDomElement) {
-        if (!rawDomElement) return '';
-        
-        // Nhân bản vô hình trong RAM để gọt rửa, tuyệt đối không làm mất bôi đen trên màn hình thật của người gõ
-        const ramClone = rawDomElement.cloneNode(true);
-
-        ramClone.querySelectorAll('td, th, tr, table').forEach(cell => {
-            // 1. Vặt sạch các class bôi đen phổ biến của các thư viện Rich Text Editor (Quill, TinyMCE, Froala, CKEditor...)
-            cell.classList.remove('selected', 'active', 'is-selected', 'table-selected', 'tc-selected', 'focused', 'table-focus');
-            
-            // 2. Vặt các thuộc tính inline-style do JS bôi đen tạm thời tạo ra
-            if (cell.style) {
-                cell.style.removeProperty('outline');
-                cell.style.removeProperty('box-shadow');
-            }
-
-            // 3. Xóa các data-attribute đánh dấu trỏ chuột
-            cell.removeAttribute('data-selected');
-            cell.removeAttribute('data-focused');
-
-            // Xóa dọn dẹp thẻ rỗng
-            if (cell.getAttribute('class') === '') cell.removeAttribute('class');
-            if (cell.getAttribute('style') === '') cell.removeAttribute('style');
-        });
-
-        return ramClone.innerHTML;
-    }
-
     const domCamera = new MutationObserver(() => {
         if (isApplyingRemoteDOM) return;
 
@@ -5141,10 +5116,7 @@ async function downloadActiveImageWithMetadata() {
             postTitle: document.getElementById('postTitle')?.innerHTML || '',
             postSapo: document.getElementById('postSapo')?.innerHTML || '',
             coverHtml: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('coverEditor')) : (document.getElementById('coverEditor')?.innerHTML || ''),
-            
-            // ÁP DỤNG MÁY LỌC VÀO NỘI DUNG BÀI VIẾT:
-            postContent: sanitizeMasterHtmlForSync(document.getElementById('postContent')),
-            
+            postContent: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('postContent')) : (document.getElementById('postContent')?.innerHTML || ''),
             sender: myDeviceId,
             timestamp: Date.now()
         };
@@ -5155,6 +5127,10 @@ async function downloadActiveImageWithMetadata() {
             domSyncRef.set(payload);
         }
     });
+
+    if (paperElem) {
+        domCamera.observe(paperElem, { childList: true, subtree: true, characterData: true, attributes: true });
+    }
 
     // --- PHẦN 3: LẮNG NGHE VÀ DÁN ĐÈ DOM ---
 
@@ -5181,6 +5157,10 @@ async function downloadActiveImageWithMetadata() {
         smartInject('postTitle', domData.postTitle);
         smartInject('postSapo', domData.postSapo);
         smartInject('coverEditor', domData.coverHtml !== undefined ? domData.coverHtml : (domData.coverUrl ? `<img src="${domData.coverUrl}" class="vb-managed-image" data-image-role="cover">` : ''));
+// [THÊM DÒNG NÀY]: Xả sạch bộ nhớ bôi đen cũ trước khi đè DOM mới
+if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 'function') {
+    TableEditor.clearSelection();
+}
         smartInject('postContent', domData.postContent);
 
         if(typeof hydrateManagedImages === 'function') {
