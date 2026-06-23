@@ -852,7 +852,7 @@ function updateActiveFilterToolbar() {
             if (sysData.filters[activeTab]) delete sysData.filters[activeTab][c];
             renderGrid(); // Cập nhật lại bảng và ẩn toolbar lập tức
         }
-        // =========================================================================
+// =========================================================================
 // HỆ THỐNG CỘNG TÁC LAYERED MASTER CANVAS & AVATAR REALTIME (GRID COLLAB V7.0)
 // =========================================================================
 
@@ -1117,20 +1117,26 @@ window.dispatchAttrSave = function() {
 };
 
 // =========================================================================
-// THUẬT TOÁN BỘ LỌC 2 TẦNG BẢO TOÀN SỐ THỨ TỰ HÀNG
+// THUẬT TOÁN BỘ LỌC 2 TẦNG BẢO TOÀN SỐ THỨ TỰ HÀNG & LẬT KÈO TỰ ĐỘNG (V7.2)
 // =========================================================================
+
 function getEffectiveFilters() {
-    const pub = sysData.filters[activeTab] || {}; const priv = localPrivateFilters[activeTab] || {};
-    const effective = { ...pub }; for (let col in priv) effective[col] = priv[col];
+    const pub = sysData.filters[activeTab] || {}; 
+    const priv = localPrivateFilters[activeTab] || {};
+    const effective = { ...pub }; 
+    for (let col in priv) effective[col] = priv[col];
     return effective;
 }
 
 window.isRowFilteredOut = function(r, matrix) { 
-    const flts = getEffectiveFilters(); if (!flts || Object.keys(flts).length === 0) return false; 
-    const attrs = sysData.attributes[activeTab] || {}; const types = attrs.columnTypes || {};
+    const flts = getEffectiveFilters(); 
+    if (!flts || Object.keys(flts).length === 0) return false; 
+    const attrs = sysData.attributes[activeTab] || {}; 
+    const types = attrs.columnTypes || {};
 
     for (let c in flts) { 
-        const cellVal = String(matrix[r][c] || "").trim(); const type = types[c] || "text";
+        const cellVal = String(matrix[r][c] || "").trim(); 
+        const type = types[c] || "text";
         if (type === "dropdown") {
             const cellItems = cellVal.split(",").map(v => v.trim()).filter(Boolean);
             if (cellItems.length === 0) { if (!flts[c].includes("")) return true; } 
@@ -1140,8 +1146,11 @@ window.isRowFilteredOut = function(r, matrix) {
     return false; 
 };
 
+// Vẫn luôn hiển thị Popup hỏi 2 chế độ mỗi khi bấm nút phễu
 window.openFilterMenu = function(e, c) {
-    e.stopPropagation(); activeFilterCol = c;
+    e.stopPropagation(); 
+    activeFilterCol = c;
+    
     let askPopup = document.getElementById("filterAskScopePopup");
     if (!askPopup) {
         askPopup = document.createElement("div"); askPopup.id = "filterAskScopePopup"; askPopup.className = "popup-box";
@@ -1152,11 +1161,11 @@ window.openFilterMenu = function(e, c) {
             </div>
             <div class="menu-item" onclick="triggerFilterChecklist('private', event)" style="border-radius:4px; background:#f0fdf4; border:1px solid #bbf7d0; margin-bottom:6px; padding:8px 12px;">
                 <i class="fas fa-user-shield" style="color:#16a34a; font-size:16px;"></i>
-                <div style="line-height:1.2;"><div style="font-weight:bold; color:#16a34a; font-size:12px;">Chỉ mình tôi (Private)</div><div style="font-size:10px; color:#64748b;">Máy khác không nhìn thấy</div></div>
+                <div style="line-height:1.2;"><div style="font-weight:bold; color:#16a34a; font-size:12px;">Chỉ mình tôi (Private)</div></div>
             </div>
             <div class="menu-item" onclick="triggerFilterChecklist('public', event)" style="border-radius:4px; background:#f0f9ff; border:1px solid #bae6fd; padding:8px 12px;">
                 <i class="fas fa-users" style="color:#0284c7; font-size:16px;"></i>
-                <div style="line-height:1.2;"><div style="font-weight:bold; color:#0284c7; font-size:12px;">Mọi người (Public Realtime)</div><div style="font-size:10px; color:#64748b;">Đồng bộ tức thì tới toàn phòng</div></div>
+                <div style="line-height:1.2;"><div style="font-weight:bold; color:#0284c7; font-size:12px;">Mọi người (Public)</div></div>
             </div>
         `;
         document.body.appendChild(askPopup); askPopup.addEventListener('click', ev => ev.stopPropagation());
@@ -1164,9 +1173,28 @@ window.openFilterMenu = function(e, c) {
     showPopupSafe(askPopup, e);
 };
 
+// CƠ CHẾ TỰ ĐỘNG DỌN RỔ ĐỐI DIỆN TRƯỚC KHI HIỂN THỊ CHECKLIST
 window.triggerFilterChecklist = function(targetScope, e) {
-    currentFilterScope = targetScope; document.getElementById("filterAskScopePopup").style.display = "none";
-    const c = activeFilterCol; const box = document.getElementById("filterListArea"); box.innerHTML = ""; 
+    document.getElementById("filterAskScopePopup").style.display = "none";
+    currentFilterScope = targetScope; 
+    const c = activeFilterCol; 
+    
+    // Khởi tạo các rổ chứa nếu chưa có
+    localPrivateFilters[activeTab] = localPrivateFilters[activeTab] || {};
+    sysData.filters[activeTab] = sysData.filters[activeTab] || {};
+
+    // LOGIC LẬT KÈO TỰ ĐỘNG XÓA CHẾ ĐỘ CŨ:
+    // Nếu chọn 'Mọi người' (public) -> Xóa sạch lọc 'Mình tôi' của cột này
+    if (targetScope === 'public' && localPrivateFilters[activeTab][c]) {
+        delete localPrivateFilters[activeTab][c];
+    }
+    // Nếu chọn 'Mình tôi' (private) -> Xóa sạch lọc 'Mọi người' của cột này và phát sóng
+    if (targetScope === 'private' && sysData.filters[activeTab][c]) {
+        delete sysData.filters[activeTab][c];
+        GridCollabEngine.broadcastPublicFilters(); // Báo cho cả phòng biết tôi đã gỡ lọc chung
+    }
+
+    const box = document.getElementById("filterListArea"); box.innerHTML = ""; 
     const badge = targetScope === 'private' ? '<span style="color:#16a34a;">[Mình tôi]</span>' : '<span style="color:#0284c7;">[Mọi người]</span>';
     document.getElementById("filterHeader").innerHTML = `<i class="fas fa-filter"></i> Lọc cột ${getColLetter(c)} ${badge}`; 
 
@@ -1176,7 +1204,8 @@ window.triggerFilterChecklist = function(targetScope, e) {
     if (type === "dropdown" && attrs.dropdownChoices && attrs.dropdownChoices[c] && attrs.dropdownChoices[c].length > 0) vals = [...attrs.dropdownChoices[c]];
     else { const unique = new Set(); for(let r=1; r<mat.length; r++) unique.add(String(mat[r][c] || "").trim()); vals = Array.from(unique).sort(); }
 
-    const targetBucket = targetScope === 'private' ? (localPrivateFilters[activeTab] || {}) : (sysData.filters[activeTab] || {});
+    // Rổ đích để lấy trạng thái check hiện tại
+    const targetBucket = targetScope === 'private' ? localPrivateFilters[activeTab] : sysData.filters[activeTab];
     const flt = targetBucket[c] || null; 
 
     let html = `<div class="menu-item" onclick="toggleAllFlt(this)"><input type="checkbox" id="fltAll" style="pointer-events:none;" ${flt===null?'checked':''}> <b>(Chọn tất cả)</b></div>`; 
