@@ -853,7 +853,7 @@ function updateActiveFilterToolbar() {
             renderGrid(); // Cập nhật lại bảng và ẩn toolbar lập tức
         }
         // =========================================================================
-// HỆ THỐNG CỘNG TÁC PHÂN LẬP TAB & DÃY AVATAR THỜI GIAN THỰC (GRID COLLAB V5.0)
+// HỆ THỐNG CỘNG TÁC PHÂN LẬP TRÙNG PHÒNG & DÃY AVATAR TOOLBAR (GRID COLLAB V6.0)
 // =========================================================================
 
 // Khởi tạo bộ nhớ Lọc cục bộ (RAM máy cá nhân - Tuyệt đối không đẩy lên mạng)
@@ -861,39 +861,43 @@ let localPrivateFilters = {};
 let currentFilterScope = 'private'; 
 
 const GridCollabEngine = (function() {
-    // Cấu hình Firebase Realtime Database
+    // Cấu hình hạ tầng kết nối Firebase Realtime Database
     const firebaseConfig = {
         databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/"
     };
     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    let currentRoomRef = null;
-    let myPresenceRef = null;
     let lastBroadcastedHash = 0;
     let isApplyingRemotePatch = false;
+    let previousRoomId = null;
 
-    // Lấy thông tin định danh chính xác từ LocalStorage (Đồng bộ hệ thống Đăng nhập)
+    // Định danh người dùng lấy chính xác từ phiên đăng nhập hệ thống (localStorage)
     const myEmail = localStorage.getItem('admin_email') || 'anon_' + Math.floor(Math.random()*1000) + '@gmail.com';
     const myName = localStorage.getItem('admin_name') || 'Thành viên';
     const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
     const myDeviceId = 'grid_dev_' + Math.random().toString(36).substring(2, 7);
+
+    function getSafeRoomId(tabName) {
+        if (!tabName) return '';
+        return 'grid_room_' + tabName.replace(/[\.\#\$\[\]]/g, '_');
+    }
 
     function getSimpleHash(str) {
         let h = 0; for(let i=0; i<str.length; i++) h = Math.imul(31, h) + str.charCodeAt(i) | 0;
         return h;
     }
 
-    // Tự động tạo vùng chứa Avatar ở chính giữa Toolbar nếu chưa có
+    // Tự động tạo và neo giữ vùng chứa Avatar ở CHÍNH GIỮA thanh Toolbar phía trên
     function injectAvatarToolbarContainer() {
         const toolbar = document.querySelector('.toolbar');
-        if (!toolbar) return;
+        if (!toolbar) return null;
         
         let container = document.getElementById('gridOnlineUsers');
         if (!container) {
             container = document.createElement('div');
             container.id = 'gridOnlineUsers';
-            // CSS căn giữa tuyệt đối trên thanh toolbar không làm lệch các nút khác
+            // CSS Căn giữa tuyệt đối trên thanh toolbar không làm lệch cấu trúc các nút xung quanh
             container.style.cssText = `
                 position: absolute;
                 left: 50%;
@@ -902,10 +906,12 @@ const GridCollabEngine = (function() {
                 display: flex;
                 align-items: center;
                 gap: 6px;
-                z-index: 100;
-                background: rgba(255,255,255,0.8);
-                padding: 2px 8px;
+                z-index: 999;
+                background: rgba(255, 255, 255, 0.95);
+                padding: 4px 14px;
                 border-radius: 20px;
+                border: 1px solid var(--gray-border, #e0e0e0);
+                box-shadow: 0 2px 6px rgba(0,0,0,0.05);
                 pointer-events: auto;
             `;
             toolbar.style.position = 'relative';
@@ -914,95 +920,97 @@ const GridCollabEngine = (function() {
         return container;
     }
 
-    // [CÔ LẬP PHÒNG HỌP]: Chuyển Tab - Cắt kết nối phòng cũ, kết nối phòng mới
+    // ẢI KIỂM SOÁT LẮNG NGHE TẬP TRUNG (GLOBAL CENTRALIZED ROUTER)
+    // Giải pháp tối thượng ngăn chặn hoàn toàn 100% việc nhận nhầm dữ liệu phòng khác
+    function initCentralizedListener() {
+        db.ref('collab_grid').on('value', snapshot => {
+            const allRooms = snapshot.val() || {};
+            if (!activeTab) return;
+
+            const currentTargetRoomId = getSafeRoomId(activeTab);
+            const activeRoomData = allRooms[currentTargetRoomId] || {};
+
+            // THÀNH PHẦN 1: DỰNG DÃY AVATAR THỜI GIAN THỰC (CHỈ HIỂN THỊ NGƯỜI TRONG CÙNG TAB)
+            const users = activeRoomData.users || {};
+            const avatarBox = injectAvatarToolbarContainer();
+            if (avatarBox) {
+                avatarBox.innerHTML = '';
+                Object.keys(users).forEach(uid => {
+                    const user = users[uid];
+                    const img = document.createElement('img');
+                    img.src = user.avatar || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
+                    
+                    // Hiển thị Tên + Gmail rõ ràng xuống dòng khi rà chuột vào (Hover Tooltip)
+                    img.title = `${user.name}\n(${user.email})`;
+                    
+                    img.style.cssText = `
+                        width: 26px;
+                        height: 26px;
+                        border-radius: 50%;
+                        border: 2px solid var(--blue, #01adee);
+                        object-fit: cover;
+                        cursor: pointer;
+                        transition: all 0.15s ease;
+                    `;
+                    
+                    // Hiệu ứng phóng to nhẹ khi hover chuột vào hình đại diện
+                    img.onmouseover = () => { img.style.transform = 'scale(1.25)'; img.style.zIndex = '10'; };
+                    img.onmouseout = () => { img.style.transform = 'scale(1)'; img.style.zIndex = '1'; };
+                    avatarBox.appendChild(img);
+                });
+            }
+
+            // THÀNH PHẦN 2: ĐỒNG BỘ CAMERA DOM (CỦA CÙNG TAB HIỆN TẠI)
+            const data = activeRoomData.sheet_data;
+            if (data && data.sender !== myDeviceId && !isApplyingRemotePatch) {
+                isApplyingRemotePatch = true;
+                try {
+                    const incomingMat = JSON.parse(data.matrix);
+                    const incomingAttrs = JSON.parse(data.attributes);
+
+                    sysData.sheets[activeTab] = incomingMat;
+                    sysData.attributes[activeTab] = incomingAttrs;
+
+                    smartPatchGridDOM(incomingMat, incomingAttrs);
+                } catch(e) { console.error("Smart Patch Error:", e); }
+                finally { isApplyingRemotePatch = false; }
+            }
+
+            // THÀNH PHẦN 3: ĐỒNG BỘ BỘ LỌC CÔNG CỘNG (PUBLIC FILTERS)
+            const incomingFilters = activeRoomData.public_filters || {};
+            if (JSON.stringify(sysData.filters[activeTab] || {}) !== JSON.stringify(incomingFilters)) {
+                sysData.filters[activeTab] = incomingFilters;
+                renderGrid(); 
+            }
+        });
+    }
+
+    // THAY ĐỔI ĐỊNH TUYẾN TRẠNG THÁI HIỆN DIỆN KHI CHUYỂN TAB
     function switchConferenceRoom(tabName) {
         if (!tabName || tabName.endsWith('_hidden')) return;
-        const safeRoomId = 'grid_room_' + tabName.replace(/[\.\#\$\[\]]/g, '_');
+        const newRoomId = getSafeRoomId(tabName);
 
-        // 1. Tắt toàn bộ cổng lắng nghe của phòng cũ
-        if (currentRoomRef) currentRoomRef.off();
-        if (myPresenceRef) myPresenceRef.remove();
+        // Rút tên, xóa sự hiện diện khỏi phòng cũ ngay lập tức
+        if (previousRoomId && previousRoomId !== newRoomId) {
+            db.ref(`collab_grid/${previousRoomId}/users/${myDeviceId}`).remove();
+        }
 
-        // 2. Thiết lập định tuyến tới phòng họp mới độc lập
-        currentRoomRef = db.ref(`collab_grid/${safeRoomId}`);
-        myPresenceRef = currentRoomRef.child(`users/${myDeviceId}`);
+        previousRoomId = newRoomId;
 
-        // 3. Khai báo danh tính và kích hoạt OnDisconnect để tự xóa khi tắt tab/mất mạng
+        // Khai báo sự hiện diện vào phòng mới
+        const myPresenceRef = db.ref(`collab_grid/${newRoomId}/users/${myDeviceId}`);
         myPresenceRef.set({
             email: myEmail,
             name: myName,
             avatar: myAvatar,
             joinedAt: firebase.database.ServerValue.TIMESTAMP
         });
+        
+        // Kênh an toàn: Tự động xóa tên khi người dùng tắt hẳn tab trình duyệt hoặc mất kết nối mạng
         myPresenceRef.onDisconnect().remove();
-
-        // KÊNH 1: Lắng nghe danh sách thành viên hiện diện TRONG CÙNG TAB SHEET
-        currentRoomRef.child('users').on('value', snapshot => {
-            const users = snapshot.val() || {};
-            const avatarBox = injectAvatarToolbarContainer();
-            if (!avatarBox) return;
-
-            avatarBox.innerHTML = ''; // Clear danh sách cũ
-            
-            Object.keys(users).forEach(uid => {
-                const user = users[uid];
-                const img = document.createElement('img');
-                img.src = user.avatar || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
-                
-                // Hiển thị Tên + Gmail chính xác khi hover chuột (Native Tooltip)
-                img.title = `${user.name} (${user.email})`;
-                
-                // Style Avatar tròn, gọn gàng chuẩn giao diện hiện đại
-                img.style.cssText = `
-                    width: 26px;
-                    height: 26px;
-                    border-radius: 50%;
-                    border: 2px solid var(--blue, #01adee);
-                    object-fit: cover;
-                    cursor: pointer;
-                    transition: all 0.2s ease;
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                `;
-                
-                // Hiệu ứng zoom nhẹ khi hover rà chuột vào avatar
-                img.onmouseover = () => { img.style.transform = 'scale(1.2)'; img.style.zIndex = '10'; };
-                img.onmouseout = () => { img.style.transform = 'scale(1)'; img.style.zIndex = '1'; };
-                
-                avatarBox.appendChild(img);
-            });
-        });
-
-        // KÊNH 2: Lắng nghe ma trận dữ liệu chỉ của phòng này
-        currentRoomRef.child('sheet_data').on('value', snapshot => {
-            const data = snapshot.val();
-            if (!data || data.sender === myDeviceId) return;
-
-            isApplyingRemotePatch = true;
-            try {
-                const incomingMat = JSON.parse(data.matrix);
-                const incomingAttrs = JSON.parse(data.attributes);
-
-                sysData.sheets[tabName] = incomingMat;
-                sysData.attributes[tabName] = incomingAttrs;
-
-                if (tabName === activeTab) {
-                    smartPatchGridDOM(incomingMat, incomingAttrs);
-                }
-            } catch(e) { console.error("Grid Sync Error:", e); }
-            finally { isApplyingRemotePatch = false; }
-        });
-
-        // KÊNH 3: Lắng nghe bộ lọc công cộng của phòng này
-        currentRoomRef.child('public_filters').on('value', snapshot => {
-            const incomingFilters = snapshot.val() || {};
-            sysData.filters[tabName] = incomingFilters;
-            if (tabName === activeTab) {
-                renderGrid(); 
-            }
-        });
     }
 
-    // Broadcaster: Phát dữ liệu bảng nội bộ lên phòng đang đứng
+    // PHÁT SÓNG TRẠNG THÁI BẢNG LÊN PHÒNG HIỆN TẠI
     function broadcastGridState() {
         if (isApplyingRemotePatch || !activeTab || !sysData.sheets[activeTab]) return;
 
@@ -1012,8 +1020,9 @@ const GridCollabEngine = (function() {
 
         if (currentHash !== lastBroadcastedHash) {
             lastBroadcastedHash = currentHash;
-            if (currentRoomRef) {
-                currentRoomRef.child('sheet_data').set({
+            const currentRoomId = getSafeRoomId(activeTab);
+            if (currentRoomId) {
+                db.ref(`collab_grid/${currentRoomId}/sheet_data`).set({
                     matrix: matString,
                     attributes: attrString,
                     sender: myDeviceId,
@@ -1024,11 +1033,12 @@ const GridCollabEngine = (function() {
     }
 
     function broadcastPublicFilters() {
-        if (!currentRoomRef || !activeTab) return;
-        currentRoomRef.child('public_filters').set(sysData.filters[activeTab] || {});
+        if (!activeTab) return;
+        const currentRoomId = getSafeRoomId(activeTab);
+        db.ref(`collab_grid/${currentRoomId}/public_filters`).set(sysData.filters[activeTab] || {});
     }
 
-    // Thuật toán vá DOM sườn mềm không chiếm giật con trỏ người dùng
+    // Thuật toán vá DOM sườn mềm (Giữ nguyên cấu trúc, không cướp con trỏ của người đang gõ)
     function smartPatchGridDOM(newMat, newAttrs) {
         const activeEl = document.activeElement;
         let editingCellId = null;
@@ -1080,53 +1090,51 @@ const GridCollabEngine = (function() {
         sel.addRange(range);
     }
 
+    // Bật động cơ định tuyến tập trung toàn hệ thống
+    initCentralizedListener();
+
     return { switchConferenceRoom, broadcastGridState, broadcastPublicFilters };
 })();
 
 // =========================================================================
-// MÓC NỐI (HOOKS) ĐỒNG BỘ THEO PHÒNG BIỆT LẬP
+// MÓC NỐI (HOOKS) ĐỒNG BỘ THEO PHÒNG BIỆT LẬP TUYỆT ĐỐI
 // =========================================================================
 
-// Hook 1: Đè hàm chuyển Tab -> Chuyển phòng Firebase biệt lập hoàn toàn
+// Hook 1: Đè hàm chuyển Tab -> Chuyển phòng hoàn toàn cục bộ, không ép luồng máy khác
 const nativeRenderTabs = renderTabs;
 window.renderTabs = function() {
     nativeRenderTabs();
     document.querySelectorAll('#tabsWrapper .tab-item').forEach(el => {
-        // Gỡ bỏ mọi hàm onclick cũ bám vào tab tránh xung đột
         const clonedEl = el.cloneNode(true);
         el.parentNode.replaceChild(clonedEl, el);
         
         const tabName = clonedEl.innerText.trim();
-        
-        // Gắn sự kiện kích hoạt tab cục bộ cho riêng máy này
         clonedEl.addEventListener('click', function() {
             document.querySelectorAll('#tabsWrapper .tab-item').forEach(t => t.classList.remove('active'));
             this.classList.add('active');
             activeTab = tabName;
             
-            // Render bảng cục bộ trước
             renderGrid();
-            // Đổi phòng họp Firebase và cập nhật danh sách Avatar
             GridCollabEngine.switchConferenceRoom(tabName);
         });
     });
 };
 
-// Hook 2: Khi vẽ lại bảng -> Phát sóng thay đổi vào đúng phòng chỉ định
+// Hook 2: Khi vẽ lại bảng -> Phát sóng vào đúng phòng của Tab đó
 const nativeRenderGrid = renderGrid;
 window.renderGrid = function() {
     nativeRenderGrid();
     GridCollabEngine.broadcastGridState();
 };
 
-// Hook 3: Khi gõ xong một ô -> Phát sóng tức thì
+// Hook 3: Khi gõ sửa ô -> Đẩy Realtime cục bộ
 const nativeUpdateCell = updateCell;
 window.updateCell = function(r, c, val) {
     nativeUpdateCell(r, c, val);
     GridCollabEngine.broadcastGridState();
 };
 
-// Hook 4: Khi lưu thuộc tính định dạng ô/bảng -> Đồng bộ cấu trúc
+// Hook 4: Khi lưu thuộc tính bảng -> Đồng bộ thuộc tính ô
 const nativeDispatchAttrSave = dispatchAttrSave;
 window.dispatchAttrSave = function() {
     nativeDispatchAttrSave();
@@ -1196,7 +1204,7 @@ window.openFilterMenu = function(e, c) {
                 <i class="fas fa-users" style="color:#0284c7; font-size:16px;"></i>
                 <div style="line-height:1.2;">
                     <div style="font-weight:bold; color:#0284c7; font-size:12px;">Mọi người (Public Realtime)</div>
-                    <div style="font-size:10px; color:#64748b;">Đồng bộ tức thì tới toàn bộ phòng</div>
+                    <div style="font-size:10px; color:#64748b;">Đồng bộ tức thì tới toàn phòng</div>
                 </div>
             </div>
         `;
