@@ -8,6 +8,8 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://npmcdn.com/flatpickr/dist/l10n/vn.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
         :root { --white: #ffffff; --blue: #01adee; --red: #db1010; --gray-light: #f1f3f4; --gray-border: #e0e0e0; --text-main: #333333; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
@@ -850,7 +852,396 @@ function updateActiveFilterToolbar() {
             if (sysData.filters[activeTab]) delete sysData.filters[activeTab][c];
             renderGrid(); // Cập nhật lại bảng và ẩn toolbar lập tức
         }
-        
+        // =========================================================================
+// HỆ THỐNG CỘNG TÁC PHÂN LẬP & DOM CAMERA CHO SPREADSHEET (GRID COLLAB V4.0)
+// =========================================================================
+
+// 1. Khai báo bộ nhớ Lọc cục bộ (RAM máy cá nhân - Không bao giờ đẩy lên mạng)
+let localPrivateFilters = {}; 
+let currentFilterScope = 'private'; // Mặc định an toàn khi mở popup
+
+const GridCollabEngine = (function() {
+    // Khởi tạo Firebase (Dùng chung hạ tầng Realtime DB với post.html)
+    const firebaseConfig = {
+        databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let currentRoomRef = null;
+    let myPresenceRef = null;
+    let lastBroadcastedHash = 0;
+    let isApplyingRemotePatch = false;
+
+    // Định danh người dùng
+    const rawEmail = localStorage.getItem('admin_email');
+    const myEmail = (rawEmail && rawEmail !== "undefined") ? rawEmail : ('anon_' + Math.floor(Math.random()*1000) + '@gmail.com');
+    const myDeviceId = 'grid_dev_' + Math.random().toString(36).substring(2, 7);
+
+    function getSimpleHash(str) {
+        let h = 0; for(let i=0; i<str.length; i++) h = Math.imul(31, h) + str.charCodeAt(i) | 0;
+        return h;
+    }
+
+    // [CHỐT PHÒNG HỌP]: Mỗi Tab Sheet là một Room DB riêng biệt
+    function switchConferenceRoom(tabName) {
+        if (!tabName || tabName.endsWith('_hidden')) return;
+        const safeRoomId = 'grid_room_' + tabName.replace(/[\.\#\$\[\]]/g, '_');
+
+        if (currentRoomRef) currentRoomRef.off();
+        if (myPresenceRef) myPresenceRef.remove();
+
+        currentRoomRef = db.ref(`collab_grid/${safeRoomId}`);
+        myPresenceRef = currentRoomRef.child(`users/${myDeviceId}`);
+
+        myPresenceRef.set({ email: myEmail, joinedAt: firebase.database.ServerValue.TIMESTAMP });
+        myPresenceRef.onDisconnect().remove();
+
+        // KÊNH 1: Lắng nghe ma trận dữ liệu & thuộc tính bảng từ các máy khác
+        currentRoomRef.child('sheet_data').on('value', snapshot => {
+            const data = snapshot.val();
+            if (!data || data.sender === myDeviceId) return;
+
+            isApplyingRemotePatch = true;
+            try {
+                const incomingMat = JSON.parse(data.matrix);
+                const incomingAttrs = JSON.parse(data.attributes);
+
+                sysData.sheets[tabName] = incomingMat;
+                sysData.attributes[tabName] = incomingAttrs;
+
+                if (tabName === activeTab) {
+                    smartPatchGridDOM(incomingMat, incomingAttrs);
+                }
+            } catch(e) { console.error("Grid Sync Error:", e); }
+            finally { isApplyingRemotePatch = false; }
+        });
+
+        // KÊNH 2: Lắng nghe bộ lọc công cộng (Public Filters)
+        currentRoomRef.child('public_filters').on('value', snapshot => {
+            const incomingFilters = snapshot.val() || {};
+            sysData.filters[tabName] = incomingFilters;
+            if (tabName === activeTab) {
+                renderGrid(); // Vẽ lại để áp dụng bộ lọc chung
+            }
+        });
+    }
+
+    // Broadcaster: Phát sóng trạng thái bảng Local lên Firebase
+    function broadcastGridState() {
+        if (isApplyingRemotePatch || !activeTab || !sysData.sheets[activeTab]) return;
+
+        const matString = JSON.stringify(sysData.sheets[activeTab]);
+        const attrString = JSON.stringify(sysData.attributes[activeTab] || {});
+        const currentHash = getSimpleHash(matString + attrString);
+
+        if (currentHash !== lastBroadcastedHash) {
+            lastBroadcastedHash = currentHash;
+            if (currentRoomRef) {
+                currentRoomRef.child('sheet_data').set({
+                    matrix: matString,
+                    attributes: attrString,
+                    sender: myDeviceId,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+            }
+        }
+    }
+
+    function broadcastPublicFilters() {
+        if (!currentRoomRef || !activeTab) return;
+        currentRoomRef.child('public_filters').set(sysData.filters[activeTab] || {});
+    }
+
+    // [THUẬT TOÁN VÁ DOM SƯỢN MỀM]: Tránh cướp con trỏ của người đang gõ
+    function smartPatchGridDOM(newMat, newAttrs) {
+        const activeEl = document.activeElement;
+        let editingCellId = null;
+        if (activeEl && activeEl.classList.contains('cell-editor')) {
+            const td = activeEl.closest('td');
+            if (td) editingCellId = td.id; // VD: "cell_2_3"
+        }
+
+        const currentRows = document.querySelectorAll('#dataBody tr').length;
+        const currentCols = document.querySelectorAll('#dataHead th').length - 1;
+
+        // Nếu thay đổi cấu trúc (thêm/xóa hàng cột) -> Buộc vẽ lại toàn bộ
+        if (currentRows !== newMat.length || currentCols !== (newMat[0]?.length || 0)) {
+            renderGrid();
+            if (editingCellId) {
+                const td = document.getElementById(editingCellId);
+                if (td) {
+                    const ed = td.querySelector('.cell-editor');
+                    if (ed) { ed.focus(); putCaretAtEnd(ed); }
+                }
+            }
+            return;
+        }
+
+        // Nếu giữ nguyên cấu trúc -> Quét từng ô vá nội dung & style
+        newMat.forEach((row, r) => {
+            row.forEach((val, c) => {
+                const cellId = `cell_${r}_${c}`;
+                if (cellId === editingCellId) return; // Bỏ qua ô máy Local đang gõ!
+
+                const td = document.getElementById(cellId);
+                if (td) {
+                    applyStyle(td, r, c, newAttrs);
+                    const ed = td.querySelector('.cell-editor');
+                    if (ed && ed.innerHTML !== String(val)) {
+                        ed.innerHTML = String(val);
+                    } else if (!ed && td.querySelector('input[type="checkbox"]')) {
+                        td.querySelector('input[type="checkbox"]').checked = (val === "true" || val === true);
+                    }
+                }
+            });
+        });
+    }
+
+    function putCaretAtEnd(el) {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+    }
+
+    return { switchConferenceRoom, broadcastGridState, broadcastPublicFilters };
+})();
+
+// =========================================================================
+// MÓC NỐI (HOOKS) TỰ ĐỘNG VÀO CÁC HÀM CŨ CỦA HỆ THỐNG
+// =========================================================================
+
+// Hook 1: Khi đổi Tab -> Chuyển phòng Firebase
+const nativeRenderTabs = renderTabs;
+window.renderTabs = function() {
+    nativeRenderTabs();
+    document.querySelectorAll('#tabsWrapper .tab-item').forEach(el => {
+        const tabName = el.innerText.trim();
+        el.addEventListener('click', () => GridCollabEngine.switchConferenceRoom(tabName));
+    });
+};
+
+// Hook 2: Khi vẽ lại bảng -> Phát sóng thay đổi
+const nativeRenderGrid = renderGrid;
+window.renderGrid = function() {
+    nativeRenderGrid();
+    GridCollabEngine.broadcastGridState();
+};
+
+// Hook 3: Khi gõ xong 1 ô (onblur) -> Phát sóng ngay
+const nativeUpdateCell = updateCell;
+window.updateCell = function(r, c, val) {
+    nativeUpdateCell(r, c, val);
+    GridCollabEngine.broadcastGridState();
+};
+
+// Hook 4: Khi lưu thuộc tính bảng (Màu, font, độ rộng) -> Phát sóng ngay
+const nativeDispatchAttrSave = dispatchAttrSave;
+window.dispatchAttrSave = function() {
+    nativeDispatchAttrSave();
+    GridCollabEngine.broadcastGridState();
+};
+
+// =========================================================================
+// BỘ LỌC 2 TẦNG (PRIVATE VS PUBLIC) & BẢO TOÀN SỐ THỨ TỰ DÒNG TUYỆT ĐỐI
+// =========================================================================
+
+// Hàm nội suy tổng hợp bộ lọc: Bộ lọc Private đè Public nếu cùng lọc 1 cột
+function getEffectiveFilters() {
+    const pub = sysData.filters[activeTab] || {};
+    const priv = localPrivateFilters[activeTab] || {};
+    const effective = { ...pub };
+    for (let col in priv) effective[col] = priv[col];
+    return effective;
+}
+
+// Ghi đè thuật toán cản lọc: Dùng bộ lọc tổng hợp Effective
+window.isRowFilteredOut = function(r, matrix) { 
+    const flts = getEffectiveFilters();
+    if (!flts || Object.keys(flts).length === 0) return false; 
+    
+    const attrs = sysData.attributes[activeTab] || {};
+    const types = attrs.columnTypes || {};
+
+    for (let c in flts) { 
+        const cellVal = String(matrix[r][c] || "").trim();
+        const type = types[c] || "text";
+
+        if (type === "dropdown") {
+            const cellItems = cellVal.split(",").map(v => v.trim()).filter(Boolean);
+            if (cellItems.length === 0) {
+                if (!flts[c].includes("")) return true; 
+            } else {
+                const hasMatch = cellItems.some(item => flts[c].includes(item));
+                if (!hasMatch) return true; 
+            }
+        } else {
+            if (flts[c].indexOf(cellVal) === -1) return true; 
+        }
+    } 
+    return false; 
+};
+
+// MỞ POPUP HỎI 2 CHẾ ĐỘ TRƯỚC KHI HIỆN DANH SÁCH LỌC
+window.openFilterMenu = function(e, c) {
+    e.stopPropagation();
+    activeFilterCol = c;
+
+    let askPopup = document.getElementById("filterAskScopePopup");
+    if (!askPopup) {
+        askPopup = document.createElement("div");
+        askPopup.id = "filterAskScopePopup";
+        askPopup.className = "popup-box";
+        askPopup.style.width = "250px";
+        askPopup.style.padding = "10px";
+        askPopup.innerHTML = `
+            <div style="font-size:12px; font-weight:bold; color:var(--blue); margin-bottom:10px; text-align:center; border-bottom:1px solid var(--gray-border); padding-bottom:6px;">
+                <i class="fas fa-filter"></i> ÁP DỤNG BỘ LỌC NÀY CHO AI?
+            </div>
+            <div class="menu-item" onclick="triggerFilterChecklist('private', event)" style="border-radius:4px; background:#f0fdf4; border:1px solid #bbf7d0; margin-bottom:6px; padding:8px 12px;">
+                <i class="fas fa-user-shield" style="color:#16a34a; font-size:16px;"></i>
+                <div style="line-height:1.2;">
+                    <div style="font-weight:bold; color:#16a34a; font-size:12px;">Chỉ mình tôi (Private)</div>
+                    <div style="font-size:10px; color:#64748b;">Máy khác không nhìn thấy</div>
+                </div>
+            </div>
+            <div class="menu-item" onclick="triggerFilterChecklist('public', event)" style="border-radius:4px; background:#f0f9ff; border:1px solid #bae6fd; padding:8px 12px;">
+                <i class="fas fa-users" style="color:#0284c7; font-size:16px;"></i>
+                <div style="line-height:1.2;">
+                    <div style="font-weight:bold; color:#0284c7; font-size:12px;">Mọi người (Public Realtime)</div>
+                    <div style="font-size:10px; color:#64748b;">Đồng bộ tức thì tới tất cả máy</div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(askPopup);
+        askPopup.addEventListener('click', ev => ev.stopPropagation());
+    }
+
+    showPopupSafe(askPopup, e);
+};
+
+window.triggerFilterChecklist = function(targetScope, e) {
+    currentFilterScope = targetScope;
+    document.getElementById("filterAskScopePopup").style.display = "none";
+    
+    const c = activeFilterCol;
+    const box = document.getElementById("filterListArea"); 
+    box.innerHTML = ""; 
+
+    const badge = targetScope === 'private' ? '<span style="color:#16a34a;">[Mình tôi]</span>' : '<span style="color:#0284c7;">[Mọi người]</span>';
+    document.getElementById("filterHeader").innerHTML = `<i class="fas fa-filter"></i> Lọc cột ${getColLetter(c)} ${badge}`; 
+
+    const mat = sysData.sheets[activeTab]; 
+    const attrs = sysData.attributes[activeTab] || {};
+    const type = attrs.columnTypes ? attrs.columnTypes[c] : null;
+    let vals = [];
+
+    if (type === "dropdown" && attrs.dropdownChoices && attrs.dropdownChoices[c] && attrs.dropdownChoices[c].length > 0) {
+        vals = [...attrs.dropdownChoices[c]];
+    } else {
+        const unique = new Set(); 
+        for(let r=1; r<mat.length; r++) unique.add(String(mat[r][c] || "").trim()); 
+        vals = Array.from(unique).sort(); 
+    }
+
+    const targetBucket = targetScope === 'private' ? (localPrivateFilters[activeTab] || {}) : (sysData.filters[activeTab] || {});
+    const flt = targetBucket[c] || null; 
+
+    let html = `<div class="menu-item" onclick="toggleAllFlt(this)"><input type="checkbox" id="fltAll" style="pointer-events:none;" ${flt===null?'checked':''}> <b>(Chọn tất cả)</b></div>`; 
+    vals.forEach(v => { 
+        const isChk = flt === null || flt.includes(v); 
+        html += `<div class="menu-item" onclick="toggleSingleFlt(this)"><input type="checkbox" class="flt-cb" value="${v}" style="pointer-events:none;" ${isChk?'checked':''}> <span>${v===""?"(Trống)":v}</span></div>`; 
+    }); 
+
+    box.innerHTML = html; 
+    showPopupSafe(document.getElementById("filterPopup"), e); 
+};
+
+// Ghi đè hàm chốt Lọc
+window.applyFilter = function() { 
+    const cbs = document.querySelectorAll(".flt-cb"); 
+    let sel = []; let all = true; 
+    cbs.forEach(cb => { if(cb.checked) sel.push(cb.value); else all = false; }); 
+
+    if (currentFilterScope === 'private') {
+        localPrivateFilters[activeTab] = localPrivateFilters[activeTab] || {};
+        if (all) delete localPrivateFilters[activeTab][activeFilterCol]; 
+        else localPrivateFilters[activeTab][activeFilterCol] = sel; 
+    } else {
+        sysData.filters[activeTab] = sysData.filters[activeTab] || {}; 
+        if (all) delete sysData.filters[activeTab][activeFilterCol]; 
+        else sysData.filters[activeTab][activeFilterCol] = sel; 
+
+        GridCollabEngine.broadcastPublicFilters();
+    }
+
+    document.getElementById("filterPopup").style.display = "none"; 
+    renderGrid(); 
+};
+
+// Ghi đè hàm xóa Lọc
+window.clearFilter = function() { 
+    if (currentFilterScope === 'private') {
+        if (localPrivateFilters[activeTab]) delete localPrivateFilters[activeTab][activeFilterCol]; 
+    } else {
+        if (sysData.filters[activeTab]) delete sysData.filters[activeTab][activeFilterCol]; 
+        GridCollabEngine.broadcastPublicFilters();
+    }
+    document.getElementById("filterPopup").style.display = "none"; 
+    renderGrid(); 
+};
+
+window.clearFilterForCol = function(c, scopeType) {
+    if (scopeType === 'private') {
+        if (localPrivateFilters[activeTab]) delete localPrivateFilters[activeTab][c];
+    } else {
+        if (sysData.filters[activeTab]) delete sysData.filters[activeTab][c];
+        GridCollabEngine.broadcastPublicFilters();
+    }
+    renderGrid();
+};
+
+// Cập nhật thanh hiển thị bộ lọc đang bật: Phân biệt rõ màu sắc Private / Public
+window.updateActiveFilterToolbar = function() {
+    const display = document.getElementById("activeFilterDisplay");
+    if (!display) return;
+    
+    const pub = sysData.filters[activeTab] || {};
+    const priv = localPrivateFilters[activeTab] || {};
+    
+    if (Object.keys(pub).length === 0 && Object.keys(priv).length === 0) {
+        display.style.display = "none";
+        return;
+    }
+    
+    const mat = sysData.sheets[activeTab];
+    let html = "";
+
+    function renderFilterBadges(fltObject, label, colorHex) {
+        for (let c in fltObject) {
+            const colTitle = (mat[0] && mat[0][c]) ? mat[0][c] : getColLetter(parseInt(c)); 
+            const vals = fltObject[c].join(", ");
+            html += `<div style="display:inline-flex; align-items:center; margin-right:10px; background:#fff; padding:2px 8px; border-radius:12px; border:1px solid ${colorHex};">
+                        <span style="font-size:10px; font-weight:bold; color:${colorHex}; margin-right:4px;">[${label}]</span>
+                        <span style="font-weight:bold; margin-right:4px;">${colTitle}:</span> 
+                        <span style="color:var(--text-main); max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${vals}">${vals}</span> 
+                        <i class="fas fa-times-circle" style="cursor:pointer; color:var(--red); margin-left:5px;" onclick="clearFilterForCol(${c}, '${label === 'Mình tôi' ? 'private' : 'public'}')" title="Xóa lọc"></i>
+                     </div>`;
+        }
+    }
+
+    renderFilterBadges(pub, "Mọi người", "#0284c7");
+    renderFilterBadges(priv, "Mình tôi", "#16a34a");
+
+    display.innerHTML = html;
+    display.style.display = "flex";
+};
+
+// Khởi động mồi cho Tab đầu tiên khi load trang xong
+setTimeout(() => { if (activeTab) GridCollabEngine.switchConferenceRoom(activeTab); }, 800);
     </script>
 </body>
 </html>
