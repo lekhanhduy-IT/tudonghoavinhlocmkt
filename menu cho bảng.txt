@@ -1,0 +1,1158 @@
+  /* =========================================
+   TABLE EDITOR CORE LOGIC (PHẦN 1: 4 CHỨC NĂNG ĐẦU)
+   ========================================= */
+
+/* =========================================
+   TABLE EDITOR CORE LOGIC (BẢN CẬP NHẬT 2 - ĐỒNG BỘ REALTIME & FORCE APPLY)
+   ========================================= */
+
+const TableEditor = (function() {
+    let isDragging = false;
+    let startCell = null;
+    let currentTable = null;
+    let selectedCellsArr = [];
+
+    const contextMenu = document.getElementById('wordContextMenu');
+    const miniToolbar = document.getElementById('wordMiniToolbar');
+    const editor = document.getElementById('postContent');
+
+    function clearSelection() {
+        selectedCellsArr.forEach(cell => cell.classList.remove('vb-selected-cell'));
+        selectedCellsArr = [];
+        currentTable = null;
+    }
+
+    function selectCells(start, end) {
+        clearSelection();
+        if (!start || !end || start.closest('table') !== end.closest('table')) return;
+        currentTable = start.closest('table');
+        
+        const minRow = Math.min(start.parentElement.rowIndex, end.parentElement.rowIndex);
+        const maxRow = Math.max(start.parentElement.rowIndex, end.parentElement.rowIndex);
+        const minCol = Math.min(start.cellIndex, end.cellIndex);
+        const maxCol = Math.max(start.cellIndex, end.cellIndex);
+
+        const rows = currentTable.rows;
+        for (let r = minRow; r <= maxRow; r++) {
+            for (let c = minCol; c <= maxCol; c++) {
+                if (rows[r] && rows[r].cells[c]) {
+                    const cell = rows[r].cells[c];
+                    cell.classList.add('vb-selected-cell');
+                    selectedCellsArr.push(cell);
+                }
+            }
+        }
+    }
+
+    editor.addEventListener('mousedown', function(e) {
+        if (e.button === 0) hideMenus();
+        const td = e.target.closest('td, th');
+        if (td && e.button === 0) {
+            isDragging = true;
+            startCell = td;
+            selectCells(td, td);
+        } else if (!td && e.button === 0) {
+            clearSelection();
+        }
+    });
+
+    editor.addEventListener('mouseover', function(e) {
+        if (!isDragging || !startCell) return;
+        const td = e.target.closest('td, th');
+        if (td && td.closest('table') === startCell.closest('table')) selectCells(startCell, td);
+    });
+
+// [THAY THẾ]: Bôi đen chữ thường vẫn hiện Mini Toolbar
+    document.addEventListener('mouseup', function(e) {
+        if (isDragging) {
+            isDragging = false;
+            if (selectedCellsArr.length > 0 && e.button === 0) showMiniToolbar(e.pageX, e.pageY);
+        } else {
+            // Kiểm tra bôi đen chữ thuần (không dính bảng)
+            if (e.button === 0 && e.target.closest('#postContent')) {
+                const sel = window.getSelection();
+                if (!sel.isCollapsed) showMiniToolbar(e.pageX, e.pageY);
+            }
+        }
+    });
+
+
+// [THAY THẾ]: Mở rộng Context Menu hoạt động ở mọi nơi
+    // [CẬP NHẬT]: Mở rộng Context Menu & Tự động đổi Merge/Split
+    editor.addEventListener('contextmenu', function(e) {
+        e.preventDefault(); 
+        const td = e.target.closest('td, th');
+        if (td) {
+            if (!td.classList.contains('vb-selected-cell')) {
+                startCell = td;
+                selectCells(td, td);
+            }
+            
+            // --- THUẬT TOÁN ĐỔI TÊN MENU MERGE / SPLIT ---
+            let mergeSplitItem = document.getElementById('menuMergeSplit');
+            if (mergeSplitItem) {
+                if (selectedCellsArr.length > 1) {
+                    mergeSplitItem.innerHTML = `<i class="fas fa-compress-arrows-alt word-menu-icon"></i> Merge Cells`;
+                    mergeSplitItem.onclick = window.mergeSelectedCells;
+                } else {
+                    mergeSplitItem.innerHTML = `<i class="fas fa-columns word-menu-icon"></i> Split Cells`;
+                    mergeSplitItem.onclick = window.splitSelectedCell;
+                }
+            }
+            // ----------------------------------------------
+            
+        } else {
+            clearSelection(); 
+        }
+        const cMenuRect = showContextMenu(e.pageX, e.pageY);
+        showMiniToolbar(e.pageX, e.pageY, cMenuRect);
+    });
+/* =========================================
+   HỆ THỐNG CLIPBOARD NÂNG CAO (CUT, COPY, PASTE)
+   ========================================= */
+
+/* =========================================
+   HỆ THỐNG CLIPBOARD NÂNG CAO (CUT, COPY, PASTE GIỮ 100% ĐỊNH DẠNG HTML)
+   ========================================= */
+
+window.editorCopy = async function(isCut = false) {
+    let cells = TableEditor.getSelectedCells();
+
+    if (cells.length > 0) {
+        // [1] NẾU ĐANG BÔI ĐEN BẢNG: Chỉ lấy đúng mảng ô đã chọn và giữ 100% định dạng
+        let minR = Math.min(...cells.map(c => c.parentElement.rowIndex));
+        let maxR = Math.max(...cells.map(c => c.parentElement.rowIndex));
+        let minC = Math.min(...cells.map(c => c.cellIndex));
+        let maxC = Math.max(...cells.map(c => c.cellIndex));
+
+        let tempTable = document.createElement('table');
+        // Kế thừa các thuộc tính của bảng gốc
+        let tableObj = cells[0].closest('table');
+        tempTable.style.cssText = tableObj.style.cssText || "border-collapse: collapse; width: 100%; border: 0.5px solid #000;";
+        
+        for (let r = minR; r <= maxR; r++) {
+            let newRow = tempTable.insertRow();
+            for (let c = minC; c <= maxC; c++) {
+                let originalCell = tableObj.rows[r].cells[c];
+                let newCell = newRow.insertCell();
+                if (originalCell) {
+                    newCell.innerHTML = originalCell.innerHTML;
+                    newCell.style.cssText = originalCell.style.cssText; // Bê nguyên CSS của ô gốc sang
+                    if (isCut) originalCell.innerHTML = "<br>"; // Xóa rỗng ô nếu là lệnh Cut
+                }
+            }
+        }
+        
+        let htmlToCopy = tempTable.outerHTML;
+        let textToCopy = tempTable.innerText;
+        
+        // Ghi vào bộ nhớ tạm của hệ thống
+        try {
+            await navigator.clipboard.write([
+                new ClipboardItem({
+                    "text/html": new Blob([htmlToCopy], { type: "text/html" }),
+                    "text/plain": new Blob([textToCopy], { type: "text/plain" })
+                })
+            ]);
+        } catch(e) {
+            // Fallback nếu trình duyệt không hỗ trợ ClipboardItem (Ví dụ Firefox cũ)
+            let tempDiv = document.createElement("div");
+            tempDiv.contentEditable = true;
+            tempDiv.innerHTML = htmlToCopy;
+            document.body.appendChild(tempDiv);
+            tempDiv.focus();
+            document.execCommand('selectAll');
+            document.execCommand(isCut ? 'cut' : 'copy');
+            document.body.removeChild(tempDiv);
+        }
+    } else {
+        // [2] NẾU LÀ GIAO DIỆN HTML/VĂN BẢN BÌNH THƯỜNG
+        // Khôi phục lại vùng bôi đen bị mất khi click chuột phải vào menu
+        restoreSelection(); 
+        
+        // Gọi lệnh copy nguyên thủy của trình duyệt. 
+        // Lệnh này cực kỳ thông minh, nó sẽ tự động lấy toàn bộ thẻ HTML, style, class của vùng đang bôi đen.
+        document.execCommand(isCut ? 'cut' : 'copy');
+    }
+    
+    TableEditor.hideMenus();
+};
+
+window.editorPaste = async function(mode) {
+    TableEditor.hideMenus();
+    document.getElementById("postContent").focus();
+    restoreSelection(); // Đưa con trỏ nháy về đúng vị trí trước khi click menu
+
+    try {
+        // Đọc dữ liệu từ Clipboard hệ thống
+        const clipboardItems = await navigator.clipboard.read();
+        let htmlData = "";
+        let textData = "";
+
+        for (const item of clipboardItems) {
+            if (item.types.includes("text/html")) htmlData = await (await item.getType("text/html")).text();
+            if (item.types.includes("text/plain")) textData = await (await item.getType("text/plain")).text();
+        }
+
+        // Nếu chỉ có text thuần, convert xuống dòng thành thẻ <br>
+        if (!htmlData && textData) htmlData = textData.replace(/\n/g, "<br>");
+        if (!htmlData) return;
+
+        let finalHtml = htmlData;
+
+        // XỬ LÝ 3 TÙY CHỌN DÁN (PASTE OPTIONS)
+        if (mode === 'keepSource') {
+            // Tùy chọn 1: Giữ nguyên 100% định dạng nguồn (Paste nguyên mã HTML)
+            finalHtml = htmlData;
+            
+        } else if (mode === 'merge') {
+            // Tùy chọn 2: Merge Formatting - Giữ cấu trúc, loại bỏ font chữ và màu sắc để ăn theo web hiện tại
+            let tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlData;
+            tempDiv.querySelectorAll('*').forEach(el => {
+                el.style.fontFamily = ''; 
+                el.style.color = ''; 
+                el.style.backgroundColor = '';
+            });
+            finalHtml = tempDiv.innerHTML;
+            
+        } else if (mode === 'keepText') {
+            // Tùy chọn 3: Keep Text Only - Lột bỏ mọi định dạng
+            let tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlData;
+            
+            // Lột sạch class và style
+            tempDiv.querySelectorAll('*').forEach(el => {
+                el.removeAttribute('style'); 
+                el.removeAttribute('class');
+            });
+            
+            // Xóa viền bảng (Tàng hình bảng)
+            tempDiv.querySelectorAll('table').forEach(t => {
+                t.style.border = "none";
+                t.style.borderCollapse = "collapse";
+                t.querySelectorAll('td, th').forEach(c => c.style.border = "none");
+            });
+            
+            // Tháo gỡ các thẻ in đậm, in nghiêng, màu sắc...
+            ['B', 'I', 'U', 'STRONG', 'EM', 'STRIKE', 'FONT', 'SPAN'].forEach(tag => {
+                tempDiv.querySelectorAll(tag).forEach(el => {
+                    let frag = document.createDocumentFragment();
+                    while(el.firstChild) frag.appendChild(el.firstChild);
+                    el.parentNode.replaceChild(frag, el); // Đưa ruột text ra ngoài, xóa vỏ thẻ
+                });
+            });
+            finalHtml = tempDiv.innerHTML;
+        }
+
+        // Chèn HTML đã xử lý vào vị trí con trỏ
+        document.execCommand('insertHTML', false, finalHtml);
+
+    } catch (err) {
+        // Cảnh báo nếu trình duyệt của người dùng cấu hình chặn API tự động đọc Clipboard
+        alert("Trình duyệt bảo mật ngăn chặn lấy dữ liệu Clipboard tự động. Vui lòng bấm phím Ctrl + V (hoặc Cmd + V) trên bàn phím để dán!");
+    }
+};
+
+/* =========================================
+   HỆ THỐNG INSERT & DELETE BẢNG REAL-TIME
+   ========================================= */
+
+window.insertTableElements = function(position) {
+    let cells = TableEditor.getSelectedCells();
+    if (!cells.length) return;
+    let table = cells[0].closest('table');
+    
+    if (position === 'rowAbove' || position === 'rowBelow') {
+        let rowIndices = [...new Set(cells.map(c => c.parentElement.rowIndex))].sort();
+        let count = rowIndices.length; // Chèn đúng số lượng hàng đang bôi đen
+        let targetIdx = position === 'rowAbove' ? rowIndices[0] : rowIndices[rowIndices.length - 1] + 1;
+        let refRow = table.rows[rowIndices[0]];
+
+        for(let i=0; i<count; i++) {
+            let newRow = table.insertRow(targetIdx + i);
+            for(let j=0; j<refRow.cells.length; j++) {
+                let newCell = newRow.insertCell(j);
+                newCell.style.cssText = refRow.cells[j].style.cssText; // Kế thừa định dạng
+                newCell.innerHTML = "<br>";
+            }
+        }
+    } else if (position === 'colLeft' || position === 'colRight') {
+        let colIndices = [...new Set(cells.map(c => c.cellIndex))].sort();
+        let count = colIndices.length; // Chèn đúng số lượng cột đang bôi đen
+        let targetIdx = position === 'colLeft' ? colIndices[0] : colIndices[colIndices.length - 1] + 1;
+
+        for(let r=0; r<table.rows.length; r++) {
+            let row = table.rows[r];
+            let refCell = row.cells[colIndices[0]];
+            for(let i=0; i<count; i++) {
+                let newCell = row.insertCell(targetIdx + i);
+                if(refCell) newCell.style.cssText = refCell.style.cssText; // Kế thừa định dạng
+                newCell.innerHTML = "<br>";
+            }
+        }
+    }
+    TableEditor.hideMenus();
+};
+
+window.deleteTableElements = function(type) {
+    let cells = TableEditor.getSelectedCells();
+    if (!cells.length) return;
+    let table = cells[0].closest('table');
+
+    if (type === 'table') {
+        table.remove();
+    } else if (type === 'rows') {
+        let rowIndices = [...new Set(cells.map(c => c.parentElement.rowIndex))].sort((a,b)=>b-a);
+        rowIndices.forEach(idx => table.deleteRow(idx)); // Xóa từ dưới lên để không sai index
+    } else if (type === 'cols') {
+        let colIndices = [...new Set(cells.map(c => c.cellIndex))].sort((a,b)=>b-a);
+        for(let r=0; r<table.rows.length; r++) {
+            colIndices.forEach(idx => {
+                if(table.rows[r].cells[idx]) table.rows[r].deleteCell(idx);
+            });
+        }
+    } else if (type === 'cells') {
+        cells.forEach(c => c.innerHTML = "<br>");
+    }
+    
+    TableEditor.hideMenus();
+    TableEditor.hideMenus(); // Hàm mượn trigger ẩn popup
+};
+    function showContextMenu(x, y) {
+        contextMenu.style.display = 'block';
+        const rect = contextMenu.getBoundingClientRect();
+        
+        let finalX = x;
+        let finalY = y;
+        
+        // Điều chỉnh nếu menu bị tràn khỏi màn hình bên phải/dưới
+        if (finalX + rect.width > window.innerWidth) finalX = window.innerWidth - rect.width - 5;
+        if (finalY + rect.height > window.innerHeight) finalY = window.innerHeight - rect.height - 5;
+        
+        contextMenu.style.left = finalX + 'px';
+        contextMenu.style.top = finalY + 'px';
+        
+        // Trả về bounding box để Mini Toolbar tính toán né tránh
+        return {
+            left: finalX,
+            top: finalY,
+            width: rect.width,
+            height: rect.height,
+            bottom: finalY + rect.height
+        };
+    }
+/* =========================================
+   HỆ THỐNG GỘP Ô (MERGE) VÀ TÁCH Ô (SPLIT)
+   ========================================= */
+
+window.mergeSelectedCells = function() {
+    let cells = TableEditor.getSelectedCells();
+    if (cells.length <= 1) return;
+
+    // Tìm tọa độ Min / Max để thiết lập khung gộp
+    let minR = Math.min(...cells.map(c => c.parentElement.rowIndex));
+    let maxR = Math.max(...cells.map(c => c.parentElement.rowIndex));
+    let rowSpan = maxR - minR + 1;
+    
+    // Đếm số lượng cột chứa trong dòng đầu tiên để làm colSpan chuẩn
+    let firstRowCells = cells.filter(c => c.parentElement.rowIndex === minR);
+    let colSpan = firstRowCells.reduce((sum, c) => sum + (c.colSpan || 1), 0);
+
+    // Sắp xếp mảng ô theo thứ tự từ trên xuống dưới, trái sang phải
+    cells.sort((a, b) => {
+        if (a.parentElement.rowIndex === b.parentElement.rowIndex) return a.cellIndex - b.cellIndex;
+        return a.parentElement.rowIndex - b.parentElement.rowIndex;
+    });
+    
+    let targetCell = cells[0]; // Lấy ô góc trái trên cùng làm ô gốc
+    let mergedHtml = "";
+
+    // Gom toàn bộ nội dung của các ô lại với nhau
+    cells.forEach(c => {
+        let content = c.innerHTML.trim();
+        if (content && content !== '<br>') {
+            mergedHtml += (mergedHtml ? "<br>" : "") + content;
+        }
+    });
+
+    // Cập nhật ô gốc
+    targetCell.innerHTML = mergedHtml || "<br>";
+    targetCell.rowSpan = rowSpan;
+    targetCell.colSpan = colSpan;
+
+    // Xóa tất cả các ô còn thừa
+    for (let i = 1; i < cells.length; i++) {
+        cells[i].remove();
+    }
+
+    TableEditor.hideMenus();
+};
+
+window.splitSelectedCell = function() {
+    let cells = TableEditor.getSelectedCells();
+    if (cells.length !== 1) return;
+
+    let targetCell = cells[0];
+    let table = targetCell.closest('table');
+    
+    if (targetCell.colSpan > 1) {
+        // TRƯỜNG HỢP 1: Ô này vốn đã được gộp từ trước (colspan > 1) -> Chỉ cần cắt đôi Colspan
+        let originalSpan = targetCell.colSpan;
+        let leftSpan = Math.ceil(originalSpan / 2);
+        let rightSpan = Math.floor(originalSpan / 2);
+        
+        targetCell.colSpan = leftSpan;
+        
+        let newCell = document.createElement('td');
+        newCell.innerHTML = "<br>";
+        newCell.style.cssText = targetCell.style.cssText; // Kế thừa định dạng
+        newCell.colSpan = rightSpan;
+        targetCell.parentNode.insertBefore(newCell, targetCell.nextSibling);
+        
+    } else {
+        // TRƯỜNG HỢP 2: Ô đơn thuần -> Tách thành 2 ô, ép các dòng khác phải tăng Colspan để lưới bảng không bị thò thụt
+        let targetRowIndex = targetCell.parentElement.rowIndex;
+        let targetColIndex = targetCell.cellIndex;
+
+        for (let i = 0; i < table.rows.length; i++) {
+            let row = table.rows[i];
+            if (i === targetRowIndex) {
+                // Tại dòng đang click: Tạo thêm 1 ô mới ngay bên cạnh
+                let newCell = document.createElement('td');
+                newCell.innerHTML = "<br>";
+                newCell.style.cssText = targetCell.style.cssText;
+                
+                // Tràn đều width (Nếu ô đang có width %)
+                let currentWidth = targetCell.style.width;
+                if (currentWidth && currentWidth.includes('%')) {
+                    let w = parseFloat(currentWidth);
+                    targetCell.style.width = (w / 2) + '%';
+                    newCell.style.width = (w / 2) + '%';
+                }
+                
+                row.insertBefore(newCell, targetCell.nextSibling);
+            } else {
+                // Tại các dòng khác: Tăng Colspan của ô cùng cột lên 1 để duy trì khung bảng đều
+                let cellToExpand = row.cells[targetColIndex];
+                if (cellToExpand) {
+                    cellToExpand.colSpan = (cellToExpand.colSpan || 1) + 1;
+                }
+            }
+        }
+    }
+
+    TableEditor.hideMenus();
+};
+    // 1. CẬP NHẬT HÀM HIỂN THỊ MINI TOOLBAR (FIX LỖI TỰ NHẬN DIỆN ĐỊNH DẠNG)
+function showMiniToolbar(x, y, contextRect = null) {
+    // ĐỒNG BỘ FONT CHỮ VÀ CỠ CHỮ TỪ MAIN TOOLBAR (Đã được hệ thống nhận diện)
+    const sourceFonts = document.getElementById('fontSelect');
+    const miniFonts = document.getElementById('miniFontFamily');
+    if (sourceFonts && miniFonts) {
+        miniFonts.innerHTML = sourceFonts.innerHTML;
+        miniFonts.value = sourceFonts.value; // Hút đúng font đang đứng
+    }
+
+    const sourceSize = document.getElementById('fontSizeInput');
+    const miniSize = document.getElementById('miniFontSizeInput');
+    if (sourceSize && miniSize) {
+        miniSize.value = sourceSize.value; // Hút đúng size đang đứng
+    }
+
+    miniToolbar.style.display = 'flex';
+    
+    // Logic đổi Icon nút Style (Bảng / Văn bản)
+    const btnDynamic = document.getElementById('btnDynamicStyle');
+    const iconDynamic = document.getElementById('iconDynamicStyle');
+    if (btnDynamic && iconDynamic) {
+        const cells = typeof TableEditor !== 'undefined' ? TableEditor.getSelectedCells() : [];
+        if (cells.length > 0) {
+            btnDynamic.title = "Table Style";
+            iconDynamic.className = "fas fa-table";
+            btnDynamic.setAttribute('data-mode', 'table');
+        } else {
+            btnDynamic.title = "Heading Style";
+            iconDynamic.className = "fas fa-heading";
+            btnDynamic.setAttribute('data-mode', 'text');
+        }
+    }
+    
+    const rect = miniToolbar.getBoundingClientRect();
+    let finalX = x;
+    let finalY = y;
+
+    if (contextRect) {
+        finalY = contextRect.top - rect.height - 5;
+        finalX = contextRect.left;
+        if (finalY < 0) finalY = contextRect.bottom + 5;
+    } else {
+        finalY = y - rect.height - 15;
+        if (finalY < 0) finalY = y + 20; 
+    }
+
+    if (finalX + rect.width > window.innerWidth) finalX = window.innerWidth - rect.width - 10;
+    miniToolbar.style.left = finalX + 'px';
+    miniToolbar.style.top = finalY + 'px';
+}
+
+    function hideMenus() {
+        contextMenu.style.display = 'none';
+        miniToolbar.style.display = 'none';
+    }
+
+// Đã sửa: Thêm ngoại lệ không mất bôi đen bảng khi click vào Popup Table Properties
+    document.addEventListener('mousedown', function(e) {
+        if (!e.target.closest('#wordContextMenu') && 
+            !e.target.closest('#wordMiniToolbar') && 
+            !e.target.closest('#postContent') && 
+            !e.target.closest('.tool-dropdown-wrapper') &&
+            !e.target.closest('#tablePropsOverlay')) { // <-- Bổ sung dòng này
+            hideMenus();
+            clearSelection();
+        }
+    });
+
+    document.getElementById('mainEditorArea').addEventListener('scroll', hideMenus);
+
+    return {
+        getSelectedCells: () => selectedCellsArr,
+        hideMenus: hideMenus
+    };
+})();
+
+/* =========================================
+   CÁC HÀM ÁP DỤNG ĐỊNH DẠNG (ÉP ĐỒNG BỘ & REALTIME)
+   ========================================= */
+
+// Hàm xử lý chung: B, I, U, Align
+// Hàm xử lý chung: B, I, U, Align
+window.miniFormat = function(cmd) {
+    const cells = TableEditor.getSelectedCells();
+    
+    // Chuẩn hóa tên lệnh cho Căn lề
+    let mappedCmd = cmd;
+    if(cmd === 'left') mappedCmd = 'justifyLeft';
+    if(cmd === 'center') mappedCmd = 'justifyCenter';
+    if(cmd === 'right') mappedCmd = 'justifyRight';
+
+    if (cells.length > 0) {
+        const editor = document.getElementById('postContent');
+        editor.focus(); // Ép focus để trình duyệt đọc trạng thái text chính xác
+
+        const sel = window.getSelection();
+        const range = document.createRange();
+
+        const toggleCmds = ['bold', 'italic', 'underline', 'strikeThrough'];
+
+        if (toggleCmds.includes(mappedCmd)) {
+            // BƯỚC 1: Khám ô đầu tiên để lấy làm trạng thái chuẩn
+            range.selectNodeContents(cells[0]);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            
+            // Đo lường xem ô đầu đang tắt hay bật chức năng này
+            const isFirstCellActive = document.queryCommandState(mappedCmd);
+            // Mục tiêu: Nếu ô đầu đang bật -> muốn tắt hết. Nếu đang tắt -> muốn bật hết.
+            const targetState = !isFirstCellActive; 
+
+            // BƯỚC 2: Ép toàn bộ các ô phải tuân theo targetState
+            cells.forEach(cell => {
+                range.selectNodeContents(cell);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                
+                // Kiểm tra xem ô hiện tại đang bật hay tắt
+                const currentState = document.queryCommandState(mappedCmd);
+                
+                // Chỉ chạy lệnh đảo (toggle) nếu ô này CHƯA giống trạng thái mục tiêu
+                if (currentState !== targetState) {
+                    document.execCommand(mappedCmd, false, null);
+                }
+            });
+        } else {
+            // Với lệnh Căn lề (Align), không có trạng thái toggle nên ép thẳng vào từng ô
+            cells.forEach(cell => {
+                range.selectNodeContents(cell);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                document.execCommand(mappedCmd, false, null);
+            });
+        }
+        
+        sel.removeAllRanges(); // Dọn dẹp con trỏ sau khi xử lý xong
+    } else {
+        // Fallback: Nếu không bôi đen bảng thì gọi hàm soạn thảo mặc định
+        formatDoc(mappedCmd);
+    }
+};
+
+// Hàm đổi Cỡ Chữ (px)
+window.updateMiniSizePx = function(delta) {
+    let input = document.getElementById("miniFontSizeInput");
+    let current = parseFloat(input.value) || 15;
+    input.value = (current + delta).toFixed(0);
+    miniApplyFontSize(input.value);
+};
+
+// 2. FIX HÀM ĐỔI CỠ CHỮ
+window.miniApplyFontSize = function(sizePx) {
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length > 0) {
+        // Áp dụng cho Bảng
+        cells.forEach(cell => {
+            const elements = [cell, ...cell.querySelectorAll('*')];
+            elements.forEach(el => el.style.fontSize = sizePx + "px");
+        });
+    } else {
+        // Fallback: Chuyển lệnh cho văn bản thường / khối HTML
+        document.getElementById('fontSizeInput').value = sizePx;
+        applySizePx('fontSize');
+    }
+};
+
+// 3. FIX HÀM ĐỔI FONT CHỮ
+window.miniApplyFontFamily = function(fontFamilyStr) {
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length > 0) {
+        // Áp dụng cho Bảng
+        cells.forEach(cell => {
+            const elements = [cell, ...cell.querySelectorAll('*')];
+            elements.forEach(el => el.style.fontFamily = `'${fontFamilyStr}'`);
+        });
+    } else {
+        // Fallback: Chuyển lệnh cho văn bản thường / khối HTML
+        document.getElementById('fontSelect').value = fontFamilyStr;
+        applyGoogleFontToSelection(fontFamilyStr);
+    }
+};
+
+// 4. FIX HÀM ĐỔI MÀU CHỮ
+window.miniApplyTextColorRealtime = function(color) {
+    document.getElementById('miniTextColorIndicator').style.borderColor = color;
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length > 0) {
+        // Áp dụng cho Bảng
+        cells.forEach(cell => {
+            const elements = [cell, ...cell.querySelectorAll('*')];
+            elements.forEach(el => el.style.color = color);
+        });
+    } else {
+        // Fallback: Đổi màu chữ văn bản thường
+        applyColor('color', color);
+    }
+};
+
+// 5. FIX HÀM ĐỔI MÀU NỀN
+window.miniApplyCellBgRealtime = function(color) {
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length > 0) {
+        // Áp dụng màu vỏ Ô bảng (Cell)
+        cells.forEach(cell => {
+            cell.style.backgroundColor = color; 
+        });
+    } else {
+        // Fallback: Highlight nền văn bản thường (Highlight Text)
+        applyColor('backgroundColor', color);
+    }
+};
+
+// Hàm Kẻ Viền Bảng
+window.miniApplyBorders = function(type) {
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length === 0) return;
+
+    if (type === 'all') {
+        cells.forEach(cell => cell.style.border = "1px solid #000");
+    } else if (type === 'none') {
+        cells.forEach(cell => cell.style.border = "none");
+    } else if (type === 'outside') {
+        const minRow = Math.min(...cells.map(c => c.parentElement.rowIndex));
+        const maxRow = Math.max(...cells.map(c => c.parentElement.rowIndex));
+        const minCol = Math.min(...cells.map(c => c.cellIndex));
+        const maxCol = Math.max(...cells.map(c => c.cellIndex));
+
+        cells.forEach(cell => {
+            cell.style.border = "none"; // Xóa viền cũ
+            const r = cell.parentElement.rowIndex;
+            const c = cell.cellIndex;
+            if (r === minRow) cell.style.borderTop = "1px solid #000";
+            if (r === maxRow) cell.style.borderBottom = "1px solid #000";
+            if (c === minCol) cell.style.borderLeft = "1px solid #000";
+            if (c === maxCol) cell.style.borderRight = "1px solid #000";
+        });
+    }
+    closeAllToolPopups(); 
+};
+/* =========================================
+   1. LOGIC BORDER STYLES (MA TRẬN & REALTIME)
+   ========================================= */
+
+window.currentBorderType = 'solid';
+
+// Khởi tạo Lưới Ma trận Viền khi Web tải xong
+(function initBorderGrid() {
+    const colors = ['#000000', '#01ADEE', '#DB1010', '#A5A5A5', '#FFC000', '#5B9BD5', '#70AD47'];
+    const styles = [
+        { type: 'solid', w: 1 },  // Nét liền mảnh
+        { type: 'solid', w: 3 },  // Nét liền đậm
+        { type: 'double', w: 3 }  // Nét đôi
+    ];
+    let gridHtml = '';
+    styles.forEach(st => {
+        colors.forEach(col => {
+            gridHtml += `<div onclick="setContextBorderStyle('${st.type}', ${st.w}, '${col}')" 
+                style="height: 24px; border: 0.5px solid transparent; cursor:pointer; display:flex; align-items:center; justify-content:center; border-radius:2px;" 
+                onmouseover="this.style.backgroundColor='#e6f7ff'; this.style.borderColor='#99d1fa'" 
+                onmouseout="this.style.backgroundColor='transparent'; this.style.borderColor='transparent'">
+                <div style="width: 80%; border-bottom: ${st.w}px ${st.type} ${col};"></div>
+            </div>`;
+        });
+    });
+    // Gắn vào DOM nếu tồn tại (Sử dụng setTimeout để chắc chắn phần tử đã render)
+    setTimeout(() => {
+        let gridEl = document.getElementById('ctxBorderGrid');
+        if(gridEl) gridEl.innerHTML = gridHtml;
+    }, 500);
+})();
+
+// Bấm vào Lưới Ma trận -> Áp dụng ngay
+window.setContextBorderStyle = function(type, width, color) {
+    document.getElementById('ctxBorderWidth').value = width;
+    document.getElementById('ctxBorderColor').value = color;
+    window.currentBorderType = type;
+    applyContextBorderRealtime();
+};
+
+// Nút +/- Cỡ viền
+window.updateContextBorderWidth = function(delta) {
+    let input = document.getElementById('ctxBorderWidth');
+    let val = parseInt(input.value) || 1;
+    val = Math.max(0, val + delta); // Ngăn không cho về số âm
+    input.value = val;
+    applyContextBorderRealtime();
+};
+
+// Hàm bắn thẳng lệnh vẽ viền lên các ô đang chọn
+window.applyContextBorderRealtime = function() {
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length === 0) return;
+    
+    let w = document.getElementById('ctxBorderWidth').value;
+    let c = document.getElementById('ctxBorderColor').value;
+    let t = window.currentBorderType || 'solid';
+    
+    cells.forEach(cell => {
+        cell.style.border = `${w}px ${t} ${c}`;
+    });
+};
+
+
+/* =========================================
+   2. LOGIC TABLE PROPERTIES (CĂN CHỈNH & ÉP LỀ REALTIME)
+   ========================================= */
+
+// Cập nhật 1: Hàm mở popup thông minh hơn (Đọc đúng trạng thái ép lề hiện tại)
+window.openTableProperties = function() {
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length === 0) return;
+    
+    // Tắt Menu Chuột Phải, Bật Modal Properties
+    TableEditor.hideMenus();
+    document.getElementById('tablePropsOverlay').style.display = 'flex';
+    
+    let table = cells[0].closest('table');
+    
+    // Đặt lại giao diện về 0 trước khi đọc
+    ['left', 'center', 'right'].forEach(m => document.getElementById('align-box-' + m).style.borderColor = '#ddd');
+    document.getElementById('tblMargRight').value = 0;
+    document.getElementById('tblMargCenter').value = 0;
+    document.getElementById('tblMargLeft').value = 0;
+
+    // Đọc thông số lề hiện tại của bảng
+    let mLeft = parseInt(table.style.marginLeft) || 0;
+    let mRight = parseInt(table.style.marginRight) || 0;
+
+    // Phân tích trạng thái để hiển thị đúng viền xanh và số px
+    if (mLeft > 0 && mRight > 0 && mLeft === mRight) {
+        document.getElementById('align-box-center').style.borderColor = '#01adee';
+        document.getElementById('tblMargCenter').value = mLeft;
+    } else if (mLeft > 0 && mRight === 0) {
+        document.getElementById('align-box-right').style.borderColor = '#01adee';
+        document.getElementById('tblMargLeft').value = mLeft;
+    } else if (mRight > 0 && mLeft === 0) {
+        document.getElementById('align-box-left').style.borderColor = '#01adee';
+        document.getElementById('tblMargRight').value = mRight;
+    } else {
+        document.getElementById('align-box-left').style.borderColor = '#01adee';
+    }
+};
+
+// Hàm điều khiển nút +/-
+window.updateTblMargin = function(type, delta) {
+    let inputMap = { 'right': 'tblMargRight', 'center': 'tblMargCenter', 'left': 'tblMargLeft' };
+    let input = document.getElementById(inputMap[type]);
+    let val = parseInt(input.value) || 0;
+    input.value = Math.max(0, val + delta); // Ngăn về âm để bảng không bị tràn khung
+    
+    // Đẩy sang áp dụng Realtime
+    let alignMode = 'left';
+    if(type === 'center') alignMode = 'center';
+    if(type === 'left') alignMode = 'right';
+    
+    applyTblAlign(alignMode);
+};
+
+// Cập nhật 2: Hàm Ép lề sử dụng calc() để chống tràn bảng (Tuyệt đối không đẩy bảng)
+window.applyTblAlign = function(mode) {
+    const cells = TableEditor.getSelectedCells();
+    if (cells.length === 0) return;
+    let table = cells[0].closest('table');
+    
+    // Gỡ viền xanh báo hiệu đang Active ở tất cả các Khối
+    ['left', 'center', 'right'].forEach(m => {
+        document.getElementById('align-box-' + m).style.borderColor = '#ddd';
+    });
+    // Tô viền xanh cho Khối đang tương tác
+    document.getElementById('align-box-' + mode).style.borderColor = '#01adee';
+
+    // THUẬT TOÁN ÉP LỀ CHUẨN: Canh margin và dùng calc(100% - tổng margin) để bóp width
+    if (mode === 'left') {
+        let v = parseInt(document.getElementById('tblMargRight').value) || 0;
+        table.style.marginLeft = '0px';
+        table.style.marginRight = v + 'px';
+        table.style.width = `calc(100% - ${v}px)`; // Trừ đi lề phải để ép bảng về trái
+        
+    } else if (mode === 'center') {
+        let v = parseInt(document.getElementById('tblMargCenter').value) || 0;
+        table.style.marginLeft = v + 'px';
+        table.style.marginRight = v + 'px';
+        table.style.width = `calc(100% - ${v * 2}px)`; // Trừ đi cả 2 lề để ép bảng vào giữa
+        
+    } else if (mode === 'right') {
+        let v = parseInt(document.getElementById('tblMargLeft').value) || 0;
+        table.style.marginLeft = v + 'px';
+        table.style.marginRight = '0px';
+        table.style.width = `calc(100% - ${v}px)`; // Trừ đi lề trái để ép bảng về phải
+    }
+};
+/* =========================================
+   HỆ THỐNG DYNAMIC STYLE (HEADING & BẢNG) SIÊU VIỆT
+   ========================================= */
+
+window.openDynamicStylePopup = function(btn) {
+    let mode = btn.getAttribute('data-mode');
+    let targetCategory = mode === 'table' ? "Bảng" : "Heading";
+    
+    document.getElementById('dynamicStyleTitle').innerText = `CHỌN MẪU ${targetCategory.toUpperCase()}`;
+    let grid = document.getElementById('dynamicStyleGrid');
+    grid.innerHTML = '';
+
+    let sysDataCache;
+    try { sysDataCache = JSON.parse(localStorage.getItem('MKT_DATA') || "{}"); } catch(e){}
+
+    if (!sysDataCache || !sysDataCache.sheets || !sysDataCache.sheets["Mẫu html_hidden"]) {
+        grid.innerHTML = '<div style="grid-column: span 2; text-align:center; color:#999; font-size:11px;">Chưa có mẫu!</div>';
+    } else {
+        let sheet = sysDataCache.sheets["Mẫu html_hidden"];
+        let found = false;
+        
+        for(let i=1; i<sheet.length; i++) {
+            let cat = sheet[i][0] ? sheet[i][0].trim() : "";
+            if (cat === targetCategory && sheet[i][2]) {
+                found = true;
+                let htmlStr = sheet[i][2];
+                let item = document.createElement('div');
+                item.style.cssText = "cursor:pointer; border:0.5px solid #ddd; height:70px; overflow:hidden; position:relative; border-radius:3px; background:#fff; transition:0.2s;";
+                item.onmouseover = () => { item.style.borderColor = "#01adee"; item.style.boxShadow = "0 2px 5px rgba(0,0,0,0.1)"; };
+                item.onmouseout = () => { item.style.borderColor = "#ddd"; item.style.boxShadow = "none"; };
+                
+                item.innerHTML = `<div style="transform: scale(0.3); transform-origin: top left; width: 333%; height: 333%; pointer-events: none; padding: 10px; box-sizing:border-box;">${htmlStr}</div>`;
+                
+                item.onmousedown = function(e) {
+                    e.preventDefault();
+                    if (mode === 'table') applyTableTemplateStyle(htmlStr);
+                    else applyHeadingTemplateStyle(htmlStr);
+                    closeAllToolPopups();
+                    TableEditor.hideMenus();
+                };
+                grid.appendChild(item);
+            }
+        }
+        if (!found) grid.innerHTML = `<div style="padding:10px; text-align:center; color:#999; font-size:11px; grid-column: span 2;">Không tìm thấy mẫu loại "${targetCategory}"</div>`;
+    }
+    openToolPopup('popupDynamicStyles', btn);
+};
+
+// --- ÁP DỤNG STYLE HEADING CHO VĂN BẢN (ĐÃ FIX LỖI HÚT DÒNG) ---
+window.applyHeadingTemplateStyle = function(templateHtml) {
+    restoreSelection();
+    let sel = window.getSelection();
+    if (!sel.rangeCount) return;
+    
+    let node = sel.anchorNode;
+    if(node && node.nodeType === 3) node = node.parentNode;
+    let block = node ? node.closest('h1, h2, h3, h4, h5, h6, p, div') : null;
+    
+    let selectedText = sel.toString().trim();
+    let selectedHtml = "";
+    let range = sel.getRangeAt(0);
+
+    // 1. Phân tích vùng chọn một cách cẩn thận
+    if (!range.collapsed && selectedText.length > 0) {
+        // CÓ BÔI ĐEN: Chỉ lấy đúng đoạn được bôi đen, KHÔNG mở rộng vùng chọn (Tránh hút dòng dưới)
+        let div = document.createElement('div');
+        div.appendChild(range.cloneContents());
+        selectedHtml = div.innerHTML;
+    } else {
+        // KHÔNG BÔI ĐEN (Chỉ đặt con trỏ nháy): Bắt buộc phải mở rộng lấy toàn Block
+        if (block && block.id !== 'postContent') {
+            selectedHtml = block.innerHTML;
+            selectedText = block.innerText.trim();
+            
+            // Lệnh này giờ chỉ chạy khi user KHÔNG bôi đen
+            let newRange = document.createRange();
+            newRange.selectNode(block);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+        } else {
+            selectedHtml = "Nội dung mẫu...";
+            selectedText = "Nội dung mẫu...";
+        }
+    }
+
+    let originalTagName = (block && block.id !== 'postContent') ? block.tagName : 'P';
+
+    let temp = document.createElement('div');
+    temp.innerHTML = templateHtml;
+    
+    // Bơm Thẻ <style> trực tiếp vào DOM 
+    let styles = temp.querySelectorAll('style, link');
+    let editor = document.getElementById('postContent');
+    styles.forEach(s => {
+        let existing = Array.from(editor.querySelectorAll('style, link')).some(ex => ex.outerHTML.trim() === s.outerHTML.trim());
+        if (!existing) editor.insertBefore(s.cloneNode(true), editor.firstChild);
+        s.remove();
+    });
+
+    let mainTplNode = temp.firstElementChild;
+    if (!mainTplNode) return;
+
+    let newBlock = document.createElement(originalTagName);
+    Array.from(mainTplNode.attributes).forEach(attr => newBlock.setAttribute(attr.name, attr.value));
+    newBlock.innerHTML = mainTplNode.innerHTML;
+
+    let textNodes = [];
+    let walker = document.createTreeWalker(newBlock, NodeFilter.SHOW_TEXT, null, false);
+    let n;
+    while (n = walker.nextNode()) {
+        if (n.nodeValue.trim().length > 0) textNodes.push(n);
+    }
+    
+    if (textNodes.length > 0) {
+        textNodes.sort((a,b) => b.nodeValue.trim().length - a.nodeValue.trim().length);
+        let targetNode = textNodes[0];
+        
+        let wrapper = document.createElement('span');
+        wrapper.innerHTML = selectedHtml || selectedText;
+        targetNode.parentNode.replaceChild(wrapper, targetNode);
+
+        for (let i = 1; i < textNodes.length; i++) textNodes[i].nodeValue = ""; 
+    } else {
+        newBlock.innerHTML = selectedHtml || selectedText;
+    }
+
+    // Chèn HTML vào đúng vị trí 
+    document.execCommand('insertHTML', false, newBlock.outerHTML);
+    saveSelection();
+};
+
+
+// --- ÁP DỤNG STYLE BẢNG (ĐÃ FIX LỖI CỘT MA DO ĐỘ LỆCH COLUMN) ---
+// --- ÁP DỤNG STYLE BẢNG (BẢN FIX ĐỨT ĐIỂM LỖI THỦNG LƯỚI BẢNG & CỘT MA) ---
+window.applyTableTemplateStyle = function(templateHtml) {
+    let cells = TableEditor.getSelectedCells();
+    if (cells.length === 0) return;
+    
+    let originalTable = cells[0].closest('table');
+    
+    // TẠO KHUNG TÀNG HÌNH ĐỂ TRÌNH DUYỆT RENDER MẪU (HÚT MÀU THỰC TẾ)
+    let tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.visibility = 'hidden';
+    tempContainer.innerHTML = templateHtml;
+    document.body.appendChild(tempContainer);
+
+    // Bơm Thẻ <style> vào đỉnh Editor 
+    let styles = tempContainer.querySelectorAll('style, link');
+    let editor = document.getElementById('postContent');
+    styles.forEach(s => {
+        let existing = Array.from(editor.querySelectorAll('style, link')).some(ex => ex.outerHTML.trim() === s.outerHTML.trim());
+        if (!existing) editor.insertBefore(s.cloneNode(true), editor.firstChild);
+    });
+
+    let sourceTable = tempContainer.querySelector('table');
+    if (!sourceTable) {
+        document.body.removeChild(tempContainer);
+        return;
+    }
+
+    let targetTable = originalTable.cloneNode(true);
+    
+    // [HỦY DIỆT RÁC]: Xóa sạch colgroup, col VÀ ép tự do kích thước TẤT CẢ các ô
+    targetTable.querySelectorAll('colgroup, col').forEach(cg => cg.remove());
+    targetTable.querySelectorAll('td, th').forEach(cell => {
+        cell.style.width = '';
+        cell.style.minWidth = '';
+        cell.style.maxWidth = '';
+        cell.removeAttribute('width');
+        // Gỡ luôn class bôi đen nếu vô tình bị clone dính vào
+        cell.classList.remove('vb-selected-cell');
+    });
+
+    let sourceRows = Array.from(sourceTable.rows);
+    let isColMismatch = false;
+    if (sourceRows.length > 0) {
+        let sColCount = sourceRows[0].cells.length;
+        let tColCount = targetTable.rows[0] ? targetTable.rows[0].cells.length : 0;
+        isColMismatch = sColCount !== tColCount;
+    }
+
+    let computedTable = window.getComputedStyle(sourceTable);
+    Array.from(sourceTable.attributes).forEach(attr => targetTable.setAttribute(attr.name, attr.value));
+    
+    // Ép table tự co giãn, luôn full 100% để lấp đầy khoảng trống
+    targetTable.style.tableLayout = 'auto'; 
+    targetTable.style.width = '100%';
+    
+    if (isColMismatch) {
+        targetTable.removeAttribute('class');
+        targetTable.style.margin = computedTable.margin;
+        targetTable.style.borderCollapse = computedTable.borderCollapse;
+    }
+    
+    if (sourceRows.length > 0) {
+        let headerStyleRow = sourceRows[0];
+        let bodyStyleRow = sourceRows.length > 1 ? sourceRows[1] : sourceRows[0];
+        let altStyleRow = sourceRows.length > 2 ? sourceRows[2] : bodyStyleRow;
+
+        let targetRows = Array.from(targetTable.rows);
+        
+        for (let i = 0; i < targetRows.length; i++) {
+            let tRow = targetRows[i];
+            let sRow = (i === 0 && sourceRows.length > 1 && (tRow.querySelector('th') || headerStyleRow.querySelector('th') || true)) 
+                       ? headerStyleRow 
+                       : ((i % 2 !== 0) ? bodyStyleRow : altStyleRow);
+
+            Array.from(sRow.attributes).forEach(attr => tRow.setAttribute(attr.name, attr.value));
+            if (isColMismatch) tRow.removeAttribute('class');
+
+            let sCells = Array.from(sRow.cells);
+            let tCells = Array.from(tRow.cells);
+            
+            for (let j = 0; j < tCells.length; j++) {
+                let tCell = tCells[j];
+                let sCell = sCells[j % sCells.length]; 
+                
+                if (sCell) {
+                    // [CHỐT CHẶN TỬ HUYỆT - FIX LỖI MẤT Ô GÓC PHẢI]:
+                    // Phải hút dòng và cột TRƯỚC KHI bị replace thẻ để không làm rách lưới bảng
+                    let rSpan = tCell.getAttribute('rowspan');
+                    let cSpan = tCell.getAttribute('colspan');
+
+                    if (tCell.tagName !== sCell.tagName) {
+                        let newCell = document.createElement(sCell.tagName);
+                        newCell.innerHTML = tCell.innerHTML;
+                        tRow.replaceChild(newCell, tCell);
+                        tCell = newCell; 
+                    }
+
+                    if (!isColMismatch && sCell.className) {
+                        tCell.className = sCell.className;
+                    } else {
+                        tCell.removeAttribute('class');
+                    }
+
+                    // HÚT CSS TỪ MẪU
+                    let computedS = window.getComputedStyle(sCell);
+                    tCell.style.cssText = sCell.style.cssText; 
+                    
+                    // [SÁT THỦ DIỆT CỘT MA]: Ép xóa Width bị dính từ template làm phình bảng
+                    tCell.style.width = '';
+                    tCell.style.minWidth = '';
+                    tCell.style.maxWidth = '';
+                    tCell.removeAttribute('width');
+                    
+                    if (computedS.backgroundColor !== 'rgba(0, 0, 0, 0)' && computedS.backgroundColor !== 'transparent') tCell.style.backgroundColor = computedS.backgroundColor;
+                    if (computedS.color) tCell.style.color = computedS.color;
+                    if (computedS.borderTop && computedS.borderTop !== 'none') tCell.style.borderTop = computedS.borderTop;
+                    if (computedS.borderRight && computedS.borderRight !== 'none') tCell.style.borderRight = computedS.borderRight;
+                    if (computedS.borderBottom && computedS.borderBottom !== 'none') tCell.style.borderBottom = computedS.borderBottom;
+                    if (computedS.borderLeft && computedS.borderLeft !== 'none') tCell.style.borderLeft = computedS.borderLeft;
+                    if (computedS.fontWeight && computedS.fontWeight !== '400' && computedS.fontWeight !== 'normal') tCell.style.fontWeight = computedS.fontWeight;
+                    if (computedS.padding) tCell.style.padding = computedS.padding;
+                    if (computedS.textAlign && computedS.textAlign !== 'start') tCell.style.textAlign = computedS.textAlign;
+                    if (computedS.verticalAlign) tCell.style.verticalAlign = computedS.verticalAlign;
+
+                    // TRẢ LẠI GIAO DIỆN LƯỚI SAU KHI ĐÃ REPLACE THẺ
+                    if (rSpan) tCell.setAttribute('rowspan', rSpan);
+                    if (cSpan) tCell.setAttribute('colspan', cSpan);
+
+                    tCell.removeAttribute('bgcolor');
+                    tCell.removeAttribute('background');
+                    
+                    let innerElements = tCell.querySelectorAll('*');
+                    innerElements.forEach(el => {
+                        el.style.backgroundColor = '';
+                        el.style.color = '';
+                        el.style.borderColor = '';
+                        el.removeAttribute('bgcolor');
+                        el.removeAttribute('color');
+                        if(el.tagName === 'FONT') {
+                            el.removeAttribute('color');
+                            el.removeAttribute('face');
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+    let finalHtml = '';
+    let sourceWrapper = sourceTable.parentElement;
+    let currentWrapper = originalTable.parentElement;
+    let nodeToReplace = originalTable;
+    let hasOldWrapper = (currentWrapper && currentWrapper.id !== 'postContent' && currentWrapper.tagName === 'DIV' && (currentWrapper.className.includes('template') || currentWrapper.className.includes('vl-')));
+
+    if (sourceWrapper && sourceWrapper.tagName === 'DIV' && sourceWrapper !== tempContainer) {
+        let wrapperClone = document.createElement(sourceWrapper.tagName);
+        if (!isColMismatch && sourceWrapper.className) wrapperClone.className = sourceWrapper.className;
+        
+        wrapperClone.style.cssText = sourceWrapper.style.cssText;
+        if (isColMismatch) {
+            let computedWrapper = window.getComputedStyle(sourceWrapper);
+            wrapperClone.style.fontFamily = computedWrapper.fontFamily;
+            wrapperClone.style.fontSize = computedWrapper.fontSize;
+            wrapperClone.style.lineHeight = computedWrapper.lineHeight;
+            wrapperClone.style.marginBottom = computedWrapper.marginBottom;
+            wrapperClone.style.boxSizing = computedWrapper.boxSizing;
+        }
+
+        wrapperClone.appendChild(targetTable);
+        finalHtml = wrapperClone.outerHTML;
+        if (hasOldWrapper) nodeToReplace = currentWrapper;
+    } else {
+        finalHtml = targetTable.outerHTML;
+        if (hasOldWrapper) nodeToReplace = currentWrapper;
+    }
+
+    document.body.removeChild(tempContainer);
+
+    // GHI ĐÈ TRỰC TIẾP BẰNG OUTERHTML (An toàn tuyệt đối trong vùng mã)
+    window.getSelection().removeAllRanges();
+    nodeToReplace.outerHTML = finalHtml;
+    
+    TableEditor.hideMenus();
+};
+let isVbPreviewing = false;
