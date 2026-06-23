@@ -811,12 +811,13 @@
 .vb-metadata-table .vb-meta-cell.vb-meta-selection-anchor::after {
     content: "";
     position: absolute;
-    right: -3px;
-    bottom: -3px;
+    right: 0px;  /* Sửa từ -3px thành 0px để không làm tràn viền gây xuất hiện thanh cuộn */
+    bottom: 0px; /* Sửa từ -3px thành 0px */
     width: 6px;
     height: 6px;
     background: var(--blue);
     border: 1px solid #fff;
+    z-index: 10;
 }
 .vb-meta-help {
     margin-top: 6px;
@@ -4405,10 +4406,16 @@ function focusMetadataCellForEdit(cell, selectAll = false) {
         cell.focus();
         return;
     }
+    // Nếu ô đã được focus rồi và không phải lệnh double-click chọn tất cả,
+    // hãy để trình duyệt tự động đặt con trỏ tại vị trí click tự nhiên của người dùng
+    if (document.activeElement === cell && !selectAll) return;
+
     cell.focus();
     const range = document.createRange();
     range.selectNodeContents(cell);
-    if (!selectAll) range.collapse(false);
+    if (!selectAll) {
+        range.collapse(true); // Đổi false thành true để đưa con trỏ về đầu dòng làm mặc định khi kích hoạt focus mới
+    }
     const sel = window.getSelection();
     sel.removeAllRanges();
     sel.addRange(range);
@@ -4506,29 +4513,54 @@ function initMetadataGridClipboard() {
     if (!table || table.dataset.ready === "1") return;
     table.dataset.ready = "1";
     const cells = metadataCells();
+    
     cells.forEach((cell, index) => {
         cell.dataset.metaRow = String(Math.floor(index / 2));
         cell.dataset.metaCol = String(index % 2);
+        
         cell.addEventListener("mousedown", e => {
             if (e.button !== 0) return;
+
+            // [SỬA LỖI SỐ 4]: HỖ TRỢ PHÍM SHIFT + CLICK ĐỂ CHỌN MẢNG VÙNG BẢNG
+            if (e.shiftKey && vbMetaAnchorCell) {
+                e.preventDefault();
+                selectMetadataRectangle(vbMetaAnchorCell, cell);
+                document.getElementById("vbMetadataTable").focus();
+                return;
+            }
+
+            // [SỬA LỖI SỐ 1]: KHÔNG CAN THIỆP KHI NGƯỜI DÙNG ĐANG GÕ CHỮ TRONG Ô ĐÓ
+            if (document.activeElement === cell) {
+                // Tắt chế độ quét Grid để người dùng thoải mái kéo chuột bôi đen text nội bộ trong ô
+                vbMetaDragSelecting = false; 
+                return; 
+            }
+
             vbMetaDragSelecting = true;
             vbMetaAnchorCell = cell;
             selectMetadataRectangle(cell, cell);
-            e.preventDefault();
+            e.preventDefault(); // Chỉ chặn preventDefault khi click chọn ô mới (chưa focus)
         });
+        
         cell.addEventListener("mouseenter", () => {
-            if (vbMetaDragSelecting && vbMetaAnchorCell) selectMetadataRectangle(vbMetaAnchorCell, cell);
+            // Chỉ kích hoạt quét mảng ô khi người dùng không cố tình bôi đen chọn chữ bên trong ô
+            if (vbMetaDragSelecting && vbMetaAnchorCell && document.activeElement !== vbMetaAnchorCell) {
+                selectMetadataRectangle(vbMetaAnchorCell, cell);
+            }
         });
+        
         cell.addEventListener("dblclick", e => {
             e.preventDefault();
             focusMetadataCellForEdit(cell, true);
         });
+        
         cell.addEventListener("keydown", e => {
             if ((e.key === "Enter" || e.key === "F2") && metadataCellEditable(cell)) {
                 e.preventDefault();
                 focusMetadataCellForEdit(cell, false);
             }
         });
+        
         cell.addEventListener("input", () => {
             if (vbActiveImage) writeImageMetadata(vbActiveImage, collectMetadataFromGrid());
             markImageDirty(true);
@@ -4546,10 +4578,17 @@ function initMetadataGridClipboard() {
     document.addEventListener("mouseup", () => {
         if (!vbMetaDragSelecting) return;
         vbMetaDragSelecting = false;
-        if (vbSelectedMetaCells.length === 1) focusMetadataCellForEdit(vbSelectedMetaCells[0], false);
+        if (vbSelectedMetaCells.length === 1 && document.activeElement !== vbSelectedMetaCells[0]) {
+            focusMetadataCellForEdit(vbSelectedMetaCells[0], false);
+        }
     });
 
+    // [SỬA LỖI SỐ 2]: KHÔNG CHO PHÉP POPUP NUỐT LỆNH BẤM CTRL+C / V CỦA TEXT NỘI BỘ
     table.addEventListener("paste", e => {
+        // Nếu người dùng đang tập trung gõ và bôi đen text đơn lẻ trong 1 ô, trả lại quyền paste nội bộ cho trình duyệt
+        if (document.activeElement && document.activeElement.classList.contains('vb-meta-cell') && vbSelectedMetaCells.length <= 1) {
+            return; 
+        }
         const matrix = clipboardMetadataMatrix(e.clipboardData);
         if (!matrix.length) return;
         e.preventDefault();
@@ -4557,6 +4596,11 @@ function initMetadataGridClipboard() {
     });
 
     table.addEventListener("copy", e => {
+        // Trả lại quyền copy text thuần của trình duyệt nếu chỉ chọn text trong 1 ô
+        if (document.activeElement && document.activeElement.classList.contains('vb-meta-cell') && vbSelectedMetaCells.length <= 1) {
+            const sel = window.getSelection();
+            if (!sel.isCollapsed) return; // Cho phép copy cụm chữ đang bôi đen tự nhiên
+        }
         const matrix = metadataSelectionAsMatrix();
         if (!matrix.length) return;
         e.preventDefault();
@@ -4567,6 +4611,11 @@ function initMetadataGridClipboard() {
     });
 
     table.addEventListener("cut", e => {
+        // Trả lại quyền cut text thuần của trình duyệt nếu chỉ thao tác chữ trong 1 ô
+        if (document.activeElement && document.activeElement.classList.contains('vb-meta-cell') && vbSelectedMetaCells.length <= 1) {
+            const sel = window.getSelection();
+            if (!sel.isCollapsed) return;
+        }
         const matrix = metadataSelectionAsMatrix();
         if (!matrix.length) return;
         e.preventDefault();
