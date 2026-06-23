@@ -1166,6 +1166,10 @@
       <i class="fas fa-fill-drip"></i>▾ </button>
     <input type="color" oninput="miniApplyCellBgRealtime(this.value)" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
   </div>
+    <div class="word-mini-divider"></div>
+        <button class="word-mini-btn" onmousedown="event.preventDefault(); formatDoc('removeFormat')" title="Xóa định dạng">
+            <i class="fas fa-eraser"></i>
+        </button>
   <div class="tool-dropdown-wrapper vb-image-dropdown" style="width: auto;">
     <button class="word-mini-btn" type="button" title="Chèn hình ảnh" onclick="openImageToolPopup(this)">
       <i class="fas fa-image" style="color:#01adee;"></i>▾
@@ -2935,9 +2939,23 @@ window.editorPaste = async function(mode) {
 window.miniFormat = function(cmd) {
     const cells = TableEditor.getSelectedCells();
     let mappedCmd = cmd;
-    if(cmd === 'left') mappedCmd = 'justifyLeft'; if(cmd === 'center') mappedCmd = 'justifyCenter'; if(cmd === 'right') mappedCmd = 'justifyRight';
+    if(cmd === 'left') mappedCmd = 'justifyLeft'; 
+    if(cmd === 'center') mappedCmd = 'justifyCenter'; 
+    if(cmd === 'right') mappedCmd = 'justifyRight';
 
     if (cells.length > 0) {
+        // [SÁT THỦ TẨY RỬA]: Cào sạch toàn bộ CSS inline khi bấm Xóa định dạng bảng
+        if (mappedCmd === 'removeFormat') {
+            cells.forEach(cell => {
+                [cell, ...cell.querySelectorAll('*')].forEach(el => {
+                    el.removeAttribute('style');
+                    el.removeAttribute('color');
+                    el.removeAttribute('face');
+                });
+            });
+            return;
+        }
+
         const editor = document.getElementById('postContent'); editor.focus();
         const sel = window.getSelection(); const range = document.createRange();
         const toggleCmds = ['bold', 'italic', 'underline', 'strikeThrough'];
@@ -2949,10 +2967,11 @@ window.miniFormat = function(cmd) {
                 range.selectNodeContents(cell); sel.removeAllRanges(); sel.addRange(range);
                 if (document.queryCommandState(mappedCmd) !== targetState) document.execCommand(mappedCmd, false, null);
             });
-        } else cells.forEach(cell => { range.selectNodeContents(cell); sel.removeAllRanges(); sel.addRange(range); document.execCommand(mappedCmd, false, null); });
+        } else {
+            cells.forEach(cell => { range.selectNodeContents(cell); sel.removeAllRanges(); sel.addRange(range); document.execCommand(mappedCmd, false, null); });
+        }
         sel.removeAllRanges();
     } else {
-        // Kích hoạt cho Text thường / Khối HTML
         getSafeEffectiveTarget();
         let sel = window.getSelection(), htmlBlock = sel.anchorNode?.parentElement?.closest('.custom-html-block');
         if (htmlBlock && ['justifyLeft', 'justifyCenter', 'justifyRight'].includes(mappedCmd)) {
