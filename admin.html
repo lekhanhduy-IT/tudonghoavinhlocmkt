@@ -18,9 +18,9 @@
         body { display: flex; height: 100vh; overflow: hidden; background: var(--white); color: var(--text-main); }
         
         /* TĂNG TỐC TRƯỢT TỪ 0.3s XUỐNG 0.1s */
-        .sidebar { width: 250px; background: var(--white); border-right: 0px solid var(--gray-border); display: flex; flex-direction: column; transition: width 0.1s ease-out; white-space: nowrap; flex-shrink: 0; z-index: 50; }
+        .sidebar { width: 250px; background: var(--white); border:none; display: flex; flex-direction: column; transition: width 0.1s ease-out; white-space: nowrap; flex-shrink: 0; z-index: 50; }
         .sidebar.collapsed { width: 60px; }
-        .sidebar-header { height: 60px; display: flex; align-items: center; border-bottom: 0.5px solid var(--gray-border); }
+        .sidebar-header { height: 60px; display: flex; align-items: center; border:none;}
         .toggle-btn { width: 60px; height: 60px; background: transparent; border: none; font-size: 20px; color: var(--text-main); opacity: 0.7; cursor: pointer; flex-shrink: 0; display: flex; justify-content: center; align-items: center; }
         
         /* TĂNG TỐC HIỆN LOGO TỪ 0.2s XUỐNG 0.05s */
@@ -28,7 +28,7 @@
         .brand img { height: 30px; margin-right: 10px; }
         .sidebar.collapsed .brand { opacity: 0; pointer-events: none; }
         
-        .menu-item-side { padding: 0; display: flex; align-items: center; cursor: pointer; border-bottom: 0px solid var(--gray-border); transition: 0.1s; color: #000000; text-decoration: none;}
+        .menu-item-side { padding: 0; display: flex; align-items: center; cursor: pointer; border:none; transition: 0.1s; color: #000000; text-decoration: none;}
         .menu-item-side:hover, .menu-item-side.active { background: var(--blue); color: var(--white); }
         .icon { width: 60px; height: 50px; display: flex; justify-content: center; align-items: center; font-size: 18px; flex-shrink: 0; }
         
@@ -37,7 +37,7 @@
         .sidebar.collapsed .text { opacity: 0; pointer-events: none; }
 
         .main-content { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
-        .header-bar { height: 60px; border-bottom: 0.5px solid var(--gray-border); display: flex; justify-content: space-between; align-items: center; padding: 0 20px; flex-shrink: 0; background: var(--white); z-index: 20; }
+        .header-bar { height: 60px; border:none; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; flex-shrink: 0; background: var(--white); z-index: 20; }
         .search-wrapper { flex: 1; display: flex; justify-content: center; }
         .search-box { width: 100%; max-width: 500px; display: flex; align-items: center; border: 0.5px solid var(--gray-border); border-radius: 20px; overflow: hidden; padding: 5px 15px; }
         .search-box input { flex: 1; border: none; outline: none; font-size: 14px; padding: 2px; }
