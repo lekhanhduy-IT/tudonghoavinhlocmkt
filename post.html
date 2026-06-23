@@ -5103,6 +5103,37 @@ async function downloadActiveImageWithMetadata() {
     let isApplyingRemoteDOM = false;
     let lastBroadcastedDOMHash = '';
 
+    // =========================================================================
+    // "MÁY LỌC NƯỚC": Lột sạch mọi dấu vết bôi đen/chọn ô trước khi gửi lên mạng
+    // =========================================================================
+    function sanitizeMasterHtmlForSync(rawDomElement) {
+        if (!rawDomElement) return '';
+        
+        // Nhân bản vô hình trong RAM để gọt rửa, tuyệt đối không làm mất bôi đen trên màn hình thật của người gõ
+        const ramClone = rawDomElement.cloneNode(true);
+
+        ramClone.querySelectorAll('td, th, tr, table').forEach(cell => {
+            // 1. Vặt sạch các class bôi đen phổ biến của các thư viện Rich Text Editor (Quill, TinyMCE, Froala, CKEditor...)
+            cell.classList.remove('selected', 'active', 'is-selected', 'table-selected', 'tc-selected', 'focused', 'table-focus');
+            
+            // 2. Vặt các thuộc tính inline-style do JS bôi đen tạm thời tạo ra
+            if (cell.style) {
+                cell.style.removeProperty('outline');
+                cell.style.removeProperty('box-shadow');
+            }
+
+            // 3. Xóa các data-attribute đánh dấu trỏ chuột
+            cell.removeAttribute('data-selected');
+            cell.removeAttribute('data-focused');
+
+            // Xóa dọn dẹp thẻ rỗng
+            if (cell.getAttribute('class') === '') cell.removeAttribute('class');
+            if (cell.getAttribute('style') === '') cell.removeAttribute('style');
+        });
+
+        return ramClone.innerHTML;
+    }
+
     const domCamera = new MutationObserver(() => {
         if (isApplyingRemoteDOM) return;
 
@@ -5110,7 +5141,10 @@ async function downloadActiveImageWithMetadata() {
             postTitle: document.getElementById('postTitle')?.innerHTML || '',
             postSapo: document.getElementById('postSapo')?.innerHTML || '',
             coverHtml: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('coverEditor')) : (document.getElementById('coverEditor')?.innerHTML || ''),
-            postContent: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('postContent')) : (document.getElementById('postContent')?.innerHTML || ''),
+            
+            // ÁP DỤNG MÁY LỌC VÀO NỘI DUNG BÀI VIẾT:
+            postContent: sanitizeMasterHtmlForSync(document.getElementById('postContent')),
+            
             sender: myDeviceId,
             timestamp: Date.now()
         };
@@ -5121,10 +5155,6 @@ async function downloadActiveImageWithMetadata() {
             domSyncRef.set(payload);
         }
     });
-
-    if (paperElem) {
-        domCamera.observe(paperElem, { childList: true, subtree: true, characterData: true, attributes: true });
-    }
 
     // --- PHẦN 3: LẮNG NGHE VÀ DÁN ĐÈ DOM ---
 
