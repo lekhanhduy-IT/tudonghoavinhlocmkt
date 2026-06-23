@@ -5519,8 +5519,9 @@ async function downloadActiveImageWithMetadata() {
 (function initRealtimeEngine() {
     let rawEmail = localStorage.getItem('admin_email');
     const myEmail = (rawEmail && rawEmail !== "undefined") ? rawEmail : ('anon_' + Math.floor(Math.random()*1000) + '@gmail.com');
-    const myName = localStorage.getItem('admin_name') || myEmail.split('@')[0];
-    const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
+// THAY THẾ DÒNG myName CŨ THÀNH DÒNG NÀY:
+    let rawName = localStorage.getItem('admin_name');
+    const myName = (rawName && rawName !== "undefined" && rawName !== "null") ? rawName : myEmail.split('@')[0];
 
 // 1. Ưu tiên tóm ID từ thanh URL trước
     const urlParams = new URLSearchParams(window.location.search);
@@ -5741,7 +5742,7 @@ async function downloadActiveImageWithMetadata() {
         setTimeout(() => { isApplyingRemoteDOM = false; }, 30);
     });
 
-    // 3.2 Nhận tọa độ chuột & vẽ lên mặt giấy
+    // 3.2 Nhận tọa độ chuột & vẽ lên mặt giấy (BỌC THÉP CHỐNG ZOMBIE)
     const usersListRef = db.ref(`collab_rooms/${roomId}/users`);
     const cursorsCanvas = document.getElementById('collab-cursors-layer');
     const avtBar = document.getElementById('collabAvatarList');
@@ -5762,8 +5763,12 @@ async function downloadActiveImageWithMetadata() {
             lastAvtHash = activeEmails;
             let avtHtml = ''; let c = 0;
             for(let k in users) {
-                if(!users[k].email) continue; c++;
-                avtHtml += `<div class="collab-user-node" style="--peer-color: ${users[k].color}; z-index: ${c};"><img src="${users[k].avatar}" alt="${users[k].name}" referrerpolicy="no-referrer" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'"><div class="collab-user-tooltip">${users[k].name}</div></div>`;
+                let p = users[k];
+                // LỚP KHIÊN 1: Node rác không có email, hoặc email là chữ "undefined" -> BỎ QUA NGAY!
+                if(!p || !p.email || p.email === "undefined") continue; 
+                c++;
+                let safeName = (p.name && p.name !== "undefined") ? p.name : p.email.split('@')[0];
+                avtHtml += `<div class="collab-user-node" style="--peer-color: ${p.color}; z-index: ${c};"><img src="${p.avatar}" alt="${safeName}" referrerpolicy="no-referrer" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'"><div class="collab-user-tooltip">${safeName}</div></div>`;
             }
             avtBar.innerHTML = avtHtml;
         }
@@ -5772,7 +5777,12 @@ async function downloadActiveImageWithMetadata() {
         if(!cursorsCanvas) return;
         for(let k in users) {
             let peer = users[k];
-            if (!peer || peer.email === myEmail) continue;
+            
+            // LỚP KHIÊN 2: Bị rỗng? | Thiếu email? | Trùng email mình? -> CẤM VẼ!
+            if (!peer || !peer.email || peer.email === "undefined" || peer.email === myEmail) continue;
+
+            // LỚP KHIÊN 3: Nếu mất tên, hiển thị "Ẩn danh" thay vì hiện chữ undefined
+            let safePeerName = (peer.name && peer.name !== "undefined") ? peer.name : "Ẩn danh";
 
             let cursorDom = document.getElementById(`cursor_${k}`);
             if (!cursorDom) {
@@ -5780,11 +5790,10 @@ async function downloadActiveImageWithMetadata() {
                 cursorDom.id = `cursor_${k}`;
                 cursorDom.className = 'peer-cursor';
                 cursorDom.style.setProperty('--peer-color', peer.color);
-                cursorDom.innerHTML = `<svg class="peer-cursor-arrow" viewBox="0 0 32 32"><polygon points="0,0 32,16 16,20 12,32"/></svg><div class="peer-cursor-label">${peer.name}</div>`;
+                cursorDom.innerHTML = `<svg class="peer-cursor-arrow" viewBox="0 0 32 32"><polygon points="0,0 32,16 16,20 12,32"/></svg><div class="peer-cursor-label">${safePeerName}</div>`;
                 cursorsCanvas.appendChild(cursorDom);
             }
 
-            // Tọa độ chuột lúc này hoàn toàn ghim theo tờ giấy, không phụ thuộc màn hình
             cursorDom.style.transform = `translate(${peer.x}px, ${peer.y}px)`;
         }
     });
