@@ -16,7 +16,7 @@
         body { background: var(--white); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
         .toolbar { height: 40px; background: var(--white); border-bottom: 0.5px solid var(--gray-border); display: flex; align-items: center; padding: 0 10px; flex-shrink: 0; overflow-x: auto; white-space: nowrap; }
-        .tool-btn { background: var(--white); border: 0.5px solid var(--gray-border); color: var(--blue); padding: 4px 10px; margin-right: 5px; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 3px; display: inline-flex; align-items: center; gap: 4px;}
+        .tool-btn { background: var(--white); border: none; color: var(--blue); padding: 4px 10px; margin-right: 5px; cursor: pointer; font-size: 12px; font-weight: bold; border-radius: 3px; display: inline-flex; align-items: center; gap: 4px;}
         .tool-btn:hover { background: var(--blue); color: var(--white) !important; border: 0.5px solid var(--blue); }
         /* Hiệu ứng nút Xóa Lọc màu đỏ */
         .btn-clear-filter { background: var(--white) !important; color: var(--text-main) !important; }
@@ -1234,11 +1234,51 @@ window.clearFilterForCol = function(c, scopeType) {
 };
 
 window.updateActiveFilterToolbar = function() {
-    const display = document.getElementById("activeFilterDisplay"); if (!display) return;
-    const pub = sysData.filters[activeTab] || {}; const priv = localPrivateFilters[activeTab] || {};
-    if (Object.keys(pub).length === 0 && Object.keys(priv).length === 0) { display.style.display = "none"; return; }
-    const mat = sysData.sheets[activeTab]; let html = "";
+    const display = document.getElementById("activeFilterDisplay"); 
+    if (!display) return;
 
+    const pub = sysData.filters[activeTab] || {}; 
+    const priv = localPrivateFilters[activeTab] || {};
+    const mat = sysData.sheets[activeTab];
+
+    // =========================================================================
+    // 1. [MỚI] TỰ ĐỘNG NHUỘM MÀU ICON PHỄU TRÊN TIÊU ĐỀ CỘT (TH)
+    // =========================================================================
+    if (mat && mat[0]) {
+        const thList = document.querySelectorAll('#dataHead th');
+        // Thuật toán tự khớp cột: Nếu bảng có cột STT bên trái cùng, index <th> sẽ lệch 1 so với ma trận
+        const offset = (thList.length > mat[0].length) ? 1 : 0; 
+
+        for (let c = 0; c < mat[0].length; c++) {
+            const targetTh = thList[c + offset];
+            if (!targetTh) continue;
+            const icon = targetTh.querySelector('.fa-filter');
+            if (!icon) continue;
+
+            icon.style.transition = 'all 0.2s ease';
+
+            if (pub[c]) {
+                icon.style.color = '#0284c7'; // Xanh dương (Đang lọc Public)
+                icon.style.transform = 'scale(1.25)';
+            } else if (priv[c]) {
+                icon.style.color = '#16a34a'; // Xanh lá (Đang lọc Private)
+                icon.style.transform = 'scale(1.25)';
+            } else {
+                icon.style.color = '#c0c0c0'; // Trở về xám nhạt mặc định
+                icon.style.transform = 'scale(1)';
+            }
+        }
+    }
+
+    // =========================================================================
+    // 2. HIỂN THỊ THANH TOOLBAR ACTIVE BÊN DƯỚI
+    // =========================================================================
+    if (Object.keys(pub).length === 0 && Object.keys(priv).length === 0) { 
+        display.style.display = "none"; 
+        return; 
+    }
+
+    let html = "";
     function renderFilterBadges(fltObject, label, colorHex) {
         for (let c in fltObject) {
             const colTitle = (mat[0] && mat[0][c]) ? mat[0][c] : getColLetter(parseInt(c)); const vals = fltObject[c].join(", ");
@@ -1250,7 +1290,9 @@ window.updateActiveFilterToolbar = function() {
                      </div>`;
         }
     }
-    renderFilterBadges(pub, "Mọi người", "#0284c7"); renderFilterBadges(priv, "Mình tôi", "#16a34a");
+    renderFilterBadges(pub, "Mọi người", "#0284c7"); 
+    renderFilterBadges(priv, "Mình tôi", "#16a34a");
+
     display.innerHTML = html; display.style.display = "flex";
 };
 
