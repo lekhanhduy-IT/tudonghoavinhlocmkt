@@ -853,15 +853,13 @@ function updateActiveFilterToolbar() {
             renderGrid(); // Cập nhật lại bảng và ẩn toolbar lập tức
         }
         // =========================================================================
-// HỆ THỐNG CỘNG TÁC PHÂN LẬP TRÙNG PHÒNG & DÃY AVATAR TOOLBAR (GRID COLLAB V6.0)
+// HỆ THỐNG CỘNG TÁC LAYERED MASTER CANVAS & AVATAR REALTIME (GRID COLLAB V7.0)
 // =========================================================================
 
-// Khởi tạo bộ nhớ Lọc cục bộ (RAM máy cá nhân - Tuyệt đối không đẩy lên mạng)
 let localPrivateFilters = {}; 
 let currentFilterScope = 'private'; 
 
 const GridCollabEngine = (function() {
-    // Cấu hình hạ tầng kết nối Firebase Realtime Database
     const firebaseConfig = {
         databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/"
     };
@@ -870,9 +868,9 @@ const GridCollabEngine = (function() {
 
     let lastBroadcastedHash = 0;
     let isApplyingRemotePatch = false;
+    let isSwitchingTabCanvas = false; // "CÁI KHÓA MÕM" - Ngăn dội ngược dữ liệu cũ
     let previousRoomId = null;
 
-    // Định danh người dùng lấy chính xác từ phiên đăng nhập hệ thống (localStorage)
     const myEmail = localStorage.getItem('admin_email') || 'anon_' + Math.floor(Math.random()*1000) + '@gmail.com';
     const myName = localStorage.getItem('admin_name') || 'Thành viên';
     const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
@@ -888,7 +886,6 @@ const GridCollabEngine = (function() {
         return h;
     }
 
-    // Tự động tạo và neo giữ vùng chứa Avatar ở CHÍNH GIỮA thanh Toolbar phía trên
     function injectAvatarToolbarContainer() {
         const toolbar = document.querySelector('.toolbar');
         if (!toolbar) return null;
@@ -897,22 +894,12 @@ const GridCollabEngine = (function() {
         if (!container) {
             container = document.createElement('div');
             container.id = 'gridOnlineUsers';
-            // CSS Căn giữa tuyệt đối trên thanh toolbar không làm lệch cấu trúc các nút xung quanh
             container.style.cssText = `
-                position: absolute;
-                left: 50%;
-                top: 50%;
-                transform: translate(-50%, -50%);
-                display: flex;
-                align-items: center;
-                gap: 6px;
-                z-index: 999;
-                background: rgba(255, 255, 255, 0.95);
-                padding: 4px 14px;
-                border-radius: 20px;
-                border: 1px solid var(--gray-border, #e0e0e0);
-                box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-                pointer-events: auto;
+                position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+                display: flex; align-items: center; gap: 6px; z-index: 999;
+                background: rgba(255, 255, 255, 0.95); padding: 4px 14px;
+                border-radius: 20px; border: 1px solid var(--gray-border, #e0e0e0);
+                box-shadow: 0 2px 6px rgba(0,0,0,0.05); pointer-events: auto;
             `;
             toolbar.style.position = 'relative';
             toolbar.appendChild(container);
@@ -920,64 +907,49 @@ const GridCollabEngine = (function() {
         return container;
     }
 
-    // ẢI KIỂM SOÁT LẮNG NGHE TẬP TRUNG (GLOBAL CENTRALIZED ROUTER)
-    // Giải pháp tối thượng ngăn chặn hoàn toàn 100% việc nhận nhầm dữ liệu phòng khác
-    function initCentralizedListener() {
+    // TỔNG ĐÀI ĐỊNH TUYẾN LAYER (Lắng nghe tập trung)
+    function initCentralizedCanvasRouter() {
         db.ref('collab_grid').on('value', snapshot => {
-            const allRooms = snapshot.val() || {};
-            if (!activeTab) return;
+            // NẾU MÁY NÀY ĐANG TRONG GIAI ĐOẠN BƯỚC QUA CỬA PHÒNG -> BỊT TAI KHÔNG NGHE NHIỄU!
+            if (!activeTab || isSwitchingTabCanvas) return;
 
-            const currentTargetRoomId = getSafeRoomId(activeTab);
-            const activeRoomData = allRooms[currentTargetRoomId] || {};
+            const targetRoomId = getSafeRoomId(activeTab);
+            const roomLayer = (snapshot.val() || {})[targetRoomId] || {};
 
-            // THÀNH PHẦN 1: DỰNG DÃY AVATAR THỜI GIAN THỰC (CHỈ HIỂN THỊ NGƯỜI TRONG CÙNG TAB)
-            const users = activeRoomData.users || {};
+            // 1. TÁI TẠO LAYER AVATAR (Chỉ những người đang đứng trên cùng Canvas)
+            const users = roomLayer.users || {};
             const avatarBox = injectAvatarToolbarContainer();
             if (avatarBox) {
                 avatarBox.innerHTML = '';
                 Object.keys(users).forEach(uid => {
-                    const user = users[uid];
+                    const u = users[uid];
                     const img = document.createElement('img');
-                    img.src = user.avatar || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
-                    
-                    // Hiển thị Tên + Gmail rõ ràng xuống dòng khi rà chuột vào (Hover Tooltip)
-                    img.title = `${user.name}\n(${user.email})`;
-                    
-                    img.style.cssText = `
-                        width: 26px;
-                        height: 26px;
-                        border-radius: 50%;
-                        border: 2px solid var(--blue, #01adee);
-                        object-fit: cover;
-                        cursor: pointer;
-                        transition: all 0.15s ease;
-                    `;
-                    
-                    // Hiệu ứng phóng to nhẹ khi hover chuột vào hình đại diện
-                    img.onmouseover = () => { img.style.transform = 'scale(1.25)'; img.style.zIndex = '10'; };
-                    img.onmouseout = () => { img.style.transform = 'scale(1)'; img.style.zIndex = '1'; };
+                    img.src = u.avatar || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
+                    img.title = `${u.name}\n(${u.email})`;
+                    img.style.cssText = `width:26px; height:26px; border-radius:50%; border:2px solid #01adee; object-fit:cover; cursor:pointer; transition:all 0.15s;`;
+                    img.onmouseover = () => img.style.transform = 'scale(1.25)';
+                    img.onmouseout = () => img.style.transform = 'scale(1)';
                     avatarBox.appendChild(img);
                 });
             }
 
-            // THÀNH PHẦN 2: ĐỒNG BỘ CAMERA DOM (CỦA CÙNG TAB HIỆN TẠI)
-            const data = activeRoomData.sheet_data;
-            if (data && data.sender !== myDeviceId && !isApplyingRemotePatch) {
+            // 2. XẾP CHỒNG LAYER DỮ LIỆU MỚI VÀO CANVAS DOM
+            const dataLayer = roomLayer.sheet_data;
+            if (dataLayer && dataLayer.sender !== myDeviceId && !isApplyingRemotePatch) {
                 isApplyingRemotePatch = true;
                 try {
-                    const incomingMat = JSON.parse(data.matrix);
-                    const incomingAttrs = JSON.parse(data.attributes);
+                    const incomingMat = JSON.parse(dataLayer.matrix);
+                    const incomingAttrs = JSON.parse(dataLayer.attributes);
 
                     sysData.sheets[activeTab] = incomingMat;
                     sysData.attributes[activeTab] = incomingAttrs;
 
                     smartPatchGridDOM(incomingMat, incomingAttrs);
-                } catch(e) { console.error("Smart Patch Error:", e); }
-                finally { isApplyingRemotePatch = false; }
+                } catch(e){} finally { isApplyingRemotePatch = false; }
             }
 
-            // THÀNH PHẦN 3: ĐỒNG BỘ BỘ LỌC CÔNG CỘNG (PUBLIC FILTERS)
-            const incomingFilters = activeRoomData.public_filters || {};
+            // 3. ĐỒNG BỘ LAYER BỘ LỌC CHUNG
+            const incomingFilters = roomLayer.public_filters || {};
             if (JSON.stringify(sysData.filters[activeTab] || {}) !== JSON.stringify(incomingFilters)) {
                 sysData.filters[activeTab] = incomingFilters;
                 renderGrid(); 
@@ -985,34 +957,45 @@ const GridCollabEngine = (function() {
         });
     }
 
-    // THAY ĐỔI ĐỊNH TUYẾN TRẠNG THÁI HIỆN DIỆN KHI CHUYỂN TAB
+    // THUẬT TOÁN BƯỚC VÀO CANVAS MỚI (CHỐNG MẤT DỮ LIỆU TUYỆT ĐỐI)
     function switchConferenceRoom(tabName) {
         if (!tabName || tabName.endsWith('_hidden')) return;
         const newRoomId = getSafeRoomId(tabName);
 
-        // Rút tên, xóa sự hiện diện khỏi phòng cũ ngay lập tức
+        // BƯỚC 1: KHÓA MÕM PHÁT SÓNG NGAY TỨC KHẮC
+        isSwitchingTabCanvas = true;
+
         if (previousRoomId && previousRoomId !== newRoomId) {
             db.ref(`collab_grid/${previousRoomId}/users/${myDeviceId}`).remove();
         }
-
         previousRoomId = newRoomId;
 
-        // Khai báo sự hiện diện vào phòng mới
-        const myPresenceRef = db.ref(`collab_grid/${newRoomId}/users/${myDeviceId}`);
-        myPresenceRef.set({
-            email: myEmail,
-            name: myName,
-            avatar: myAvatar,
-            joinedAt: firebase.database.ServerValue.TIMESTAMP
-        });
-        
-        // Kênh an toàn: Tự động xóa tên khi người dùng tắt hẳn tab trình duyệt hoặc mất kết nối mạng
+        const roomRef = db.ref(`collab_grid/${newRoomId}`);
+        const myPresenceRef = roomRef.child(`users/${myDeviceId}`);
+        myPresenceRef.set({ email: myEmail, name: myName, avatar: myAvatar, joinedAt: firebase.database.ServerValue.TIMESTAMP });
         myPresenceRef.onDisconnect().remove();
+
+        // BƯỚC 2: NGỬA TAY XIN "BỨC TRANH ĐỈNH LAYER" TỪ FIREBASE VỀ NẠP VÀO RAM
+        roomRef.child('sheet_data').once('value').then(snapshot => {
+            const topLayer = snapshot.val();
+            
+            if (topLayer && topLayer.matrix) {
+                // Đã có người gõ trước đó -> Lấy tranh mới nhất đè bẹp ký ức cũ trong RAM
+                sysData.sheets[tabName] = JSON.parse(topLayer.matrix);
+                sysData.attributes[tabName] = JSON.parse(topLayer.attributes || "{}");
+            }
+
+            // BƯỚC 3: Vẽ tranh chính thức ra màn hình
+            renderGrid();
+
+            // BƯỚC 4: Sau khi DOM đã đứng im phăng phắc, mới tháo khóa phát sóng
+            setTimeout(() => { isSwitchingTabCanvas = false; }, 350);
+        });
     }
 
-    // PHÁT SÓNG TRẠNG THÁI BẢNG LÊN PHÒNG HIỆN TẠI
+    // PHÁT SÓNG LAYER LÊN ĐỈNH (Chỉ kích hoạt khi con người tác động)
     function broadcastGridState() {
-        if (isApplyingRemotePatch || !activeTab || !sysData.sheets[activeTab]) return;
+        if (isApplyingRemotePatch || isSwitchingTabCanvas || !activeTab || !sysData.sheets[activeTab]) return;
 
         const matString = JSON.stringify(sysData.sheets[activeTab]);
         const attrString = JSON.stringify(sysData.attributes[activeTab] || {});
@@ -1023,22 +1006,18 @@ const GridCollabEngine = (function() {
             const currentRoomId = getSafeRoomId(activeTab);
             if (currentRoomId) {
                 db.ref(`collab_grid/${currentRoomId}/sheet_data`).set({
-                    matrix: matString,
-                    attributes: attrString,
-                    sender: myDeviceId,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                    matrix: matString, attributes: attrString,
+                    sender: myDeviceId, timestamp: firebase.database.ServerValue.TIMESTAMP
                 });
             }
         }
     }
 
     function broadcastPublicFilters() {
-        if (!activeTab) return;
-        const currentRoomId = getSafeRoomId(activeTab);
-        db.ref(`collab_grid/${currentRoomId}/public_filters`).set(sysData.filters[activeTab] || {});
+        if (!activeTab || isSwitchingTabCanvas) return;
+        db.ref(`collab_grid/${getSafeRoomId(activeTab)}/public_filters`).set(sysData.filters[activeTab] || {});
     }
 
-    // Thuật toán vá DOM sườn mềm (Giữ nguyên cấu trúc, không cướp con trỏ của người đang gõ)
     function smartPatchGridDOM(newMat, newAttrs) {
         const activeEl = document.activeElement;
         let editingCellId = null;
@@ -1054,10 +1033,7 @@ const GridCollabEngine = (function() {
             renderGrid();
             if (editingCellId) {
                 const td = document.getElementById(editingCellId);
-                if (td) {
-                    const ed = td.querySelector('.cell-editor');
-                    if (ed) { ed.focus(); putCaretAtEnd(ed); }
-                }
+                if (td) { const ed = td.querySelector('.cell-editor'); if(ed){ ed.focus(); putCaretAtEnd(ed); } }
             }
             return;
         }
@@ -1071,9 +1047,8 @@ const GridCollabEngine = (function() {
                 if (td) {
                     applyStyle(td, r, c, newAttrs);
                     const ed = td.querySelector('.cell-editor');
-                    if (ed && ed.innerHTML !== String(val)) {
-                        ed.innerHTML = String(val);
-                    } else if (!ed && td.querySelector('input[type="checkbox"]')) {
+                    if (ed && ed.innerHTML !== String(val)) ed.innerHTML = String(val);
+                    else if (!ed && td.querySelector('input[type="checkbox"]')) {
                         td.querySelector('input[type="checkbox"]').checked = (val === "true" || val === true);
                     }
                 }
@@ -1082,25 +1057,19 @@ const GridCollabEngine = (function() {
     }
 
     function putCaretAtEnd(el) {
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        range.collapse(false);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
+        const range = document.createRange(); range.selectNodeContents(el); range.collapse(false);
+        const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
     }
 
-    // Bật động cơ định tuyến tập trung toàn hệ thống
-    initCentralizedListener();
-
+    initCentralizedCanvasRouter();
     return { switchConferenceRoom, broadcastGridState, broadcastPublicFilters };
 })();
 
 // =========================================================================
-// MÓC NỐI (HOOKS) ĐỒNG BỘ THEO PHÒNG BIỆT LẬP TUYỆT ĐỐI
+// BỘ HOOK CÔ LẬP LAYER (CHỐNG PHÁT SÓNG DỘI NGƯỢC)
 // =========================================================================
 
-// Hook 1: Đè hàm chuyển Tab -> Chuyển phòng hoàn toàn cục bộ, không ép luồng máy khác
+// Hook 1: Chuyển Tab -> Chỉ gọi lệnh dọn phòng, cấm tự ý renderGrid()
 const nativeRenderTabs = renderTabs;
 window.renderTabs = function() {
     nativeRenderTabs();
@@ -1110,31 +1079,37 @@ window.renderTabs = function() {
         
         const tabName = clonedEl.innerText.trim();
         clonedEl.addEventListener('click', function() {
+            if (activeTab === tabName) return; // Đang đứng ở tab này bấm lại thì lơ đi
+            
             document.querySelectorAll('#tabsWrapper .tab-item').forEach(t => t.classList.remove('active'));
             this.classList.add('active');
             activeTab = tabName;
             
-            renderGrid();
+            // BÀN GIAO TOÀN QUYỀN NẠP LAYER CHO ENGINE V7.0
             GridCollabEngine.switchConferenceRoom(tabName);
         });
     });
 };
 
-// Hook 2: Khi vẽ lại bảng -> Phát sóng vào đúng phòng của Tab đó
+// Hook 2: Cắt đứt quan hệ nhân quả giữa renderGrid() và broadcast
 const nativeRenderGrid = renderGrid;
 window.renderGrid = function() {
     nativeRenderGrid();
+    
+    // ÁI KIỂM SOÁT THÉP: 
+    // Nếu bảng vừa được vẽ ra là do Firebase dội về, HOẶC do máy đang bận chuyển tab
+    // -> CẤM TUYỆT ĐỐI KHÔNG ĐƯỢC PHÁT SÓNG NGƯỢC LẠI!
+    if (GridCollabEngine.isApplyingRemotePatch || GridCollabEngine.isSwitchingTabCanvas) return;
+
     GridCollabEngine.broadcastGridState();
 };
 
-// Hook 3: Khi gõ sửa ô -> Đẩy Realtime cục bộ
 const nativeUpdateCell = updateCell;
 window.updateCell = function(r, c, val) {
     nativeUpdateCell(r, c, val);
     GridCollabEngine.broadcastGridState();
 };
 
-// Hook 4: Khi lưu thuộc tính bảng -> Đồng bộ thuộc tính ô
 const nativeDispatchAttrSave = dispatchAttrSave;
 window.dispatchAttrSave = function() {
     nativeDispatchAttrSave();
@@ -1142,175 +1117,102 @@ window.dispatchAttrSave = function() {
 };
 
 // =========================================================================
-// THUẬT TOÁN BỘ LỌC 2 TẦNG BẢO TOÀN SỐ THỨ TỰ HÀNG TUYỆT ĐỐI
+// THUẬT TOÁN BỘ LỌC 2 TẦNG BẢO TOÀN SỐ THỨ TỰ HÀNG
 // =========================================================================
 function getEffectiveFilters() {
-    const pub = sysData.filters[activeTab] || {};
-    const priv = localPrivateFilters[activeTab] || {};
-    const effective = { ...pub };
-    for (let col in priv) effective[col] = priv[col];
+    const pub = sysData.filters[activeTab] || {}; const priv = localPrivateFilters[activeTab] || {};
+    const effective = { ...pub }; for (let col in priv) effective[col] = priv[col];
     return effective;
 }
 
 window.isRowFilteredOut = function(r, matrix) { 
-    const flts = getEffectiveFilters();
-    if (!flts || Object.keys(flts).length === 0) return false; 
-    
-    const attrs = sysData.attributes[activeTab] || {};
-    const types = attrs.columnTypes || {};
+    const flts = getEffectiveFilters(); if (!flts || Object.keys(flts).length === 0) return false; 
+    const attrs = sysData.attributes[activeTab] || {}; const types = attrs.columnTypes || {};
 
     for (let c in flts) { 
-        const cellVal = String(matrix[r][c] || "").trim();
-        const type = types[c] || "text";
-
+        const cellVal = String(matrix[r][c] || "").trim(); const type = types[c] || "text";
         if (type === "dropdown") {
             const cellItems = cellVal.split(",").map(v => v.trim()).filter(Boolean);
-            if (cellItems.length === 0) {
-                if (!flts[c].includes("")) return true; 
-            } else {
-                const hasMatch = cellItems.some(item => flts[c].includes(item));
-                if (!hasMatch) return true; 
-            }
-        } else {
-            if (flts[c].indexOf(cellVal) === -1) return true; 
-        }
+            if (cellItems.length === 0) { if (!flts[c].includes("")) return true; } 
+            else { if (!cellItems.some(item => flts[c].includes(item))) return true; }
+        } else { if (flts[c].indexOf(cellVal) === -1) return true; }
     } 
     return false; 
 };
 
 window.openFilterMenu = function(e, c) {
-    e.stopPropagation();
-    activeFilterCol = c;
-
+    e.stopPropagation(); activeFilterCol = c;
     let askPopup = document.getElementById("filterAskScopePopup");
     if (!askPopup) {
-        askPopup = document.createElement("div");
-        askPopup.id = "filterAskScopePopup";
-        askPopup.className = "popup-box";
-        askPopup.style.width = "250px";
-        askPopup.style.padding = "10px";
+        askPopup = document.createElement("div"); askPopup.id = "filterAskScopePopup"; askPopup.className = "popup-box";
+        askPopup.style.width = "250px"; askPopup.style.padding = "10px";
         askPopup.innerHTML = `
             <div style="font-size:12px; font-weight:bold; color:var(--blue); margin-bottom:10px; text-align:center; border-bottom:1px solid var(--gray-border); padding-bottom:6px;">
                 <i class="fas fa-filter"></i> ÁP DỤNG BỘ LỌC NÀY CHO AI?
             </div>
             <div class="menu-item" onclick="triggerFilterChecklist('private', event)" style="border-radius:4px; background:#f0fdf4; border:1px solid #bbf7d0; margin-bottom:6px; padding:8px 12px;">
                 <i class="fas fa-user-shield" style="color:#16a34a; font-size:16px;"></i>
-                <div style="line-height:1.2;">
-                    <div style="font-weight:bold; color:#16a34a; font-size:12px;">Chỉ mình tôi (Private)</div>
-                    <div style="font-size:10px; color:#64748b;">Máy khác không nhìn thấy</div>
-                </div>
+                <div style="line-height:1.2;"><div style="font-weight:bold; color:#16a34a; font-size:12px;">Chỉ mình tôi (Private)</div><div style="font-size:10px; color:#64748b;">Máy khác không nhìn thấy</div></div>
             </div>
             <div class="menu-item" onclick="triggerFilterChecklist('public', event)" style="border-radius:4px; background:#f0f9ff; border:1px solid #bae6fd; padding:8px 12px;">
                 <i class="fas fa-users" style="color:#0284c7; font-size:16px;"></i>
-                <div style="line-height:1.2;">
-                    <div style="font-weight:bold; color:#0284c7; font-size:12px;">Mọi người (Public Realtime)</div>
-                    <div style="font-size:10px; color:#64748b;">Đồng bộ tức thì tới toàn phòng</div>
-                </div>
+                <div style="line-height:1.2;"><div style="font-weight:bold; color:#0284c7; font-size:12px;">Mọi người (Public Realtime)</div><div style="font-size:10px; color:#64748b;">Đồng bộ tức thì tới toàn phòng</div></div>
             </div>
         `;
-        document.body.appendChild(askPopup);
-        askPopup.addEventListener('click', ev => ev.stopPropagation());
+        document.body.appendChild(askPopup); askPopup.addEventListener('click', ev => ev.stopPropagation());
     }
     showPopupSafe(askPopup, e);
 };
 
 window.triggerFilterChecklist = function(targetScope, e) {
-    currentFilterScope = targetScope;
-    document.getElementById("filterAskScopePopup").style.display = "none";
-    
-    const c = activeFilterCol;
-    const box = document.getElementById("filterListArea"); 
-    box.innerHTML = ""; 
-
+    currentFilterScope = targetScope; document.getElementById("filterAskScopePopup").style.display = "none";
+    const c = activeFilterCol; const box = document.getElementById("filterListArea"); box.innerHTML = ""; 
     const badge = targetScope === 'private' ? '<span style="color:#16a34a;">[Mình tôi]</span>' : '<span style="color:#0284c7;">[Mọi người]</span>';
     document.getElementById("filterHeader").innerHTML = `<i class="fas fa-filter"></i> Lọc cột ${getColLetter(c)} ${badge}`; 
 
-    const mat = sysData.sheets[activeTab]; 
-    const attrs = sysData.attributes[activeTab] || {};
-    const type = attrs.columnTypes ? attrs.columnTypes[c] : null;
-    let vals = [];
+    const mat = sysData.sheets[activeTab]; const attrs = sysData.attributes[activeTab] || {};
+    const type = attrs.columnTypes ? attrs.columnTypes[c] : null; let vals = [];
 
-    if (type === "dropdown" && attrs.dropdownChoices && attrs.dropdownChoices[c] && attrs.dropdownChoices[c].length > 0) {
-        vals = [...attrs.dropdownChoices[c]];
-    } else {
-        const unique = new Set(); 
-        for(let r=1; r<mat.length; r++) unique.add(String(mat[r][c] || "").trim()); 
-        vals = Array.from(unique).sort(); 
-    }
+    if (type === "dropdown" && attrs.dropdownChoices && attrs.dropdownChoices[c] && attrs.dropdownChoices[c].length > 0) vals = [...attrs.dropdownChoices[c]];
+    else { const unique = new Set(); for(let r=1; r<mat.length; r++) unique.add(String(mat[r][c] || "").trim()); vals = Array.from(unique).sort(); }
 
     const targetBucket = targetScope === 'private' ? (localPrivateFilters[activeTab] || {}) : (sysData.filters[activeTab] || {});
     const flt = targetBucket[c] || null; 
 
     let html = `<div class="menu-item" onclick="toggleAllFlt(this)"><input type="checkbox" id="fltAll" style="pointer-events:none;" ${flt===null?'checked':''}> <b>(Chọn tất cả)</b></div>`; 
-    vals.forEach(v => { 
-        const isChk = flt === null || flt.includes(v); 
-        html += `<div class="menu-item" onclick="toggleSingleFlt(this)"><input type="checkbox" class="flt-cb" value="${v}" style="pointer-events:none;" ${isChk?'checked':''}> <span>${v===""?"(Trống)":v}</span></div>`; 
-    }); 
-
-    box.innerHTML = html; 
-    showPopupSafe(document.getElementById("filterPopup"), e); 
+    vals.forEach(v => { const isChk = flt === null || flt.includes(v); html += `<div class="menu-item" onclick="toggleSingleFlt(this)"><input type="checkbox" class="flt-cb" value="${v}" style="pointer-events:none;" ${isChk?'checked':''}> <span>${v===""?"(Trống)":v}</span></div>`; }); 
+    box.innerHTML = html; showPopupSafe(document.getElementById("filterPopup"), e); 
 };
 
 window.applyFilter = function() { 
-    const cbs = document.querySelectorAll(".flt-cb"); 
-    let sel = []; let all = true; 
+    const cbs = document.querySelectorAll(".flt-cb"); let sel = []; let all = true; 
     cbs.forEach(cb => { if(cb.checked) sel.push(cb.value); else all = false; }); 
-
-    if (currentFilterScope === 'private') {
-        localPrivateFilters[activeTab] = localPrivateFilters[activeTab] || {};
-        if (all) delete localPrivateFilters[activeTab][activeFilterCol]; 
-        else localPrivateFilters[activeTab][activeFilterCol] = sel; 
-    } else {
-        sysData.filters[activeTab] = sysData.filters[activeTab] || {}; 
-        if (all) delete sysData.filters[activeTab][activeFilterCol]; 
-        else sysData.filters[activeTab][activeFilterCol] = sel; 
-
-        GridCollabEngine.broadcastPublicFilters();
-    }
-    document.getElementById("filterPopup").style.display = "none"; 
-    renderGrid(); 
+    if (currentFilterScope === 'private') { localPrivateFilters[activeTab] = localPrivateFilters[activeTab] || {}; if (all) delete localPrivateFilters[activeTab][activeFilterCol]; else localPrivateFilters[activeTab][activeFilterCol] = sel; } 
+    else { sysData.filters[activeTab] = sysData.filters[activeTab] || {}; if (all) delete sysData.filters[activeTab][activeFilterCol]; else sysData.filters[activeTab][activeFilterCol] = sel; GridCollabEngine.broadcastPublicFilters(); }
+    document.getElementById("filterPopup").style.display = "none"; renderGrid(); 
 };
 
 window.clearFilter = function() { 
-    if (currentFilterScope === 'private') {
-        if (localPrivateFilters[activeTab]) delete localPrivateFilters[activeTab][activeFilterCol]; 
-    } else {
-        if (sysData.filters[activeTab]) delete sysData.filters[activeTab][activeFilterCol]; 
-        GridCollabEngine.broadcastPublicFilters();
-    }
-    document.getElementById("filterPopup").style.display = "none"; 
-    renderGrid(); 
+    if (currentFilterScope === 'private') { if (localPrivateFilters[activeTab]) delete localPrivateFilters[activeTab][activeFilterCol]; } 
+    else { if (sysData.filters[activeTab]) delete sysData.filters[activeTab][activeFilterCol]; GridCollabEngine.broadcastPublicFilters(); }
+    document.getElementById("filterPopup").style.display = "none"; renderGrid(); 
 };
 
 window.clearFilterForCol = function(c, scopeType) {
-    if (scopeType === 'private') {
-        if (localPrivateFilters[activeTab]) delete localPrivateFilters[activeTab][c];
-    } else {
-        if (sysData.filters[activeTab]) delete sysData.filters[activeTab][c];
-        GridCollabEngine.broadcastPublicFilters();
-    }
+    if (scopeType === 'private') { if (localPrivateFilters[activeTab]) delete localPrivateFilters[activeTab][c]; } 
+    else { if (sysData.filters[activeTab]) delete sysData.filters[activeTab][c]; GridCollabEngine.broadcastPublicFilters(); }
     renderGrid();
 };
 
 window.updateActiveFilterToolbar = function() {
-    const display = document.getElementById("activeFilterDisplay");
-    if (!display) return;
-    
-    const pub = sysData.filters[activeTab] || {};
-    const priv = localPrivateFilters[activeTab] || {};
-    
-    if (Object.keys(pub).length === 0 && Object.keys(priv).length === 0) {
-        display.style.display = "none";
-        return;
-    }
-    
-    const mat = sysData.sheets[activeTab];
-    let html = "";
+    const display = document.getElementById("activeFilterDisplay"); if (!display) return;
+    const pub = sysData.filters[activeTab] || {}; const priv = localPrivateFilters[activeTab] || {};
+    if (Object.keys(pub).length === 0 && Object.keys(priv).length === 0) { display.style.display = "none"; return; }
+    const mat = sysData.sheets[activeTab]; let html = "";
 
     function renderFilterBadges(fltObject, label, colorHex) {
         for (let c in fltObject) {
-            const colTitle = (mat[0] && mat[0][c]) ? mat[0][c] : getColLetter(parseInt(c)); 
-            const vals = fltObject[c].join(", ");
+            const colTitle = (mat[0] && mat[0][c]) ? mat[0][c] : getColLetter(parseInt(c)); const vals = fltObject[c].join(", ");
             html += `<div style="display:inline-flex; align-items:center; margin-right:10px; background:#fff; padding:2px 8px; border-radius:12px; border:1px solid ${colorHex}; font-size:11px;">
                         <span style="font-size:10px; font-weight:bold; color:${colorHex}; margin-right:4px;">[${label}]</span>
                         <span style="font-weight:bold; margin-right:4px;">${colTitle}:</span> 
@@ -1319,14 +1221,10 @@ window.updateActiveFilterToolbar = function() {
                      </div>`;
         }
     }
-    renderFilterBadges(pub, "Mọi người", "#0284c7");
-    renderFilterBadges(priv, "Mình tôi", "#16a34a");
-
-    display.innerHTML = html;
-    display.style.display = "flex";
+    renderFilterBadges(pub, "Mọi người", "#0284c7"); renderFilterBadges(priv, "Mình tôi", "#16a34a");
+    display.innerHTML = html; display.style.display = "flex";
 };
 
-// Kích hoạt mồi phòng họp ngay khi tải trang cho Tab đầu tiên
 setTimeout(() => { if (activeTab) GridCollabEngine.switchConferenceRoom(activeTab); }, 800);
     </script>
 </body>
