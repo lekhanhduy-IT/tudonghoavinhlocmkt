@@ -5516,28 +5516,33 @@ async function downloadActiveImageWithMetadata() {
    ĐỘNG CƠ CỘNG TÁC & ĐỒNG BỘ SIÊU TỐC (V3 - THEO LOGIC GOOGLE DOCS)
 ==================================================================== */
 
+/* ====================================================================
+   ĐỘNG CƠ CỘNG TÁC & ĐỒNG BỘ SIÊU TỐC (V3.5 - BỌC THÉP TOÀN DIỆN)
+==================================================================== */
+
 (function initRealtimeEngine() {
+    // 1. KHAI BÁO BIẾN CÁ NHÂN (Đã khôi phục myAvatar bị mất tích)
     let rawEmail = localStorage.getItem('admin_email');
     const myEmail = (rawEmail && rawEmail !== "undefined") ? rawEmail : ('anon_' + Math.floor(Math.random()*1000) + '@gmail.com');
-// THAY THẾ DÒNG myName CŨ THÀNH DÒNG NÀY:
+    
     let rawName = localStorage.getItem('admin_name');
     const myName = (rawName && rawName !== "undefined" && rawName !== "null") ? rawName : myEmail.split('@')[0];
+    
+    // PHỤC HỒI DÒNG HUYỆT TỬ NÀY:
+    const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
 
-// 1. Ưu tiên tóm ID từ thanh URL trước
+    // 2. BẮT ROOM ID
     const urlParams = new URLSearchParams(window.location.search);
     let roomId = urlParams.get('id');
-    // 2. Fallback: Nếu user mở trực tiếp post.html mà quên dán tham số -> Tự lục LocalStorage gắn vào URL!
     if (!roomId) {
         try {
             let draft = JSON.parse(localStorage.getItem('DRAFT_POST_DATA'));
             if (draft && draft.data && draft.data[0]) {
                 roomId = draft.data[0];
-                // Lệnh ma thuật: Sửa URL bar của trình duyệt thành ?id=... ngay lập tức mà không làm giật trang
                 window.history.replaceState(null, '', '?id=' + encodeURIComponent(roomId));
             }
         } catch(e) {}
     }
-// Chuẩn hóa tên phòng (xóa ký tự cấm của Firebase)
     roomId = (roomId || 'DRAFT_ROOM_GENERAL').replace(/[\.\#\$\[\]]/g, '_');
 
     const myDeviceId = 'dev_' + Math.random().toString(36).substring(2, 7);
@@ -5556,6 +5561,7 @@ async function downloadActiveImageWithMetadata() {
     
     const myPresenceRef = db.ref(`collab_rooms/${roomId}/users/${safeUserKey}`);
     const domSyncRef = db.ref(`collab_rooms/${roomId}/dom_state`);
+    const imageMetaLiveRef = db.ref(`collab_rooms/${roomId}/image_meta_subchannel`); // <-- KHÔI PHỤC KÊNH METADATA ẢNH
 
     myPresenceRef.set({
         name: myName, email: myEmail, avatar: myAvatar, color: myColor,
@@ -5563,10 +5569,7 @@ async function downloadActiveImageWithMetadata() {
     });
     myPresenceRef.onDisconnect().remove();
 
-    // =================================================================
-    // HÀM BẢO TOÀN VỊ TRÍ CON TRỎ (Caret Preservation)
-    // Huyệt tử: Giúp người B đang gõ không bị văng con trỏ về đầu câu khi DOM cập nhật
-    // =================================================================
+    // --- HÀM BẢO TOÀN VỊ TRÍ CON TRỎ (Caret Preservation) ---
     function getCaretCharacterOffsetWithin(el) {
         let caretOffset = 0;
         const sel = window.getSelection();
@@ -5604,13 +5607,10 @@ async function downloadActiveImageWithMetadata() {
         walk(el);
     }
 
-   // =================================================================
-    // PHẦN 1: BẮT TỌA ĐỘ CHUỘT & TỌA ĐỘ VẠCH GÕ CHỮ (CARET TRACKING)
-    // =================================================================
+    // --- PHẦN 1: BẮT TỌA ĐỘ CHUỘT & VẠCH GÕ CHỮ ---
     let lastMouseTime = 0;
     const paperElem = document.getElementById('editorContainer');
 
-    // 1.1 Bắn tọa độ khi tay "Rê chuột"
     function broadcastMouse(clientX, clientY) {
         if (!paperElem || Date.now() - lastMouseTime < 35) return; 
         lastMouseTime = Date.now();
@@ -5625,7 +5625,6 @@ async function downloadActiveImageWithMetadata() {
     window.addEventListener('mousemove', e => broadcastMouse(e.clientX, e.clientY));
     window.addEventListener('touchmove', e => { if(e.touches[0]) broadcastMouse(e.touches[0].clientX, e.touches[0].clientY); });
 
-    // 1.2 Bắn tọa độ khi tay "Gõ phím" (Hút con trỏ bám chặt vào đuôi ký tự)
     function broadcastCaretPosition() {
         if (!paperElem) return;
         const activeEl = document.activeElement;
@@ -5634,24 +5633,20 @@ async function downloadActiveImageWithMetadata() {
         const paperRect = paperElem.getBoundingClientRect();
         let caretX = 0; let caretY = 0; let isValid = false;
 
-        // Trường hợp A: Đang gõ trong Tiêu đề, Sapo, Nội dung bài hoặc Bảng
         if (activeEl.isContentEditable) {
             const sel = window.getSelection();
             if (sel.rangeCount > 0) {
                 const range = sel.getRangeAt(0);
-                // getBoundingClientRect() của 1 vạch nháy trả về đúng tọa độ X,Y của vạch đó!
                 const rect = range.getBoundingClientRect(); 
                 if (rect.left !== 0 && rect.top !== 0) {
                     caretX = rect.left - paperRect.left;
-                    caretY = rect.bottom - paperRect.top; // Ghim mũi tên vào góc dưới bên phải ký tự
+                    caretY = rect.bottom - paperRect.top;
                     isValid = true;
                 }
             }
-        } 
-        // Trường hợp B: Đang gõ trong thẻ <input>/<textarea> của công cụ
-        else if (['INPUT', 'TEXTAREA'].includes(activeEl.tagName)) {
+        } else if (['INPUT', 'TEXTAREA'].includes(activeEl.tagName)) {
             const rect = activeEl.getBoundingClientRect();
-            caretX = rect.right - paperRect.left - 5;  // Ghim vào đít ô input
+            caretX = rect.right - paperRect.left - 5; 
             caretY = rect.bottom - paperRect.top;
             isValid = true;
         }
@@ -5661,26 +5656,37 @@ async function downloadActiveImageWithMetadata() {
         }
     }
 
-    // Bắt mọi khoảnh khắc vạch gõ chữ dịch chuyển (gõ phím, bôi đen, click chuột vào giữa câu)
     ['keyup', 'input', 'mouseup', 'focusin'].forEach(evt => {
-        document.addEventListener(evt, () => {
-            setTimeout(broadcastCaretPosition, 10); // Trễ 10ms để DOM kịp nảy ký tự mới ra
-        });
+        document.addEventListener(evt, () => { setTimeout(broadcastCaretPosition, 10); });
     });
-    // =================================================================
-    // PHẦN 2: "CAMERA" MUTATION OBSERVER GIÁM SÁT MỌI BIẾN ĐỘNG TRÊN GIẤY
-    // =================================================================
+
+    // --- BẮT REALTIME CHO BẢNG METADATA ẢNH ---
+    document.getElementById('vbMetadataTable')?.addEventListener('input', e => {
+        if (!vbActiveImage) return;
+        const metaCell = e.target.closest('.vb-meta-value');
+        if (!metaCell) return;
+
+        const payload = {
+            imageId: vbActiveImage.dataset.imageId,
+            metaKey: metaCell.dataset.metaKey,
+            text: metaCell.innerText.replace(/\u00a0/g, " ").trim(),
+            sender: myDeviceId
+        };
+        imageMetaLiveRef.set(payload);
+    });
+
+    // --- PHẦN 2: CAMERA GIÁM SÁT DOM ---
     let isApplyingRemoteDOM = false;
     let lastBroadcastedDOMHash = '';
 
     const domCamera = new MutationObserver(() => {
-        if (isApplyingRemoteDOM) return; // Nếu DOM bị sửa do Firebase đẩy về -> Khóa không cho phát ngược lại
+        if (isApplyingRemoteDOM) return;
 
         const payload = {
             postTitle: document.getElementById('postTitle')?.innerHTML || '',
             postSapo: document.getElementById('postSapo')?.innerHTML || '',
-            coverHtml: serializeRealtimeSafeHtml(document.getElementById('coverEditor')),
-            postContent: serializeRealtimeSafeHtml(document.getElementById('postContent')),
+            coverHtml: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('coverEditor')) : (document.getElementById('coverEditor')?.innerHTML || ''),
+            postContent: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('postContent')) : (document.getElementById('postContent')?.innerHTML || ''),
             sender: myDeviceId,
             timestamp: Date.now()
         };
@@ -5696,53 +5702,49 @@ async function downloadActiveImageWithMetadata() {
         domCamera.observe(paperElem, { childList: true, subtree: true, characterData: true, attributes: true });
     }
 
-    // =================================================================
-    // PHẦN 3: LẮNG NGHE MÁY KHÁC & ÁP DỤNG LÊN DOM REALTIME
-    // =================================================================
+    // --- PHẦN 3: LẮNG NGHE VÀ DÁN ĐÈ DOM ---
 
-    // 3.1 Nhận Dữ liệu Text & Định dạng
+    // 3.1 Nhận DOM
     domSyncRef.on('value', snapshot => {
         const domData = snapshot.val();
-        if (!domData || domData.sender === myDeviceId) return; // Bỏ qua dữ liệu do chính máy mình vừa phát
+        if (!domData || domData.sender === myDeviceId) return;
 
-        isApplyingRemoteDOM = true; // Bật khiên chống dội Observer
+        isApplyingRemoteDOM = true;
 
         function smartInject(elementId, incomingHtml) {
             const el = document.getElementById(elementId);
             if (!el || el.innerHTML === incomingHtml) return;
 
-            // Nếu user B đang để con trỏ gõ chữ bên trong thẻ này -> Áp dụng thuật toán giữ Caret
             if (document.activeElement === el || el.contains(document.activeElement)) {
                 const caretPos = getCaretCharacterOffsetWithin(el);
                 el.innerHTML = incomingHtml;
                 setCaretPositionWithin(el, caretPos);
             } else {
-                el.innerHTML = incomingHtml; // Ghi đè tức thì
+                el.innerHTML = incomingHtml;
             }
         }
 
         smartInject('postTitle', domData.postTitle);
         smartInject('postSapo', domData.postSapo);
+        smartInject('coverEditor', domData.coverHtml !== undefined ? domData.coverHtml : (domData.coverUrl ? `<img src="${domData.coverUrl}" class="vb-managed-image" data-image-role="cover">` : ''));
+        smartInject('postContent', domData.postContent);
 
-        // Tương thích dữ liệu realtime cũ chỉ có coverUrl.
-        if (domData.coverHtml !== undefined) {
-            smartInject('coverEditor', domData.coverHtml || '');
-        } else if (domData.coverUrl) {
-            const cover = document.getElementById('coverEditor');
-            if (cover) {
-                cover.innerHTML = '';
-                appendManagedCoverImage(cover, createManagedImage(domData.coverUrl, 'cover', {}));
-            }
+        if(typeof hydrateManagedImages === 'function') {
+            hydrateManagedImages(document.getElementById('coverEditor'), 'cover');
+            hydrateManagedImages(document.getElementById('postContent'), 'content');
         }
 
-        smartInject('postContent', domData.postContent);
-        hydrateManagedImages(document.getElementById('coverEditor'), 'cover');
-        hydrateManagedImages(document.getElementById('postContent'), 'content');
+        // Nối lại dây tơ hồng cho đối tượng ảnh đang mở popup bị dán đè
+        if (vbActiveImage) {
+            let survivingId = vbActiveImage.dataset.imageId;
+            let revivedImgNode = document.querySelector(`img[data-image-id="${survivingId}"]`);
+            if (revivedImgNode) vbActiveImage = revivedImgNode;
+        }
 
         setTimeout(() => { isApplyingRemoteDOM = false; }, 30);
     });
 
-    // 3.2 Nhận tọa độ chuột & vẽ lên mặt giấy (BỌC THÉP CHỐNG ZOMBIE)
+    // 3.2 Nhận User, Cursors & Avatars (BỌC THÉP CHỐNG ZOMBIE)
     const usersListRef = db.ref(`collab_rooms/${roomId}/users`);
     const cursorsCanvas = document.getElementById('collab-cursors-layer');
     const avtBar = document.getElementById('collabAvatarList');
@@ -5757,14 +5759,12 @@ async function downloadActiveImageWithMetadata() {
             });
         }
 
-        // Render dải Avatar
         let activeEmails = Object.keys(users).sort().join('|');
         if (activeEmails !== lastAvtHash && avtBar) {
             lastAvtHash = activeEmails;
             let avtHtml = ''; let c = 0;
             for(let k in users) {
                 let p = users[k];
-                // LỚP KHIÊN 1: Node rác không có email, hoặc email là chữ "undefined" -> BỎ QUA NGAY!
                 if(!p || !p.email || p.email === "undefined") continue; 
                 c++;
                 let safeName = (p.name && p.name !== "undefined") ? p.name : p.email.split('@')[0];
@@ -5773,15 +5773,11 @@ async function downloadActiveImageWithMetadata() {
             avtBar.innerHTML = avtHtml;
         }
 
-        // Render con trỏ chuột
         if(!cursorsCanvas) return;
         for(let k in users) {
             let peer = users[k];
-            
-            // LỚP KHIÊN 2: Bị rỗng? | Thiếu email? | Trùng email mình? -> CẤM VẼ!
             if (!peer || !peer.email || peer.email === "undefined" || peer.email === myEmail) continue;
 
-            // LỚP KHIÊN 3: Nếu mất tên, hiển thị "Ẩn danh" thay vì hiện chữ undefined
             let safePeerName = (peer.name && peer.name !== "undefined") ? peer.name : "Ẩn danh";
 
             let cursorDom = document.getElementById(`cursor_${k}`);
@@ -5795,6 +5791,29 @@ async function downloadActiveImageWithMetadata() {
             }
 
             cursorDom.style.transform = `translate(${peer.x}px, ${peer.y}px)`;
+        }
+    });
+
+    // 3.3 Nhận Meta ảnh
+    imageMetaLiveRef.on('value', snapshot => {
+        const data = snapshot.val();
+        if (!data || data.sender === myDeviceId) return;
+
+        if (vbActiveImage && vbActiveImage.dataset.imageId === data.imageId) {
+            const targetTd = document.querySelector(`#vbMetadataTable .vb-meta-value[data-meta-key="${data.metaKey}"]`);
+            if (targetTd && document.activeElement !== targetTd) {
+                targetTd.textContent = data.text;
+            }
+            let currentMeta = readImageMetadata(vbActiveImage);
+            currentMeta[data.metaKey] = data.text;
+            writeImageMetadata(vbActiveImage, currentMeta);
+        } else {
+            let targetImgDom = document.querySelector(`img[data-image-id="${data.imageId}"]`);
+            if (targetImgDom) {
+                let currentMeta = readImageMetadata(targetImgDom);
+                currentMeta[data.metaKey] = data.text;
+                writeImageMetadata(targetImgDom, currentMeta);
+            }
         }
     });
 
