@@ -4567,11 +4567,32 @@ function initMetadataGridClipboard() {
         });
     });
 
-    table.querySelectorAll(".vb-meta-column-head[data-meta-col-select]").forEach(head => {
+table.querySelectorAll(".vb-meta-column-head[data-meta-col-select]").forEach(head => {
         head.addEventListener("mousedown", e => {
             if (e.target.closest("#vbMetaLabelLockBtn")) return;
             e.preventDefault();
-            selectMetadataColumn(Number(head.dataset.metaColSelect));
+
+            const targetCol = Number(head.dataset.metaColSelect);
+
+            // KỊCH BẢN GIỮ SHIFT + CLICK CHỌN NHIỀU CỘT
+            if (e.shiftKey && vbMetaAnchorCell) {
+                const startCol = Number(vbMetaAnchorCell.dataset.metaCol);
+                const allCells = metadataCells();
+                
+                // 1. Tọa độ neo trên cùng: Ô thuộc hàng 0 của cột mốc ban đầu
+                const topAnchor = allCells.find(c => Number(c.dataset.metaRow) === 0 && Number(c.dataset.metaCol) === startCol);
+                
+                // 2. Tọa độ neo dưới cùng: Ô cuối cùng của cột vừa Shift-click vào
+                const targetColCells = allCells.filter(c => Number(c.dataset.metaCol) === targetCol);
+                const bottomTarget = targetColCells[targetColCells.length - 1];
+
+                if (topAnchor && bottomTarget) {
+                    selectMetadataRectangle(topAnchor, bottomTarget);
+                }
+            } else {
+                // Kịch bản click bình thường (không Shift) -> bôi đen 1 cột
+                selectMetadataColumn(targetCol);
+            }
         });
     });
 
