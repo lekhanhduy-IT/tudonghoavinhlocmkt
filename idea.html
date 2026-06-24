@@ -1097,25 +1097,13 @@ const GridCollabEngine = (function() {
                 let crownDom = `<div id="hostCrownIndicator" title="Chủ phòng" style="display:${isRoomHost?'inline-flex':'none'}; align-items:center;font-size:16px; font-weight:bold; color:#854d0e; margin-right:6px; cursor:help;">👑</div>`;
                 avatarBox.insertAdjacentHTML('beforeend', crownDom);
 
-const palette = ['#01adee', '#e11d48', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
-                // THÊM: Sắp xếp người dùng để xác định host chính xác
-                const sortedUids = Object.keys(users).sort((a, b) => (users[a].joinedAt || 0) - (users[b].joinedAt || 0));
-                
-                sortedUids.forEach((uid, index) => {
+                const palette = ['#01adee', '#e11d48', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+                Object.keys(users).forEach(uid => {
                     const u = users[uid];
                     let hash = 0; for(let i=0; i<u.email.length; i++) hash = Math.imul(31, hash) + u.email.charCodeAt(i) | 0;
                     const peerColor = u.color || palette[Math.abs(hash) % palette.length];
 
                     const slot = document.createElement('div'); slot.className = 'peer-avatar-slot';
-                    
-                    // THÊM: Thêm vương miện cho avatar host (người vào phòng đầu tiên)
-                    if (index === 0) {
-                        const crown = document.createElement('div');
-                        crown.innerText = '👑';
-                        crown.style.cssText = 'position:absolute; top:-12px; font-size:18px; line-height:1; transform:translateX(-50%); left:50%; z-index:10;';
-                        slot.appendChild(crown);
-                    }
-
                     const img = document.createElement('img'); img.src = u.avatar || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
                     img.style.border = `2px solid ${peerColor}`;
 
