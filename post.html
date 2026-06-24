@@ -5141,31 +5141,94 @@ async function downloadActiveImageWithMetadata() {
 
     const status = document.getElementById("vbImageUploadStatus");
     status.style.display = "block";
-    status.textContent = "Đang tạo file ảnh kèm metadata...";
+    status.textContent = "Đang kết xuất ảnh theo khung cắt & scale...";
 
     try {
+        const state = readImageFrameState(img);
         const source = img.dataset.driveUrl ? runtimeImageUrl(img.dataset.driveUrl) : img.src;
-        const response = await fetch(source);
-        if (!response.ok) throw new Error("Không tải được dữ liệu ảnh.");
-        let blob = await response.blob();
-        let mime = blob.type || "application/octet-stream";
-        let bytes = new Uint8Array(await blob.arrayBuffer());
-        let extension = inferExtensionFromSource(source, mime);
+        
+        // 1. Tải ảnh gốc vào bộ nhớ với quyền CORS để Canvas có thể trích xuất pixel
+        const renderImg = new Image();
+        renderImg.crossOrigin = "Anonymous";
+        
+        await new Promise((resolve, reject) => {
+            renderImg.onload = resolve;
+            renderImg.onerror = () => reject(new Error("Lỗi tải ảnh (CORS). Nếu là link bên ngoài, server ảnh chặn quyền vẽ lại. Vui lòng dùng ảnh tải lên hoặc Google Drive."));
+            renderImg.src = source;
+        });
 
-        if (mime === "image/jpeg" || mime === "image/jpg") {
-            bytes = embedXmpIntoJpeg(bytes, meta);
-            extension = "jpg";
-            mime = "image/jpeg";
-        } else {
-            if (mime !== "image/png") {
-                blob = await convertBlobToPng(blob);
-                bytes = new Uint8Array(await blob.arrayBuffer());
-                mime = "image/png";
-            }
-            bytes = embedMetadataIntoPng(bytes, meta);
-            extension = "png";
+        // 2. Lấy Kích thước & Áp dụng ép Scale % để ra số Pixel cuối cùng
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        
+        let cw = state.targetWidth || renderImg.naturalWidth;
+        let ch = state.targetHeight || renderImg.naturalHeight;
+        let scalePct = parseFloat(img.dataset.scalePercent);
+        if (isNaN(scalePct) || scalePct <= 0) scalePct = 100;
+
+        // Nếu ảnh đang ở chế độ Tự nhiên, trả về đúng pixel gốc
+        if (state.mode === "natural") {
+            cw = renderImg.naturalWidth;
+            ch = renderImg.naturalHeight;
+            scalePct = 100; 
+        }
+        
+        // Tính toán kích thước Pixel thật của file sẽ tải về
+        const scaleMultiplier = scalePct / 100;
+        canvas.width = Math.max(1, Math.round(cw * scaleMultiplier));
+        canvas.height = Math.max(1, Math.round(ch * scaleMultiplier));
+
+        // 3. Vẽ ảnh lên Canvas (Giả lập thuật toán CSS object-fit & object-position)
+        ctx.scale(scaleMultiplier, scaleMultiplier);
+
+        if (state.mode === "natural" || state.mode === "scale") {
+            ctx.drawImage(renderImg, 0, 0, cw, ch);
+        } else if (state.mode === "crop") {
+            // Thuật toán giả lập object-fit: cover
+            const coverScale = Math.max(cw / renderImg.naturalWidth, ch / renderImg.naturalHeight);
+            const sw = renderImg.naturalWidth * coverScale;
+            const sh = renderImg.naturalHeight * coverScale;
+            
+            const dx = sw - cw;
+            const dy = sh - ch;
+            
+            // Xê dịch ảnh dựa theo tỷ lệ kéo Pan của người dùng
+            const offsetX = (state.objectPosX / 100) * dx;
+            const offsetY = (state.objectPosY / 100) * dy;
+            
+            ctx.drawImage(renderImg, -offsetX, -offsetY, sw, sh);
         }
 
+        // 4. Nhận diện định dạng & Xuất ảnh ra Blob
+        const extGuess = inferExtensionFromSource(source, ""); 
+        let mimeType = (extGuess === "png" || extGuess === "svg") ? "image/png" : "image/jpeg";
+        let extension = mimeType === "image/png" ? "png" : "jpg";
+
+        // MẸO: Nếu xuất JPEG, vẽ lót nền trắng phòng khi ảnh gốc PNG có vùng trong suốt
+        if (mimeType === "image/jpeg") {
+            ctx.globalCompositeOperation = "destination-over";
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, cw, ch);
+        }
+
+        const blob = await new Promise((resolve, reject) => {
+            // Đặt chất lượng nén JPG là 95% để nét nhất
+            canvas.toBlob(b => {
+                if (b) resolve(b); else reject(new Error("Lỗi tạo file ảnh từ Canvas."));
+            }, mimeType, 0.95);
+        });
+
+        // 5. Gắn Metadata (IPTC / EXIF) trực tiếp vào mã byte của bức ảnh mới
+        let bytes = new Uint8Array(await blob.arrayBuffer());
+        status.textContent = "Đang nhúng Metadata vào ảnh...";
+        
+        if (mimeType === "image/jpeg") {
+            bytes = embedXmpIntoJpeg(bytes, meta);
+        } else {
+            bytes = embedMetadataIntoPng(bytes, meta);
+        }
+
+        // 6. Xử lý tên file & Tải xuống
         let fileName = sanitizeUploadFileName(meta.fileName || `image-${Date.now()}.${extension}`);
         const currentExtMatch = fileName.match(/\.([a-zA-Z0-9]{2,5})$/);
         const currentExt = currentExtMatch ? currentExtMatch[1].toLowerCase() : "";
@@ -5174,7 +5237,7 @@ async function downloadActiveImageWithMetadata() {
             fileName = fileName.replace(/\.[a-zA-Z0-9]{2,5}$/, "") + "." + extension;
         }
 
-        const downloadBlob = new Blob([bytes], {type: mime});
+        const downloadBlob = new Blob([bytes], {type: mimeType});
         const url = URL.createObjectURL(downloadBlob);
         const a = document.createElement("a");
         a.href = url;
@@ -5184,11 +5247,12 @@ async function downloadActiveImageWithMetadata() {
         a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1500);
 
-        status.textContent = "Đã tạo file ảnh kèm metadata.";
+        status.textContent = "Đã tải xuống thành công!";
         setTimeout(() => status.style.display = "none", 1500);
+
     } catch (err) {
         status.style.display = "none";
-        vbShowAlert("Không thể tải ảnh kèm metadata:<br><br>" + escapeHtmlText(err.message || String(err)));
+        vbShowAlert("Không thể tải ảnh kết xuất:<br><br>" + escapeHtmlText(err.message || String(err)));
     }
 }
 
