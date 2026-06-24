@@ -991,10 +991,35 @@ const GridCollabEngine = (function() {
             const style = document.createElement('style'); style.id = 'peerTooltipEngine';
             style.innerHTML = `
                 .peer-avatar-slot { position: relative; display: inline-flex; align-items: center; justify-content: center; }
-                .peer-avatar-slot img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; cursor: pointer; background: #fff; transition: transform 0.2s, box-shadow 0.2s; }
+                
+                /* Bọc neo bọc chung đỉnh đầu + vương miện */
+                .peer-avatar-slot .head-anchor {
+                    position: relative;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+                }
+                .peer-avatar-slot img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; cursor: pointer; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+                
+                /* VƯƠNG MIỆN KING ĐỘI TỰA TRÊN ĐẦU */
+                .peer-avatar-slot .host-crown {
+                    position: absolute;
+                    top: -12px;
+                    left: 50%;
+                    transform: translateX(-50%) rotate(-12deg);
+                    font-size: 16px;
+                    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.4));
+                    z-index: 20;
+                    pointer-events: none;
+                    user-select: none;
+                }
+
                 .peer-avatar-slot .peer-tag { position: absolute; top: 37px; left: 50%; transform: translateX(-50%) translateY(4px); color: #ffffff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; white-space: nowrap; pointer-events: none; opacity: 0; visibility: hidden; transition: all 0.15s; box-shadow: 0 2px 6px rgba(0,0,0,0.25); z-index: 1000000; }
                 .peer-avatar-slot .peer-tag::before { content: ''; position: absolute; top: -3px; left: 50%; transform: translateX(-50%) rotate(45deg); width: 6px; height: 6px; background: inherit; }
-                .peer-avatar-slot:hover img { transform: scale(1.15) translateY(-2px); }
+                
+                /* KHI HOVER -> NẨY CẢ CÁI BỌC HEAD-ANCHOR (GỒM CẢ VƯƠNG MIỆN) LÊN */
+                .peer-avatar-slot:hover .head-anchor { transform: scale(1.15) translateY(-2px); }
                 .peer-avatar-slot:hover .peer-tag { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
             `;
             document.head.appendChild(style);
@@ -1003,37 +1028,29 @@ const GridCollabEngine = (function() {
         let container = document.getElementById('gridOnlineUsers');
         if (!container) {
             container = document.createElement('div'); container.id = 'gridOnlineUsers';
-            container.style.cssText = `position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 6px; z-index: 999999; background: rgba(255, 255, 255, 0.95); padding: 3px 12px; border-radius: 20px; border:none; box-shadow: 0 2px 6px rgba(0,0,0,0.05); pointer-events: auto;`;
+            container.style.cssText = `position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 8px; z-index: 999999; background: rgba(255, 255, 255, 0.95); padding: 4px 14px; border-radius: 20px; border: 1px solid #e0e0e0; box-shadow: 0 2px 6px rgba(0,0,0,0.05); pointer-events: auto;`;
             toolbar.appendChild(container);
         }
         return container;
     }
 
-    // THUẬT TOÁN BẦU HOST CHỦ XỊ VÀ CẬP NHẬT SỐ LƯỢNG NGƯỜI CHƠI
+// THUẬT TOÁN BẦU HOST CHỦ XỊ (Trả về UID của Vua)
     function evaluateHostRole(usersObj) {
-        if (!usersObj) {
-            currentUsersCount = 0;
-            return false;
-        }
+        if (!usersObj) return null;
         const uids = Object.keys(usersObj);
-        currentUsersCount = uids.length; // Cập nhật sĩ số phòng
-        if (currentUsersCount === 0) return false;
+        if (uids.length === 0) return null;
 
         uids.sort((a, b) => (usersObj[a].joinedAt || 0) - (usersObj[b].joinedAt || 0));
-        const amIHostNow = (uids[0] === myDeviceId);
+        const activeHostUid = uids[0];
+        const amIHostNow = (activeHostUid === myDeviceId);
 
         if (amIHostNow !== isRoomHost) {
             isRoomHost = amIHostNow;
-            const badge = document.getElementById('hostCrownIndicator');
-            if (badge) {
-                badge.style.display = isRoomHost ? 'inline-flex' : 'none';
-                badge.title = "Host - Chờ máy cuối cùng để lưu vào Sheet";
-            }
             if (isRoomHost && activeTab && sysData.sheets[activeTab]) {
                 lastBackedUpMatrixClone = JSON.parse(JSON.stringify(sysData.sheets[activeTab]));
             }
         }
-        return isRoomHost;
+        return activeHostUid; // Trả về UID của người cầm cái
     }
 
     // ĐẾM NGƯỢC 4.5 GIÂY IM LẶNG - CHỈ LƯU KHI LÀ NGƯỜI CUỐI CÙNG
@@ -1076,32 +1093,19 @@ const GridCollabEngine = (function() {
         }
     }
 
-    function initCentralizedCanvasRouter() {
+function initCentralizedCanvasRouter() {
         db.ref('collab_grid').on('value', snapshot => {
             if (!activeTab || isSwitchingTabCanvas) return;
             const targetRoomId = getSafeRoomId(activeTab);
             const roomLayer = (snapshot.val() || {})[targetRoomId] || {};
 
             const users = roomLayer.users || {};
-            const previousCount = currentUsersCount; // Ghi nhớ số người cũ
-            evaluateHostRole(users);
+            const currentHostUid = evaluateHostRole(users); // Bắt lấy UID của Vua
 
-            // Bắt sự kiện: Mọi người thoát ra, số lượng sụt xuống còn 1 -> Tự động lưu mẻ cuối
-            if (previousCount > 1 && currentUsersCount === 1 && isRoomHost) {
-                triggerHostSilenceCountdown();
-            }
-
-const avatarBox = injectAvatarToolbarContainer();
+            const avatarBox = injectAvatarToolbarContainer();
             if (avatarBox) {
                 avatarBox.innerHTML = '';
-                let crownDom = `<div id="hostCrownIndicator" title="Chủ phòng" style="display:${isRoomHost?'inline-flex':'none'}; align-items:center;font-size:16px; font-weight:bold; color:#854d0e; margin-right:6px; cursor:help;">👑</div>`;
-                avatarBox.insertAdjacentHTML('beforeend', crownDom);
-
-                // --- XÁC ĐỊNH ID CỦA CHỦ PHÒNG ---
-                const uids = Object.keys(users);
-                uids.sort((a, b) => (users[a].joinedAt || 0) - (users[b].joinedAt || 0));
-                const hostUid = uids[0]; // Người vào sớm nhất là Host
-                // ---------------------------------
+                // Đã gỡ bỏ cái tag chữ "👑 Host" xấu xí cũ ở đây!
 
                 const palette = ['#01adee', '#e11d48', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
                 Object.keys(users).forEach(uid => {
@@ -1110,33 +1114,39 @@ const avatarBox = injectAvatarToolbarContainer();
                     const peerColor = u.color || palette[Math.abs(hash) % palette.length];
 
                     const slot = document.createElement('div'); slot.className = 'peer-avatar-slot';
+                    
+                    // Tạo bọc neo bọc chung hình + vương miện
+                    const headAnchor = document.createElement('div'); headAnchor.className = 'head-anchor';
+
+                    // NẾU UID NÀY LÀ VUA -> ĐỘI VƯƠNG MIỆN LÊN ĐỈNH ĐẦU!
+                    if (uid === currentHostUid) {
+                        const crown = document.createElement('div');
+                        crown.className = 'host-crown';
+                        crown.innerText = '👑';
+                        headAnchor.appendChild(crown);
+                    }
+
                     const img = document.createElement('img'); img.src = u.avatar || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
                     img.style.border = `2px solid ${peerColor}`;
 
                     const tooltip = document.createElement('div'); tooltip.className = 'peer-tag';
                     tooltip.style.backgroundColor = peerColor;
-                    tooltip.innerText = u.name !== 'Thành viên' ? u.name : u.email.split('@')[0];
+                    
+                    const rawName = u.name !== 'Thành viên' ? u.name : u.email.split('@')[0];
+                    // Gắn thêm chữ (Host) vào tooltip của vua
+                    tooltip.innerText = (uid === currentHostUid) ? `${rawName} (Host)` : rawName;
 
                     slot.onmouseenter = () => { img.style.boxShadow = `0 3px 8px ${peerColor}88`; };
                     slot.onmouseleave = () => { img.style.boxShadow = 'none'; };
 
-                    slot.appendChild(img); 
-
-                    // --- NẾU USER HIỆN TẠI LÀ HOST, CHO ĐỘI VƯƠNG MIỆN ---
-                    if (uid === hostUid) {
-                        const crown = document.createElement('div');
-                        crown.innerText = '👑';
-                        crown.style.cssText = 'position: absolute; top: -10px; right: -5px; font-size: 14px; transform: rotate(15deg); filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3)); pointer-events: none; z-index: 2;';
-                        slot.appendChild(crown);
-                    }
-                    // -----------------------------------------------------
-
-                    slot.appendChild(tooltip); avatarBox.appendChild(slot);
+                    headAnchor.appendChild(img);
+                    slot.appendChild(headAnchor); 
+                    slot.appendChild(tooltip); 
+                    avatarBox.appendChild(slot);
                 });
             }
 
             const dataLayer = roomLayer.sheet_data;
-            // Tất cả máy đều nhận và vá DOM Realtime Canvas ở đây
             if (dataLayer && dataLayer.sender !== myDeviceId && !isApplyingRemotePatch) {
                 isApplyingRemotePatch = true;
                 try {
@@ -1145,8 +1155,6 @@ const avatarBox = injectAvatarToolbarContainer();
                     enforceHundredRowsBuffer(incomingMat);
                     sysData.sheets[activeTab] = incomingMat; sysData.attributes[activeTab] = incomingAttrs;
                     smartPatchGridDOM(incomingMat, incomingAttrs);
-                    
-                    // Kích hoạt biến đếm nhưng nó sẽ tự hủy lưu nếu phòng có >1 người
                     if (isRoomHost) triggerHostSilenceCountdown();
                 } catch(e){} finally { isApplyingRemotePatch = false; }
             }
