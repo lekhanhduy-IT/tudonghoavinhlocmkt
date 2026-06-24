@@ -1807,10 +1807,15 @@ function vbShowPrompt(msg, callback) {
     // ==========================================
     // SELECTION MEMORY (GIỮ BÔI ĐEN KHI CLICK)
     // ==========================================
-    function saveSelection() {
+function saveSelection() {
         let sel = window.getSelection();
         if (sel.getRangeAt && sel.rangeCount > 0) {
-            savedRange = sel.getRangeAt(0);
+            let node = sel.getRangeAt(0).commonAncestorContainer;
+            // Chỉ lưu tọa độ (két sắt) nếu con trỏ thực sự nằm trong khu vực soạn thảo
+            let container = document.getElementById('editorContainer');
+            if (container && container.contains(node)) {
+                savedRange = sel.getRangeAt(0);
+            }
         }
     }
 
@@ -5397,12 +5402,14 @@ window.addEventListener('DOMContentLoaded', () => {
         if (files.length === 0) return;
 
         const mode = window.vbImageTargetMode || "content";
-        // Bắt sống tọa độ két sắt đích thực
-        const lockedRange = window.savedRange || window.vbLastContentImageRange;
+        
+        // Lấy tọa độ chuẩn từ biến hệ thống (đã được lọc ở Bước 1)
+        // Bỏ hack window.savedRange vì nó gây nhiễu biến nội bộ
+        let currentTargetRange = savedRange || vbLastContentImageRange;
 
-        for (const file of files) {
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
             try {
-                // Tự đọc file độc lập, không lệ thuộc bất kỳ hàm trung gian nào
                 const dataUrl = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
                     reader.onload = () => resolve(reader.result);
@@ -5417,15 +5424,17 @@ window.addEventListener('DOMContentLoaded', () => {
                 
                 const img = createManagedImage(dataUrl, mode, meta);
 
-                // BẮN THẲNG VÀO HÀM CHÈN KÈM TỌA ĐỘ KÉT SẮT
-                insertManagedImage(img, mode, lockedRange);
+                // THUẬT TOÁN NỐI ĐUÔI: 
+                // Ảnh đầu tiên cắm vào tọa độ gốc. Các ảnh sau truyền 'null' để hàm 
+                // insertManagedImage tự động nối tiếp vào đuôi ảnh trước đó.
+                insertManagedImage(img, mode, i === 0 ? currentTargetRange : null);
 
                 if (mode === "cover") break;
             } catch (err) {
                 console.error("Lỗi đọc file upload:", err);
             }
         }
-        this.value = ""; // Reset input để bấm chọn lại đúng tấm ảnh đó lần 2 vẫn ăn
+        this.value = ""; // Reset để chọn lại đúng tấm ảnh đó lần sau vẫn nhận
     });
 });
 </script>
