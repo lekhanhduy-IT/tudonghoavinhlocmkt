@@ -1000,7 +1000,7 @@ const GridCollabEngine = (function() {
         let container = document.getElementById('gridOnlineUsers');
         if (!container) {
             container = document.createElement('div'); container.id = 'gridOnlineUsers';
-            container.style.cssText = `position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 6px; z-index: 999999; background: rgba(255, 255, 255, 0.95); padding: 3px 12px; border-radius: 20px; border: 1px solid #e0e0e0; box-shadow: 0 2px 6px rgba(0,0,0,0.05); pointer-events: auto;`;
+            container.style.cssText = `position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 6px; z-index: 999999; background: rgba(255, 255, 255, 0.95); padding: 3px 12px; border-radius: 20px; border:none; box-shadow: 0 2px 6px rgba(0,0,0,0.05); pointer-events: auto;`;
             toolbar.appendChild(container);
         }
         return container;
@@ -1411,7 +1411,7 @@ function bootDeepLinkOrNormal() {
             if (!banner) {
                 banner = document.createElement('div'); banner.id = 'sharedUrlNoticeBar';
                 banner.style.cssText = `background:#fef08a; border-bottom:1px solid #facc15; color:#854d0e; padding:6px 15px; font-size:12px; font-weight:bold; display:flex; justify-content:space-between; align-items:center; z-index:101;`;
-                banner.innerHTML = `<span><i class="fas fa-link" style="color:#ca8a04;"></i> Đang xem <b>Bộ lọc chia sẻ</b> phòng <b>${targetTab}</b>.</span><button onclick="window.top.location.href=window.top.location.pathname" style="background:#ca8a04; color:#fff; border:none; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">Thoát link chia sẻ</button>`;
+                banner.innerHTML = `<span><i class="fas fa-link" style="color:#ca8a04;"></i> Đang xem <b>Bộ lọc chia sẻ</b> <b>${targetTab}</b>.</span><button onclick="window.top.location.href=window.top.location.pathname" style="background:#ca8a04; color:#fff; border:none; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">Thoát link chia sẻ</button>`;
                 document.body.insertBefore(banner, document.body.firstChild);
             }
         } catch(e) { if (activeTab) GridCollabEngine.switchConferenceRoom(activeTab); }
