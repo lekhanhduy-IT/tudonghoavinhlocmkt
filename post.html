@@ -931,6 +931,43 @@
     display: flex;
     flex-direction: column;
 }
+/* =========================================================
+   FIX: ẢNH BÌA FULL 100% SÁT CẠNH (KHÔNG PADDING/MARGIN)
+========================================================= */
+
+/* 1. Xóa khoảng đệm (padding) của ô soạn thảo ảnh bìa để ảnh sát vách */
+.cover-rich-editor {
+    padding: 0 !important; 
+}
+
+/* Đảm bảo chữ placeholder (khi chưa có ảnh) vẫn có khoảng hở để dễ nhìn */
+.cover-rich-editor:empty::before {
+    padding: 20px 15px !important;
+}
+
+/* 2. Ép khung bao ảnh bìa luôn full 100% width, không margin, ghi đè pixel cứng từ JS */
+.cover-rich-editor > .vb-image-frame {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    border: none !important;
+}
+
+/* 3. Đưa viền xanh (khi click chọn ảnh) vẽ lún vào TRONG (inset) để không đẩy ảnh co lại */
+.cover-rich-editor > .vb-image-frame:hover,
+.cover-rich-editor > .vb-image-frame.vb-image-active {
+    box-shadow: inset 0 0 0 3px rgba(1, 173, 238, 0.8) !important;
+    border-color: transparent !important;
+}
+
+/* 4. Ép thẻ <img> bên trong phủ kín 100% bề ngang, giữ nguyên tính năng Auto-Height của JS */
+.cover-rich-editor > .vb-image-frame > img.vb-managed-image {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    display: block !important;
+    /* Không khóa height ở đây để JS có thể tự động tính toán chiều cao (aspect-ratio) khi người dùng dùng tính năng Cắt/Scale */
+}
 </style>
   </head>
 <body>
