@@ -1054,10 +1054,10 @@ const GridCollabEngine = (function() {
                 method: 'POST', body: JSON.stringify(diffPayloads),
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' }
             }).then(r => r.json()).then(res => {
-                // Đã xóa dòng showShareNotice ở đây
-                if(!res.success) console.error("Lỗi khi cất kho lạnh:", res);
+               // if(res.success) showShareNotice(`☁️ [Host] Đã cất ${diffPayloads.length} ô vào kho lạnh Sheets!`, '#10b981');
             }).catch(e => console.error("Host DB Error:", e));
         }
+    }
 
     function initCentralizedCanvasRouter() {
         db.ref('collab_grid').on('value', snapshot => {
