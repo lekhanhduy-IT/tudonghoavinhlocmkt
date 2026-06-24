@@ -844,10 +844,10 @@
     height: 75vh;
     min-height: 500px;
 }
-/* Cột trái: Khung xem trước */
+/* Cột trái: Khung xem trước (Nền trắng tinh) */
 .vb-popup-left-preview {
     width: 45%;
-    background: #eef2f5;
+    background: #ffffff; /* Đã đổi thành trắng */
     border-right: 1px solid var(--gray-border);
     display: flex;
     flex-direction: column;
@@ -860,26 +860,26 @@
     padding: 0 40px;
     overflow: hidden;
 }
-/* Ô trắng giả lập bài viết để giữ padding không đổi */
+/* Ô trắng giả lập bài viết (Hiệu ứng dòng kẻ giấy) */
 .vb-preview-white-box {
     flex-grow: 1;
-    background: #ffffff;
-    border-left: 1px dashed #ccc;
-    border-right: 1px dashed #ccc;
-    box-shadow: 0 0 15px rgba(0,0,0,0.05);
+    background-color: #ffffff;
+    /* Tạo dòng kẻ ngang màu xám nhạt mô phỏng dòng text */
+    background-image: repeating-linear-gradient(transparent, transparent 24px, #e8ecef 24px, #e8ecef 25px);
+    border: none;
+    box-shadow: none;
 }
-.vb-preview-white-box.top { border-bottom: none; border-radius: 4px 4px 0 0; }
-.vb-preview-white-box.bottom { border-top: none; border-radius: 0 0 4px 4px; }
+.vb-preview-white-box.top { border-bottom: 1px solid transparent; }
+.vb-preview-white-box.bottom { border-top: 1px solid transparent; background-position: 0 -10px; }
 
-/* Wrapper chứa ảnh trong canvas */
+/* Wrapper chứa ảnh trong canvas (Trong suốt để hòa vào nền) */
 .vb-preview-image-wrapper {
-    background: #fff;
-    border-left: 1px dashed #ccc;
-    border-right: 1px dashed #ccc;
+    background: transparent;
+    border: none;
     display: flex;
     justify-content: center;
-    padding: 10px 0; /* Padding trên dưới không đổi */
-    box-shadow: 0 0 15px rgba(0,0,0,0.05);
+    padding: 15px 0; /* Padding thở trên dưới của ảnh */
+    box-shadow: none;
 }
 
 .vb-preview-frame {
@@ -1363,17 +1363,17 @@
                <span style="padding-right:8px; color:#666; font-weight:bold;">%</span>
              </div>
           </div>
-          <div class="vb-image-field full">
-            <label>URL ảnh</label>
-            <input type="text" id="vbImgUrl" placeholder="https:// hoặc data:image/...">
-          </div>
           <div class="vb-image-field full" style="margin-top: -5px;">
              <label style="display:flex; align-items:center; gap:5px; cursor:pointer; color:var(--blue); font-size:12px;">
                  <input type="checkbox" id="vbSyncAllCheckbox"> 
                  Áp dụng Kích thước, Tỷ lệ & Scale cho toàn bộ ảnh nội dung
              </label>
           </div>
-          <div class="vb-image-mode-status" id="vbImageEditModeStatus">Chế độ tự nhiên: ảnh chưa bị cắt hoặc scale cưỡng bức.</div>
+          <div class="vb-image-field full">
+            <label>URL ảnh</label>
+            <input type="text" id="vbImgUrl" placeholder="https:// hoặc data:image/...">
+          </div>
+
         </div>
 
         <div style="font-size:12px;font-weight:700;color:var(--blue);margin:5px 0 6px;">Metadata ảnh</div>
@@ -5627,27 +5627,39 @@ function applyScalePercentRealtime() {
     if(document.getElementById('vbSyncAllCheckbox').checked) syncStateToAllImages();
 }
 
-// Logic đồng bộ hàng loạt (Sync)
+// Logic đồng bộ hàng loạt (Sync) - Ép buộc lấy thông số từ FORM
 function syncStateToAllImages() {
     if (!vbActiveImage || document.getElementById('vbSyncAllCheckbox').checked === false) return;
+    
+    // Đọc thông số trực tiếp từ ô nhập liệu hiện tại
+    const targetWidth = parseFloat(document.getElementById("vbImgWidth").value) || 1;
+    const targetHeight = parseFloat(document.getElementById("vbImgHeight").value) || 1;
+    const ratioW = parseFloat(document.getElementById("vbRatioWidth").value) || 1;
+    const ratioH = parseFloat(document.getElementById("vbRatioHeight").value) || 1;
+    const masterScale = parseFloat(document.getElementById("vbScalePercent").value) || 100;
+    
     const masterState = readImageFrameState(vbActiveImage);
-    const masterScale = vbActiveImage.dataset.scalePercent || 100;
     
     vbContentImagesList.forEach(img => {
         if(img === vbActiveImage) return; // Bỏ qua chính nó
         
         img.dataset.scalePercent = masterScale;
         
-        // Khởi tạo state mới nhưng giữ lại objectPosX và objectPosY CỦA RIÊNG NÓ
         const currentState = readImageFrameState(img);
         const newState = {
             ...masterState,
-            objectPosX: currentState.objectPosX, // Tôn trọng vùng kéo crop độc lập
+            targetWidth: targetWidth,
+            targetHeight: targetHeight,
+            ratioWidth: ratioW,
+            ratioHeight: ratioH,
+            // GIỮ NGUYÊN VÙNG CẮT CỦA TỪNG ẢNH ĐỂ KHÔNG BỊ TRƯỢT MẶT NGƯỜI
+            objectPosX: currentState.objectPosX, 
             objectPosY: currentState.objectPosY
         };
         
         applyImageFrameState(img, newState);
     });
+    markImageDirty(true);
 }
 
 // Khởi tạo Event Listener cho ô Scale và checkbox
@@ -5663,13 +5675,24 @@ initImagePropertyRealtimeControls = function() {
         scaleInp.addEventListener('input', applyScalePercentRealtime);
     }
     
+    // Khi tích vào nút "Đồng bộ", lập tức áp dụng thông số hiện tại cho TẤT CẢ
+    if(syncChk && !syncChk.dataset.bound) {
+        syncChk.dataset.bound = "1";
+        syncChk.addEventListener('change', function() {
+            if(this.checked) syncStateToAllImages();
+        });
+    }
+    
     // Gắn trigger Sync cho các ô Kích thước & Tỷ lệ
     ['vbImgWidth', 'vbImgHeight', 'vbRatioWidth', 'vbRatioHeight'].forEach(id => {
         let el = document.getElementById(id);
-        if(el) el.addEventListener('change', () => {
-             if(syncChk.checked) syncStateToAllImages();
-             updatePreviewUI();
-        });
+        if(el && !el.dataset.syncBound) {
+             el.dataset.syncBound = "1";
+             el.addEventListener('input', () => {
+                 if(syncChk.checked) syncStateToAllImages();
+                 updatePreviewUI();
+             });
+        }
     });
 };
 
