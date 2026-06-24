@@ -5360,6 +5360,74 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
     });
 
 })();
+// =========================================================================
+// CODE "KẾT LIỄU" VỤ BẮT CÓC TỌA ĐỘ KHI UPLOAD FILE LOCAL
+// =========================================================================
+
+window.addEventListener('DOMContentLoaded', () => {
+    const contentEditor = document.getElementById("postContent");
+    
+    // 1. SỬA KÉT SẮT: Chỉ cho phép ghi đè tọa độ khi click/gõ BÊN TRONG khung soạn thảo
+    function lockSafeCaret() {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return;
+        const r = sel.getRangeAt(0);
+        if (contentEditor && contentEditor.contains(r.commonAncestorContainer)) {
+            window.savedRange = r.cloneRange();
+            window.vbLastContentImageRange = r.cloneRange();
+        }
+    }
+
+    if (contentEditor) {
+        contentEditor.addEventListener("keyup", lockSafeCaret);
+        contentEditor.addEventListener("mouseup", lockSafeCaret);
+        contentEditor.addEventListener("focus", lockSafeCaret);
+    }
+
+    // 2. CHIẾM QUYỀN THẺ INPUT FILE
+    const oldInput = document.getElementById("vbImageFileInput");
+    if (!oldInput) return;
+
+    // Nhân bản để "giết" hết mọi event cũ rác rưởi đang bám trên input này
+    const fileInput = oldInput.cloneNode(true);
+    oldInput.parentNode.replaceChild(fileInput, oldInput);
+
+    fileInput.addEventListener("change", async function() {
+        const files = Array.from(this.files || []).filter(f => /^image\//i.test(f.type));
+        if (files.length === 0) return;
+
+        const mode = window.vbImageTargetMode || "content";
+        // Bắt sống tọa độ két sắt đích thực
+        const lockedRange = window.savedRange || window.vbLastContentImageRange;
+
+        for (const file of files) {
+            try {
+                // Tự đọc file độc lập, không lệ thuộc bất kỳ hàm trung gian nào
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(reader.error);
+                    reader.readAsDataURL(file);
+                });
+
+                const meta = { 
+                    ...(window.VB_DEFAULT_IMAGE_META || {}), 
+                    fileName: file.name || "" 
+                };
+                
+                const img = createManagedImage(dataUrl, mode, meta);
+
+                // BẮN THẲNG VÀO HÀM CHÈN KÈM TỌA ĐỘ KÉT SẮT
+                insertManagedImage(img, mode, lockedRange);
+
+                if (mode === "cover") break;
+            } catch (err) {
+                console.error("Lỗi đọc file upload:", err);
+            }
+        }
+        this.value = ""; // Reset input để bấm chọn lại đúng tấm ảnh đó lần 2 vẫn ăn
+    });
+});
 </script>
 
 </body>
