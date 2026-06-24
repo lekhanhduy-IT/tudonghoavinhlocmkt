@@ -992,7 +992,6 @@ const GridCollabEngine = (function() {
             style.innerHTML = `
                 .peer-avatar-slot { position: relative; display: inline-flex; align-items: center; justify-content: center; }
                 
-                /* Bọc neo bọc chung đỉnh đầu + vương miện */
                 .peer-avatar-slot .head-anchor {
                     position: relative;
                     display: flex;
@@ -1002,14 +1001,14 @@ const GridCollabEngine = (function() {
                 }
                 .peer-avatar-slot img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; cursor: pointer; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
                 
-                /* VƯƠNG MIỆN KING ĐỘI TỰA TRÊN ĐẦU */
+                /* VƯƠNG MIỆN NẰM GÓC TRÊN BÊN PHẢI & NGHIÊNG PHẢI */
                 .peer-avatar-slot .host-crown {
                     position: absolute;
-                    top: -12px;
-                    left: 50%;
-                    transform: translateX(-50%) rotate(-12deg);
-                    font-size: 16px;
-                    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.4));
+                    top: -6px;       /* Nhô lên mép trên */
+                    right: -6px;     /* Lệch sang mép phải */
+                    transform: rotate(18deg); /* Góc dương (+) là nghiêng sang phải */
+                    font-size: 15px;
+                    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
                     z-index: 20;
                     pointer-events: none;
                     user-select: none;
@@ -1018,7 +1017,6 @@ const GridCollabEngine = (function() {
                 .peer-avatar-slot .peer-tag { position: absolute; top: 37px; left: 50%; transform: translateX(-50%) translateY(4px); color: #ffffff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; white-space: nowrap; pointer-events: none; opacity: 0; visibility: hidden; transition: all 0.15s; box-shadow: 0 2px 6px rgba(0,0,0,0.25); z-index: 1000000; }
                 .peer-avatar-slot .peer-tag::before { content: ''; position: absolute; top: -3px; left: 50%; transform: translateX(-50%) rotate(45deg); width: 6px; height: 6px; background: inherit; }
                 
-                /* KHI HOVER -> NẨY CẢ CÁI BỌC HEAD-ANCHOR (GỒM CẢ VƯƠNG MIỆN) LÊN */
                 .peer-avatar-slot:hover .head-anchor { transform: scale(1.15) translateY(-2px); }
                 .peer-avatar-slot:hover .peer-tag { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
             `;
@@ -1028,7 +1026,10 @@ const GridCollabEngine = (function() {
         let container = document.getElementById('gridOnlineUsers');
         if (!container) {
             container = document.createElement('div'); container.id = 'gridOnlineUsers';
-            container.style.cssText = `position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 8px; z-index: 999999; background: rgba(255, 255, 255, 0.95); padding: 4px 14px; border-radius: 20px; border: 1px solid #e0e0e0; box-shadow: 0 2px 6px rgba(0,0,0,0.05); pointer-events: auto;`;
+            
+            // [ĐÃ SỬA]: background: transparent; border: none; box-shadow: none;
+            container.style.cssText = `position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 8px; z-index: 999999; background: transparent; border: none; box-shadow: none; padding: 0; pointer-events: auto;`;
+            
             toolbar.appendChild(container);
         }
         return container;
