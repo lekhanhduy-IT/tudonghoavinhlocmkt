@@ -918,50 +918,31 @@ function updateActiveFilterToolbar() {
             renderGrid(); // Cập nhật lại bảng và ẩn toolbar lập tức
         }
 // =========================================================================
-// HỆ THỐNG MASTER CANVAS, DEEP LINK & DYNAMIC 100-ROW BUFFER (GRID COLLAB V7.4)
+// HỆ THỐNG TOÀN QUYỀN CANVAS & DIFFING HOST CHỦ XỊ (GRID COLLAB V8.0 COMPLETE)
 // =========================================================================
 
 let localPrivateFilters = {}; 
 let currentFilterScope = 'private'; 
 
-// =========================================================================
-// [MỚI] THUẬT TOÁN BỌC THÉP: LUÔN GIỮ ĐÚNG 100 DÒNG TRỐNG Ở ĐÁY BẢNG
-// =========================================================================
 function enforceHundredRowsBuffer(mat) {
     if (!mat || !Array.isArray(mat) || mat.length === 0) return false;
-
     const colCount = mat[0].length || 10; 
-
-    // 1. Quét ngược từ đáy lên tìm vị trí dòng cuối cùng có chứa ký tự thật
     let lastDataRowIdx = 0;
     for (let r = mat.length - 1; r >= 1; r--) {
         if (!mat[r]) continue;
-        const hasText = mat[r].some(val => val !== null && val !== undefined && String(val).trim() !== "");
-        if (hasText) {
-            lastDataRowIdx = r;
-            break;
+        if (mat[r].some(val => val !== null && val !== undefined && String(val).trim() !== "")) {
+            lastDataRowIdx = r; break;
         }
     }
-
-    // 2. Công thức: Tổng dòng mảng = 1 Header + Vị trí dòng cuối có chữ + exactly 100
     const targetLength = lastDataRowIdx + 1 + 100;
     let isMutated = false;
-
-    // Kịch bản A: Thiếu dòng -> Bơm thêm mảng trắng vào đáy
     if (mat.length < targetLength) {
         const needed = targetLength - mat.length;
-        for (let i = 0; i < needed; i++) {
-            mat.push(new Array(colCount).fill(""));
-        }
+        for (let i = 0; i < needed; i++) mat.push(new Array(colCount).fill(""));
         isMutated = true;
+    } else if (mat.length > targetLength) {
+        mat.length = targetLength; isMutated = true;
     }
-    // Kịch bản B: Thừa dòng trắng (Do người dùng vừa xóa bớt nội dung các dòng cuối) 
-    // -> Cắt tỉa mảng về đúng 100 dòng buffer để nhẹ DB
-    else if (mat.length > targetLength) {
-        mat.length = targetLength;
-        isMutated = true;
-    }
-
     return isMutated;
 }
 
@@ -976,6 +957,11 @@ const GridCollabEngine = (function() {
     let isApplyingRemotePatch = false;
     let isSwitchingTabCanvas = false; 
     let previousRoomId = null;
+
+    // QUYỀN LỰC CỦA HOST (CHỦ XỊ PHÒNG)
+    let isRoomHost = false;
+    let silenceDiffTimer = null;
+    let lastBackedUpMatrixClone = null; 
 
     const myEmail = localStorage.getItem('admin_email') || 'anon_' + Math.floor(Math.random()*1000) + '@gmail.com';
     const myName = localStorage.getItem('admin_name') || 'Thành viên';
@@ -995,18 +981,82 @@ const GridCollabEngine = (function() {
     function injectAvatarToolbarContainer() {
         const toolbar = document.querySelector('.toolbar');
         if (!toolbar) return null;
+        toolbar.style.position = 'relative';
+        toolbar.style.zIndex = '999999';
+
+        if (!document.getElementById('peerTooltipEngine')) {
+            const style = document.createElement('style'); style.id = 'peerTooltipEngine';
+            style.innerHTML = `
+                .peer-avatar-slot { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+                .peer-avatar-slot img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; cursor: pointer; background: #fff; transition: transform 0.2s, box-shadow 0.2s; }
+                .peer-avatar-slot .peer-tag { position: absolute; top: 37px; left: 50%; transform: translateX(-50%) translateY(4px); color: #ffffff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; white-space: nowrap; pointer-events: none; opacity: 0; visibility: hidden; transition: all 0.15s; box-shadow: 0 2px 6px rgba(0,0,0,0.25); z-index: 1000000; }
+                .peer-avatar-slot .peer-tag::before { content: ''; position: absolute; top: -3px; left: 50%; transform: translateX(-50%) rotate(45deg); width: 6px; height: 6px; background: inherit; }
+                .peer-avatar-slot:hover img { transform: scale(1.15) translateY(-2px); }
+                .peer-avatar-slot:hover .peer-tag { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
+            `;
+            document.head.appendChild(style);
+        }
+
         let container = document.getElementById('gridOnlineUsers');
         if (!container) {
             container = document.createElement('div'); container.id = 'gridOnlineUsers';
-            container.style.cssText = `
-                position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
-                display: flex; align-items: center; gap: 6px; z-index: 999;
-                background: rgba(255, 255, 255, 0.95); padding: 4px 14px;
-                border: none;                
-            `;
-            toolbar.style.position = 'relative'; toolbar.appendChild(container);
+            container.style.cssText = `position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 6px; z-index: 999999; background: rgba(255, 255, 255, 0.95); padding: 3px 12px; border-radius: 20px; border: 1px solid #e0e0e0; box-shadow: 0 2px 6px rgba(0,0,0,0.05); pointer-events: auto;`;
+            toolbar.appendChild(container);
         }
         return container;
+    }
+
+    // THUẬT TOÁN BẦU HOST CHỦ XỊ
+    function evaluateHostRole(usersObj) {
+        if (!usersObj) return false;
+        const uids = Object.keys(usersObj);
+        if (uids.length === 0) return false;
+
+        uids.sort((a, b) => (usersObj[a].joinedAt || 0) - (usersObj[b].joinedAt || 0));
+        const amIHostNow = (uids[0] === myDeviceId);
+
+        if (amIHostNow !== isRoomHost) {
+            isRoomHost = amIHostNow;
+            const badge = document.getElementById('hostCrownIndicator');
+            if (badge) badge.style.display = isRoomHost ? 'inline-flex' : 'none';
+            if (isRoomHost && activeTab && sysData.sheets[activeTab]) {
+                lastBackedUpMatrixClone = JSON.parse(JSON.stringify(sysData.sheets[activeTab]));
+            }
+        }
+        return isRoomHost;
+    }
+
+    // ĐẾM NGƯỢC 4.5 GIÂY IM LẶNG CỦA PHÒNG
+    function triggerHostSilenceCountdown() {
+        if (!isRoomHost || !activeTab || !sysData.sheets[activeTab]) return;
+        clearTimeout(silenceDiffTimer);
+        silenceDiffTimer = setTimeout(() => { commitDiffToGoogleSheets(); }, 4500);
+    }
+
+    // BẮN TỈA DIFF VỀ GOOGLE SHEETS
+    function commitDiffToGoogleSheets() {
+        if (!isRoomHost || !activeTab || !lastBackedUpMatrixClone) return;
+        const currentMat = sysData.sheets[activeTab];
+        let diffPayloads = [];
+
+        for (let r = 0; r < currentMat.length; r++) {
+            if (!currentMat[r] || !lastBackedUpMatrixClone[r]) continue;
+            for (let c = 0; c < currentMat[r].length; c++) {
+                if (String(currentMat[r][c] || "") !== String(lastBackedUpMatrixClone[r][c] || "")) {
+                    diffPayloads.push({ type: 'SYNC_CELL', tab: activeTab, row: r + 1, col: c + 1, val: currentMat[r][c] });
+                }
+            }
+        }
+
+        if (diffPayloads.length > 0) {
+            lastBackedUpMatrixClone = JSON.parse(JSON.stringify(currentMat));
+            fetch(API_URL, {
+                method: 'POST', body: JSON.stringify(diffPayloads),
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            }).then(r => r.json()).then(res => {
+                if(res.success) showShareNotice(`☁️ [Host] Đã cất ${diffPayloads.length} ô vào kho lạnh Sheets!`, '#10b981');
+            }).catch(e => console.error("Host DB Error:", e));
+        }
     }
 
     function initCentralizedCanvasRouter() {
@@ -1015,39 +1065,34 @@ const GridCollabEngine = (function() {
             const targetRoomId = getSafeRoomId(activeTab);
             const roomLayer = (snapshot.val() || {})[targetRoomId] || {};
 
-const users = roomLayer.users || {};
+            const users = roomLayer.users || {};
+            evaluateHostRole(users);
+
             const avatarBox = injectAvatarToolbarContainer();
             if (avatarBox) {
-                // Ép kiểu xếp chồng thò thụt (Canva style) khớp 100% với post.html
-                avatarBox.style.gap = '-10px';
-                avatarBox.style.flexDirection = 'row-reverse';
+                avatarBox.innerHTML = '';
+                let crownDom = `<div id="hostCrownIndicator" title="Bạn đang là Host (Máy chịu trách nhiệm lưu ngầm về Google Sheets khi phòng ngừng gõ)" style="display:${isRoomHost?'inline-flex':'none'}; align-items:center; background:#fef08a; border:1px solid #facc15; padding:2px 6px; border-radius:12px; font-size:11px; font-weight:bold; color:#854d0e; margin-right:6px; cursor:help;">👑 Host</div>`;
+                avatarBox.insertAdjacentHTML('beforeend', crownDom);
 
-                const PALETTE = ['#01adee', '#db1010', '#8e44ad', '#27ae60', '#d35400', '#f39c12', '#16a085', '#2980b9'];
-                let avtHtml = ''; 
-                let count = 0;
-
+                const palette = ['#01adee', '#e11d48', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
                 Object.keys(users).forEach(uid => {
                     const u = users[uid];
-                    if (!u || !u.email) return;
-                    count++;
+                    let hash = 0; for(let i=0; i<u.email.length; i++) hash = Math.imul(31, hash) + u.email.charCodeAt(i) | 0;
+                    const peerColor = u.color || palette[Math.abs(hash) % palette.length];
 
-                    // Thuật toán bọc thép: Tự tính ra một màu cố định theo email nếu DB chưa có
-                    let emailStr = u.email;
-                    let hash = 0; 
-                    for (let i = 0; i < emailStr.length; i++) hash = emailStr.charCodeAt(i) + ((hash << 5) - hash);
-                    let peerColor = u.color || PALETTE[Math.abs(hash) % PALETTE.length];
+                    const slot = document.createElement('div'); slot.className = 'peer-avatar-slot';
+                    const img = document.createElement('img'); img.src = u.avatar || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
+                    img.style.border = `2px solid ${peerColor}`;
 
-                    let safeName = u.name || emailStr.split('@')[0];
-                    let safeAvatar = u.avatar || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
+                    const tooltip = document.createElement('div'); tooltip.className = 'peer-tag';
+                    tooltip.style.backgroundColor = peerColor;
+                    tooltip.innerText = u.name !== 'Thành viên' ? u.name : u.email.split('@')[0];
 
-                    avtHtml += `
-                        <div class="collab-user-node" style="--peer-color: ${peerColor}; z-index: ${count};">
-                            <img src="${safeAvatar}" alt="${safeName}" referrerpolicy="no-referrer" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'">
-                            <div class="collab-user-tooltip">${safeName}</div>
-                        </div>
-                    `;
+                    slot.onmouseenter = () => { img.style.boxShadow = `0 3px 8px ${peerColor}88`; };
+                    slot.onmouseleave = () => { img.style.boxShadow = 'none'; };
+
+                    slot.appendChild(img); slot.appendChild(tooltip); avatarBox.appendChild(slot);
                 });
-                avatarBox.innerHTML = avtHtml;
             }
 
             const dataLayer = roomLayer.sheet_data;
@@ -1056,13 +1101,10 @@ const users = roomLayer.users || {};
                 try {
                     const incomingMat = JSON.parse(dataLayer.matrix);
                     const incomingAttrs = JSON.parse(dataLayer.attributes);
-
                     enforceHundredRowsBuffer(incomingMat);
-
-                    sysData.sheets[activeTab] = incomingMat;
-                    sysData.attributes[activeTab] = incomingAttrs;
-
+                    sysData.sheets[activeTab] = incomingMat; sysData.attributes[activeTab] = incomingAttrs;
                     smartPatchGridDOM(incomingMat, incomingAttrs);
+                    if (isRoomHost) triggerHostSilenceCountdown();
                 } catch(e){} finally { isApplyingRemotePatch = false; }
             }
 
@@ -1088,15 +1130,21 @@ const users = roomLayer.users || {};
         myPresenceRef.set({ email: myEmail, name: myName, avatar: myAvatar, joinedAt: firebase.database.ServerValue.TIMESTAMP });
         myPresenceRef.onDisconnect().remove();
 
-        roomRef.child('sheet_data').once('value').then(snapshot => {
-            const topLayer = snapshot.val();
-            if (topLayer && topLayer.matrix) {
-                sysData.sheets[tabName] = JSON.parse(topLayer.matrix);
-                sysData.attributes[tabName] = JSON.parse(topLayer.attributes || "{}");
+        roomRef.child('sheet_data').once('value').then(snap => {
+            const fbData = snap.val();
+            if (fbData && fbData.matrix) {
+                sysData.sheets[tabName] = JSON.parse(fbData.matrix);
+                sysData.attributes[tabName] = JSON.parse(fbData.attributes || "{}");
+            } else if (sysData.sheets[tabName]) {
+                enforceHundredRowsBuffer(sysData.sheets[tabName]);
+                roomRef.child('sheet_data').set({
+                    matrix: JSON.stringify(sysData.sheets[tabName]),
+                    attributes: JSON.stringify(sysData.attributes[tabName] || {}),
+                    sender: 'COLD_STORAGE_SEED', timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
             }
-
-            // Đảm bảo bơm đủ 100 dòng buffer ngay khi vừa tải dữ liệu phòng về
             enforceHundredRowsBuffer(sysData.sheets[tabName]);
+            lastBackedUpMatrixClone = JSON.parse(JSON.stringify(sysData.sheets[tabName]));
 
             renderGrid();
             setTimeout(() => { isSwitchingTabCanvas = false; }, 350);
@@ -1105,33 +1153,26 @@ const users = roomLayer.users || {};
 
     function broadcastGridState() {
         if (isApplyingRemotePatch || isSwitchingTabCanvas || !activeTab || !sysData.sheets[activeTab]) return;
-
-        // Bơm buffer chuẩn trước khi gói đẩy lên mạng
         enforceHundredRowsBuffer(sysData.sheets[activeTab]);
-
         const matString = JSON.stringify(sysData.sheets[activeTab]);
         const attrString = JSON.stringify(sysData.attributes[activeTab] || {});
         const currentHash = getSimpleHash(matString + attrString);
 
         if (currentHash !== lastBroadcastedHash) {
             lastBroadcastedHash = currentHash;
-            const currentRoomId = getSafeRoomId(activeTab);
-            if (currentRoomId) {
-                db.ref(`collab_grid/${currentRoomId}/sheet_data`).set({
-                    matrix: matString, attributes: attrString,
-                    sender: myDeviceId, timestamp: firebase.database.ServerValue.TIMESTAMP
-                });
-            }
+            db.ref(`collab_grid/${getSafeRoomId(activeTab)}/sheet_data`).set({
+                matrix: matString, attributes: attrString,
+                sender: myDeviceId, timestamp: firebase.database.ServerValue.TIMESTAMP
+            });
+            if (isRoomHost) triggerHostSilenceCountdown();
         }
     }
 
     function smartPatchGridDOM(newMat, newAttrs) {
-        const activeEl = document.activeElement;
-        let editingCellId = null;
+        const activeEl = document.activeElement; let editingCellId = null;
         if (activeEl && activeEl.classList.contains('cell-editor')) {
             const td = activeEl.closest('td'); if (td) editingCellId = td.id;
         }
-
         const currentRows = document.querySelectorAll('#dataBody tr').length;
         const currentCols = document.querySelectorAll('#dataHead th').length - 1;
 
@@ -1169,8 +1210,17 @@ const users = roomLayer.users || {};
 })();
 
 // =========================================================================
-// MÓC NỐI HOOKS (TỰ ĐỘNG KÍCH HOẠT BUFFER KHI VẼ HOẶC GÕ SỬA)
+// BỘ HOOKS BỌC THÉP (V8.0)
 // =========================================================================
+const nativeGlobalReceiver = window.onSystemDataFetched || function(){};
+window.onSystemDataFetched = function(incomingData) {
+    if (incomingData && incomingData.sheets && activeTab) {
+        const authoritativeCanvas = JSON.parse(JSON.stringify(sysData.sheets[activeTab]));
+        nativeGlobalReceiver(incomingData);
+        sysData.sheets[activeTab] = authoritativeCanvas;
+    } else nativeGlobalReceiver(incomingData);
+};
+
 const nativeRenderTabsForBuffer = renderTabs;
 window.renderTabs = function() {
     nativeRenderTabsForBuffer();
@@ -1189,47 +1239,19 @@ window.renderTabs = function() {
 
 const nativeRenderGrid = renderGrid;
 window.renderGrid = function() {
-    // 100% Các lần vẽ bảng đều phải đi qua ải kiểm tra 100 dòng đệm
-    if (activeTab && sysData.sheets[activeTab]) {
-        enforceHundredRowsBuffer(sysData.sheets[activeTab]);
-    }
-
+    if (activeTab && sysData.sheets[activeTab]) enforceHundredRowsBuffer(sysData.sheets[activeTab]);
     nativeRenderGrid();
-
     if (GridCollabEngine.isApplyingRemotePatch || GridCollabEngine.isSwitchingTabCanvas) return;
     GridCollabEngine.broadcastGridState();
 };
 
-// Hook 3: Gõ phím -> Phát sóng Camera DOM + "Bắn tỉa" gửi chuẩn key SYNC_CELL cho Apps Script
-const nativeUpdateCell = updateCell;
-
+const nativeUpdateCellForHost = updateCell;
 window.updateCell = function(r, c, val) {
-    // 1. Lưu vào RAM máy local
-    nativeUpdateCell(r, c, val);
-
-    // 2. Phát Realtime DOM cho các máy khác thấy ngay lập tức
-    GridCollabEngine.broadcastGridState();
-
-    // 3. [BẮN TỈA CHÍNH XÁC]: Khớp 100% từng cái key theo đúng code.gs của má
-    if (activeTab) {
-        // GIẢI MÃ TỌA ĐỘ:
-        // Trong Javascript, r=0 là hàng 1, c=0 là cột A.
-        // Nhưng getRange(row, col) của Google Sheet bắt đầu đếm từ 1.
-        // Vậy tọa độ chính xác dội vào Sheet phải là: (r + 1) và (c + 1).
-        const deltaPayload = [{
-            type: 'SYNC_CELL',           // Khớp tên lệnh
-            tab: activeTab,              // Khớp key 'tab'
-            row: parseInt(r) + 1,        // Khớp key 'row' (đã cộng 1)
-            col: parseInt(c) + 1,        // Khớp key 'col' (đã cộng 1)
-            val: val                     // Khớp key 'val'
-        }];
-
-        fetch(API_URL, {
-            method: 'POST',
-            body: JSON.stringify(deltaPayload),
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-        }).catch(err => console.error("Lỗi Delta Sync:", err));
+    nativeUpdateCellForHost(r, c, val);
+    if (activeTab && sysData.sheets[activeTab]) {
+        if (enforceHundredRowsBuffer(sysData.sheets[activeTab])) renderGrid();
     }
+    GridCollabEngine.broadcastGridState();
 };
 
 const nativeDispatchAttrSave = dispatchAttrSave;
@@ -1238,7 +1260,7 @@ window.dispatchAttrSave = function() {
 };
 
 // =========================================================================
-// HỆ THỐNG LỌC & DEEP LINK CHIA SẺ URL (V7.4)
+// BỘ LỌC & TẠO LINK CHIA SẺ (V8.0)
 // =========================================================================
 function getEffectiveFilters() {
     const pub = sysData.filters[activeTab] || {}; const priv = localPrivateFilters[activeTab] || {};
@@ -1280,7 +1302,7 @@ window.triggerFilterChecklist = function(targetScope, e) {
     document.getElementById("filterAskScopePopup").style.display = "none"; currentFilterScope = targetScope; const c = activeFilterCol; 
     localPrivateFilters[activeTab] = localPrivateFilters[activeTab] || {}; sysData.filters[activeTab] = sysData.filters[activeTab] || {};
     if (targetScope === 'public' && localPrivateFilters[activeTab][c]) delete localPrivateFilters[activeTab][c];
-    if (targetScope === 'private' && sysData.filters[activeTab][c]) { delete sysData.filters[activeTab][c]; db.ref(`collab_grid/${getSafeRoomId(activeTab)}/public_filters`).set(sysData.filters[activeTab]); }
+    if (targetScope === 'private' && sysData.filters[activeTab][c]) { delete sysData.filters[activeTab][c]; firebase.database().ref(`collab_grid/${getSafeRoomId(activeTab)}/public_filters`).set(sysData.filters[activeTab]); }
 
     const box = document.getElementById("filterListArea"); box.innerHTML = ""; 
     const badge = targetScope === 'private' ? '<span style="color:#16a34a;">[Mình tôi]</span>' : '<span style="color:#0284c7;">[Mọi người]</span>';
@@ -1301,19 +1323,19 @@ window.applyFilter = function() {
     const cbs = document.querySelectorAll(".flt-cb"); let sel = []; let all = true; 
     cbs.forEach(cb => { if(cb.checked) sel.push(cb.value); else all = false; }); 
     if (currentFilterScope === 'private') { localPrivateFilters[activeTab] = localPrivateFilters[activeTab] || {}; if (all) delete localPrivateFilters[activeTab][activeFilterCol]; else localPrivateFilters[activeTab][activeFilterCol] = sel; } 
-    else { sysData.filters[activeTab] = sysData.filters[activeTab] || {}; if (all) delete sysData.filters[activeTab][activeFilterCol]; else sysData.filters[activeTab][activeFilterCol] = sel; db.ref(`collab_grid/${getSafeRoomId(activeTab)}/public_filters`).set(sysData.filters[activeTab]); }
+    else { sysData.filters[activeTab] = sysData.filters[activeTab] || {}; if (all) delete sysData.filters[activeTab][activeFilterCol]; else sysData.filters[activeTab][activeFilterCol] = sel; firebase.database().ref(`collab_grid/${getSafeRoomId(activeTab)}/public_filters`).set(sysData.filters[activeTab]); }
     document.getElementById("filterPopup").style.display = "none"; renderGrid(); 
 };
 
 window.clearFilter = function() { 
     if (currentFilterScope === 'private') { if (localPrivateFilters[activeTab]) delete localPrivateFilters[activeTab][activeFilterCol]; } 
-    else { if (sysData.filters[activeTab]) delete sysData.filters[activeTab][activeFilterCol]; db.ref(`collab_grid/${getSafeRoomId(activeTab)}/public_filters`).set(sysData.filters[activeTab]); }
+    else { if (sysData.filters[activeTab]) delete sysData.filters[activeTab][activeFilterCol]; firebase.database().ref(`collab_grid/${getSafeRoomId(activeTab)}/public_filters`).set(sysData.filters[activeTab]); }
     document.getElementById("filterPopup").style.display = "none"; renderGrid(); 
 };
 
 window.clearFilterForCol = function(c, scopeType) {
     if (scopeType === 'private') { if (localPrivateFilters[activeTab]) delete localPrivateFilters[activeTab][c]; } 
-    else { if (sysData.filters[activeTab]) delete sysData.filters[activeTab][c]; db.ref(`collab_grid/${getSafeRoomId(activeTab)}/public_filters`).set(sysData.filters[activeTab]); }
+    else { if (sysData.filters[activeTab]) delete sysData.filters[activeTab][c]; firebase.database().ref(`collab_grid/${getSafeRoomId(activeTab)}/public_filters`).set(sysData.filters[activeTab]); }
     renderGrid();
 };
 
@@ -1341,8 +1363,8 @@ window.updateActiveFilterToolbar = function() {
             html += `<div style="display:inline-flex; align-items:center; margin-right:10px; background:#fff; padding:2px 8px; border-radius:12px; border:1px solid ${colorHex}; font-size:11px;">
                         <span style="font-size:10px; font-weight:bold; color:${colorHex}; margin-right:4px;">[${label}]</span>
                         <span style="font-weight:bold; margin-right:4px;">${colTitle}:</span> 
-                        <span style="color:var(--text-main); max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${vals}">${vals}</span> 
-                        <i class="fas fa-times-circle" style="cursor:pointer; color:var(--red); margin-left:5px;" onclick="clearFilterForCol(${c}, '${label === 'Mình tôi' ? 'private' : 'public'}')" title="Xóa lọc"></i>
+                        <span style="color:#333; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${vals}">${vals}</span> 
+                        <i class="fas fa-times-circle" style="cursor:pointer; color:#db1010; margin-left:5px;" onclick="clearFilterForCol(${c}, '${label === 'Mình tôi' ? 'private' : 'public'}')" title="Xóa lọc"></i>
                      </div>`;
         }
     }
@@ -1354,29 +1376,27 @@ window.generateFilterShareUrl = function() {
     if (!activeTab) return alert("Vui lòng mở một phòng họp (Tab)!");
     const flts = getEffectiveFilters();
     if (!flts || Object.keys(flts).length === 0) return alert("⚠️ Bảng chưa áp dụng bộ lọc nào!");
-
     const encodedSnapshot = encodeURIComponent(JSON.stringify(flts));
-    
-    // Tự tìm đường dẫn trang Admin cha
     let adminUrl = window.location.origin + window.location.pathname.replace(/idea\.html$/, 'admin.html');
     if (!adminUrl.endsWith('admin.html')) adminUrl = window.location.origin + '/admin.html';
-
-    // Cấu trúc Link: domain.com/admin.html?mod=idea&room=Tab_A&view=eyJ...
     const shareLink = `${adminUrl}?mod=idea&room=${encodeURIComponent(activeTab)}&view=${encodedSnapshot}`;
-
     if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(shareLink).then(() => {
-            let box = document.getElementById('gridShareToast');
-            if (!box) {
-                box = document.createElement('div'); box.id = 'gridShareToast';
-                box.style.cssText = `position:fixed; top:20px; right:20px; z-index:999999; background:#0284c7; color:#fff; padding:12px 20px; border-radius:8px; font-size:13px; font-weight:bold; transition:all 0.3s; transform:translateY(-20px); opacity:0;`;
-                document.body.appendChild(box);
-            }
-            box.innerText = `🔗 Đã Copy link chia sẻ bộ lọc Tab [${activeTab}]!`; box.style.transform = 'translateY(0)'; box.style.opacity = '1';
-            setTimeout(() => { box.style.transform = 'translateY(-20px)'; box.style.opacity = '0'; }, 3000);
+            showShareNotice(`🔗 Đã Copy link chia sẻ bộ lọc Tab [${activeTab}]!`, '#0284c7');
         }).catch(() => prompt("Copy link:", shareLink));
     } else prompt("Copy link:", shareLink);
 };
+
+function showShareNotice(msg, bgHex) {
+    let box = document.getElementById('gridShareToast');
+    if (!box) {
+        box = document.createElement('div'); box.id = 'gridShareToast';
+        box.style.cssText = `position:fixed; top:20px; right:20px; z-index:999999; color:#fff; padding:12px 20px; border-radius:8px; font-size:13px; font-weight:bold; transition:all 0.3s; transform:translateY(-20px); opacity:0;`;
+        document.body.appendChild(box);
+    }
+    box.innerText = msg; box.style.background = bgHex; box.style.transform = 'translateY(0)'; box.style.opacity = '1';
+    setTimeout(() => { box.style.transform = 'translateY(-20px)'; box.style.opacity = '0'; }, 3000);
+}
 
 function bootDeepLinkOrNormal() {
     const params = new URLSearchParams(window.location.search);
@@ -1387,17 +1407,11 @@ function bootDeepLinkOrNormal() {
             activeTab = targetTab;
             document.querySelectorAll('#tabsWrapper .tab-item').forEach(el => el.classList.toggle('active', el.innerText.trim() === targetTab));
             GridCollabEngine.switchConferenceRoom(targetTab);
-            
             let banner = document.getElementById('sharedUrlNoticeBar');
             if (!banner) {
                 banner = document.createElement('div'); banner.id = 'sharedUrlNoticeBar';
                 banner.style.cssText = `background:#fef08a; border-bottom:1px solid #facc15; color:#854d0e; padding:6px 15px; font-size:12px; font-weight:bold; display:flex; justify-content:space-between; align-items:center; z-index:101;`;
-                
-                // SỬA NÚT THOÁT Ở ĐÂY: Ra lệnh cho trang Admin cha bên ngoài tải lại trang sạch sẽ
-                banner.innerHTML = `
-                    <span><i class="fas fa-link" style="color:#ca8a04;"></i> Đang xem <b>Bộ lọc chia sẻ</b> phòng <b>${targetTab}</b>.</span>
-                    <button onclick="window.top.location.href = window.top.location.pathname" style="background:#ca8a04; color:#fff; border:none; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">Thoát link chia sẻ</button>
-                `;
+                banner.innerHTML = `<span><i class="fas fa-link" style="color:#ca8a04;"></i> Đang xem <b>Bộ lọc chia sẻ</b> phòng <b>${targetTab}</b>.</span><button onclick="window.top.location.href=window.top.location.pathname" style="background:#ca8a04; color:#fff; border:none; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">Thoát link chia sẻ</button>`;
                 document.body.insertBefore(banner, document.body.firstChild);
             }
         } catch(e) { if (activeTab) GridCollabEngine.switchConferenceRoom(activeTab); }
