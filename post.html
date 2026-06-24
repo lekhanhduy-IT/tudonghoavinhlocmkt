@@ -3756,55 +3756,61 @@ function rememberImageInsertionTarget(mode) {
     }
 }
 
-function insertManagedImage(img, mode = vbImageTargetMode) {
+function insertManagedImage(img, mode = vbImageTargetMode, explicitRange = null) {
     if (!img) return;
     const coverEditor = document.getElementById("coverEditor");
     const contentEditor = document.getElementById("postContent");
     img.dataset.imageRole = mode;
-    
-    // 1. Sinh ra Node sống mang đầy đủ linh hồn (Event listeners đã gắn ở Bước 1)
     const frame = ensureManagedImageFrame(img, mode);
 
     if (mode === "cover") {
         appendManagedCoverImage(coverEditor, img);
-        rememberImageInsertionTarget("cover");
     } else {
         contentEditor.focus();
         const sel = window.getSelection();
-        let range = vbLastContentImageRange;
 
-        if (!range || !contentEditor.contains(range.commonAncestorContainer)) {
-            range = document.createRange();
-            range.selectNodeContents(contentEditor);
-            range.collapse(false);
+        // THUẬT TOÁN BỌC THÉP TÌM LẠI ĐÚNG VỊ TRÍ CON TRỎ (Ưu tiên từ 1 -> 4)
+        // 1. Tọa độ do Ctrl+V hoặc Drop bốc thẳng vào két sắt truyền tới
+        // 2. Tọa độ gõ phím cuối cùng được editor ghi nhớ (savedRange)
+        // 3. Tọa độ mờ của bộ nhớ cover (vbLastContentImageRange)
+        // 4. Đường cùng: Nhét xuống đáy bài viết
+        let targetRange = explicitRange || savedRange || vbLastContentImageRange;
+
+        if (!targetRange || !contentEditor.contains(targetRange.commonAncestorContainer)) {
+            targetRange = document.createRange();
+            targetRange.selectNodeContents(contentEditor);
+            targetRange.collapse(false); // Ép về đáy
         }
 
-        // 2. CẮM SỐNG TRỰC TIẾP VÀO DOM (Bỏ qua execCommand)
-        range.insertNode(frame);
+        sel.removeAllRanges();
+        sel.addRange(targetRange);
 
-        // 3. Sửa sai lầm của insertNode (nó hay nhét frame ảnh vào giữa một thẻ <p> đang gõ dở)
+        // CẮM SỐNG VÀO ĐÚNG TỌA ĐỘ ĐÃ TRÓI
+        targetRange.insertNode(frame);
+
+        // GIẢI CỨU DOM NẾU BỊ CẮM VÀO GIỮA THẺ P
         let parent = frame.parentElement;
-        if (parent && parent.id !== 'postContent' && ['P', 'SPAN', 'DIV'].includes(parent.tagName)) {
-            parent.after(frame); // Bốc frame ra đặt ngay sau thẻ P đó
-            // Nếu bốc ra xong mà thẻ P cũ bị rỗng tuếch -> xóa luôn cho sạch HTML
+        if (parent && parent.id !== 'postContent' && ['P', 'SPAN', 'DIV', 'FONT', 'A'].includes(parent.tagName)) {
+            parent.after(frame);
             if (parent.innerText.trim() === "" && !parent.querySelector('img')) parent.remove();
         }
 
-        // 4. Tạo một vạch gõ mới tinh đằng sau ảnh
+        // TẠO ĐIỂM ĐÁP CHO CON TRỎ PHÍA DƯỚI
         const spacer = document.createElement('p');
         spacer.innerHTML = '<br>';
         frame.after(spacer);
 
-        // 5. Ra lệnh cuộn mượt tới ảnh
+        // TRƯỢT MÀN HÌNH & NHÉT CON TRỎ VÀO ĐIỂM ĐÁP
         frame.scrollIntoView({ behavior: "smooth", block: "center" });
 
-        // 6. Nhét con trỏ nháy vào vạch gõ mới
         const newRange = document.createRange();
         newRange.selectNodeContents(spacer);
         newRange.collapse(true);
         sel.removeAllRanges();
         sel.addRange(newRange);
 
+        // Cập nhật lại két sắt
+        savedRange = newRange.cloneRange();
         vbLastContentImageRange = newRange.cloneRange();
     }
 
@@ -3820,13 +3826,14 @@ function fileToDataUrl(file) {
     });
 }
 
-async function insertImageFiles(files, mode = vbImageTargetMode) {
+async function insertImageFiles(files, mode = vbImageTargetMode, specificRange = null) {
     const imageFiles = Array.from(files || []).filter(file => file && /^image\//i.test(file.type));
     for (const file of imageFiles) {
         const dataUrl = await fileToDataUrl(file);
         const metadata = { ...VB_DEFAULT_IMAGE_META, fileName: file.name || "" };
         const img = createManagedImage(dataUrl, mode, metadata);
-        insertManagedImage(img, mode);
+        // Chuyền tay tọa độ qua khe cửa này tới insertManagedImage
+        insertManagedImage(img, mode, specificRange);
         if (mode === "cover") break;
     }
 }
@@ -3841,17 +3848,14 @@ function looksLikeSingleImageUrl(text) {
 }
 
 async function handleManagedImagePaste(event, mode) {
-    rememberImageInsertionTarget(mode);
+    // 1. TRÓI NGAY TỌA ĐỘ CARET TẠI MILI-GIÂY BẤM CTRL+V TRƯỚC KHI BỊ ASYNC THẢ TRÔI
+    saveSelection();
+    const pastedRange = savedRange ? savedRange.cloneRange() : (window.getSelection().rangeCount > 0 ? window.getSelection().getRangeAt(0).cloneRange() : null);
+
     const clipboard = event.clipboardData;
     if (!clipboard) return;
 
-    const files = Array.from(clipboard.files || []).filter(f => /^image\//i.test(f.type));
-    if (files.length) {
-        event.preventDefault();
-        await insertImageFiles(files, mode);
-        return;
-    }
-
+    // ĐẢO TRẬT TỰ ƯU TIÊN 1: Nếu copy từ Web (có thẻ <img src="http...">), lấy link gốc dùng luôn, tức thì 0ms!
     const html = clipboard.getData("text/html") || "";
     if (html && /<img[\s>]/i.test(html)) {
         event.preventDefault();
@@ -3861,20 +3865,19 @@ async function handleManagedImagePaste(event, mode) {
         for (const sourceImg of imgs) {
             const meta = readImageMetadata(sourceImg);
             const img = createManagedImage(sourceImg.getAttribute("src") || "", mode, meta);
-            const sourceFrame = sourceImg.closest(".vb-image-frame");
-            if (sourceFrame) img.dataset.vbFrameState = JSON.stringify({
-                mode: sourceFrame.dataset.imageMode || "natural",
-                role: mode,
-                targetWidth: sourceFrame.dataset.targetWidth,
-                targetHeight: sourceFrame.dataset.targetHeight,
-                ratioWidth: sourceFrame.dataset.ratioWidth,
-                ratioHeight: sourceFrame.dataset.ratioHeight,
-                objectPosX: sourceFrame.dataset.objectPosX,
-                objectPosY: sourceFrame.dataset.objectPosY
-            });
-            insertManagedImage(img, mode);
+            // Găm thẳng vào tọa độ vừa trói
+            insertManagedImage(img, mode, pastedRange);
             if (mode === "cover") break;
         }
+        return;
+    }
+
+    // ĐẢO TRẬT TỰ ƯU TIÊN 2: Nếu là ảnh chụp màn hình thuần túy (Snipping Tool/Excel), mới convert sang Base64
+    const files = Array.from(clipboard.files || []).filter(f => /^image\//i.test(f.type));
+    if (files.length) {
+        event.preventDefault();
+        // Nhét tọa độ vào hòm chuyền đi
+        await insertImageFiles(files, mode, pastedRange);
         return;
     }
 
