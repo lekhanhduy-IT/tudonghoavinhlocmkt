@@ -395,7 +395,7 @@ setInterval(processQueueAndSync, 4000);
                         if(!checkIsEditing()) {
                             await fetchDataFromServer(true); // Ép tải thẳng từ Google
                         } else {
-                            setSyncStatus("⚠️ Có dữ liệu mới (Click ra ngoài để tải)", "#f39c12");
+                            setSyncStatus("⚠️ Tải mới)", "#f39c12");
                             hasPendingUpdate = true;
                         }
                     } else {
@@ -1094,7 +1094,7 @@ const GridCollabEngine = (function() {
             const avatarBox = injectAvatarToolbarContainer();
             if (avatarBox) {
                 avatarBox.innerHTML = '';
-                let crownDom = `<div id="hostCrownIndicator" title="Host - Bạn là máy cuối cùng sẽ lưu dữ liệu về Sheet" style="display:${isRoomHost?'inline-flex':'none'}; align-items:center; background:#fef08a; border:1px solid #facc15; padding:2px 6px; border-radius:12px; font-size:11px; font-weight:bold; color:#854d0e; margin-right:6px; cursor:help;">👑 Máy Cuối</div>`;
+                let crownDom = `<div id="hostCrownIndicator" title="Chủ phòng" style="display:${isRoomHost?'inline-flex':'none'}; align-items:center;font-size:11px; font-weight:bold; color:#854d0e; margin-right:6px; cursor:help;">👑</div>`;
                 avatarBox.insertAdjacentHTML('beforeend', crownDom);
 
                 const palette = ['#01adee', '#e11d48', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
