@@ -105,12 +105,8 @@
         <button class="tool-btn" onclick="applyFormat('align-justify')"><i class="fas fa-align-justify"></i></button>
         <button class="tool-btn" onclick="openColorPicker(event, 'color')"><i class="fas fa-font"></i> Màu Chữ</button>
         <button class="tool-btn" onclick="openColorPicker(event, 'bg')"><i class="fas fa-fill-drip"></i> Màu Nền</button>
-        <button class="tool-btn" onclick="generateFilterShareUrl()" title="Tạo link">
-          <i class="fas fa-share-alt"></i> Chia sẻ lọc
-        </button>
         <div id="activeFilterDisplay" style="display:none; margin-left:10px; align-items:center; font-size:12px; background:#e8eaed; padding:4px 10px; border-radius:12px; border: 0.5px solid var(--blue);"></div>
         <span id="syncStatus" onclick="forceFetchData()" title="Bấm để lấy dữ liệu mới nhất từ Sheet">🔄 Đang tải...</span>
-
     </div>
 
     <div class="scroll-area" id="gridScrollArea">
@@ -1236,143 +1232,70 @@ window.clearFilterForCol = function(c, scopeType) {
     renderGrid();
 };
 
-// =========================================================================
-// HỆ THỐNG TẠO & ĐỌC DEEP LINK BỘ LỌC - URL SNAPSHOT INJECTION (V7.3)
-// =========================================================================
+window.updateActiveFilterToolbar = function() {
+    const display = document.getElementById("activeFilterDisplay"); 
+    if (!display) return;
 
-// 1. Hàm Bấm nút: Mã hóa bộ lọc hiện tại thành Link URL
-window.generateFilterShareUrl = function() {
-    if (!activeTab) return alert("Vui lòng mở một phòng họp (Tab) trước khi chia sẻ!");
-    
-    const flts = getEffectiveFilters();
-    if (!flts || Object.keys(flts).length === 0) {
-        return alert("⚠️ Bảng hiện tại chưa áp dụng bộ lọc nào!\nHãy lọc ít nhất 1 cột trước khi bấm chia sẻ.");
-    }
+    const pub = sysData.filters[activeTab] || {}; 
+    const priv = localPrivateFilters[activeTab] || {};
+    const mat = sysData.sheets[activeTab];
 
-    // Mã hóa ma trận JSON thành chuỗi an toàn cho thanh địa chỉ trình duyệt (hỗ trợ tiếng Việt UTF-8)
-    const encodedSnapshot = encodeURIComponent(JSON.stringify(flts));
-    const cleanBaseUrl = window.location.origin + window.location.pathname;
-    
-    // Cấu trúc Link: domain.com/idea.html?room=Tab_A&view=eyJ...
-    const shareLink = `${cleanBaseUrl}?room=${encodeURIComponent(activeTab)}&view=${encodedSnapshot}`;
+    // =========================================================================
+    // 1. [MỚI] TỰ ĐỘNG NHUỘM MÀU ICON PHỄU TRÊN TIÊU ĐỀ CỘT (TH)
+    // =========================================================================
+    if (mat && mat[0]) {
+        const thList = document.querySelectorAll('#dataHead th');
+        // Thuật toán tự khớp cột: Nếu bảng có cột STT bên trái cùng, index <th> sẽ lệch 1 so với ma trận
+        const offset = (thList.length > mat[0].length) ? 1 : 0; 
 
-    // Tự động Copy vào khay nhớ tạm
-    if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(shareLink).then(() => {
-            showShareNotice(`🔗 Đã Copy link chia sẻ bộ lọc Tab [${activeTab}]!`, '#0284c7');
-        }).catch(() => promptFallback(shareLink));
-    } else {
-        promptFallback(shareLink);
-    }
-};
+        for (let c = 0; c < mat[0].length; c++) {
+            const targetTh = thList[c + offset];
+            if (!targetTh) continue;
+            const icon = targetTh.querySelector('.fa-filter');
+            if (!icon) continue;
 
-function promptFallback(url) {
-    prompt("👉 Hãy Copy đường link chia sẻ bộ lọc dưới đây để gửi:", url);
-}
+            icon.style.transition = 'all 0.2s ease';
 
-// 2. Banner cảnh báo: Hiển thị dải băng vàng khi người dùng đang xem link chia sẻ
-function renderSharedUrlBanner(roomName) {
-    let banner = document.getElementById('sharedUrlNoticeBar');
-    if (!banner) {
-        banner = document.createElement('div');
-        banner.id = 'sharedUrlNoticeBar';
-        banner.style.cssText = `
-            background: #fef08a; border-bottom: 1px solid #facc15; color: #854d0e;
-            padding: 6px 15px; font-size: 12px; font-weight: bold; display: flex;
-            justify-content: space-between; align-items: center; z-index: 101;
-        `;
-        banner.innerHTML = `
-            <div style="display:flex; align-items:center; gap:6px;">
-                <i class="fas fa-link" style="color:#ca8a04;"></i> 
-                <span>Bạn đang xem <b>Bộ lọc được chia sẻ</b> của phòng <b>${roomName}</b>. (Không làm ảnh hưởng tới người khác)</span>
-            </div>
-            <button onclick="window.location.href = window.location.pathname" style="background:#ca8a04; color:#fff; border:none; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold; box-shadow:0 1px 2px rgba(0,0,0,0.1);">
-                <i class="fas fa-sync-alt"></i> Thoát link chia sẻ
-            </button>
-        `;
-        const toolbar = document.querySelector('.toolbar');
-        if (toolbar) toolbar.parentNode.insertBefore(banner, toolbar.nextSibling);
-        else document.body.insertBefore(banner, document.body.firstChild);
-    }
-}
-
-// 3. Popup Toast thông báo copy thành công siêu mượt
-function showShareNotice(msg, bgHex) {
-    let box = document.getElementById('gridShareToast');
-    if (!box) {
-        box = document.createElement('div'); box.id = 'gridShareToast';
-        box.style.cssText = `
-            position: fixed; top: 20px; right: 20px; z-index: 999999;
-            background: ${bgHex}; color: #fff; padding: 12px 20px;
-            border-radius: 8px; font-size: 13px; font-weight: bold;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: all 0.3s ease;
-            transform: translateY(-20px); opacity: 0; pointer-events: none;
-        `;
-        document.body.appendChild(box);
-    }
-    box.innerText = msg; box.style.background = bgHex;
-    box.style.transform = 'translateY(0)'; box.style.opacity = '1';
-    setTimeout(() => { box.style.transform = 'translateY(-20px)'; box.style.opacity = '0'; }, 3200);
-}
-
-// 4. [TRÁI TIM LẬT KÈO]: Đọc URL khi vừa load trang xem có lệnh bài chia sẻ không
-function bootDeepLinkOrNormal() {
-    const params = new URLSearchParams(window.location.search);
-    const targetTab = params.get('room');
-    const encodedFlt = params.get('view');
-
-    if (targetTab && encodedFlt) {
-        try {
-            const snapshotFlt = JSON.parse(decodeURIComponent(encodedFlt));
-            activeTab = targetTab;
-            
-            // NẠP THẲNG VÀO BỘ NHỚ "MÌNH TÔI" -> Hiển thị ngay lập tức mà không cướp sóng phòng chung!
-            localPrivateFilters[targetTab] = snapshotFlt;
-
-            // Kích hoạt sáng màu Tab trên giao diện
-            document.querySelectorAll('#tabsWrapper .tab-item').forEach(el => {
-                el.classList.toggle('active', el.innerText.trim() === targetTab);
-            });
-
-            // Mở kết nối phòng
-            GridCollabEngine.switchConferenceRoom(targetTab);
-            renderSharedUrlBanner(targetTab);
-
-        } catch(e) {
-            console.error("Link chia sẻ bị hỏng dữ liệu:", e);
-            if (activeTab) GridCollabEngine.switchConferenceRoom(activeTab);
+            if (pub[c]) {
+                icon.style.color = '#0284c7'; // Xanh dương (Đang lọc Public)
+                icon.style.transform = 'scale(1.25)';
+            } else if (priv[c]) {
+                icon.style.color = '#16a34a'; // Xanh lá (Đang lọc Private)
+                icon.style.transform = 'scale(1.25)';
+            } else {
+                icon.style.color = '#c0c0c0'; // Trở về xám nhạt mặc định
+                icon.style.transform = 'scale(1)';
+            }
         }
-    } else {
-        // Khởi động bình thường nếu vào bằng link gốc
-        if (activeTab) GridCollabEngine.switchConferenceRoom(activeTab);
     }
-}
 
-// =========================================================================
-// BỔ SUNG HOOK DỌN DẸP BANNER KHI CHUYỂN TAB
-// =========================================================================
-const nativeRenderTabsForDeepLink = renderTabs;
-window.renderTabs = function() {
-    nativeRenderTabsForDeepLink();
-    document.querySelectorAll('#tabsWrapper .tab-item').forEach(el => {
-        const clonedEl = el.cloneNode(true); el.parentNode.replaceChild(clonedEl, el);
-        const tabName = clonedEl.innerText.trim();
-        clonedEl.addEventListener('click', function() {
-            if (activeTab === tabName) return; 
-            
-            // Nếu người dùng bấm sang tab khác -> Tự động xé bỏ dải băng cảnh báo Link chia sẻ
-            const banner = document.getElementById('sharedUrlNoticeBar');
-            if (banner) banner.remove();
+    // =========================================================================
+    // 2. HIỂN THỊ THANH TOOLBAR ACTIVE BÊN DƯỚI
+    // =========================================================================
+    if (Object.keys(pub).length === 0 && Object.keys(priv).length === 0) { 
+        display.style.display = "none"; 
+        return; 
+    }
 
-            document.querySelectorAll('#tabsWrapper .tab-item').forEach(t => t.classList.remove('active'));
-            this.classList.add('active'); activeTab = tabName;
-            GridCollabEngine.switchConferenceRoom(tabName);
-        });
-    });
+    let html = "";
+    function renderFilterBadges(fltObject, label, colorHex) {
+        for (let c in fltObject) {
+            const colTitle = (mat[0] && mat[0][c]) ? mat[0][c] : getColLetter(parseInt(c)); const vals = fltObject[c].join(", ");
+            html += `<div style="display:inline-flex; align-items:center; margin-right:10px; background:#fff; padding:2px 8px; border-radius:12px; border:1px solid ${colorHex}; font-size:11px;">
+                        <span style="font-size:10px; font-weight:bold; color:${colorHex}; margin-right:4px;">[${label}]</span>
+                        <span style="font-weight:bold; margin-right:4px;">${colTitle}:</span> 
+                        <span style="color:var(--text-main); max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${vals}">${vals}</span> 
+                        <i class="fas fa-times-circle" style="cursor:pointer; color:var(--red); margin-left:5px;" onclick="clearFilterForCol(${c}, '${label === 'Mình tôi' ? 'private' : 'public'}')" title="Xóa lọc"></i>
+                     </div>`;
+        }
+    }
+    renderFilterBadges(pub, "Mọi người", "#0284c7"); 
+    renderFilterBadges(priv, "Mình tôi", "#16a34a");
+
+    display.innerHTML = html; display.style.display = "flex";
 };
 
-// GỠ BỎ LỆNH setTimeout(switchConferenceRoom) CŨ Ở ĐÁY FILE VÀ THAY BẰNG LỆNH BOOT DEEP LINK:
-setTimeout(() => { bootDeepLinkOrNormal(); }, 800);
+setTimeout(() => { if (activeTab) GridCollabEngine.switchConferenceRoom(activeTab); }, 800);
     </script>
 </body>
 </html>
