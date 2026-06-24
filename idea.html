@@ -941,57 +941,133 @@ const GridCollabEngine = (function() {
                 position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
                 display: flex; align-items: center; gap: 6px; z-index: 999;
                 background: rgba(255, 255, 255, 0.95); padding: 4px 14px;
-                border-radius: 20px; border: 1px solid var(--gray-border, #e0e0e0);
-                box-shadow: 0 2px 6px rgba(0,0,0,0.05); pointer-events: auto;
+                border: none;                
             `;
             toolbar.style.position = 'relative'; toolbar.appendChild(container);
         }
         return container;
     }
 
-    function initCentralizedCanvasRouter() {
-        db.ref('collab_grid').on('value', snapshot => {
-            if (!activeTab || isSwitchingTabCanvas) return;
-            const targetRoomId = getSafeRoomId(activeTab);
-            const roomLayer = (snapshot.val() || {})[targetRoomId] || {};
+    // TỔNG ĐÀI ĐỊNH TUYẾN LAYER (Lắng nghe tập trung)
+function initCentralizedCanvasRouter() {
+    db.ref('collab_grid').on('value', snapshot => {
+        if (!activeTab || isSwitchingTabCanvas) return;
 
-            const users = roomLayer.users || {};
-            const avatarBox = injectAvatarToolbarContainer();
-            if (avatarBox) {
-                avatarBox.innerHTML = '';
-                Object.keys(users).forEach(uid => {
-                    const u = users[uid]; const img = document.createElement('img');
-                    img.src = u.avatar || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
-                    img.title = `${u.name}\n(${u.email})`;
-                    img.style.cssText = `width:26px; height:26px; border-radius:50%; border:2px solid #01adee; object-fit:cover; cursor:pointer; transition:all 0.15s;`;
-                    img.onmouseover = () => img.style.transform = 'scale(1.25)';
-                    img.onmouseout = () => img.style.transform = 'scale(1)';
-                    avatarBox.appendChild(img);
-                });
-            }
+        const targetRoomId = getSafeRoomId(activeTab);
+        const roomLayer = (snapshot.val() || {})[targetRoomId] || {};
 
-            const dataLayer = roomLayer.sheet_data;
-            if (dataLayer && dataLayer.sender !== myDeviceId && !isApplyingRemotePatch) {
-                isApplyingRemotePatch = true;
-                try {
-                    const incomingMat = JSON.parse(dataLayer.matrix);
-                    const incomingAttrs = JSON.parse(dataLayer.attributes);
+        // =====================================================================
+        // 1. TÁI TẠO LAYER AVATAR (Kích thước 30px, Tooltip bọc nền trùng viền)
+        // =====================================================================
+        const users = roomLayer.users || {};
+        const avatarBox = injectAvatarToolbarContainer();
+        
+        if (avatarBox) {
+            avatarBox.innerHTML = '';
+            
+            // Bảng màu chuẩn Google để bốc tự động theo email
+            const palette = ['#01adee', '#e11d48', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
-                    enforceHundredRowsBuffer(incomingMat);
+            Object.keys(users).forEach(uid => {
+                const u = users[uid];
+                
+                // Thuật toán tạo mã màu cố định theo email của từng người
+                let hash = 0; for(let i=0; i<u.email.length; i++) hash = Math.imul(31, hash) + u.email.charCodeAt(i) | 0;
+                const peerColor = u.color || palette[Math.abs(hash) % palette.length];
 
-                    sysData.sheets[activeTab] = incomingMat;
-                    sysData.attributes[activeTab] = incomingAttrs;
+                // Thẻ bọc ngoài (Wrapper)
+                const wrapper = document.createElement('div');
+                wrapper.style.cssText = 'position: relative; display: inline-flex; align-items: center; justify-content: center;';
 
-                    smartPatchGridDOM(incomingMat, incomingAttrs);
-                } catch(e){} finally { isApplyingRemotePatch = false; }
-            }
+                // Thẻ hình đại diện (Avatar chuẩn 30x30 giống post.html)
+                const img = document.createElement('img');
+                img.src = u.avatar || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
+                img.style.cssText = `
+                    width: 30px; 
+                    height: 30px; 
+                    border-radius: 50%; 
+                    border: 2px solid ${peerColor}; 
+                    object-fit: cover; 
+                    cursor: pointer; 
+                    background: #fff;
+                    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+                `;
 
-            const incomingFilters = roomLayer.public_filters || {};
-            if (JSON.stringify(sysData.filters[activeTab] || {}) !== JSON.stringify(incomingFilters)) {
-                sysData.filters[activeTab] = incomingFilters; renderGrid(); 
-            }
-        });
-    }
+                // Thẻ Tooltip Tên hiển thị nổi bên dưới
+                const tooltip = document.createElement('div');
+                const shortName = u.name !== 'Thành viên' ? u.name : u.email.split('@')[0];
+                
+                tooltip.style.cssText = `
+                    position: absolute;
+                    top: 38px; /* Cách mép dưới avatar đúng 8px */
+                    left: 50%;
+                    transform: translateX(-50%) translateY(4px);
+                    background: ${peerColor};
+                    color: #ffffff;
+                    font-size: 11px;
+                    font-weight: 600;
+                    padding: 3px 8px;
+                    border-radius: 4px;
+                    white-space: nowrap;
+                    pointer-events: none;
+                    opacity: 0;
+                    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+                    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+                    z-index: 100000;
+                    line-height: 1.2;
+                `;
+                
+                // Cấu trúc: 1 mũi tên tam giác xoay 45 độ (kế thừa nền) + Tên người dùng
+                tooltip.innerHTML = `
+                    <div style="position: absolute; top: -3px; left: 50%; transform: translateX(-50%) rotate(45deg); width: 6px; height: 6px; background: inherit;"></div>
+                    <span>${shortName}</span>
+                `;
+
+                // Bắt sự kiện Hover bốc đồng bộ
+                wrapper.onmouseenter = () => {
+                    img.style.transform = 'scale(1.15) translateY(-2px)';
+                    img.style.boxShadow = `0 4px 10px ${peerColor}66`; // Phát sáng nhẹ theo đúng màu viền
+                    tooltip.style.opacity = '1';
+                    tooltip.style.transform = 'translateX(-50%) translateY(0)';
+                };
+                
+                wrapper.onmouseleave = () => {
+                    img.style.transform = 'scale(1) translateY(0)';
+                    img.style.boxShadow = 'none';
+                    tooltip.style.opacity = '0';
+                    tooltip.style.transform = 'translateX(-50%) translateY(4px)';
+                };
+
+                wrapper.appendChild(img);
+                wrapper.appendChild(tooltip);
+                avatarBox.appendChild(wrapper);
+            });
+        }
+
+        // 2. XẾP CHỒNG LAYER DỮ LIỆU MỚI VÀO CANVAS DOM
+        const dataLayer = roomLayer.sheet_data;
+        if (dataLayer && dataLayer.sender !== myDeviceId && !isApplyingRemotePatch) {
+            isApplyingRemotePatch = true;
+            try {
+                const incomingMat = JSON.parse(dataLayer.matrix);
+                const incomingAttrs = JSON.parse(dataLayer.attributes);
+
+                enforceHundredRowsBuffer(incomingMat);
+
+                sysData.sheets[activeTab] = incomingMat;
+                sysData.attributes[activeTab] = incomingAttrs;
+
+                smartPatchGridDOM(incomingMat, incomingAttrs);
+            } catch(e){} finally { isApplyingRemotePatch = false; }
+        }
+
+        // 3. ĐỒNG BỘ LAYER BỘ LỌC CHUNG
+        const incomingFilters = roomLayer.public_filters || {};
+        if (JSON.stringify(sysData.filters[activeTab] || {}) !== JSON.stringify(incomingFilters)) {
+            sysData.filters[activeTab] = incomingFilters; renderGrid(); 
+        }
+    });
+}
 
     function switchConferenceRoom(tabName) {
         if (!tabName || tabName.endsWith('_hidden')) return;
