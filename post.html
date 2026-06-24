@@ -3705,15 +3705,13 @@ function endCropDrag(e) {
 }
 
 function bindManagedImage(img) {
-    if (!img || img.dataset.vbBound === "1") return;
-    img.dataset.vbBound = "1";
+    // DÙNG THUỘC TÍNH RAM (__vbLiveBound). Hễ trình duyệt serialize DOM thành text là thuộc tính này tự tiêu hủy!
+    if (!img || img.__vbLiveBound) return;
+    img.__vbLiveBound = true;
+    delete img.dataset.vbBound; // Tẩy sạch rác string cũ nếu có
 
     img.addEventListener("click", e => {
-        if (Date.now() < vbSuppressImageClickUntil) {
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-        }
+        if (Date.now() < vbSuppressImageClickUntil) return;
         e.preventDefault();
         e.stopPropagation();
         openImageProperties(img);
@@ -3763,6 +3761,8 @@ function insertManagedImage(img, mode = vbImageTargetMode) {
     const coverEditor = document.getElementById("coverEditor");
     const contentEditor = document.getElementById("postContent");
     img.dataset.imageRole = mode;
+    
+    // 1. Sinh ra Node sống mang đầy đủ linh hồn (Event listeners đã gắn ở Bước 1)
     const frame = ensureManagedImageFrame(img, mode);
 
     if (mode === "cover") {
@@ -3773,42 +3773,39 @@ function insertManagedImage(img, mode = vbImageTargetMode) {
         const sel = window.getSelection();
         let range = vbLastContentImageRange;
 
-        // Nếu mất tọa độ, tự động đẩy con trỏ xuống vị trí dưới cùng của bài viết
         if (!range || !contentEditor.contains(range.commonAncestorContainer)) {
             range = document.createRange();
             range.selectNodeContents(contentEditor);
             range.collapse(false);
         }
 
+        // 2. CẮM SỐNG TRỰC TIẾP VÀO DOM (Bỏ qua execCommand)
+        range.insertNode(frame);
+
+        // 3. Sửa sai lầm của insertNode (nó hay nhét frame ảnh vào giữa một thẻ <p> đang gõ dở)
+        let parent = frame.parentElement;
+        if (parent && parent.id !== 'postContent' && ['P', 'SPAN', 'DIV'].includes(parent.tagName)) {
+            parent.after(frame); // Bốc frame ra đặt ngay sau thẻ P đó
+            // Nếu bốc ra xong mà thẻ P cũ bị rỗng tuếch -> xóa luôn cho sạch HTML
+            if (parent.innerText.trim() === "" && !parent.querySelector('img')) parent.remove();
+        }
+
+        // 4. Tạo một vạch gõ mới tinh đằng sau ảnh
+        const spacer = document.createElement('p');
+        spacer.innerHTML = '<br>';
+        frame.after(spacer);
+
+        // 5. Ra lệnh cuộn mượt tới ảnh
+        frame.scrollIntoView({ behavior: "smooth", block: "center" });
+
+        // 6. Nhét con trỏ nháy vào vạch gõ mới
+        const newRange = document.createRange();
+        newRange.selectNodeContents(spacer);
+        newRange.collapse(true);
         sel.removeAllRanges();
-        sel.addRange(range);
+        sel.addRange(newRange);
 
-        // TẠO MỘT ID TẠM CHO THẺ P PHÍA DƯỚI ĐỂ LÀM MỐC CUỘN & NHẢY CON TRỎ
-        const uniqueSpacerId = "vb_img_target_" + Date.now();
-        const safeHtmlPayload = frame.outerHTML + `<p id="${uniqueSpacerId}"><br></p>`;
-
-        // Dùng insertHTML để trình duyệt tự tách parent block (P, DIV) hợp lệ, không bị rách DOM
-        document.execCommand('insertHTML', false, safeHtmlPayload);
-
-        // Tìm lại đúng thẻ img vừa chèn vào DOM (vì execCommand tạo ra một instance mới)
-        const newlyInsertedImg = contentEditor.querySelector(`img[data-image-id="${img.dataset.imageId}"]`);
-        if (newlyInsertedImg) {
-            bindManagedImage(newlyInsertedImg);
-        }
-
-        // CUỘN MÀN HÌNH TỚI ẢNH VÀ ĐẨY CON TRỎ XUỐNG DƯỚI ẢNH
-        const targetSpacer = document.getElementById(uniqueSpacerId);
-        if (targetSpacer) {
-            targetSpacer.removeAttribute("id"); // Xóa ID tạm đi để sạch HTML
-            targetSpacer.scrollIntoView({ behavior: "smooth", block: "center" });
-
-            const newRange = document.createRange();
-            newRange.selectNodeContents(targetSpacer);
-            newRange.collapse(true); // Nhét con trỏ nháy vào đầu dòng trống dưới ảnh
-            sel.removeAllRanges();
-            sel.addRange(newRange);
-            vbLastContentImageRange = newRange.cloneRange();
-        }
+        vbLastContentImageRange = newRange.cloneRange();
     }
 
     markImageDirty(true);
