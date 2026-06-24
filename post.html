@@ -4191,22 +4191,38 @@ function populateImagePropertiesForm(img, options = {}) {
     if (options.resetHistory !== false) resetImageHistory();
 }
 
+// Hàm mở Popup ghi đè
 function openImageProperties(img) {
     if (!img) return;
     document.querySelectorAll(".vb-image-active").forEach(el => el.classList.remove("vb-image-active"));
     vbActiveImage = img;
-    const frame = ensureManagedImageFrame(img, img.closest("#coverEditor") ? "cover" : "content");
-    frame.classList.add("vb-image-active");
-    const imageMode = img.closest("#coverEditor") ? "cover" : "content";
-    rememberImageInsertionTarget(imageMode);
-    if (imageMode === "content") {
-        const afterImage = document.createRange();
-        afterImage.setStartAfter(frame);
-        afterImage.collapse(true);
-        vbLastContentImageRange = afterImage;
+    
+    // BÍ QUYẾT: Luôn TẮT nút "Đồng bộ" khi mới mở Popup để tránh vô ý làm hỏng kích thước cũ
+    const syncChk = document.getElementById('vbSyncAllCheckbox');
+    let isCover = img.closest("#coverEditor") !== null;
+    
+    // Tự động bỏ tích đồng bộ nếu mở ảnh bìa
+    if (syncChk) syncChk.checked = false;
+    
+    // Thu thập danh sách ảnh nội dung (bỏ qua ảnh bìa)
+    vbContentImagesList = Array.from(document.querySelectorAll("#postContent img.vb-managed-image"));
+    
+    if (isCover) {
+        document.querySelector('.vb-preview-nav').style.display = 'none';
+    } else {
+        document.querySelector('.vb-preview-nav').style.display = 'flex';
+        vbCurrentPopupIndex = vbContentImagesList.indexOf(img);
+        if(vbCurrentPopupIndex === -1) { vbContentImagesList.unshift(img); vbCurrentPopupIndex = 0; }
     }
+    
+    const frame = ensureManagedImageFrame(img, isCover ? "cover" : "content");
+    frame.classList.add("vb-image-active");
+    rememberImageInsertionTarget(isCover ? "cover" : "content");
+
     populateImagePropertiesForm(img, {resetHistory: true});
     document.getElementById("vbImagePopupOverlay").style.display = "flex";
+    
+    updatePreviewUI();
 }
 
 function closeImageProperties() {
@@ -5660,18 +5676,25 @@ function updatePreviewUI() {
     }
 }
 
-// Ghi đè hàm applyFrameState để xử lý Scale %
-const originalApplyImageFrameState = applyImageFrameState;
+// Ghi đè hàm applyFrameState để xử lý Scale % và ÉP 100% WIDTH cho Ảnh bìa
+// Bọc bằng window để chống lỗi "has already been declared" khi dán code nhiều lần
+if (typeof window.originalApplyImageFrameState === 'undefined') {
+    window.originalApplyImageFrameState = applyImageFrameState;
+}
+
 applyImageFrameState = function(img, state = {}) {
-    const frame = originalApplyImageFrameState(img, state);
+    const frame = window.originalApplyImageFrameState(img, state);
     if (!frame) return null;
     
-    // Đọc và áp dụng thuộc tính scale %
     let scalePct = parseFloat(img.dataset.scalePercent);
     if(isNaN(scalePct) || scalePct <= 0) scalePct = 100;
     
-    if (frame.dataset.imageRole !== "cover") {
-        frame.style.width = `${scalePct}%`; // Ghi đè pixel bằng % so với bài viết
+    if (frame.dataset.imageRole === "cover") {
+        // NẾU LÀ ẢNH BÌA: Ép 100% chiều ngang
+        frame.style.width = "100%"; 
+    } else {
+        // NẾU LÀ ẢNH NỘI DUNG: Áp dụng Scale % bình thường
+        frame.style.width = `${scalePct}%`;
     }
     return frame;
 };
