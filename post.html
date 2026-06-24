@@ -993,7 +993,10 @@
   <div style="display: flex; align-items: center;">
     <span id="syncStatusVB" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60;">✅ Đã đồng bộ</span>
     <button class="tool-btn" onclick="togglePanelVB('right')" style="margin-right: 10px;"><i class="fas fa-toolbox"></i> Công cụ</button>
-    <button class="tool-btn save-btn" onclick="savePostToSheet()"><i class="fas fa-save"></i> Lưu bài viết</button>
+    <!--<button class="tool-btn save-btn" onclick="savePostToSheet()"><i class="fas fa-save"></i> Lưu bài viết</button>-->
+    <div id="autoSaveCloudIndicator" title="Hệ thống Master Canvas đang tự động bảo vệ bài viết" style="display: inline-flex; align-items: center; gap: 6px; background: #f1f5f9; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 20px; font-weight: bold; user-select: none;">
+    <i class="fas fa-cloud" style="color: #0284c7;"></i> <span style="color: #64748b; font-size: 12px;">Đã đồng bộ Cloud</span>
+    </div>
   </div>
 </div>
 <div class="workspace" id="workspaceArea">
@@ -5847,6 +5850,315 @@ document.addEventListener('mouseup', function() {
         markImageDirty(true);
     }
 });
+// =========================================================================
+// HỆ THỐNG MASTER CANVAS, DIFFING HOST & AUTO CLOUD SAVE (POST COLLAB V8.0)
+// =========================================================================
+
+const PostCollabEngine = (function() {
+    const firebaseConfig = {
+        databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let currentRoomRef = null;
+    let myPresenceRef = null;
+    let lastBroadcastedHash = 0;
+    let isApplyingRemotePatch = false;
+
+    // QUYỀN LỰC CỦA VUA (HOST CHỦ PHÒNG)
+    let isRoomHost = false;
+    let silenceSaveTimer = null;
+    let lastBackedUpCanvasClone = null;
+
+    const myEmail = localStorage.getItem('admin_email') || 'anon_' + Math.floor(Math.random()*1000) + '@gmail.com';
+    const myName = localStorage.getItem('admin_name') || 'Thành viên';
+    const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
+    const myDeviceId = 'post_dev_' + Math.random().toString(36).substring(2, 7);
+
+    // Lấy ID phòng riêng biệt theo đúng bài viết đang mở
+    function getActivePostRoomId() {
+        const postId = window.vbActivePostId || document.querySelector('.post-item.active')?.dataset?.id || new URLSearchParams(window.location.search).get('id') || 'POST_DEFAULT_ROOM';
+        return 'post_room_' + String(postId).replace(/[\.\#\$\[\]]/g, '_');
+    }
+
+    function getSimpleHash(str) {
+        let h = 0; for(let i=0; i<str.length; i++) h = Math.imul(31, h) + str.charCodeAt(i) | 0;
+        return h;
+    }
+
+    // TẠO KHAY AVATAR & VƯƠNG MIỆN HOST NGHIÊNG 18 ĐỘ GÓC TRÊN PHẢI
+    function injectAvatarContainer() {
+        const toolbar = document.querySelector('.toolbar') || document.querySelector('.editor-toolbar') || document.body;
+        toolbar.style.position = 'relative'; toolbar.style.zIndex = '999999';
+
+        if (!document.getElementById('postTooltipEngine')) {
+            const style = document.createElement('style'); style.id = 'postTooltipEngine';
+            style.innerHTML = `
+                .peer-avatar-slot { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+                .peer-avatar-slot .head-anchor { position: relative; display: flex; align-items: center; justify-content: center; transition: transform 0.2s; }
+                .peer-avatar-slot img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; cursor: pointer; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+                
+                /* VƯƠNG MIỆN NẰM GÓC TRÊN PHẢI, NGHIÊNG VỀ BÊN PHẢI 18 ĐỘ */
+                .peer-avatar-slot .host-crown { position: absolute; top: -6px; right: -6px; transform: rotate(18deg); font-size: 15px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3)); z-index: 20; pointer-events: none; user-select: none; }
+
+                .peer-avatar-slot .peer-tag { position: absolute; top: 37px; left: 50%; transform: translateX(-50%) translateY(4px); color: #ffffff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; white-space: nowrap; pointer-events: none; opacity: 0; visibility: hidden; transition: all 0.15s; box-shadow: 0 2px 6px rgba(0,0,0,0.25); z-index: 1000000; }
+                .peer-avatar-slot .peer-tag::before { content: ''; position: absolute; top: -3px; left: 50%; transform: translateX(-50%) rotate(45deg); width: 6px; height: 6px; background: inherit; }
+                
+                .peer-avatar-slot:hover .head-anchor { transform: scale(1.15) translateY(-2px); }
+                .peer-avatar-slot:hover .peer-tag { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
+            `;
+            document.head.appendChild(style);
+        }
+
+        let container = document.getElementById('postOnlinePeers');
+        if (!container) {
+            container = document.createElement('div'); container.id = 'postOnlinePeers';
+            container.style.cssText = `position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 8px; z-index: 999999; background: transparent; pointer-events: auto;`;
+            
+            const targetAppend = document.querySelector('.toolbar') || document.body;
+            targetAppend.appendChild(container);
+        }
+        return container;
+    }
+
+    // BẦU HOST CHỦ PHÒNG
+    function evaluateHostRole(usersObj) {
+        if (!usersObj) return null;
+        const uids = Object.keys(usersObj);
+        if (uids.length === 0) return null;
+
+        uids.sort((a, b) => (usersObj[a].joinedAt || 0) - (usersObj[b].joinedAt || 0));
+        const kingUid = uids[0];
+        isRoomHost = (kingUid === myDeviceId);
+        return kingUid;
+    }
+
+    // CHỤP TOÀN BỘ BỨC TRANH CANVAS (Gồm cả phần Nguồn: Kế hoạch bên trái)
+    function captureCurrentPostCanvas() {
+        return {
+            title: document.getElementById('vbPostTitle')?.value || document.querySelector('input[placeholder*="Tiêu đề"]')?.value || "",
+            category: document.getElementById('vbPostCategory')?.value || "",
+            status: document.getElementById('vbPostStatus')?.value || "",
+            
+            // Quét tóm trọn phần Nguồn: Kế Hoạch bên trái
+            planSource: document.getElementById('vbPlanSource')?.value || document.querySelector('.left-plan-panel textarea')?.value || document.querySelector('textarea[placeholder*="Kế hoạch"]')?.value || "",
+            
+            // Quét nội dung vùng soạn thảo chính (Hỗ trợ cả div thuần lẫn CKEditor)
+            content: document.getElementById('vbPostEditor')?.innerHTML || document.querySelector('.ck-content')?.innerHTML || ""
+        };
+    }
+
+    // ĐIỀU KHIỂN TRẠNG THÁI ĐÁM MÂY
+    function setCloudState(state) {
+        const cloud = document.getElementById('autoSaveCloudIndicator');
+        if (!cloud) return;
+        if (state === 'saving') {
+            cloud.innerHTML = `<i class="fas fa-cloud-upload-alt fa-spin" style="color: #f59e0b;"></i> <span style="color:#f59e0b; font-size:12px;">Đang đồng bộ...</span>`;
+        } else if (state === 'saved') {
+            cloud.innerHTML = `<i class="fas fa-cloud" style="color: #0284c7;"></i> <span style="color:#64748b; font-size:12px;">Đã lưu vào Canvas</span>`;
+        } else if (state === 'sheet_ok') {
+            cloud.innerHTML = `<i class="fas fa-cloud-check" style="color: #10b981;"></i> <span style="color:#10b981; font-size:12px;">Đã cất kho lạnh Sheets</span>`;
+            setTimeout(() => setCloudState('saved'), 3500);
+        }
+    }
+
+    // ĐẾM NGƯỢC 4.5S IM LẶNG ĐỂ HOST BẮN VỀ KHO LẠNH GOOGLE SHEETS
+    function triggerHostSilenceCommit() {
+        if (!isRoomHost) return;
+        clearTimeout(silenceSaveTimer);
+        setCloudState('saving');
+
+        silenceSaveTimer = setTimeout(() => {
+            const currentCanvas = captureCurrentPostCanvas();
+            const currentHash = getSimpleHash(JSON.stringify(currentCanvas));
+            const oldHash = lastBackedUpCanvasClone ? getSimpleHash(JSON.stringify(lastBackedUpCanvasClone)) : 0;
+
+            if (currentHash !== oldHash) {
+                lastBackedUpCanvasClone = JSON.parse(JSON.stringify(currentCanvas));
+                
+                const payload = [{
+                    type: 'SAVE_BLOG_POST_CANVAS',
+                    tabName: window.POSTS_TAB_NAME || 'Bài Viết',
+                    postId: window.vbActivePostId || 'POST_DEFAULT',
+                    canvasData: currentCanvas
+                }];
+
+                fetch(API_URL, {
+                    method: 'POST', body: JSON.stringify(payload),
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+                }).then(r => r.json()).then(res => {
+                    if (res.success) setCloudState('sheet_ok');
+                }).catch(() => setCloudState('saved'));
+            } else {
+                setCloudState('saved');
+            }
+        }, 4500);
+    }
+
+    // KẾT NỐI VÀO PHÒNG HỌP BÀI VIẾT
+    function switchPostConferenceRoom() {
+        const roomId = getActivePostRoomId();
+        if (!roomId) return;
+
+        if (currentRoomRef) currentRoomRef.off();
+        if (myPresenceRef) myPresenceRef.remove();
+
+        currentRoomRef = db.ref(`collab_posts/${roomId}`);
+        myPresenceRef = currentRoomRef.child(`users/${myDeviceId}`);
+
+        myPresenceRef.set({ email: myEmail, name: myName, avatar: myAvatar, joinedAt: firebase.database.ServerValue.TIMESTAMP });
+        myPresenceRef.onDisconnect().remove();
+
+        // 1. Lắng nghe Peering & Bầu Vua
+        currentRoomRef.child('users').on('value', snap => {
+            const users = snap.val() || {};
+            const kingUid = evaluateHostRole(users);
+            const box = injectAvatarContainer();
+            if (!box) return;
+
+            box.innerHTML = '';
+            const palette = ['#01adee', '#e11d48', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+
+            Object.keys(users).forEach(uid => {
+                const u = users[uid];
+                let hash = 0; for(let i=0; i<u.email.length; i++) hash = Math.imul(31, hash) + u.email.charCodeAt(i) | 0;
+                const peerColor = u.color || palette[Math.abs(hash) % palette.length];
+
+                const slot = document.createElement('div'); slot.className = 'peer-avatar-slot';
+                const headAnchor = document.createElement('div'); headAnchor.className = 'head-anchor';
+
+                if (uid === kingUid) {
+                    const crown = document.createElement('div'); crown.className = 'host-crown'; crown.innerText = '👑';
+                    headAnchor.appendChild(crown);
+                }
+
+                const img = document.createElement('img'); img.src = u.avatar || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
+                img.style.border = `2px solid ${peerColor}`;
+
+                const tooltip = document.createElement('div'); tooltip.className = 'peer-tag';
+                tooltip.style.backgroundColor = peerColor;
+                const rawName = u.name !== 'Thành viên' ? u.name : u.email.split('@')[0];
+                tooltip.innerText = (uid === kingUid) ? `${rawName} (Host)` : rawName;
+
+                slot.onmouseenter = () => img.style.boxShadow = `0 3px 8px ${peerColor}88`;
+                slot.onmouseleave = () => img.style.boxShadow = 'none';
+
+                headAnchor.appendChild(img); slot.appendChild(headAnchor); slot.appendChild(tooltip); box.appendChild(slot);
+            });
+        });
+
+        // 2. Lắng nghe Master Canvas từ mạng dội về
+        currentRoomRef.child('canvas').on('value', snap => {
+            const data = snap.val();
+            if (!data || data.sender === myDeviceId) return;
+
+            isApplyingRemotePatch = true;
+            try {
+                const incomingCanvas = JSON.parse(data.snapshot);
+                smartPatchDOM(incomingCanvas);
+                if (isRoomHost) triggerHostSilenceCommit();
+            } catch(e){} finally { isApplyingRemotePatch = false; }
+        });
+
+        lastBackedUpCanvasClone = captureCurrentPostCanvas();
+        setCloudState('saved');
+    }
+
+    // BROADCAST CANVAS KHI CÓ NGƯỜI GÕ
+    function broadcastPostCanvas() {
+        if (isApplyingRemotePatch) return;
+        const currentCanvas = captureCurrentPostCanvas();
+        const currentHash = getSimpleHash(JSON.stringify(currentCanvas));
+
+        if (currentHash !== lastBroadcastedHash) {
+            lastBroadcastedHash = currentHash;
+            if (currentRoomRef) {
+                currentRoomRef.child('canvas').set({
+                    snapshot: JSON.stringify(currentCanvas),
+                    sender: myDeviceId,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                });
+            }
+            setCloudState('saving');
+            if (isRoomHost) triggerHostSilenceCommit();
+        }
+    }
+
+    // THUẬT TOÁN VÁ DOM SƯỢN MỀM (Né tuyệt đối Caret của Local đang gõ)
+    function smartPatchDOM(newCanvas) {
+        function patchField(selector, newVal, isHtml = false) {
+            const el = document.getElementById(selector) || document.querySelector(selector);
+            if (!el) return;
+            
+            // [ÁI KIỂM SOÁT THÉP]: Nếu chuột/con trỏ Local đang đứng trong ô này -> BỎ QUA KHÔNG GHI ĐÈ!
+            if (document.activeElement === el || el.contains(document.activeElement)) return;
+
+            if (isHtml) {
+                if (el.innerHTML !== newVal) el.innerHTML = newVal;
+            } else {
+                if (el.value !== newVal) el.value = newVal;
+            }
+        }
+
+        patchField('vbPostTitle', newCanvas.title);
+        patchField('input[placeholder*="Tiêu đề"]', newCanvas.title);
+        patchField('vbPostCategory', newCanvas.category);
+        patchField('vbPostStatus', newCanvas.status);
+        
+        // Cập nhật mượt mà vùng Nguồn: Kế Hoạch bên trái
+        patchField('vbPlanSource', newCanvas.planSource); 
+        patchField('.left-plan-panel textarea', newCanvas.planSource);
+        patchField('textarea[placeholder*="Kế hoạch"]', newCanvas.planSource);
+        
+        // Cập nhật vùng soạn thảo chính
+        patchField('vbPostEditor', newCanvas.content, true);
+        patchField('.ck-content', newCanvas.content, true);
+    }
+
+    return { switchPostConferenceRoom, broadcastPostCanvas };
+})();
+
+// =========================================================================
+// MÓC NỐI TỰ ĐỘNG (HOOKS) VÀO KHÔNG GIAN SOẠN THẢO POST.HTML
+// =========================================================================
+
+window.addEventListener('DOMContentLoaded', () => {
+    const workspace = document.body;
+
+    // 1. Quét tóm mọi thao tác gõ phím, dán ảnh, xóa chữ trên toàn trang
+    workspace.addEventListener('input', (e) => {
+        const t = e.target;
+        if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable || t.classList.contains('ck-content')) {
+            PostCollabEngine.broadcastPostCanvas();
+        }
+    });
+
+    workspace.addEventListener('change', (e) => {
+        if (e.target.tagName === 'SELECT') PostCollabEngine.broadcastPostCanvas();
+    });
+
+    // 2. Mồi vào phòng họp ngay khi trang vừa tải xong
+    setTimeout(() => PostCollabEngine.switchPostConferenceRoom(), 800);
+});
+
+// 3. [BỌC THÉP TỐI THƯỢNG]: KHÓA MÕM HOÀN TOÀN LỆNH GHI ĐÈ TỪ GOOGLE SHEETS
+const nativeGlobalPostReceiver = window.onSystemDataFetched || function(){};
+window.onSystemDataFetched = function(incomingData) {
+    // Khi Google Sheets dội data định kỳ về -> Bỏ qua không cho phép nó dán đè làm chớp/mất giao diện bài viết!
+    console.log("🛡️ [Master Canvas] Đã bẻ gãy luồng ghi đè ngược từ Sheets để bảo vệ trải nghiệm gõ Realtime.");
+};
+
+// 4. Hook tự động nhảy phòng họp khi người dùng bấm chọn bài viết khác ở danh sách bên trái
+const nativeSelectPostHook = window.selectPost || window.loadPostDetail || function(){};
+window.selectPost = function(...args) {
+    nativeSelectPostHook(...args);
+    setTimeout(() => PostCollabEngine.switchPostConferenceRoom(), 250);
+};
+window.loadPostDetail = function(...args) {
+    nativeSelectPostHook(...args);
+    setTimeout(() => PostCollabEngine.switchPostConferenceRoom(), 250);
+};
 </script>
 
 </body>
