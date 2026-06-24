@@ -266,5 +266,29 @@ function loadModule(url, element) {
             }
         }
     </script>
+    <script>
+window.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    const targetMod = params.get('mod');
+    const targetRoom = params.get('room');
+    const targetView = params.get('view');
+
+    // Nếu phát hiện URL có mang theo lệnh bài chia sẻ bộ lọc của idea.html
+    if (targetMod === 'idea' && targetRoom && targetView) {
+        
+        // 1. Nắm đầu iframe của sub-module Idea
+        const ideaFrame = document.getElementById('frame-idea');
+        if (ideaFrame) {
+            // Truyền ngược các tham số snapshot rớt xuống cho iframe
+            ideaFrame.src = `idea.html?room=${encodeURIComponent(targetRoom)}&view=${encodeURIComponent(targetView)}`;
+        }
+
+        // 2. Gọi hàm của admin.html để ép giao diện chuyển sang tab Idea
+        if (typeof loadModule === 'function') {
+            loadModule('idea.html');
+        }
+    }
+});
+</script>
 </body>
 </html>

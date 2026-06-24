@@ -1335,8 +1335,16 @@ window.generateFilterShareUrl = function() {
     if (!activeTab) return alert("Vui lòng mở một phòng họp (Tab)!");
     const flts = getEffectiveFilters();
     if (!flts || Object.keys(flts).length === 0) return alert("⚠️ Bảng chưa áp dụng bộ lọc nào!");
+
     const encodedSnapshot = encodeURIComponent(JSON.stringify(flts));
-    const shareLink = `${window.location.origin + window.location.pathname}?room=${encodeURIComponent(activeTab)}&view=${encodedSnapshot}`;
+    
+    // Tự tìm đường dẫn trang Admin cha
+    let adminUrl = window.location.origin + window.location.pathname.replace(/idea\.html$/, 'admin.html');
+    if (!adminUrl.endsWith('admin.html')) adminUrl = window.location.origin + '/admin.html';
+
+    // Cấu trúc Link: domain.com/admin.html?mod=idea&room=Tab_A&view=eyJ...
+    const shareLink = `${adminUrl}?mod=idea&room=${encodeURIComponent(activeTab)}&view=${encodedSnapshot}`;
+
     if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(shareLink).then(() => {
             let box = document.getElementById('gridShareToast');
@@ -1345,7 +1353,7 @@ window.generateFilterShareUrl = function() {
                 box.style.cssText = `position:fixed; top:20px; right:20px; z-index:999999; background:#0284c7; color:#fff; padding:12px 20px; border-radius:8px; font-size:13px; font-weight:bold; transition:all 0.3s; transform:translateY(-20px); opacity:0;`;
                 document.body.appendChild(box);
             }
-            box.innerText = `🔗 Đã Copy link chia sẻ bộ lọc [${activeTab}]!`; box.style.transform = 'translateY(0)'; box.style.opacity = '1';
+            box.innerText = `🔗 Đã Copy link chia sẻ bộ lọc Tab [${activeTab}]!`; box.style.transform = 'translateY(0)'; box.style.opacity = '1';
             setTimeout(() => { box.style.transform = 'translateY(-20px)'; box.style.opacity = '0'; }, 3000);
         }).catch(() => prompt("Copy link:", shareLink));
     } else prompt("Copy link:", shareLink);
@@ -1365,7 +1373,12 @@ function bootDeepLinkOrNormal() {
             if (!banner) {
                 banner = document.createElement('div'); banner.id = 'sharedUrlNoticeBar';
                 banner.style.cssText = `background:#fef08a; border-bottom:1px solid #facc15; color:#854d0e; padding:6px 15px; font-size:12px; font-weight:bold; display:flex; justify-content:space-between; align-items:center; z-index:101;`;
-                banner.innerHTML = `<span><i class="fas fa-link" style="color:#ca8a04;"></i> Đang xem <b>Bộ lọc chia sẻ</b> <b>${targetTab}</b>.</span><button onclick="window.location.href=window.location.pathname" style="background:#ca8a04; color:#fff; border:none; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">Thoát</button>`;
+                
+                // SỬA NÚT THOÁT Ở ĐÂY: Ra lệnh cho trang Admin cha bên ngoài tải lại trang sạch sẽ
+                banner.innerHTML = `
+                    <span><i class="fas fa-link" style="color:#ca8a04;"></i> Đang xem <b>Bộ lọc chia sẻ</b> phòng <b>${targetTab}</b>.</span>
+                    <button onclick="window.top.location.href = window.top.location.pathname" style="background:#ca8a04; color:#fff; border:none; padding:3px 8px; border-radius:4px; cursor:pointer; font-size:11px; font-weight:bold;">Thoát link chia sẻ</button>
+                `;
                 document.body.insertBefore(banner, document.body.firstChild);
             }
         } catch(e) { if (activeTab) GridCollabEngine.switchConferenceRoom(activeTab); }
