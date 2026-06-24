@@ -958,6 +958,9 @@ const GridCollabEngine = (function() {
     let isSwitchingTabCanvas = false; 
     let previousRoomId = null;
 
+    // THÊM BIẾN ĐẾM SỐ NGƯỜI TRONG PHÒNG
+    let currentUsersCount = 0;
+
     // QUYỀN LỰC CỦA HOST (CHỦ XỊ PHÒNG)
     let isRoomHost = false;
     let silenceDiffTimer = null;
@@ -1006,11 +1009,15 @@ const GridCollabEngine = (function() {
         return container;
     }
 
-    // THUẬT TOÁN BẦU HOST CHỦ XỊ
+    // THUẬT TOÁN BẦU HOST CHỦ XỊ VÀ CẬP NHẬT SỐ LƯỢNG NGƯỜI CHƠI
     function evaluateHostRole(usersObj) {
-        if (!usersObj) return false;
+        if (!usersObj) {
+            currentUsersCount = 0;
+            return false;
+        }
         const uids = Object.keys(usersObj);
-        if (uids.length === 0) return false;
+        currentUsersCount = uids.length; // Cập nhật sĩ số phòng
+        if (currentUsersCount === 0) return false;
 
         uids.sort((a, b) => (usersObj[a].joinedAt || 0) - (usersObj[b].joinedAt || 0));
         const amIHostNow = (uids[0] === myDeviceId);
@@ -1018,7 +1025,10 @@ const GridCollabEngine = (function() {
         if (amIHostNow !== isRoomHost) {
             isRoomHost = amIHostNow;
             const badge = document.getElementById('hostCrownIndicator');
-            if (badge) badge.style.display = isRoomHost ? 'inline-flex' : 'none';
+            if (badge) {
+                badge.style.display = isRoomHost ? 'inline-flex' : 'none';
+                badge.title = "Host - Chờ máy cuối cùng để lưu vào Sheet";
+            }
             if (isRoomHost && activeTab && sysData.sheets[activeTab]) {
                 lastBackedUpMatrixClone = JSON.parse(JSON.stringify(sysData.sheets[activeTab]));
             }
@@ -1026,9 +1036,16 @@ const GridCollabEngine = (function() {
         return isRoomHost;
     }
 
-    // ĐẾM NGƯỢC 4.5 GIÂY IM LẶNG CỦA PHÒNG
+    // ĐẾM NGƯỢC 4.5 GIÂY IM LẶNG - CHỈ LƯU KHI LÀ NGƯỜI CUỐI CÙNG
     function triggerHostSilenceCountdown() {
         if (!isRoomHost || !activeTab || !sysData.sheets[activeTab]) return;
+
+        // NẾU CÒN NHIỀU HƠN 1 NGƯỜI (TỨC CHƯA PHẢI MÁY CUỐI CÙNG) => HUỶ LƯU SHEET
+        if (currentUsersCount > 1) {
+            clearTimeout(silenceDiffTimer);
+            return;
+        }
+
         clearTimeout(silenceDiffTimer);
         silenceDiffTimer = setTimeout(() => { commitDiffToGoogleSheets(); }, 4500);
     }
@@ -1066,12 +1083,18 @@ const GridCollabEngine = (function() {
             const roomLayer = (snapshot.val() || {})[targetRoomId] || {};
 
             const users = roomLayer.users || {};
+            const previousCount = currentUsersCount; // Ghi nhớ số người cũ
             evaluateHostRole(users);
+
+            // Bắt sự kiện: Mọi người thoát ra, số lượng sụt xuống còn 1 -> Tự động lưu mẻ cuối
+            if (previousCount > 1 && currentUsersCount === 1 && isRoomHost) {
+                triggerHostSilenceCountdown();
+            }
 
             const avatarBox = injectAvatarToolbarContainer();
             if (avatarBox) {
                 avatarBox.innerHTML = '';
-                let crownDom = `<div id="hostCrownIndicator" title="Bạn đang là Host (Máy chịu trách nhiệm lưu ngầm về Google Sheets khi phòng ngừng gõ)" style="display:${isRoomHost?'inline-flex':'none'}; align-items:center; background:#fef08a; border:1px solid #facc15; padding:2px 6px; border-radius:12px; font-size:11px; font-weight:bold; color:#854d0e; margin-right:6px; cursor:help;">👑 Host</div>`;
+                let crownDom = `<div id="hostCrownIndicator" title="Host - Bạn là máy cuối cùng sẽ lưu dữ liệu về Sheet" style="display:${isRoomHost?'inline-flex':'none'}; align-items:center; background:#fef08a; border:1px solid #facc15; padding:2px 6px; border-radius:12px; font-size:11px; font-weight:bold; color:#854d0e; margin-right:6px; cursor:help;">👑 Máy Cuối</div>`;
                 avatarBox.insertAdjacentHTML('beforeend', crownDom);
 
                 const palette = ['#01adee', '#e11d48', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
@@ -1096,6 +1119,7 @@ const GridCollabEngine = (function() {
             }
 
             const dataLayer = roomLayer.sheet_data;
+            // Tất cả máy đều nhận và vá DOM Realtime Canvas ở đây
             if (dataLayer && dataLayer.sender !== myDeviceId && !isApplyingRemotePatch) {
                 isApplyingRemotePatch = true;
                 try {
@@ -1104,6 +1128,8 @@ const GridCollabEngine = (function() {
                     enforceHundredRowsBuffer(incomingMat);
                     sysData.sheets[activeTab] = incomingMat; sysData.attributes[activeTab] = incomingAttrs;
                     smartPatchGridDOM(incomingMat, incomingAttrs);
+                    
+                    // Kích hoạt biến đếm nhưng nó sẽ tự hủy lưu nếu phòng có >1 người
                     if (isRoomHost) triggerHostSilenceCountdown();
                 } catch(e){} finally { isApplyingRemotePatch = false; }
             }
@@ -1151,6 +1177,7 @@ const GridCollabEngine = (function() {
         });
     }
 
+    // Bất cứ ai thay đổi (nhập/định dạng) đều bắn Broadcast lên Firebase Canvas
     function broadcastGridState() {
         if (isApplyingRemotePatch || isSwitchingTabCanvas || !activeTab || !sysData.sheets[activeTab]) return;
         enforceHundredRowsBuffer(sysData.sheets[activeTab]);
