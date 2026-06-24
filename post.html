@@ -4746,9 +4746,20 @@ async function uploadAllPendingPostImages(postId) {
     }
 
     const pending = [];
-    allImages.forEach((img, index) => {
-        const source = getUploadSourceForImage(img);
-        if (!source) return;
+allImages.forEach((img, index) => {
+    const source = getUploadSourceForImage(img);
+    
+    // 1. CHẶN CÁC ẢNH RÁC, ẢNH BÓNG MA
+    if (!source) return; // Bỏ qua ảnh không có nguồn
+    if (source.trim() === "" || source.startsWith("file://")) return; // Bỏ qua ảnh rỗng hoặc ảnh copy từ ổ cứng máy tính chưa qua xử lý
+    
+    // 2. CHẶN ẢNH TRACKING PIXEL (Kích thước <= 5px thường là rác copy từ web khác)
+    const rect = img.getBoundingClientRect();
+    if (rect.width > 0 && rect.width <= 5 && rect.height > 0 && rect.height <= 5) {
+        return; 
+    }
+
+    // ... giữ nguyên phần code xử lý meta bên dưới ...
 
         const metadata = readImageMetadata(img);
         const mimeMatch = source.match(/^data:([^;,]+)/i);
