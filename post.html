@@ -1771,22 +1771,31 @@ const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
         } else { el.style.backgroundColor = "#ffcdd2"; setTimeout(() => el.style.backgroundColor = "", 1000); }
     }
     
-    function vbShowAlert(msg) {
-        document.getElementById('vbAlertMsg').innerHTML = msg;
-        document.getElementById('vbPromptInput').style.display = 'none';
-        document.getElementById('vbAlertCancel').style.display = 'none';
-        document.getElementById('vbAlertOverlay').style.display = 'flex';
-        vbPromptCallback = null;
-    }
+function vbShowAlert(msg) {
+    closeAllToolPopups();
+    if (typeof TableEditor !== 'undefined') TableEditor.hideMenus();
 
-    function vbShowPrompt(msg, callback) {
-        document.getElementById('vbAlertMsg').innerHTML = msg;
-        document.getElementById('vbPromptInput').style.display = 'block';
-        document.getElementById('vbPromptInput').value = '';
-        document.getElementById('vbAlertCancel').style.display = 'inline-block';
-        document.getElementById('vbAlertOverlay').style.display = 'flex';
-        vbPromptCallback = callback;
-    }
+    document.getElementById('vbAlertMsg').innerHTML = msg;
+    document.getElementById('vbPromptInput').style.display = 'none';
+    document.getElementById('vbAlertCancel').style.display = 'none';
+    document.getElementById('vbAlertOverlay').style.display = 'flex';
+    vbPromptCallback = null;
+}
+
+function vbShowPrompt(msg, callback) {
+    closeAllToolPopups();
+    if (typeof TableEditor !== 'undefined') TableEditor.hideMenus();
+
+    document.getElementById('vbAlertMsg').innerHTML = msg;
+    document.getElementById('vbPromptInput').style.display = 'block';
+    document.getElementById('vbPromptInput').value = '';
+    document.getElementById('vbAlertCancel').style.display = 'inline-block';
+    document.getElementById('vbAlertOverlay').style.display = 'flex';
+    vbPromptCallback = callback;
+
+    // Tự động focus sẵn con trỏ vào ô nhập link, người dùng chỉ cần bấm Ctrl + V
+    setTimeout(() => document.getElementById('vbPromptInput').focus(), 100);
+}
 
     function vbCloseAlert(isOk) {
         document.getElementById('vbAlertOverlay').style.display = 'none';
@@ -3763,29 +3772,45 @@ function insertManagedImage(img, mode = vbImageTargetMode) {
         contentEditor.focus();
         const sel = window.getSelection();
         let range = vbLastContentImageRange;
+
+        // Nếu mất tọa độ, tự động đẩy con trỏ xuống vị trí dưới cùng của bài viết
         if (!range || !contentEditor.contains(range.commonAncestorContainer)) {
             range = document.createRange();
             range.selectNodeContents(contentEditor);
             range.collapse(false);
         }
+
         sel.removeAllRanges();
         sel.addRange(range);
-        range.deleteContents();
-        range.insertNode(frame);
 
-        const spacer = document.createElement("p");
-        spacer.innerHTML = "<br>";
-        frame.parentNode.insertBefore(spacer, frame.nextSibling);
+        // TẠO MỘT ID TẠM CHO THẺ P PHÍA DƯỚI ĐỂ LÀM MỐC CUỘN & NHẢY CON TRỎ
+        const uniqueSpacerId = "vb_img_target_" + Date.now();
+        const safeHtmlPayload = frame.outerHTML + `<p id="${uniqueSpacerId}"><br></p>`;
 
-        const nextRange = document.createRange();
-        nextRange.selectNodeContents(spacer);
-        nextRange.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(nextRange);
-        vbLastContentImageRange = nextRange.cloneRange();
+        // Dùng insertHTML để trình duyệt tự tách parent block (P, DIV) hợp lệ, không bị rách DOM
+        document.execCommand('insertHTML', false, safeHtmlPayload);
+
+        // Tìm lại đúng thẻ img vừa chèn vào DOM (vì execCommand tạo ra một instance mới)
+        const newlyInsertedImg = contentEditor.querySelector(`img[data-image-id="${img.dataset.imageId}"]`);
+        if (newlyInsertedImg) {
+            bindManagedImage(newlyInsertedImg);
+        }
+
+        // CUỘN MÀN HÌNH TỚI ẢNH VÀ ĐẨY CON TRỎ XUỐNG DƯỚI ẢNH
+        const targetSpacer = document.getElementById(uniqueSpacerId);
+        if (targetSpacer) {
+            targetSpacer.removeAttribute("id"); // Xóa ID tạm đi để sạch HTML
+            targetSpacer.scrollIntoView({ behavior: "smooth", block: "center" });
+
+            const newRange = document.createRange();
+            newRange.selectNodeContents(targetSpacer);
+            newRange.collapse(true); // Nhét con trỏ nháy vào đầu dòng trống dưới ảnh
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            vbLastContentImageRange = newRange.cloneRange();
+        }
     }
 
-    bindManagedImage(img);
     markImageDirty(true);
 }
 
@@ -3951,20 +3976,33 @@ function initVbImageManager() {
 }
 
 function openImageToolPopup(btn) {
+    // Tuyệt đối không gọi rememberImageInsertionTarget() ở đây vì sẽ trúng nút bấm
     const active = document.activeElement;
-    if (active?.id === "coverEditor" || active?.closest?.("#coverEditor")) rememberImageInsertionTarget("cover");
-    else rememberImageInsertionTarget("content");
+    if (active?.id === "coverEditor" || active?.closest?.("#coverEditor")) {
+        vbImageTargetMode = "cover";
+    } else {
+        vbImageTargetMode = "content";
+    }
     openToolPopup("popupMiniImage", btn);
 }
 
 function chooseImageSource(type) {
     closeAllToolPopups();
+    if (typeof TableEditor !== 'undefined') TableEditor.hideMenus();
+
     if (type === "upload") {
         document.getElementById("vbImageFileInput")?.click();
         return;
     }
     if (type === "drive") {
+        // Mở tab Google Drive
         window.open("https://drive.google.com/drive/u/0/my-drive", "_blank", "noopener");
+        
+        // Dùng thủ thuật ép trình duyệt giật ngược focus về lại trang blog ngay lập tức
+        setTimeout(() => {
+            window.focus();
+        }, 10);
+
         vbShowPrompt("Google Drive đã được mở ở thẻ mới.<br>Hãy chọn ảnh, sao chép liên kết chia sẻ rồi dán vào đây:", url => {
             if (url) insertManagedImage(createManagedImage(url.trim(), vbImageTargetMode, {}), vbImageTargetMode);
         });
