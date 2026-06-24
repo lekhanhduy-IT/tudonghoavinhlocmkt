@@ -1200,17 +1200,36 @@ window.renderGrid = function() {
     GridCollabEngine.broadcastGridState();
 };
 
+// Hook 3: Gõ phím -> Phát sóng Camera DOM + "Bắn tỉa" gửi chuẩn key SYNC_CELL cho Apps Script
 const nativeUpdateCell = updateCell;
+
 window.updateCell = function(r, c, val) {
+    // 1. Lưu vào RAM máy local
     nativeUpdateCell(r, c, val);
 
-    if (activeTab && sysData.sheets[activeTab]) {
-        // Nếu gõ vào khu vực sát đáy làm dãn mảng -> lập tức vẽ lại DOM để lòi thêm dòng mới
-        const needsDomExpand = enforceHundredRowsBuffer(sysData.sheets[activeTab]);
-        if (needsDomExpand) renderGrid();
-    }
-
+    // 2. Phát Realtime DOM cho các máy khác thấy ngay lập tức
     GridCollabEngine.broadcastGridState();
+
+    // 3. [BẮN TỈA CHÍNH XÁC]: Khớp 100% từng cái key theo đúng code.gs của má
+    if (activeTab) {
+        // GIẢI MÃ TỌA ĐỘ:
+        // Trong Javascript, r=0 là hàng 1, c=0 là cột A.
+        // Nhưng getRange(row, col) của Google Sheet bắt đầu đếm từ 1.
+        // Vậy tọa độ chính xác dội vào Sheet phải là: (r + 1) và (c + 1).
+        const deltaPayload = [{
+            type: 'SYNC_CELL',           // Khớp tên lệnh
+            tab: activeTab,              // Khớp key 'tab'
+            row: parseInt(r) + 1,        // Khớp key 'row' (đã cộng 1)
+            col: parseInt(c) + 1,        // Khớp key 'col' (đã cộng 1)
+            val: val                     // Khớp key 'val'
+        }];
+
+        fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify(deltaPayload),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        }).catch(err => console.error("Lỗi Delta Sync:", err));
+    }
 };
 
 const nativeDispatchAttrSave = dispatchAttrSave;
