@@ -1807,15 +1807,10 @@ function vbShowPrompt(msg, callback) {
     // ==========================================
     // SELECTION MEMORY (GIỮ BÔI ĐEN KHI CLICK)
     // ==========================================
-function saveSelection() {
+    function saveSelection() {
         let sel = window.getSelection();
         if (sel.getRangeAt && sel.rangeCount > 0) {
-            let node = sel.getRangeAt(0).commonAncestorContainer;
-            // Chỉ lưu tọa độ (két sắt) nếu con trỏ thực sự nằm trong khu vực soạn thảo
-            let container = document.getElementById('editorContainer');
-            if (container && container.contains(node)) {
-                savedRange = sel.getRangeAt(0);
-            }
+            savedRange = sel.getRangeAt(0);
         }
     }
 
@@ -5366,34 +5361,47 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
 
 })();
 // =========================================================================
-// CODE "KẾT LIỄU" VỤ BẮT CÓC TỌA ĐỘ KHI UPLOAD FILE LOCAL
+// CODE "KẾT LIỄU VĨNH VIỄN" LỖI UPLOAD ẢNH LOCAL (V5 - BỌC THÉP CARETS)
 // =========================================================================
 
 window.addEventListener('DOMContentLoaded', () => {
     const contentEditor = document.getElementById("postContent");
-    
-    // 1. SỬA KÉT SẮT: Chỉ cho phép ghi đè tọa độ khi click/gõ BÊN TRONG khung soạn thảo
-    function lockSafeCaret() {
+    const coverEditor = document.getElementById("coverEditor");
+    const oldInput = document.getElementById("vbImageFileInput");
+    if (!oldInput) return;
+
+    // 1. KÉT SẮT BỌC THÉP: Lưu "Chỉ số ký tự tuyệt đối" thay vì lưu Object Range
+    let absoluteCaretOffset = 0;
+    let activeTargetMode = "content";
+
+    function lockAbsoluteCaret() {
         const sel = window.getSelection();
         if (!sel || sel.rangeCount === 0) return;
         const r = sel.getRangeAt(0);
+
         if (contentEditor && contentEditor.contains(r.commonAncestorContainer)) {
-            window.savedRange = r.cloneRange();
-            window.vbLastContentImageRange = r.cloneRange();
+            activeTargetMode = "content";
+            // Tận dụng thần dược getCaretCharacterOffsetWithin có sẵn trong Collab Engine của bạn
+            absoluteCaretOffset = typeof getCaretCharacterOffsetWithin === 'function' 
+                ? getCaretCharacterOffsetWithin(contentEditor) 
+                : 0;
+        } else if (coverEditor && coverEditor.contains(r.commonAncestorContainer)) {
+            activeTargetMode = "cover";
         }
     }
 
     if (contentEditor) {
-        contentEditor.addEventListener("keyup", lockSafeCaret);
-        contentEditor.addEventListener("mouseup", lockSafeCaret);
-        contentEditor.addEventListener("focus", lockSafeCaret);
+        ["mouseup", "keyup", "focusin", "input"].forEach(evt => {
+            contentEditor.addEventListener(evt, lockAbsoluteCaret);
+        });
+    }
+    if (coverEditor) {
+        ["mouseup", "keyup", "focusin"].forEach(evt => {
+            coverEditor.addEventListener(evt, () => activeTargetMode = "cover");
+        });
     }
 
-    // 2. CHIẾM QUYỀN THẺ INPUT FILE
-    const oldInput = document.getElementById("vbImageFileInput");
-    if (!oldInput) return;
-
-    // Nhân bản để "giết" hết mọi event cũ rác rưởi đang bám trên input này
+    // 2. Tái sinh thẻ Input File để dọn sạch rác event cũ
     const fileInput = oldInput.cloneNode(true);
     oldInput.parentNode.replaceChild(fileInput, oldInput);
 
@@ -5401,15 +5409,11 @@ window.addEventListener('DOMContentLoaded', () => {
         const files = Array.from(this.files || []).filter(f => /^image\//i.test(f.type));
         if (files.length === 0) return;
 
-        const mode = window.vbImageTargetMode || "content";
-        
-        // Lấy tọa độ chuẩn từ biến hệ thống (đã được lọc ở Bước 1)
-        // Bỏ hack window.savedRange vì nó gây nhiễu biến nội bộ
-        let currentTargetRange = savedRange || vbLastContentImageRange;
+        const targetMode = activeTargetMode;
 
-        for (let i = 0; i < files.length; i++) {
-            const file = files[i];
+        for (const file of files) {
             try {
+                // BƯỚC A: Đọc file sang Base64 TRƯỚC (Tiến trình này mất 50ms - 200ms bận máy)
                 const dataUrl = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
                     reader.onload = () => resolve(reader.result);
@@ -5417,24 +5421,45 @@ window.addEventListener('DOMContentLoaded', () => {
                     reader.readAsDataURL(file);
                 });
 
+                // BƯỚC B: Đọc xong cắm sống ngay vào DOM (0ms async -> Range không thể bị đứt)
                 const meta = { 
-                    ...(window.VB_DEFAULT_IMAGE_META || {}), 
+                    ...(typeof VB_DEFAULT_DEFAULT_META !== 'undefined' ? VB_DEFAULT_IMAGE_META : {}), 
                     fileName: file.name || "" 
                 };
-                
-                const img = createManagedImage(dataUrl, mode, meta);
 
-                // THUẬT TOÁN NỐI ĐUÔI: 
-                // Ảnh đầu tiên cắm vào tọa độ gốc. Các ảnh sau truyền 'null' để hàm 
-                // insertManagedImage tự động nối tiếp vào đuôi ảnh trước đó.
-                insertManagedImage(img, mode, i === 0 ? currentTargetRange : null);
+                if (targetMode === "cover") {
+                    const img = createManagedImage(dataUrl, "cover", meta);
+                    appendManagedCoverImage(coverEditor, img);
+                } else {
+                    contentEditor.focus();
 
-                if (mode === "cover") break;
+                    // 1. Phục hồi con trỏ nháy về đúng vị trí x/y của ký tự đã khóa
+                    if (typeof setCaretPositionWithin === 'function' && absoluteCaretOffset > 0) {
+                        setCaretPositionWithin(contentEditor, absoluteCaretOffset);
+                    }
+
+                    // 2. Chộp lấy dải bôi đen Live nhấp nháy ngay tức thì
+                    const sel = window.getSelection();
+                    let instantRange = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0) : null;
+
+                    if (!instantRange || !contentEditor.contains(instantRange.commonAncestorContainer)) {
+                        instantRange = document.createRange();
+                        instantRange.selectNodeContents(contentEditor);
+                        instantRange.collapse(false); // Đẩy xuống đáy bài nếu lạc trôi
+                    }
+
+                    // 3. Tạo và cắm ảnh thẳng vào điểm nháy
+                    const img = createManagedImage(dataUrl, "content", meta);
+                    if (typeof insertManagedImage === 'function') {
+                        insertManagedImage(img, "content", instantRange);
+                    }
+                }
             } catch (err) {
-                console.error("Lỗi đọc file upload:", err);
+                console.error("Lỗi chèn ảnh local:", err);
             }
         }
-        this.value = ""; // Reset để chọn lại đúng tấm ảnh đó lần sau vẫn nhận
+
+        this.value = ""; // Dọn input để up tiếp ảnh trùng tên vẫn ăn
     });
 });
 </script>
