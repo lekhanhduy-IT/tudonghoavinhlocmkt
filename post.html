@@ -1334,7 +1334,7 @@
     <button class="word-mini-btn" type="button" title="Chèn hình ảnh" onclick="openImageToolPopup(this)">
       <i class="fas fa-image" style="color:#01adee;"></i>▾
     </button>
-    <div class="vb-mini-popup" id="popupMiniImage" style="min-width: 165px; top:auto; bottom:100%; margin-bottom:5px;">
+<div class="vb-mini-popup" id="popupMiniImage" style="min-width: 220px; top:auto; bottom:100%; margin-bottom:5px;">
       <div class="popup-item" onclick="chooseImageSource('upload')">
         <i class="fas fa-upload" style="color:#01adee;"></i> Upload
       </div>
@@ -1344,6 +1344,21 @@
       <div class="popup-item" onclick="chooseImageSource('url')">
         <i class="fas fa-link" style="color:#db1010;"></i> URL
       </div>
+      
+      <div style="height: 1px; background: #eee; margin: 5px 0;"></div>
+      <div style="padding: 5px 10px; display: flex; flex-direction: column; gap: 5px;">
+        <div style="font-size: 11px; font-weight: bold; color: var(--blue);">Thêm Thư viện:</div>
+        <div style="display: flex; gap: 4px; align-items: center;">
+            <input type="text" id="vbLibName" placeholder="Tên..." class="tool-input" style="width: 35%;" onclick="event.stopPropagation()">
+            <input type="text" id="vbLibUrl" placeholder="Link..." class="tool-input" style="flex: 1;" onclick="event.stopPropagation()">
+            <button class="tool-btn" style="padding: 4px 6px;" onclick="saveImageLibrary(event)" title="Lưu thư viện">
+                <i class="fas fa-check" style="color: #27ae60;"></i>
+            </button>
+        </div>
+      </div>
+      <div style="height: 1px; background: #eee; margin: 5px 0;"></div>
+      
+      <div id="vbLibraryListContainer" style="max-height: 150px; overflow-y: auto;"></div>
     </div>
   </div>
   <div class="word-mini-divider"></div>
@@ -1759,6 +1774,7 @@ const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
         loadEmojisFromSheet(sysData);
         loadTemplatesFromSheet(sysData);
         prewarmPostImagesFromBrain(sysData);
+        renderImageLibraries();
 
         // Tự động nạp dữ liệu từ _PLAN_DATA_ vào đệm nháp
         if (draftData && draftData.planRowIndex !== undefined && sysData.sheets["_PLAN_DATA_"]) {
@@ -4238,15 +4254,14 @@ function chooseImageSource(type) {
         return;
     }
     if (type === "drive") {
-        // Mở tab Google Drive
-        window.open("https://drive.google.com/drive/u/0/my-drive", "_blank", "noopener");
+        // CẬP NHẬT: Đặt tên cửa sổ là 'googleDriveWindow' để trình duyệt tự tái sử dụng tab đã mở
+        window.open("https://drive.google.com/drive/u/0/my-drive", "googleDriveWindow");
         
-        // Dùng thủ thuật ép trình duyệt giật ngược focus về lại trang blog ngay lập tức
         setTimeout(() => {
             window.focus();
         }, 10);
 
-        vbShowPrompt("Google Drive đã được mở ở thẻ mới.<br>Hãy chọn ảnh, sao chép liên kết chia sẻ rồi dán vào đây:", url => {
+        vbShowPrompt("Google Drive đã được mở.<br>Hãy chọn ảnh, sao chép liên kết chia sẻ rồi dán vào đây:", url => {
             if (url) insertManagedImage(createManagedImage(url.trim(), vbImageTargetMode, {}), vbImageTargetMode);
         });
         return;
@@ -5968,6 +5983,81 @@ function updateContentWidth(delta) {
     // Cộng trừ giá trị và áp dụng
     input.value = current + delta;
     applyContentWidth();
+}
+// ==========================================
+// HỆ THỐNG THƯ VIỆN ẢNH ĐỘNG
+// ==========================================
+
+function saveImageLibrary(e) {
+    e.stopPropagation(); // Tránh làm đóng Dropdown
+    const nameInput = document.getElementById('vbLibName');
+    const urlInput = document.getElementById('vbLibUrl');
+    const name = nameInput.value.trim();
+    const url = urlInput.value.trim();
+
+    if(!name || !url) {
+        alert("Vui lòng nhập đủ Tên và Liên kết thư viện!");
+        return;
+    }
+
+    // Khởi tạo Sheet nếu chưa có
+    if (!sysData.sheets["Thư viện_hidden"]) {
+        sysData.tabOrder.push("Thư viện_hidden");
+        sysData.sheets["Thư viện_hidden"] = [["Tên thư viện", "Liên kết"]];
+        pushQueue({type:'MANAGE_TAB', action:'create', tab: "Thư viện_hidden"});
+        pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "Tên thư viện", tab: "Thư viện_hidden"});
+        pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Liên kết", tab: "Thư viện_hidden"});
+    }
+
+    const tab = sysData.sheets["Thư viện_hidden"];
+    const newRow = tab.length;
+    tab.push([name, url]); // Cập nhật local
+
+    // Đẩy lệnh lưu lên Google Sheets
+    pushQueue({type:'STRUCTURAL', action:'insertRow', index: newRow+1, count: 1, tab: "Thư viện_hidden"});
+    pushQueue({type:'SYNC_CELL', row: newRow+1, col: 1, val: name, tab: "Thư viện_hidden"});
+    pushQueue({type:'SYNC_CELL', row: newRow+1, col: 2, val: url, tab: "Thư viện_hidden"});
+
+    // Xóa trắng ô nhập liệu và render lại
+    nameInput.value = "";
+    urlInput.value = "";
+    renderImageLibraries(); 
+}
+
+function renderImageLibraries() {
+    const container = document.getElementById('vbLibraryListContainer');
+    if(!container) return;
+    container.innerHTML = "";
+
+    const tab = sysData.sheets && sysData.sheets["Thư viện_hidden"];
+    if(!tab || tab.length <= 1) return; // Bỏ qua dòng tiêu đề
+
+    for(let i = 1; i < tab.length; i++) {
+        const name = tab[i][0];
+        const url = tab[i][1];
+        if(!name || !url) continue;
+
+        // Tạo id định danh riêng cho tab trình duyệt của thư viện này (bỏ dấu cách)
+        const targetWindowName = "libWindow_" + name.replace(/[^a-zA-Z0-9]/g, '');
+
+        const item = document.createElement('div');
+        item.className = "popup-item";
+        item.innerHTML = `<i class="fas fa-folder-open" style="color:#f39c12; width: 18px; text-align: center; margin-right: 5px;"></i> ${escapeHtmlText(name)}`;
+        
+        item.onclick = function() {
+            closeAllToolPopups();
+            
+            // Dùng tên cửa sổ cố định để trình duyệt tái sử dụng Tab nếu đã mở
+            window.open(url, targetWindowName);
+            setTimeout(() => window.focus(), 10);
+            
+            vbShowPrompt(`Thư viện <b>${escapeHtmlText(name)}</b> đã được mở.<br>Hãy sao chép liên kết ảnh và dán vào đây:`, imgUrl => {
+                if (imgUrl) insertManagedImage(createManagedImage(imgUrl.trim(), vbImageTargetMode, {}), vbImageTargetMode);
+            });
+        };
+        
+        container.appendChild(item);
+    }
 }
 </script>
 
