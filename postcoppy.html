@@ -678,7 +678,7 @@
     cursor: grabbing;
 }
 .vb-image-frame[data-image-mode="crop"]::after {
-    content: "Kéo ảnh để căn vùng cắt";
+    content: "tudonghoavinhloc.com";
     position: absolute;
     left: 50%;
     bottom: 7px;
@@ -829,7 +829,145 @@
     .vb-metadata-table .vb-meta-label { width: 135px; }
     .vb-image-head-actions { gap: 2px; }
 }
+/* =========================================================
+   BẢN CẬP NHẬT: POPUP ẢNH CHIA 2 CỘT (PREVIEW & FORM)
+========================================================= */
+.vb-image-popup-box {
+    width: 95vw;
+    max-width: 1200px; /* Mở rộng tối đa để chứa 2 cột */
+    display: flex;
+    flex-direction: column;
+}
+.vb-image-popup-body {
+    display: flex;
+    padding: 0;
+    height: 75vh;
+    min-height: 500px;
+}
+/* Cột trái: Khung xem trước (Nền trắng tinh) */
+.vb-popup-left-preview {
+    width: 45%;
+    background: #ffffff; /* Đã đổi thành trắng */
+    border-right: 1px solid var(--gray-border);
+    display: flex;
+    flex-direction: column;
+    position: relative;
+}
+.vb-preview-canvas {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0 40px;
+    overflow: hidden;
+}
+/* Ô trắng giả lập bài viết (Hiệu ứng dòng kẻ giấy) */
+.vb-preview-white-box {
+    flex-grow: 1;
+    background-color: #ffffff;
+    /* Tạo dòng kẻ ngang màu xám nhạt mô phỏng dòng text */
+    background-image: repeating-linear-gradient(transparent, transparent 24px, #858585 24px, #858585 25px);
+    border: none;
+    box-shadow: none;
+}
+.vb-preview-white-box.top { border-bottom: 1px solid transparent; }
+.vb-preview-white-box.bottom { border-top: 1px solid transparent; background-position: 0 -10px; }
 
+/* Wrapper chứa ảnh trong canvas (Trong suốt để hòa vào nền) */
+.vb-preview-image-wrapper {
+    background: transparent;
+    border: none;
+    display: flex;
+    justify-content: center;
+    padding: 15px 0; /* Padding thở trên dưới của ảnh */
+    box-shadow: none;
+}
+
+.vb-preview-frame {
+    position: relative;
+    box-shadow: 0 0 0 2px var(--blue);
+    overflow: hidden;
+    transition: width 0.2s ease;
+}
+.vb-preview-frame img {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+.vb-preview-frame.mode-crop img {
+    position: absolute;
+    inset: 0;
+    object-fit: cover;
+    cursor: grab;
+}
+.vb-preview-frame.mode-crop:active img { cursor: grabbing; }
+
+/* Thanh điều hướng */
+.vb-preview-nav {
+    height: 50px;
+    background: #fff;
+    border-top: 1px solid var(--gray-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    font-weight: bold;
+    color: var(--text-main);
+}
+.vb-nav-btn {
+    background: var(--gray-light);
+    border: 1px solid var(--gray-border);
+    padding: 5px 15px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.vb-nav-btn:hover { background: var(--blue); color: #fff; border-color: var(--blue); }
+
+/* Cột phải: Form nhập liệu */
+.vb-popup-right-form {
+    width: 55%;
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+/* =========================================================
+   FIX: ẢNH BÌA FULL 100% SÁT CẠNH (KHÔNG PADDING/MARGIN)
+========================================================= */
+
+/* 1. Xóa khoảng đệm (padding) của ô soạn thảo ảnh bìa để ảnh sát vách */
+.cover-rich-editor {
+    padding: 0 !important; 
+}
+
+/* Đảm bảo chữ placeholder (khi chưa có ảnh) vẫn có khoảng hở để dễ nhìn */
+.cover-rich-editor:empty::before {
+    padding: 20px 15px !important;
+}
+
+/* 2. Ép khung bao ảnh bìa luôn full 100% width, không margin, ghi đè pixel cứng từ JS */
+.cover-rich-editor > .vb-image-frame {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    border: none !important;
+}
+
+/* 3. Đưa viền xanh (khi click chọn ảnh) vẽ lún vào TRONG (inset) để không đẩy ảnh co lại */
+.cover-rich-editor > .vb-image-frame:hover,
+.cover-rich-editor > .vb-image-frame.vb-image-active {
+    box-shadow: inset 0 0 0 3px rgba(1, 173, 238, 0.8) !important;
+    border-color: transparent !important;
+}
+
+/* 4. Ép thẻ <img> bên trong phủ kín 100% bề ngang, giữ nguyên tính năng Auto-Height của JS */
+.cover-rich-editor > .vb-image-frame > img.vb-managed-image {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    display: block !important;
+    /* Không khóa height ở đây để JS có thể tự động tính toán chiều cao (aspect-ratio) khi người dùng dùng tính năng Cắt/Scale */
+}
 </style>
   </head>
 <body>
@@ -1217,68 +1355,99 @@
         <button type="button" class="vb-image-head-icon-btn" title="Đóng" onclick="closeImageProperties()"><i class="fas fa-times" style="color:var(--red);"></i></button>
       </div>
     </div>
+    
     <div class="vb-image-popup-body">
-      <div class="vb-image-prop-grid">
-        <div class="vb-image-field">
-          <label>Kích thước</label>
-          <div class="vb-dimension-pair">
-            <input type="number" min="1" id="vbImgWidth" placeholder="Width px" title="Nhập Width/Height để tạo khung cắt">
-            <span>×</span>
-            <input type="number" min="1" id="vbImgHeight" placeholder="Height px" title="Nhập Width/Height để tạo khung cắt">
+      
+      <div class="vb-popup-left-preview">
+        <div class="vb-preview-canvas">
+            <div class="vb-preview-white-box top"></div>
+            <div class="vb-preview-image-wrapper">
+                <div id="vbPreviewFrame" class="vb-preview-frame">
+                    <img id="vbPreviewImg" src="" draggable="false">
+                </div>
+            </div>
+            <div class="vb-preview-white-box bottom"></div>
+        </div>
+        <div class="vb-preview-nav">
+            <button class="vb-nav-btn" onclick="vbNavigatePopupImage(-1)"><i class="fas fa-chevron-left"></i></button>
+            <span id="vbPreviewCounter">Ảnh 1 / 1</span>
+            <button class="vb-nav-btn" onclick="vbNavigatePopupImage(1)"><i class="fas fa-chevron-right"></i></button>
+        </div>
+      </div>
+
+      <div class="vb-popup-right-form">
+        <div class="vb-image-prop-grid">
+          <div class="vb-image-field">
+            <label>Kích thước</label>
+            <div class="vb-dimension-pair">
+              <input type="number" min="1" id="vbImgWidth" placeholder="Width px" title="Nhập Width/Height để tạo khung cắt">
+              <span>×</span>
+              <input type="number" min="1" id="vbImgHeight" placeholder="Height px" title="Nhập Width/Height để tạo khung cắt">
+            </div>
           </div>
-        </div>
-        <div class="vb-image-field">
-          <label>Tỷ lệ</label>
-          <div class="vb-dimension-pair">
-            <input type="number" min="0.01" step="0.01" id="vbRatioWidth" placeholder="Width" title="Scale ảnh theo tỷ lệ, không cắt">
-            <span>:</span>
-            <input type="number" min="0.01" step="0.01" id="vbRatioHeight" placeholder="Height" title="Scale ảnh theo tỷ lệ, không cắt">
+          <div class="vb-image-field">
+            <label>Tỷ lệ</label>
+            <div class="vb-dimension-pair">
+              <input type="number" min="0.01" step="0.01" id="vbRatioWidth" placeholder="Width" title="Scale ảnh theo tỷ lệ, không cắt">
+              <span>:</span>
+              <input type="number" min="0.01" step="0.01" id="vbRatioHeight" placeholder="Height" title="Scale ảnh theo tỷ lệ, không cắt">
+            </div>
           </div>
+          <div class="vb-image-field">
+             <label>Scale (%)</label>
+             <div style="display:flex; align-items:center; gap:5px; border: .5px solid var(--gray-border); border-radius: 3px; background: #fff;">
+               <input type="number" min="1" max="100" id="vbScalePercent" placeholder="100" title="% chiều rộng so với bài viết" style="border:none; width:100%;">
+               <span style="padding-right:8px; color:#666; font-weight:bold;">%</span>
+             </div>
+          </div>
+          
+          <div class="vb-image-field">
+             <label style="display:flex; align-items:center; gap:5px; cursor:pointer; color:var(--blue); font-size:12px;">
+                 <input type="checkbox" id="vbSyncAllCheckbox"> 
+                  Đồng bộ
+             </label>
+          </div>
+          <div class="vb-image-field full">
+            <label>URL ảnh</label>
+            <input type="text" id="vbImgUrl" placeholder="https:// hoặc data:image/...">
+          </div>
+
         </div>
-        <div class="vb-image-field full">
-          <label>URL ảnh</label>
-          <input type="text" id="vbImgUrl" placeholder="https:// hoặc data:image/...">
+
+        <div style="font-size:12px;font-weight:700;color:var(--blue);margin:5px 0 6px;">Metadata ảnh</div>
+        <div class="vb-metadata-sheet-wrap">
+           <table class="vb-metadata-table" id="vbMetadataTable" tabindex="0">
+              <thead>
+                <tr>
+                  <th class="vb-meta-left-head vb-meta-column-head" data-meta-col-select="0">
+                    <button type="button" id="vbMetaLabelLockBtn" class="vb-meta-lock-btn" onclick="event.preventDefault();event.stopPropagation();toggleMetadataLabelLock()" title="Mở khóa cột tiêu đề"><i class="fas fa-lock"></i></button>
+                    <span>Trường metadata</span>
+                  </th>
+                  <th class="vb-meta-column-head" data-meta-col-select="1">Giá trị</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="fileName">File name</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="fileName"></td></tr>
+                <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="altText">Alt text</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="altText"></td></tr>
+                <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="caption">Caption</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="caption"></td></tr>
+                <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="title">Title (IPTC)</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="title"></td></tr>
+                <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="description">Description (IPTC)</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="description"></td></tr>
+                <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="author">Author</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="author"></td></tr>
+                <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="copyright">Copy right</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="copyright"></td></tr>
+              </tbody>
+            </table>
         </div>
-        <div class="vb-image-mode-status" id="vbImageEditModeStatus">Chế độ tự nhiên: ảnh chưa bị cắt hoặc scale cưỡng bức.</div>
-      </div>
+        <div class="vb-meta-help">Kéo chuột để chọn vùng ô...</div>
 
-      <div style="font-size:12px;font-weight:700;color:var(--blue);margin:5px 0 6px;">
-        Metadata ảnh
-      </div>
-      <div class="vb-metadata-sheet-wrap">
-        <table class="vb-metadata-table" id="vbMetadataTable" tabindex="0">
-          <thead>
-            <tr>
-              <th class="vb-meta-left-head vb-meta-column-head" data-meta-col-select="0">
-                <button type="button" id="vbMetaLabelLockBtn" class="vb-meta-lock-btn" onclick="event.preventDefault();event.stopPropagation();toggleMetadataLabelLock()" title="Mở khóa cột tiêu đề"><i class="fas fa-lock"></i></button>
-                <span>Trường metadata</span>
-              </th>
-              <th class="vb-meta-column-head" data-meta-col-select="1">Giá trị</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="fileName">File name</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="fileName"></td></tr>
-            <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="altText">Alt text</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="altText"></td></tr>
-            <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="caption">Caption</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="caption"></td></tr>
-            <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="title">Title (IPTC)</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="title"></td></tr>
-            <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="description">Description (IPTC)</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="description"></td></tr>
-            <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="author">Author</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="author"></td></tr>
-            <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="copyright">Copy right</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="copyright"></td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="vb-meta-help">Kéo chuột để chọn vùng ô. Click tiêu đề cột để chọn cả cột. Dữ liệu bảng được dán theo hàng/cột; danh sách bullet được dán mỗi dòng vào một hàng. Cột tiêu đề mặc định bị khóa.</div>
+        <div class="vb-image-upload-status" id="vbImageUploadStatus"></div>
 
-      <div class="vb-image-upload-status" id="vbImageUploadStatus"></div>
-
-      <div class="vb-image-actions">
-        <button class="tool-btn save-btn" onclick="applyImageProperties()"><i class="fas fa-check"></i> Cập nhật</button>
-        <button class="tool-btn" onclick="copyActiveImage(false)"><i class="fas fa-copy"></i> Sao chép</button>
-        <button class="tool-btn" onclick="copyActiveImage(true)"><i class="fas fa-cut"></i> Cắt</button>
-        <button class="tool-btn" onclick="pasteImageFromClipboard()"><i class="fas fa-paste"></i> Dán</button>
-        <button class="tool-btn danger" onclick="deleteActiveImage()"><i class="fas fa-trash"></i> Xóa</button>
-        <button class="tool-btn" onclick="closeImageProperties()"><i class="fas fa-times"></i> Hủy</button>
-        <button class="tool-btn" onclick="downloadActiveImageWithMetadata()"><i class="fas fa-download"></i> Tải xuống</button>
+        <div class="vb-image-actions" style="margin-top: auto;">
+          <button class="tool-btn save-btn" onclick="applyImageProperties()"><i class="fas fa-check"></i> Cập nhật</button>
+          <button class="tool-btn" onclick="copyActiveImage(false)"><i class="fas fa-copy"></i> Sao chép</button>
+          <button class="tool-btn danger" onclick="deleteActiveImage()"><i class="fas fa-trash"></i> Xóa</button>
+          <button class="tool-btn" onclick="downloadActiveImageWithMetadata()"><i class="fas fa-download"></i> Tải xuống</button>
+          <button class="tool-btn" onclick="closeImageProperties()"><i class="fas fa-times"></i> Hủy</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1771,22 +1940,31 @@ const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
         } else { el.style.backgroundColor = "#ffcdd2"; setTimeout(() => el.style.backgroundColor = "", 1000); }
     }
     
-    function vbShowAlert(msg) {
-        document.getElementById('vbAlertMsg').innerHTML = msg;
-        document.getElementById('vbPromptInput').style.display = 'none';
-        document.getElementById('vbAlertCancel').style.display = 'none';
-        document.getElementById('vbAlertOverlay').style.display = 'flex';
-        vbPromptCallback = null;
-    }
+function vbShowAlert(msg) {
+    closeAllToolPopups();
+    if (typeof TableEditor !== 'undefined') TableEditor.hideMenus();
 
-    function vbShowPrompt(msg, callback) {
-        document.getElementById('vbAlertMsg').innerHTML = msg;
-        document.getElementById('vbPromptInput').style.display = 'block';
-        document.getElementById('vbPromptInput').value = '';
-        document.getElementById('vbAlertCancel').style.display = 'inline-block';
-        document.getElementById('vbAlertOverlay').style.display = 'flex';
-        vbPromptCallback = callback;
-    }
+    document.getElementById('vbAlertMsg').innerHTML = msg;
+    document.getElementById('vbPromptInput').style.display = 'none';
+    document.getElementById('vbAlertCancel').style.display = 'none';
+    document.getElementById('vbAlertOverlay').style.display = 'flex';
+    vbPromptCallback = null;
+}
+
+function vbShowPrompt(msg, callback) {
+    closeAllToolPopups();
+    if (typeof TableEditor !== 'undefined') TableEditor.hideMenus();
+
+    document.getElementById('vbAlertMsg').innerHTML = msg;
+    document.getElementById('vbPromptInput').style.display = 'block';
+    document.getElementById('vbPromptInput').value = '';
+    document.getElementById('vbAlertCancel').style.display = 'inline-block';
+    document.getElementById('vbAlertOverlay').style.display = 'flex';
+    vbPromptCallback = callback;
+
+    // Tự động focus sẵn con trỏ vào ô nhập link, người dùng chỉ cần bấm Ctrl + V
+    setTimeout(() => document.getElementById('vbPromptInput').focus(), 100);
+}
 
     function vbCloseAlert(isOk) {
         document.getElementById('vbAlertOverlay').style.display = 'none';
@@ -3696,15 +3874,13 @@ function endCropDrag(e) {
 }
 
 function bindManagedImage(img) {
-    if (!img || img.dataset.vbBound === "1") return;
-    img.dataset.vbBound = "1";
+    // DÙNG THUỘC TÍNH RAM (__vbLiveBound). Hễ trình duyệt serialize DOM thành text là thuộc tính này tự tiêu hủy!
+    if (!img || img.__vbLiveBound) return;
+    img.__vbLiveBound = true;
+    delete img.dataset.vbBound; // Tẩy sạch rác string cũ nếu có
 
     img.addEventListener("click", e => {
-        if (Date.now() < vbSuppressImageClickUntil) {
-            e.preventDefault();
-            e.stopPropagation();
-            return;
-        }
+        if (Date.now() < vbSuppressImageClickUntil) return;
         e.preventDefault();
         e.stopPropagation();
         openImageProperties(img);
@@ -3749,7 +3925,7 @@ function rememberImageInsertionTarget(mode) {
     }
 }
 
-function insertManagedImage(img, mode = vbImageTargetMode) {
+function insertManagedImage(img, mode = vbImageTargetMode, explicitRange = null) {
     if (!img) return;
     const coverEditor = document.getElementById("coverEditor");
     const contentEditor = document.getElementById("postContent");
@@ -3758,34 +3934,55 @@ function insertManagedImage(img, mode = vbImageTargetMode) {
 
     if (mode === "cover") {
         appendManagedCoverImage(coverEditor, img);
-        rememberImageInsertionTarget("cover");
     } else {
         contentEditor.focus();
         const sel = window.getSelection();
-        let range = vbLastContentImageRange;
-        if (!range || !contentEditor.contains(range.commonAncestorContainer)) {
-            range = document.createRange();
-            range.selectNodeContents(contentEditor);
-            range.collapse(false);
+
+        // THUẬT TOÁN BỌC THÉP TÌM LẠI ĐÚNG VỊ TRÍ CON TRỎ (Ưu tiên từ 1 -> 4)
+        // 1. Tọa độ do Ctrl+V hoặc Drop bốc thẳng vào két sắt truyền tới
+        // 2. Tọa độ gõ phím cuối cùng được editor ghi nhớ (savedRange)
+        // 3. Tọa độ mờ của bộ nhớ cover (vbLastContentImageRange)
+        // 4. Đường cùng: Nhét xuống đáy bài viết
+        let targetRange = explicitRange || savedRange || vbLastContentImageRange;
+
+        if (!targetRange || !contentEditor.contains(targetRange.commonAncestorContainer)) {
+            targetRange = document.createRange();
+            targetRange.selectNodeContents(contentEditor);
+            targetRange.collapse(false); // Ép về đáy
         }
-        sel.removeAllRanges();
-        sel.addRange(range);
-        range.deleteContents();
-        range.insertNode(frame);
 
-        const spacer = document.createElement("p");
-        spacer.innerHTML = "<br>";
-        frame.parentNode.insertBefore(spacer, frame.nextSibling);
-
-        const nextRange = document.createRange();
-        nextRange.selectNodeContents(spacer);
-        nextRange.collapse(true);
         sel.removeAllRanges();
-        sel.addRange(nextRange);
-        vbLastContentImageRange = nextRange.cloneRange();
+        sel.addRange(targetRange);
+
+        // CẮM SỐNG VÀO ĐÚNG TỌA ĐỘ ĐÃ TRÓI
+        targetRange.insertNode(frame);
+
+        // GIẢI CỨU DOM NẾU BỊ CẮM VÀO GIỮA THẺ P
+        let parent = frame.parentElement;
+        if (parent && parent.id !== 'postContent' && ['P', 'SPAN', 'DIV', 'FONT', 'A'].includes(parent.tagName)) {
+            parent.after(frame);
+            if (parent.innerText.trim() === "" && !parent.querySelector('img')) parent.remove();
+        }
+
+        // TẠO ĐIỂM ĐÁP CHO CON TRỎ PHÍA DƯỚI
+        const spacer = document.createElement('p');
+        spacer.innerHTML = '<br>';
+        frame.after(spacer);
+
+        // TRƯỢT MÀN HÌNH & NHÉT CON TRỎ VÀO ĐIỂM ĐÁP
+        frame.scrollIntoView({ behavior: "smooth", block: "center" });
+
+        const newRange = document.createRange();
+        newRange.selectNodeContents(spacer);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+
+        // Cập nhật lại két sắt
+        savedRange = newRange.cloneRange();
+        vbLastContentImageRange = newRange.cloneRange();
     }
 
-    bindManagedImage(img);
     markImageDirty(true);
 }
 
@@ -3798,13 +3995,14 @@ function fileToDataUrl(file) {
     });
 }
 
-async function insertImageFiles(files, mode = vbImageTargetMode) {
+async function insertImageFiles(files, mode = vbImageTargetMode, specificRange = null) {
     const imageFiles = Array.from(files || []).filter(file => file && /^image\//i.test(file.type));
     for (const file of imageFiles) {
         const dataUrl = await fileToDataUrl(file);
         const metadata = { ...VB_DEFAULT_IMAGE_META, fileName: file.name || "" };
         const img = createManagedImage(dataUrl, mode, metadata);
-        insertManagedImage(img, mode);
+        // Chuyền tay tọa độ qua khe cửa này tới insertManagedImage
+        insertManagedImage(img, mode, specificRange);
         if (mode === "cover") break;
     }
 }
@@ -3819,17 +4017,14 @@ function looksLikeSingleImageUrl(text) {
 }
 
 async function handleManagedImagePaste(event, mode) {
-    rememberImageInsertionTarget(mode);
+    // 1. TRÓI NGAY TỌA ĐỘ CARET TẠI MILI-GIÂY BẤM CTRL+V TRƯỚC KHI BỊ ASYNC THẢ TRÔI
+    saveSelection();
+    const pastedRange = savedRange ? savedRange.cloneRange() : (window.getSelection().rangeCount > 0 ? window.getSelection().getRangeAt(0).cloneRange() : null);
+
     const clipboard = event.clipboardData;
     if (!clipboard) return;
 
-    const files = Array.from(clipboard.files || []).filter(f => /^image\//i.test(f.type));
-    if (files.length) {
-        event.preventDefault();
-        await insertImageFiles(files, mode);
-        return;
-    }
-
+    // ĐẢO TRẬT TỰ ƯU TIÊN 1: Nếu copy từ Web (có thẻ <img src="http...">), lấy link gốc dùng luôn, tức thì 0ms!
     const html = clipboard.getData("text/html") || "";
     if (html && /<img[\s>]/i.test(html)) {
         event.preventDefault();
@@ -3839,20 +4034,19 @@ async function handleManagedImagePaste(event, mode) {
         for (const sourceImg of imgs) {
             const meta = readImageMetadata(sourceImg);
             const img = createManagedImage(sourceImg.getAttribute("src") || "", mode, meta);
-            const sourceFrame = sourceImg.closest(".vb-image-frame");
-            if (sourceFrame) img.dataset.vbFrameState = JSON.stringify({
-                mode: sourceFrame.dataset.imageMode || "natural",
-                role: mode,
-                targetWidth: sourceFrame.dataset.targetWidth,
-                targetHeight: sourceFrame.dataset.targetHeight,
-                ratioWidth: sourceFrame.dataset.ratioWidth,
-                ratioHeight: sourceFrame.dataset.ratioHeight,
-                objectPosX: sourceFrame.dataset.objectPosX,
-                objectPosY: sourceFrame.dataset.objectPosY
-            });
-            insertManagedImage(img, mode);
+            // Găm thẳng vào tọa độ vừa trói
+            insertManagedImage(img, mode, pastedRange);
             if (mode === "cover") break;
         }
+        return;
+    }
+
+    // ĐẢO TRẬT TỰ ƯU TIÊN 2: Nếu là ảnh chụp màn hình thuần túy (Snipping Tool/Excel), mới convert sang Base64
+    const files = Array.from(clipboard.files || []).filter(f => /^image\//i.test(f.type));
+    if (files.length) {
+        event.preventDefault();
+        // Nhét tọa độ vào hòm chuyền đi
+        await insertImageFiles(files, mode, pastedRange);
         return;
     }
 
@@ -3951,20 +4145,33 @@ function initVbImageManager() {
 }
 
 function openImageToolPopup(btn) {
+    // Tuyệt đối không gọi rememberImageInsertionTarget() ở đây vì sẽ trúng nút bấm
     const active = document.activeElement;
-    if (active?.id === "coverEditor" || active?.closest?.("#coverEditor")) rememberImageInsertionTarget("cover");
-    else rememberImageInsertionTarget("content");
+    if (active?.id === "coverEditor" || active?.closest?.("#coverEditor")) {
+        vbImageTargetMode = "cover";
+    } else {
+        vbImageTargetMode = "content";
+    }
     openToolPopup("popupMiniImage", btn);
 }
 
 function chooseImageSource(type) {
     closeAllToolPopups();
+    if (typeof TableEditor !== 'undefined') TableEditor.hideMenus();
+
     if (type === "upload") {
         document.getElementById("vbImageFileInput")?.click();
         return;
     }
     if (type === "drive") {
+        // Mở tab Google Drive
         window.open("https://drive.google.com/drive/u/0/my-drive", "_blank", "noopener");
+        
+        // Dùng thủ thuật ép trình duyệt giật ngược focus về lại trang blog ngay lập tức
+        setTimeout(() => {
+            window.focus();
+        }, 10);
+
         vbShowPrompt("Google Drive đã được mở ở thẻ mới.<br>Hãy chọn ảnh, sao chép liên kết chia sẻ rồi dán vào đây:", url => {
             if (url) insertManagedImage(createManagedImage(url.trim(), vbImageTargetMode, {}), vbImageTargetMode);
         });
@@ -4708,9 +4915,20 @@ async function uploadAllPendingPostImages(postId) {
     }
 
     const pending = [];
-    allImages.forEach((img, index) => {
-        const source = getUploadSourceForImage(img);
-        if (!source) return;
+allImages.forEach((img, index) => {
+    const source = getUploadSourceForImage(img);
+    
+    // 1. CHẶN CÁC ẢNH RÁC, ẢNH BÓNG MA
+    if (!source) return; // Bỏ qua ảnh không có nguồn
+    if (source.trim() === "" || source.startsWith("file://")) return; // Bỏ qua ảnh rỗng hoặc ảnh copy từ ổ cứng máy tính chưa qua xử lý
+    
+    // 2. CHẶN ẢNH TRACKING PIXEL (Kích thước <= 5px thường là rác copy từ web khác)
+    const rect = img.getBoundingClientRect();
+    if (rect.width > 0 && rect.width <= 5 && rect.height > 0 && rect.height <= 5) {
+        return; 
+    }
+
+    // ... giữ nguyên phần code xử lý meta bên dưới ...
 
         const metadata = readImageMetadata(img);
         const mimeMatch = source.match(/^data:([^;,]+)/i);
@@ -4960,31 +5178,94 @@ async function downloadActiveImageWithMetadata() {
 
     const status = document.getElementById("vbImageUploadStatus");
     status.style.display = "block";
-    status.textContent = "Đang tạo file ảnh kèm metadata...";
+    status.textContent = "Đang kết xuất ảnh theo khung cắt & scale...";
 
     try {
+        const state = readImageFrameState(img);
         const source = img.dataset.driveUrl ? runtimeImageUrl(img.dataset.driveUrl) : img.src;
-        const response = await fetch(source);
-        if (!response.ok) throw new Error("Không tải được dữ liệu ảnh.");
-        let blob = await response.blob();
-        let mime = blob.type || "application/octet-stream";
-        let bytes = new Uint8Array(await blob.arrayBuffer());
-        let extension = inferExtensionFromSource(source, mime);
+        
+        // 1. Tải ảnh gốc vào bộ nhớ với quyền CORS để Canvas có thể trích xuất pixel
+        const renderImg = new Image();
+        renderImg.crossOrigin = "Anonymous";
+        
+        await new Promise((resolve, reject) => {
+            renderImg.onload = resolve;
+            renderImg.onerror = () => reject(new Error("Lỗi tải ảnh (CORS). Nếu là link bên ngoài, server ảnh chặn quyền vẽ lại. Vui lòng dùng ảnh tải lên hoặc Google Drive."));
+            renderImg.src = source;
+        });
 
-        if (mime === "image/jpeg" || mime === "image/jpg") {
-            bytes = embedXmpIntoJpeg(bytes, meta);
-            extension = "jpg";
-            mime = "image/jpeg";
-        } else {
-            if (mime !== "image/png") {
-                blob = await convertBlobToPng(blob);
-                bytes = new Uint8Array(await blob.arrayBuffer());
-                mime = "image/png";
-            }
-            bytes = embedMetadataIntoPng(bytes, meta);
-            extension = "png";
+        // 2. Lấy Kích thước & Áp dụng ép Scale % để ra số Pixel cuối cùng
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        
+        let cw = state.targetWidth || renderImg.naturalWidth;
+        let ch = state.targetHeight || renderImg.naturalHeight;
+        let scalePct = parseFloat(img.dataset.scalePercent);
+        if (isNaN(scalePct) || scalePct <= 0) scalePct = 100;
+
+        // Nếu ảnh đang ở chế độ Tự nhiên, trả về đúng pixel gốc
+        if (state.mode === "natural") {
+            cw = renderImg.naturalWidth;
+            ch = renderImg.naturalHeight;
+            scalePct = 100; 
+        }
+        
+        // Tính toán kích thước Pixel thật của file sẽ tải về
+        const scaleMultiplier = scalePct / 100;
+        canvas.width = Math.max(1, Math.round(cw * scaleMultiplier));
+        canvas.height = Math.max(1, Math.round(ch * scaleMultiplier));
+
+        // 3. Vẽ ảnh lên Canvas (Giả lập thuật toán CSS object-fit & object-position)
+        ctx.scale(scaleMultiplier, scaleMultiplier);
+
+        if (state.mode === "natural" || state.mode === "scale") {
+            ctx.drawImage(renderImg, 0, 0, cw, ch);
+        } else if (state.mode === "crop") {
+            // Thuật toán giả lập object-fit: cover
+            const coverScale = Math.max(cw / renderImg.naturalWidth, ch / renderImg.naturalHeight);
+            const sw = renderImg.naturalWidth * coverScale;
+            const sh = renderImg.naturalHeight * coverScale;
+            
+            const dx = sw - cw;
+            const dy = sh - ch;
+            
+            // Xê dịch ảnh dựa theo tỷ lệ kéo Pan của người dùng
+            const offsetX = (state.objectPosX / 100) * dx;
+            const offsetY = (state.objectPosY / 100) * dy;
+            
+            ctx.drawImage(renderImg, -offsetX, -offsetY, sw, sh);
         }
 
+        // 4. Nhận diện định dạng & Xuất ảnh ra Blob
+        const extGuess = inferExtensionFromSource(source, ""); 
+        let mimeType = (extGuess === "png" || extGuess === "svg") ? "image/png" : "image/jpeg";
+        let extension = mimeType === "image/png" ? "png" : "jpg";
+
+        // MẸO: Nếu xuất JPEG, vẽ lót nền trắng phòng khi ảnh gốc PNG có vùng trong suốt
+        if (mimeType === "image/jpeg") {
+            ctx.globalCompositeOperation = "destination-over";
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, cw, ch);
+        }
+
+        const blob = await new Promise((resolve, reject) => {
+            // Đặt chất lượng nén JPG là 95% để nét nhất
+            canvas.toBlob(b => {
+                if (b) resolve(b); else reject(new Error("Lỗi tạo file ảnh từ Canvas."));
+            }, mimeType, 0.95);
+        });
+
+        // 5. Gắn Metadata (IPTC / EXIF) trực tiếp vào mã byte của bức ảnh mới
+        let bytes = new Uint8Array(await blob.arrayBuffer());
+        status.textContent = "Đang nhúng Metadata vào ảnh...";
+        
+        if (mimeType === "image/jpeg") {
+            bytes = embedXmpIntoJpeg(bytes, meta);
+        } else {
+            bytes = embedMetadataIntoPng(bytes, meta);
+        }
+
+        // 6. Xử lý tên file & Tải xuống
         let fileName = sanitizeUploadFileName(meta.fileName || `image-${Date.now()}.${extension}`);
         const currentExtMatch = fileName.match(/\.([a-zA-Z0-9]{2,5})$/);
         const currentExt = currentExtMatch ? currentExtMatch[1].toLowerCase() : "";
@@ -4993,7 +5274,7 @@ async function downloadActiveImageWithMetadata() {
             fileName = fileName.replace(/\.[a-zA-Z0-9]{2,5}$/, "") + "." + extension;
         }
 
-        const downloadBlob = new Blob([bytes], {type: mime});
+        const downloadBlob = new Blob([bytes], {type: mimeType});
         const url = URL.createObjectURL(downloadBlob);
         const a = document.createElement("a");
         a.href = url;
@@ -5003,11 +5284,12 @@ async function downloadActiveImageWithMetadata() {
         a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1500);
 
-        status.textContent = "Đã tạo file ảnh kèm metadata.";
+        status.textContent = "Đã tải xuống thành công!";
         setTimeout(() => status.style.display = "none", 1500);
+
     } catch (err) {
         status.style.display = "none";
-        vbShowAlert("Không thể tải ảnh kèm metadata:<br><br>" + escapeHtmlText(err.message || String(err)));
+        vbShowAlert("Không thể tải ảnh kết xuất:<br><br>" + escapeHtmlText(err.message || String(err)));
     }
 }
 
@@ -5322,6 +5604,249 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
     });
 
 })();
+/* ====================================================================
+   BẢN CẬP NHẬT STUDIO ẢNH: CAROUSEL, SCALE %, REALTIME SYNC
+==================================================================== */
+let vbContentImagesList = [];
+let vbCurrentPopupIndex = 0;
+let vbPreviewDragState = null;
+
+// Hàm mở Popup ghi đè
+function openImageProperties(img) {
+    if (!img) return;
+    document.querySelectorAll(".vb-image-active").forEach(el => el.classList.remove("vb-image-active"));
+    vbActiveImage = img;
+    
+    // Thu thập danh sách ảnh nội dung (bỏ qua ảnh bìa)
+    vbContentImagesList = Array.from(document.querySelectorAll("#postContent img.vb-managed-image"));
+    let isCover = img.closest("#coverEditor") !== null;
+    
+    if (isCover) {
+        // Nếu là ảnh bìa, ẩn điều hướng
+        document.querySelector('.vb-preview-nav').style.display = 'none';
+    } else {
+        document.querySelector('.vb-preview-nav').style.display = 'flex';
+        vbCurrentPopupIndex = vbContentImagesList.indexOf(img);
+        if(vbCurrentPopupIndex === -1) { vbContentImagesList.unshift(img); vbCurrentPopupIndex = 0; }
+    }
+    
+    const frame = ensureManagedImageFrame(img, isCover ? "cover" : "content");
+    frame.classList.add("vb-image-active");
+    rememberImageInsertionTarget(isCover ? "cover" : "content");
+
+    populateImagePropertiesForm(img, {resetHistory: true});
+    document.getElementById("vbImagePopupOverlay").style.display = "flex";
+    
+    updatePreviewUI();
+}
+
+// Logic Carousel qua lại ảnh
+function vbNavigatePopupImage(direction) {
+    if(vbContentImagesList.length <= 1) return;
+    
+    // Lưu metadata đang sửa dở cho ảnh hiện tại
+    if(vbActiveImage) {
+        writeImageMetadata(vbActiveImage, collectMetadataFromGrid());
+        vbActiveImage.closest('.vb-image-frame').classList.remove("vb-image-active");
+    }
+
+    vbCurrentPopupIndex += direction;
+    if(vbCurrentPopupIndex < 0) vbCurrentPopupIndex = vbContentImagesList.length - 1;
+    if(vbCurrentPopupIndex >= vbContentImagesList.length) vbCurrentPopupIndex = 0;
+    
+    vbActiveImage = vbContentImagesList[vbCurrentPopupIndex];
+    
+    // Focus và cuộn bài viết đến ảnh mới
+    const newFrame = ensureManagedImageFrame(vbActiveImage, "content");
+    newFrame.classList.add("vb-image-active");
+    newFrame.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    populateImagePropertiesForm(vbActiveImage, {resetHistory: true});
+    updatePreviewUI();
+}
+
+// Cập nhật giao diện Preview bên trái
+function updatePreviewUI() {
+    if(!vbActiveImage) return;
+    document.getElementById('vbPreviewCounter').innerText = `Ảnh ${vbCurrentPopupIndex + 1} / ${vbContentImagesList.length}`;
+    
+    const state = readImageFrameState(vbActiveImage);
+    const previewFrame = document.getElementById('vbPreviewFrame');
+    const previewImg = document.getElementById('vbPreviewImg');
+    
+    // Nạp nguồn ảnh
+    previewImg.src = vbActiveImage.src;
+    
+    // Đồng bộ thuộc tính CSS từ Editor sang Preview
+    let scalePct = vbActiveImage.dataset.scalePercent || "100";
+    document.getElementById('vbScalePercent').value = scalePct;
+    
+    // Áp dụng scale % cho width của frame (nằm trong ô trắng)
+    previewFrame.style.width = scalePct + "%";
+    
+    if (state.mode === "crop" || state.mode === "scale") {
+        previewFrame.style.aspectRatio = `${state.targetWidth} / ${state.targetHeight}`;
+        previewImg.style.objectFit = state.mode === "crop" ? "cover" : "fill";
+        previewImg.style.objectPosition = `${state.objectPosX}% ${state.objectPosY}%`;
+        previewFrame.className = `vb-preview-frame mode-${state.mode}`;
+    } else {
+        previewFrame.style.aspectRatio = "auto";
+        previewImg.style.objectFit = "contain";
+        previewImg.style.objectPosition = "center";
+        previewFrame.className = "vb-preview-frame";
+    }
+}
+
+// Ghi đè hàm applyFrameState để xử lý Scale %
+const originalApplyImageFrameState = applyImageFrameState;
+applyImageFrameState = function(img, state = {}) {
+    const frame = originalApplyImageFrameState(img, state);
+    if (!frame) return null;
+    
+    // Đọc và áp dụng thuộc tính scale %
+    let scalePct = parseFloat(img.dataset.scalePercent);
+    if(isNaN(scalePct) || scalePct <= 0) scalePct = 100;
+    
+    if (frame.dataset.imageRole !== "cover") {
+        frame.style.width = `${scalePct}%`; // Ghi đè pixel bằng % so với bài viết
+    }
+    return frame;
+};
+
+// Hàm mới: Đồng bộ áp dụng Scale % thời gian thực
+function applyScalePercentRealtime() {
+    if (!vbActiveImage || vbRestoringImageHistory) return;
+    let pct = parseFloat(document.getElementById("vbScalePercent").value);
+    if (isNaN(pct) || pct <= 0) pct = 100;
+    if (pct > 100) pct = 100; // Giới hạn 100%
+    
+    vbActiveImage.dataset.scalePercent = pct;
+    
+    // Gọi lại để áp CSS
+    applyImageFrameState(vbActiveImage, readImageFrameState(vbActiveImage));
+    updatePreviewUI();
+    markImageDirty(true);
+    
+    if(document.getElementById('vbSyncAllCheckbox').checked) syncStateToAllImages();
+}
+
+// Logic đồng bộ hàng loạt (Sync) - Ép buộc lấy thông số từ FORM
+function syncStateToAllImages() {
+    if (!vbActiveImage || document.getElementById('vbSyncAllCheckbox').checked === false) return;
+    
+    // Đọc thông số trực tiếp từ ô nhập liệu hiện tại
+    const targetWidth = parseFloat(document.getElementById("vbImgWidth").value) || 1;
+    const targetHeight = parseFloat(document.getElementById("vbImgHeight").value) || 1;
+    const ratioW = parseFloat(document.getElementById("vbRatioWidth").value) || 1;
+    const ratioH = parseFloat(document.getElementById("vbRatioHeight").value) || 1;
+    const masterScale = parseFloat(document.getElementById("vbScalePercent").value) || 100;
+    
+    const masterState = readImageFrameState(vbActiveImage);
+    
+    vbContentImagesList.forEach(img => {
+        if(img === vbActiveImage) return; // Bỏ qua chính nó
+        
+        img.dataset.scalePercent = masterScale;
+        
+        const currentState = readImageFrameState(img);
+        const newState = {
+            ...masterState,
+            targetWidth: targetWidth,
+            targetHeight: targetHeight,
+            ratioWidth: ratioW,
+            ratioHeight: ratioH,
+            // GIỮ NGUYÊN VÙNG CẮT CỦA TỪNG ẢNH ĐỂ KHÔNG BỊ TRƯỢT MẶT NGƯỜI
+            objectPosX: currentState.objectPosX, 
+            objectPosY: currentState.objectPosY
+        };
+        
+        applyImageFrameState(img, newState);
+    });
+    markImageDirty(true);
+}
+
+// Khởi tạo Event Listener cho ô Scale và checkbox
+const originalInitRealtime = initImagePropertyRealtimeControls;
+initImagePropertyRealtimeControls = function() {
+    originalInitRealtime(); // Gọi lại hàm cũ
+    
+    const scaleInp = document.getElementById('vbScalePercent');
+    const syncChk = document.getElementById('vbSyncAllCheckbox');
+    
+    if(scaleInp && !scaleInp.dataset.bound) {
+        scaleInp.dataset.bound = "1";
+        scaleInp.addEventListener('input', applyScalePercentRealtime);
+    }
+    
+    // Khi tích vào nút "Đồng bộ", lập tức áp dụng thông số hiện tại cho TẤT CẢ
+    if(syncChk && !syncChk.dataset.bound) {
+        syncChk.dataset.bound = "1";
+        syncChk.addEventListener('change', function() {
+            if(this.checked) syncStateToAllImages();
+        });
+    }
+    
+    // Gắn trigger Sync cho các ô Kích thước & Tỷ lệ
+    ['vbImgWidth', 'vbImgHeight', 'vbRatioWidth', 'vbRatioHeight'].forEach(id => {
+        let el = document.getElementById(id);
+        if(el && !el.dataset.syncBound) {
+             el.dataset.syncBound = "1";
+             el.addEventListener('input', () => {
+                 if(syncChk.checked) syncStateToAllImages();
+                 updatePreviewUI();
+             });
+        }
+    });
+};
+
+// ==========================================
+// THUẬT TOÁN KÉOẢNH BÊN TRONG CANVAS PREVIEW (PAN REALTIME)
+// ==========================================
+document.getElementById('vbPreviewFrame').addEventListener('mousedown', function(e) {
+    const state = readImageFrameState(vbActiveImage);
+    if(state.mode !== "crop") return;
+    
+    vbPreviewDragState = {
+        startX: e.clientX,
+        startY: e.clientY,
+        startPosX: state.objectPosX,
+        startPosY: state.objectPosY,
+        rect: this.getBoundingClientRect()
+    };
+    this.classList.add('active-drag');
+    e.preventDefault();
+});
+
+document.addEventListener('mousemove', function(e) {
+    if(!vbPreviewDragState) return;
+    const drag = vbPreviewDragState;
+    
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    
+    // Quy đổi khoảng cách kéo pixel thành phần trăm (%) của khung
+    const x = Math.min(100, Math.max(0, drag.startPosX - (dx / Math.max(1, drag.rect.width)) * 100));
+    const y = Math.min(100, Math.max(0, drag.startPosY - (dy / Math.max(1, drag.rect.height)) * 100));
+    
+    // Cập nhật Live lên Preview
+    document.getElementById('vbPreviewImg').style.objectPosition = `${x}% ${y}%`;
+    
+    // Đồng bộ Live ngược lại bài viết Editor
+    const frameInEditor = getManagedImageFrame(vbActiveImage);
+    if(frameInEditor) {
+        frameInEditor.dataset.objectPosX = x.toFixed(2);
+        frameInEditor.dataset.objectPosY = y.toFixed(2);
+        vbActiveImage.style.objectPosition = `${x}% ${y}%`;
+    }
+});
+
+document.addEventListener('mouseup', function() {
+    if(vbPreviewDragState) {
+        document.getElementById('vbPreviewFrame').classList.remove('active-drag');
+        vbPreviewDragState = null;
+        markImageDirty(true);
+    }
+});
 </script>
 
 </body>

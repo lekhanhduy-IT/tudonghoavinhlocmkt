@@ -426,7 +426,40 @@
 }
 .collab-user-node:hover .collab-user-tooltip { transform: translateX(-50%) scale(1); }
 
+/* --- CẤU TRÚC VƯƠNG MIỆN HOST --- */
+.collab-user-node .head-anchor {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.collab-user-node .host-crown {
+    position: absolute;
+    top: -12px;       
+    right: -6px;     
+    transform: rotate(18deg); 
+    font-size: 15px;
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
+    z-index: 20;
+    pointer-events: none;
+    user-select: none;
+}
+.collab-user-node:hover .head-anchor { transform: scale(1.15) translateY(-2px); }
 
+/* --- NÚT ĐÁM MÂY TỰ ĐỘNG LƯU --- */
+#autoSaveCloud {
+    color: var(--blue);
+    font-size: 18px;
+    margin-right: 15px;
+    display: flex;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+#autoSaveCloud i { transition: transform 0.3s; }
+#autoSaveCloud.saving i { color: #f39c12; transform: scale(1.1); }
+#autoSaveCloud.success i { color: #27ae60; }
+#autoSaveCloud.error i { color: var(--red); }
 /* Con trỏ chuột lơ lửng trên màn hình */
 .peer-cursor {
     position: absolute;
@@ -993,7 +1026,9 @@
   <div style="display: flex; align-items: center;">
     <span id="syncStatusVB" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60;">✅ Đã đồng bộ</span>
     <button class="tool-btn" onclick="togglePanelVB('right')" style="margin-right: 10px;"><i class="fas fa-toolbox"></i> Công cụ</button>
-    <button class="tool-btn save-btn" onclick="savePostToSheet()"><i class="fas fa-save"></i> Lưu bài viết</button>
+    <div id="autoSaveCloud" title="Tự động lưu đám mây">
+        <i class="fas fa-cloud-check"></i>
+    </div>
   </div>
 </div>
 <div class="workspace" id="workspaceArea">
@@ -1710,9 +1745,9 @@ const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
 
         // 4. Kéo máy chủ và đặt lịch quét tự động 20s/lần
         fetchDataFromServer();
-        setInterval(() => {
-            if (!checkIsEditing() && actionQueue.length === 0) fetchDataFromServer();
-        }, 20000);
+setInterval(() => {
+    if (actionQueue.length === 0) fetchDataFromServer(false); // Kéo Data ngầm không force UI
+}, 20000);
 
         // 5. Lắng nghe đồng bộ liên Tab
         window.addEventListener('storage', function(e) {
@@ -1781,12 +1816,14 @@ const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
                 currentSyncToken = sysData.syncToken;
                 localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
 
-                if (!checkIsEditing()) {
-                    processAndRenderPostUI();
-                    document.getElementById('syncStatusVB').innerText = "✅ Sẵn sàng"; 
-                    document.getElementById('syncStatusVB').style.color = "#27ae60";
-                    hasPendingUpdate = false;
-                } else {
+            if (!checkIsEditing()) {
+                // Chỉ vẽ lại UI nếu là lần load đầu tiên (chưa có ID bài viết)
+                if (!currentPostId) processAndRenderPostUI();
+                document.getElementById('syncStatusVB').innerText = "✅ Sẵn sàng"; 
+                document.getElementById('syncStatusVB').style.color = "#27ae60";
+                hasPendingUpdate = false;
+            }
+                else {
                     document.getElementById('syncStatusVB').innerText = "⚠️ Có dữ liệu mới"; 
                     document.getElementById('syncStatusVB').style.color = "#f39c12";
                     hasPendingUpdate = true;
@@ -1921,24 +1958,107 @@ const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
         else { targetRow = ttSheet.length; ttSheet.push([tabName, orderJson]); pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow+1, count: 1, tab: "thutuHeader_hidden"}); pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 1, val: tabName, tab: "thutuHeader_hidden"}); pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: orderJson, tab: "thutuHeader_hidden"}); }
     }
 
-    function updateDraftValue(headerName, el) {
-        if (!draftData || !draftData.headers) return;
-        let hIndex = draftData.headers.indexOf(headerName); if (hIndex === -1) return;
-        let cleanVal = el.innerHTML;
-        let textCheck = el.innerText.trim(); if (!textCheck || (textCheck === "Trống" && el.querySelector('i'))) cleanVal = "";
-        if (cleanVal === (draftData.data[hIndex] || "")) return; 
+// Thay thế hàm updateDraftValue hiện tại
+function updateDraftValue(headerName, el) {
+    if (!draftData || !draftData.headers) return;
+    let hIndex = draftData.headers.indexOf(headerName); if (hIndex === -1) return;
+    let cleanVal = el.innerHTML;
+    let textCheck = el.innerText.trim(); if (!textCheck || (textCheck === "Trống" && el.querySelector('i'))) cleanVal = "";
+    if (cleanVal === (draftData.data[hIndex] || "")) return; 
 
-        draftData.data[hIndex] = cleanVal; localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
-        if (!sysData.sheets["_PLAN_DATA_"]) return;
-        let planRowIndex = draftData.planRowIndex; 
-
-        if (planRowIndex !== undefined && sysData.sheets["_PLAN_DATA_"][planRowIndex]) {
-            let newJsonData = JSON.stringify(draftData.data);
-            sysData.sheets["_PLAN_DATA_"][planRowIndex][2] = newJsonData; localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
-            pushQueue({ type: 'SYNC_CELL', row: planRowIndex + 1, col: 3, val: newJsonData, tab: "_PLAN_DATA_" });
-            el.style.backgroundColor = "#e8f5e9"; setTimeout(() => el.style.backgroundColor = "", 1000);
-        } else { el.style.backgroundColor = "#ffcdd2"; setTimeout(() => el.style.backgroundColor = "", 1000); }
+    draftData.data[hIndex] = cleanVal; 
+    localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
+    
+    // Bắn realtime sang máy khác và bắt đầu đếm ngược lưu silent
+    if (typeof window.broadcastLeftPanelSync === 'function') {
+        window.broadcastLeftPanelSync(draftData);
     }
+}
+
+// BỔ SUNG HÀM LƯU NGẦM (SILENT SAVE) DÀNH RIÊNG CHO CHỦ PHÒNG
+async function silentCommitToSheet() {
+    const planId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : null);
+    if (!planId) return;
+
+    let cloudIcon = document.getElementById('autoSaveCloud');
+    cloudIcon.className = 'saving';
+    cloudIcon.innerHTML = '<i class="fas fa-sync fa-spin"></i>';
+
+    try {
+        // Upload ảnh nháp nếu có (Bỏ qua cảnh báo Alert làm nghẽn UI)
+        const allImages = [...document.querySelectorAll("#coverEditor img"), ...document.querySelectorAll("#postContent img.vb-managed-image")];
+        const hasPending = allImages.some(img => /^data:image\//i.test(img.src) || img.classList.contains('vb-image-pending'));
+        if (hasPending && typeof uploadAllPendingPostImages === 'function') {
+            await uploadAllPendingPostImages(planId).catch(e => console.warn("Lưu ảnh ngầm lỗi:", e));
+        }
+
+        // Cập nhật Left Panel Kế hoạch ngầm vào Queue
+        if (draftData && sysData.sheets["_PLAN_DATA_"] && draftData.planRowIndex !== undefined) {
+             const newJsonData = JSON.stringify(draftData.data);
+             if (sysData.sheets["_PLAN_DATA_"][draftData.planRowIndex][2] !== newJsonData) {
+                 sysData.sheets["_PLAN_DATA_"][draftData.planRowIndex][2] = newJsonData;
+                 actionQueue.push({ type: 'SYNC_CELL', row: draftData.planRowIndex + 1, col: 3, val: newJsonData, tab: "_PLAN_DATA_" });
+             }
+        }
+
+        // Đóng gói Dữ liệu Bài viết
+        const title = document.getElementById("postTitle").innerHTML;
+        const sapo = document.getElementById("postSapo").innerHTML;
+        const coverImg = document.querySelector("#coverEditor img.vb-managed-image");
+        const coverUrl = coverImg ? (coverImg.dataset.driveUrl || normalizeDriveUrlForSheet(coverImg.getAttribute("src") || "")) : "";
+        const coverMetadata = coverImg ? JSON.stringify(readImageMetadata(coverImg)) : "";
+        const content = serializeEditorContentForSheet();
+        const finalHtml = `<div class="post-body">${content}</div>`;
+
+        if (!sysData.sheets["Bài viết_hidden"]) return; // Bỏ qua nếu cấu trúc rỗng
+        
+        const bvTab = sysData.sheets["Bài viết_hidden"];
+        let targetRow = -1;
+        for (let r = 1; r < bvTab.length; r++) { if (bvTab[r][0] === planId) { targetRow = r; break; } }
+
+        const rowData = [planId, title, sapo, coverUrl, finalHtml, coverMetadata];
+        
+        // Phát lệnh API Lưu trực tiếp KHÔNG qua pushQueue (để tránh chớp giao diện)
+        let batchPayload = [...actionQueue]; actionQueue = [];
+        if (targetRow !== -1) {
+            let isChanged = false;
+            for (let c = 1; c <= rowData.length; c++) {
+                if (bvTab[targetRow][c-1] !== rowData[c-1]) {
+                    bvTab[targetRow][c-1] = rowData[c-1];
+                    batchPayload.push({type:'SYNC_CELL', row: targetRow + 1, col: c, val: rowData[c - 1], tab: "Bài viết_hidden"});
+                    isChanged = true;
+                }
+            }
+            if (!isChanged && batchPayload.length === 0) {
+                cloudIcon.className = 'success'; cloudIcon.innerHTML = '<i class="fas fa-cloud-check"></i>';
+                return;
+            }
+        } else {
+            targetRow = bvTab.length;
+            bvTab.push(rowData);
+            batchPayload.push({type:'STRUCTURAL', action:'insertRow', index: targetRow + 1, count: 1, tab: "Bài viết_hidden"});
+            for (let c = 1; c <= rowData.length; c++) batchPayload.push({type:'SYNC_CELL', row: targetRow + 1, col: c, val: rowData[c - 1], tab: "Bài viết_hidden"});
+        }
+
+        // Gửi lệnh độc lập, không gọi lại `fetchDataFromServer`
+        fetch(API_URL, { method: "POST", body: JSON.stringify(batchPayload), headers: { "Content-Type": "text/plain;charset=utf-8" } })
+        .then(res => res.json())
+        .then(json => {
+            if (json.success) {
+                currentSyncToken = json.syncToken;
+                localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+                cloudIcon.className = 'success'; cloudIcon.innerHTML = '<i class="fas fa-cloud-check" title="Đã lưu an toàn"></i>';
+            } else { throw new Error(); }
+        })
+        .catch(() => {
+            actionQueue = batchPayload.concat(actionQueue); // Nhét lại nếu rớt mạng
+            cloudIcon.className = 'error'; cloudIcon.innerHTML = '<i class="fas fa-exclamation-triangle" title="Lỗi mạng"></i>';
+        });
+
+    } catch (e) {
+        cloudIcon.className = 'error'; cloudIcon.innerHTML = '<i class="fas fa-exclamation-triangle" title="Lỗi thao tác"></i>';
+    }
+}
     
 function vbShowAlert(msg) {
     closeAllToolPopups();
@@ -5303,26 +5423,18 @@ async function downloadActiveImageWithMetadata() {
 ==================================================================== */
 
 (function initRealtimeEngine() {
-    // 1. KHAI BÁO BIẾN CÁ NHÂN (Đã khôi phục myAvatar bị mất tích)
     let rawEmail = localStorage.getItem('admin_email');
     const myEmail = (rawEmail && rawEmail !== "undefined") ? rawEmail : ('anon_' + Math.floor(Math.random()*1000) + '@gmail.com');
-    
     let rawName = localStorage.getItem('admin_name');
     const myName = (rawName && rawName !== "undefined" && rawName !== "null") ? rawName : myEmail.split('@')[0];
-    
-    // PHỤC HỒI DÒNG HUYỆT TỬ NÀY:
     const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
 
-    // 2. BẮT ROOM ID
     const urlParams = new URLSearchParams(window.location.search);
     let roomId = urlParams.get('id');
     if (!roomId) {
         try {
             let draft = JSON.parse(localStorage.getItem('DRAFT_POST_DATA'));
-            if (draft && draft.data && draft.data[0]) {
-                roomId = draft.data[0];
-                window.history.replaceState(null, '', '?id=' + encodeURIComponent(roomId));
-            }
+            if (draft && draft.data && draft.data[0]) roomId = draft.data[0];
         } catch(e) {}
     }
     roomId = (roomId || 'DRAFT_ROOM_GENERAL').replace(/[\.\#\$\[\]]/g, '_');
@@ -5334,132 +5446,64 @@ async function downloadActiveImageWithMetadata() {
     let hash = 0; for(let i=0; i<myEmail.length; i++) hash = myEmail.charCodeAt(i) + ((hash << 5) - hash);
     const myColor = PALETTE[Math.abs(hash) % PALETTE.length];
 
-    const firebaseConfig = {
-        databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/"
-    };
-
+    const firebaseConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" };
     if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     
-    const myPresenceRef = db.ref(`collab_rooms/${roomId}/users/${safeUserKey}`);
-    const domSyncRef = db.ref(`collab_rooms/${roomId}/dom_state`);
-    const imageMetaLiveRef = db.ref(`collab_rooms/${roomId}/image_meta_subchannel`); // <-- KHÔI PHỤC KÊNH METADATA ẢNH
+    const roomRef = db.ref(`collab_rooms/${roomId}`);
+    const myPresenceRef = roomRef.child(`users/${safeUserKey}`);
+    const domSyncRef = roomRef.child('dom_state');
+    const leftPanelRef = roomRef.child('left_panel_state'); 
+    const imageMetaLiveRef = roomRef.child('image_meta_subchannel');
 
-    myPresenceRef.set({
-        name: myName, email: myEmail, avatar: myAvatar, color: myColor,
-        x: -9999, y: -9999, updatedAt: firebase.database.ServerValue.TIMESTAMP
-    });
+    myPresenceRef.set({ name: myName, email: myEmail, avatar: myAvatar, color: myColor, x: -9999, y: -9999, updatedAt: firebase.database.ServerValue.TIMESTAMP });
     myPresenceRef.onDisconnect().remove();
 
-    // --- HÀM BẢO TOÀN VỊ TRÍ CON TRỎ (Caret Preservation) ---
-    function getCaretCharacterOffsetWithin(el) {
-        let caretOffset = 0;
-        const sel = window.getSelection();
-        if (sel.rangeCount > 0) {
-            const range = sel.getRangeAt(0);
-            const preCaretRange = range.cloneRange();
-            preCaretRange.selectNodeContents(el);
-            preCaretRange.setEnd(range.endContainer, range.endOffset);
-            caretOffset = preCaretRange.toString().length;
-        }
-        return caretOffset;
+    // ==========================================
+    // THUẬT TOÁN BẦU CHỦ PHÒNG & ĐẾM NGƯỜI
+    // ==========================================
+    let isRoomHost = false;
+    let currentUsersCount = 0;
+    let silenceDiffTimer = null;
+
+    function evaluateHostRole(usersObj) {
+        if (!usersObj) return null;
+        const uids = Object.keys(usersObj);
+        currentUsersCount = uids.length;
+        if (uids.length === 0) return null;
+
+        uids.sort((a, b) => (usersObj[a].updatedAt || 0) - (usersObj[b].updatedAt || 0));
+        const activeHostUid = uids[0];
+        isRoomHost = (activeHostUid === safeUserKey);
+        return activeHostUid;
     }
 
-    function setCaretPositionWithin(el, offset) {
-        const sel = window.getSelection();
-        const range = document.createRange();
-        let charIndex = 0, found = false;
-
-        function walk(node) {
-            if (found) return;
-            if (node.nodeType === Node.TEXT_NODE) {
-                const next = charIndex + node.length;
-                if (offset <= next) {
-                    range.setStart(node, offset - charIndex);
-                    range.collapse(true);
-                    sel.removeAllRanges();
-                    sel.addRange(range);
-                    found = true;
-                }
-                charIndex = next;
-            } else {
-                for (let i = 0; i < node.childNodes.length; i++) walk(node.childNodes[i]);
-            }
-        }
-        walk(el);
-    }
-
-    // --- PHẦN 1: BẮT TỌA ĐỘ CHUỘT & VẠCH GÕ CHỮ ---
-    let lastMouseTime = 0;
-    const paperElem = document.getElementById('editorContainer');
-
-    function broadcastMouse(clientX, clientY) {
-        if (!paperElem || Date.now() - lastMouseTime < 35) return; 
-        lastMouseTime = Date.now();
-
-        const rect = paperElem.getBoundingClientRect();
-        const paperX = clientX - rect.left;
-        const paperY = clientY - rect.top;
-
-        myPresenceRef.update({ x: paperX, y: paperY, updatedAt: firebase.database.ServerValue.TIMESTAMP });
-    }
-
-    window.addEventListener('mousemove', e => broadcastMouse(e.clientX, e.clientY));
-    window.addEventListener('touchmove', e => { if(e.touches[0]) broadcastMouse(e.touches[0].clientX, e.touches[0].clientY); });
-
-    function broadcastCaretPosition() {
-        if (!paperElem) return;
-        const activeEl = document.activeElement;
-        if (!activeEl) return;
-
-        const paperRect = paperElem.getBoundingClientRect();
-        let caretX = 0; let caretY = 0; let isValid = false;
-
-        if (activeEl.isContentEditable) {
-            const sel = window.getSelection();
-            if (sel.rangeCount > 0) {
-                const range = sel.getRangeAt(0);
-                const rect = range.getBoundingClientRect(); 
-                if (rect.left !== 0 && rect.top !== 0) {
-                    caretX = rect.left - paperRect.left;
-                    caretY = rect.bottom - paperRect.top;
-                    isValid = true;
-                }
-            }
-        } else if (['INPUT', 'TEXTAREA'].includes(activeEl.tagName)) {
-            const rect = activeEl.getBoundingClientRect();
-            caretX = rect.right - paperRect.left - 5; 
-            caretY = rect.bottom - paperRect.top;
-            isValid = true;
+    // ĐẾM NGƯỢC 4.5 GIÂY LƯU NGẦM KHI CÒN 1 MÌNH
+    window.triggerHostSilenceCountdown = function() {
+        if (!isRoomHost) return;
+        clearTimeout(silenceDiffTimer);
+        
+        let cloud = document.getElementById('autoSaveCloud');
+        if (currentUsersCount > 1) {
+            // Chế độ Nhiều người: Firebase gánh, chỉ chớp mây vàng báo hiệu đồng bộ realtime
+            cloud.className = 'saving'; cloud.innerHTML = '<i class="fas fa-cloud-upload-alt"></i>';
+            setTimeout(() => { cloud.className = ''; cloud.innerHTML = '<i class="fas fa-cloud"></i>'; }, 800);
+            return;
         }
 
-        if (isValid) {
-            myPresenceRef.update({ x: caretX, y: caretY, updatedAt: firebase.database.ServerValue.TIMESTAMP });
-        }
-    }
+        // Chế độ 1 người: Lưu lên Sheet sau 4.5s im lặng
+        cloud.className = 'saving'; cloud.innerHTML = '<i class="fas fa-cloud-upload-alt"></i>';
+        silenceDiffTimer = setTimeout(() => {
+            if (currentUsersCount <= 1) silentCommitToSheet();
+        }, 4500);
+    };
 
-    ['keyup', 'input', 'mouseup', 'focusin'].forEach(evt => {
-        document.addEventListener(evt, () => { setTimeout(broadcastCaretPosition, 10); });
-    });
-
-    // --- BẮT REALTIME CHO BẢNG METADATA ẢNH ---
-    document.getElementById('vbMetadataTable')?.addEventListener('input', e => {
-        if (!vbActiveImage) return;
-        const metaCell = e.target.closest('.vb-meta-value');
-        if (!metaCell) return;
-
-        const payload = {
-            imageId: vbActiveImage.dataset.imageId,
-            metaKey: metaCell.dataset.metaKey,
-            text: metaCell.innerText.replace(/\u00a0/g, " ").trim(),
-            sender: myDeviceId
-        };
-        imageMetaLiveRef.set(payload);
-    });
-
-    // --- PHẦN 2: CAMERA GIÁM SÁT DOM ---
+    // ==========================================
+    // CAMERA GIÁM SÁT DOM BÀI VIẾT
+    // ==========================================
     let isApplyingRemoteDOM = false;
     let lastBroadcastedDOMHash = '';
+    const paperElem = document.getElementById('editorContainer');
 
     const domCamera = new MutationObserver(() => {
         if (isApplyingRemoteDOM) return;
@@ -5469,34 +5513,29 @@ async function downloadActiveImageWithMetadata() {
             postSapo: document.getElementById('postSapo')?.innerHTML || '',
             coverHtml: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('coverEditor')) : (document.getElementById('coverEditor')?.innerHTML || ''),
             postContent: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('postContent')) : (document.getElementById('postContent')?.innerHTML || ''),
-            sender: myDeviceId,
-            timestamp: Date.now()
+            sender: myDeviceId, timestamp: Date.now()
         };
 
         const currentHash = payload.postTitle + payload.postSapo + payload.coverHtml + payload.postContent;
         if (currentHash !== lastBroadcastedDOMHash) {
             lastBroadcastedDOMHash = currentHash;
             domSyncRef.set(payload);
+            window.triggerHostSilenceCountdown();
         }
     });
 
-    if (paperElem) {
-        domCamera.observe(paperElem, { childList: true, subtree: true, characterData: true, attributes: true });
-    }
+    if (paperElem) domCamera.observe(paperElem, { childList: true, subtree: true, characterData: true, attributes: true });
 
-    // --- PHẦN 3: LẮNG NGHE VÀ DÁN ĐÈ DOM ---
-
-    // 3.1 Nhận DOM
+    // NHẬN DỮ LIỆU DOM TỪ MÁY KHÁC
     domSyncRef.on('value', snapshot => {
         const domData = snapshot.val();
         if (!domData || domData.sender === myDeviceId) return;
 
         isApplyingRemoteDOM = true;
-
         function smartInject(elementId, incomingHtml) {
             const el = document.getElementById(elementId);
             if (!el || el.innerHTML === incomingHtml) return;
-
+            // Bảo toàn vị trí con trỏ (Caret) không bị văng
             if (document.activeElement === el || el.contains(document.activeElement)) {
                 const caretPos = getCaretCharacterOffsetWithin(el);
                 el.innerHTML = incomingHtml;
@@ -5508,41 +5547,32 @@ async function downloadActiveImageWithMetadata() {
 
         smartInject('postTitle', domData.postTitle);
         smartInject('postSapo', domData.postSapo);
-        smartInject('coverEditor', domData.coverHtml !== undefined ? domData.coverHtml : (domData.coverUrl ? `<img src="${domData.coverUrl}" class="vb-managed-image" data-image-role="cover">` : ''));
-// [THÊM DÒNG NÀY]: Xả sạch bộ nhớ bôi đen cũ trước khi đè DOM mới
-if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 'function') {
-    TableEditor.clearSelection();
-}
+        smartInject('coverEditor', domData.coverHtml);
+        
+        if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 'function') TableEditor.clearSelection();
         smartInject('postContent', domData.postContent);
 
         if(typeof hydrateManagedImages === 'function') {
             hydrateManagedImages(document.getElementById('coverEditor'), 'cover');
             hydrateManagedImages(document.getElementById('postContent'), 'content');
         }
-
-        // Nối lại dây tơ hồng cho đối tượng ảnh đang mở popup bị dán đè
-        if (vbActiveImage) {
-            let survivingId = vbActiveImage.dataset.imageId;
-            let revivedImgNode = document.querySelector(`img[data-image-id="${survivingId}"]`);
-            if (revivedImgNode) vbActiveImage = revivedImgNode;
-        }
-
         setTimeout(() => { isApplyingRemoteDOM = false; }, 30);
     });
 
-    // 3.2 Nhận User, Cursors & Avatars (BỌC THÉP CHỐNG ZOMBIE)
-    const usersListRef = db.ref(`collab_rooms/${roomId}/users`);
+    // ==========================================
+    // NHẬN NGƯỜI DÙNG & VẼ VƯƠNG MIỆN HOST
+    // ==========================================
+    const usersListRef = roomRef.child('users');
     const cursorsCanvas = document.getElementById('collab-cursors-layer');
     const avtBar = document.getElementById('collabAvatarList');
     let lastAvtHash = '';
 
     usersListRef.on('value', snapshot => {
         const users = snapshot.val() || {};
+        const currentHostUid = evaluateHostRole(users);
 
         if(cursorsCanvas) {
-            Array.from(cursorsCanvas.children).forEach(c => {
-                if (!users[c.id.replace('cursor_', '')]) c.remove();
-            });
+            Array.from(cursorsCanvas.children).forEach(c => { if (!users[c.id.replace('cursor_', '')]) c.remove(); });
         }
 
         let activeEmails = Object.keys(users).sort().join('|');
@@ -5554,7 +5584,19 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
                 if(!p || !p.email || p.email === "undefined") continue; 
                 c++;
                 let safeName = (p.name && p.name !== "undefined") ? p.name : p.email.split('@')[0];
-                avtHtml += `<div class="collab-user-node" style="--peer-color: ${p.color}; z-index: ${c};"><img src="${p.avatar}" alt="${safeName}" referrerpolicy="no-referrer" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'"><div class="collab-user-tooltip">${safeName}</div></div>`;
+                
+                // Vẽ Vương miện nếu là Host
+                let crownHtml = (k === currentHostUid) ? '<div class="host-crown">👑</div>' : '';
+                let hostTag = (k === currentHostUid) ? ' (Host)' : '';
+
+                avtHtml += `
+                <div class="collab-user-node" style="--peer-color: ${p.color}; z-index: ${c};">
+                    <div class="head-anchor">
+                        ${crownHtml}
+                        <img src="${p.avatar}" alt="${safeName}" referrerpolicy="no-referrer" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'">
+                    </div>
+                    <div class="collab-user-tooltip">${safeName}${hostTag}</div>
+                </div>`;
             }
             avtBar.innerHTML = avtHtml;
         }
@@ -5562,47 +5604,85 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
         if(!cursorsCanvas) return;
         for(let k in users) {
             let peer = users[k];
-            if (!peer || !peer.email || peer.email === "undefined" || peer.email === myEmail) continue;
-
+            if (!peer || !peer.email || peer.email === myEmail) continue;
             let safePeerName = (peer.name && peer.name !== "undefined") ? peer.name : "Ẩn danh";
-
             let cursorDom = document.getElementById(`cursor_${k}`);
             if (!cursorDom) {
-                cursorDom = document.createElement('div');
-                cursorDom.id = `cursor_${k}`;
-                cursorDom.className = 'peer-cursor';
+                cursorDom = document.createElement('div'); cursorDom.id = `cursor_${k}`; cursorDom.className = 'peer-cursor';
                 cursorDom.style.setProperty('--peer-color', peer.color);
                 cursorDom.innerHTML = `<svg class="peer-cursor-arrow" viewBox="0 0 32 32"><polygon points="0,0 32,16 16,20 12,32"/></svg><div class="peer-cursor-label">${safePeerName}</div>`;
                 cursorsCanvas.appendChild(cursorDom);
             }
-
             cursorDom.style.transform = `translate(${peer.x}px, ${peer.y}px)`;
         }
     });
 
-    // 3.3 Nhận Meta ảnh
-    imageMetaLiveRef.on('value', snapshot => {
-        const data = snapshot.val();
-        if (!data || data.sender === myDeviceId) return;
+    // ==========================================
+    // ĐỒNG BỘ REALTIME PHẦN "NGUỒN: KẾ HOẠCH" (PANEL TRÁI)
+    // ==========================================
+    window.broadcastLeftPanelSync = function(draftDataObj) {
+        leftPanelRef.set({ data: JSON.stringify(draftDataObj), sender: myDeviceId });
+        window.triggerHostSilenceCountdown();
+    };
 
-        if (vbActiveImage && vbActiveImage.dataset.imageId === data.imageId) {
-            const targetTd = document.querySelector(`#vbMetadataTable .vb-meta-value[data-meta-key="${data.metaKey}"]`);
-            if (targetTd && document.activeElement !== targetTd) {
-                targetTd.textContent = data.text;
-            }
-            let currentMeta = readImageMetadata(vbActiveImage);
-            currentMeta[data.metaKey] = data.text;
-            writeImageMetadata(vbActiveImage, currentMeta);
-        } else {
-            let targetImgDom = document.querySelector(`img[data-image-id="${data.imageId}"]`);
-            if (targetImgDom) {
-                let currentMeta = readImageMetadata(targetImgDom);
-                currentMeta[data.metaKey] = data.text;
-                writeImageMetadata(targetImgDom, currentMeta);
-            }
-        }
+    leftPanelRef.on('value', snapshot => {
+        const payload = snapshot.val();
+        if (!payload || payload.sender === myDeviceId) return;
+        try {
+            draftData = JSON.parse(payload.data);
+            localStorage.setItem("DRAFT_POST_DATA", payload.data);
+            
+            // Xóa chớp màn hình, chỉ cập nhật nội dung nhẹ nhàng
+            draftData.headers.forEach((h, i) => {
+                let rows = document.querySelectorAll('.data-row');
+                rows.forEach(r => {
+                    if (r.dataset.header === h) {
+                        let valCell = r.querySelector('.data-val');
+                        let newVal = draftData.data[i] || "";
+                        if (String(newVal).startsWith("http")) newVal = `<a href="${newVal}" target="_blank" style="color:var(--blue); word-break:break-all;">Link đính kèm</a>`;
+                        if (valCell.innerHTML !== newVal && document.activeElement !== valCell) {
+                            valCell.innerHTML = newVal || "<i style='color:#ccc;'>Trống</i>";
+                            valCell.style.backgroundColor = "#e6f7ff";
+                            setTimeout(() => valCell.style.backgroundColor = "", 1000);
+                        }
+                    }
+                });
+            });
+        } catch(e) {}
     });
 
+    // Các hàm Caret & Mouse vị trí (Giữ nguyên như cũ)
+    let lastMouseTime = 0;
+    function broadcastMouse(clientX, clientY) {
+        if (!paperElem || Date.now() - lastMouseTime < 35) return; 
+        lastMouseTime = Date.now();
+        const rect = paperElem.getBoundingClientRect();
+        myPresenceRef.update({ x: clientX - rect.left, y: clientY - rect.top, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+    }
+    window.addEventListener('mousemove', e => broadcastMouse(e.clientX, e.clientY));
+    
+    function getCaretCharacterOffsetWithin(el) {
+        let caretOffset = 0; const sel = window.getSelection();
+        if (sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0); const preCaretRange = range.cloneRange();
+            preCaretRange.selectNodeContents(el); preCaretRange.setEnd(range.endContainer, range.endOffset);
+            caretOffset = preCaretRange.toString().length;
+        }
+        return caretOffset;
+    }
+    function setCaretPositionWithin(el, offset) {
+        const sel = window.getSelection(); const range = document.createRange();
+        let charIndex = 0, found = false;
+        function walk(node) {
+            if (found) return;
+            if (node.nodeType === Node.TEXT_NODE) {
+                const next = charIndex + node.length;
+                if (offset <= next) { range.setStart(node, offset - charIndex); range.collapse(true); sel.removeAllRanges(); sel.addRange(range); found = true; }
+                charIndex = next;
+            } else { for (let i = 0; i < node.childNodes.length; i++) walk(node.childNodes[i]); }
+        }
+        walk(el);
+    }
 })();
 /* ====================================================================
    BẢN CẬP NHẬT STUDIO ẢNH: CAROUSEL, SCALE %, REALTIME SYNC
