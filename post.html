@@ -1839,10 +1839,26 @@ const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
                 let coverMetadata = {};
                 try { coverMetadata = bvTab[r][5] ? JSON.parse(bvTab[r][5]) : {}; } catch(e) {}
 
-                if (coverDriveUrl) {
+if (coverDriveUrl) {
                     const coverImg = createManagedImage(coverDriveUrl, "cover", coverMetadata);
                     coverImg.dataset.archivedDrive = "1";
+                    
+                    // --- SỬA LỖI: Phục hồi lại Scale % và FrameState (Kích thước, tỷ lệ, vị trí kéo chuột) ---
+                    if (coverMetadata.scalePercent) {
+                        coverImg.dataset.scalePercent = coverMetadata.scalePercent;
+                    }
+                    
                     appendManagedCoverImage(coverEditor, coverImg);
+                    
+                    // Đọc lại state đã lưu và áp dụng CSS tương ứng để giao diện co bóp ảnh đúng như lúc lưu
+                    if (coverMetadata.frameState) {
+                        applyImageFrameState(coverImg, coverMetadata.frameState);
+                        // Cập nhật lại width của thẻ bao ngoài dựa trên scalePercent (nếu có)
+                        const frame = coverImg.closest('.vb-image-frame');
+                        if (frame && coverMetadata.scalePercent) {
+                            frame.style.width = `${coverMetadata.scalePercent}%`;
+                        }
+                    }
                 }
 
                 let tempDiv = document.createElement('div');
@@ -2194,7 +2210,15 @@ function vbShowPrompt(msg, callback) {
 
         const coverImg = document.querySelector("#coverEditor img.vb-managed-image");
         const coverUrl = coverImg ? (coverImg.dataset.driveUrl || normalizeDriveUrlForSheet(coverImg.getAttribute("src") || "")) : "";
-        const coverMetadata = coverImg ? JSON.stringify(readImageMetadata(coverImg)) : "";
+        
+        // --- SỬA LỖI: Gom thêm FrameState (Width, Height, Mode) và Scale % vào chung chuỗi Metadata ---
+        let coverMetaObj = coverImg ? readImageMetadata(coverImg) : {};
+        if (coverImg) {
+            coverMetaObj.frameState = readImageFrameState(coverImg);
+            coverMetaObj.scalePercent = coverImg.dataset.scalePercent || "100";
+        }
+        const coverMetadata = JSON.stringify(coverMetaObj);
+        
         const content = serializeEditorContentForSheet();
         const finalHtml = `<div class="post-body">${content}</div>`;
 
