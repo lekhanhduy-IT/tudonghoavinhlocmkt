@@ -5686,6 +5686,7 @@ let vbCurrentPopupIndex = 0;
 let vbPreviewDragState = null;
 
 // Hàm mở Popup ghi đè
+// Hàm mở Popup ghi đè
 function openImageProperties(img) {
     if (!img) return;
     document.querySelectorAll(".vb-image-active").forEach(el => el.classList.remove("vb-image-active"));
@@ -5698,6 +5699,12 @@ function openImageProperties(img) {
     if (isCover) {
         // Nếu là ảnh bìa, ẩn điều hướng
         document.querySelector('.vb-preview-nav').style.display = 'none';
+        
+        // ---- CODE THÊM MỚI: Bỏ tích checkbox đồng bộ khi là ảnh bìa ----
+        let syncCheckbox = document.getElementById('vbSyncAllCheckbox');
+        if (syncCheckbox) syncCheckbox.checked = false;
+        // ---------------------------------------------------------------
+        
     } else {
         document.querySelector('.vb-preview-nav').style.display = 'flex';
         vbCurrentPopupIndex = vbContentImagesList.indexOf(img);
