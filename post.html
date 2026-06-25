@@ -1882,10 +1882,28 @@ if (coverDriveUrl) {
                     }
                 }
 
-                let tempDiv = document.createElement('div');
+let tempDiv = document.createElement('div');
                 tempDiv.innerHTML = bvTab[r][4] || "";
                 let bodyInside = tempDiv.querySelector('.post-body');
-                document.getElementById("postContent").innerHTML = bodyInside ? bodyInside.innerHTML : (bvTab[r][4] || "");
+                let postContentEl = document.getElementById("postContent");
+                
+                // 1. Nạp lại nội dung chữ/ảnh
+                postContentEl.innerHTML = bodyInside ? bodyInside.innerHTML : (bvTab[r][4] || "");
+
+                // 2. Phục hồi lại tỷ lệ % hiển thị bài viết
+                let savedWidth = bodyInside ? (bodyInside.getAttribute('data-width') || "100%") : "100%";
+                postContentEl.style.width = savedWidth;
+                
+                // Nếu width khác 100%, tự động căn giữa lề margin
+                if (savedWidth !== "100%" && savedWidth !== "") {
+                    postContentEl.style.margin = "0 auto";
+                } else {
+                    postContentEl.style.margin = "";
+                }
+                
+                // 3. Đồng bộ lại con số lên ô Input công cụ bên phải
+                let widthInput = document.getElementById("contentWidthInput");
+                if (widthInput) widthInput.value = parseInt(savedWidth) || 100;
 
                 hydrateManagedImages(document.getElementById("postContent"), "content");
                 hydrateManagedImages(coverEditor, "cover");
@@ -2240,8 +2258,11 @@ function vbShowPrompt(msg, callback) {
         }
         const coverMetadata = JSON.stringify(coverMetaObj);
         
-        const content = serializeEditorContentForSheet();
-        const finalHtml = `<div class="post-body">${content}</div>`;
+const content = serializeEditorContentForSheet();
+        // Lấy tỷ lệ width hiện tại của khung soạn thảo (nếu không có thì mặc định 100%)
+        let currentWidth = document.getElementById('postContent').style.width || "100%";
+        // Gài thuộc tính data-width vào thẻ bọc ngoài cùng để lưu lên Sheet
+        const finalHtml = `<div class="post-body" data-width="${currentWidth}">${content}</div>`;
 
         if (draftData && (!draftData.data[0] || draftData.data[0] !== planId)) {
             draftData.data[0] = planId;
