@@ -1127,6 +1127,25 @@
             </div>
           </div>
         </div>
+        <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('insertUnorderedList')" title="Danh sách dạng chấm (Bullet)">
+    <i class="fas fa-list-ul"></i>
+</button>
+
+<button class="fmt-btn" onmousedown="event.preventDefault(); insertHyperlink()" title="Gắn Link URL">
+    <i class="fas fa-link"></i>
+</button>
+
+<button class="fmt-btn" onmousedown="event.preventDefault(); adjustContentMargin()" title="Chỉnh lề / Tỷ lệ rộng (%)">
+    <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="1.5" fill="none" style="vertical-align: middle;">
+        <line x1="3" y1="4" x2="3" y2="20"></line>
+        <line x1="21" y1="4" x2="21" y2="20"></line>
+        <line x1="7" y1="12" x2="11" y2="12"></line>
+        <polyline points="9 9 11 12 9 15"></polyline>
+        <line x1="17" y1="12" x2="13" y2="12"></line>
+        <polyline points="15 9 13 12 15 15"></polyline>
+        <text x="12" y="15.5" text-anchor="middle" font-size="9" stroke="none" fill="currentColor">%</text>
+    </svg>
+</button>
         <div class="tool-row">
           <span class="tool-label">Cỡ chữ (px):</span>
           <div class="size-controller">
