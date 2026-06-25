@@ -4167,12 +4167,16 @@ function initVbImageManager() {
     hydrateManagedImages(cover, "cover");
     hydrateManagedImages(content, "content");
 
-    document.addEventListener("keydown", e => {
+document.addEventListener("keydown", e => {
         const isOpen = document.getElementById("vbImagePopupOverlay")?.style.display === "flex";
         if (!isOpen || !vbActiveImage || !(e.ctrlKey || e.metaKey)) return;
         const key = e.key.toLowerCase();
         const editingMetaText = e.target?.closest?.(".vb-meta-cell[contenteditable='true']");
         const editingUrl = e.target?.id === "vbImgUrl";
+        
+        // [CẬP NHẬT] Kiểm tra xem bảng Metadata có đang được bôi đen không
+        const isMetaGridFocused = document.activeElement?.id === "vbMetadataTable" && vbSelectedMetaCells.length > 0;
+
         if (key === "z" && !editingMetaText && !editingUrl) {
             e.preventDefault();
             if (e.shiftKey) imageHistoryRedo(); else imageHistoryUndo();
@@ -4184,6 +4188,10 @@ function initVbImageManager() {
         } else if (key === "x" && !editingMetaText && !editingUrl) {
             e.preventDefault(); copyActiveImage(true);
         } else if (key === "v" && !editingMetaText && !editingUrl) {
+            // [CẬP NHẬT] Nhường quyền cho bảng Metadata xử lý việc Paste
+            if (isMetaGridFocused) {
+                return; // Trả quyền về cho trình duyệt kích hoạt event "paste" của bảng
+            }
             e.preventDefault(); pasteImageFromClipboard();
         }
     });
