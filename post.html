@@ -1134,6 +1134,11 @@
               <div class="tc-grid" id="tcGrid"></div>
             </div>
           </div>
+          <div class="tool-dropdown-wrapper vb-image-dropdown">
+            <button class="fmt-btn" onmousedown="event.preventDefault(); openImageToolPopup(this)" title="Chèn hình ảnh">
+              <i class="fas fa-image" style="color:#01adee;"></i> ▾
+            </button>
+          </div>
         </div>
         <div class="tool-row">
           <span class="tool-label">Rộng (%):</span>
@@ -2784,6 +2789,9 @@ function insertHtmlBlock() {
         if(!e.target.closest('.fmt-btn') && !e.target.closest('#emojiMenu')) {
             document.getElementById("emojiMenu").style.display = "none";
         }
+        if (!e.target.closest('.tool-dropdown-wrapper') && !e.target.closest('.vb-mini-popup')) {
+            closeAllToolPopups();
+        }
         if (!e.target.closest('.tool-dropdown-wrapper')) {
             closeAllToolPopups();
         }
@@ -4235,14 +4243,58 @@ document.addEventListener("keydown", e => {
 }
 
 function openImageToolPopup(btn) {
-    // Tuyệt đối không gọi rememberImageInsertionTarget() ở đây vì sẽ trúng nút bấm
     const active = document.activeElement;
     if (active?.id === "coverEditor" || active?.closest?.("#coverEditor")) {
         vbImageTargetMode = "cover";
     } else {
         vbImageTargetMode = "content";
     }
-    openToolPopup("popupMiniImage", btn);
+    
+    const wrapper = btn.closest('.tool-dropdown-wrapper');
+    const popup = document.getElementById("popupMiniImage");
+    
+    if (!btn || !popup) return;
+    
+    let isVisible = popup.style.display === 'block';
+    closeAllToolPopups();
+    
+    if (!isVisible) {
+        // === THUẬT TOÁN TỐI THƯỢNG: ĐƯA RA KHỎI PANEL ===
+        // Bứng Popup ra và gắn thẳng vào <body> để thoát khỏi z-index:10 của Panel
+        document.body.appendChild(popup);
+        
+        popup.style.position = 'fixed';
+        popup.style.zIndex = '999999'; 
+        popup.style.margin = '0';
+        popup.style.display = 'block'; 
+        
+        const btnRect = btn.getBoundingClientRect();
+        const popupRect = popup.getBoundingClientRect();
+        
+        // Căn tọa độ Dọc (Y)
+        if (wrapper && wrapper.closest('.word-mini-toolbar')) {
+            // Nếu bấm từ Mini Toolbar
+            popup.style.top = (btnRect.top - popupRect.height - 5) + 'px';
+            popup.style.bottom = 'auto';
+        } else {
+            // Nếu bấm từ Panel công cụ
+            popup.style.top = (btnRect.bottom + 2) + 'px';
+            popup.style.bottom = 'auto';
+        }
+        
+        // Căn tọa độ Ngang (X)
+        let leftPos = btnRect.left;
+        
+        // Radar chống tràn màn hình (hất sang trái nếu lố mép phải)
+        if (leftPos + popupRect.width > window.innerWidth) {
+            leftPos = window.innerWidth - popupRect.width - 15;
+        }
+        
+        popup.style.left = leftPos + 'px';
+        popup.style.right = 'auto';
+        
+        saveSelection();
+    }
 }
 
 function chooseImageSource(type) {
