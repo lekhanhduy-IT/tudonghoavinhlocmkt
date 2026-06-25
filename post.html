@@ -426,40 +426,7 @@
 }
 .collab-user-node:hover .collab-user-tooltip { transform: translateX(-50%) scale(1); }
 
-/* --- CẤU TRÚC VƯƠNG MIỆN HOST --- */
-.collab-user-node .head-anchor {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.collab-user-node .host-crown {
-    position: absolute;
-    top: -12px;       
-    right: -6px;     
-    transform: rotate(18deg); 
-    font-size: 15px;
-    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
-    z-index: 20;
-    pointer-events: none;
-    user-select: none;
-}
-.collab-user-node:hover .head-anchor { transform: scale(1.15) translateY(-2px); }
 
-/* --- NÚT ĐÁM MÂY TỰ ĐỘNG LƯU --- */
-#autoSaveCloud {
-    color: var(--blue);
-    font-size: 18px;
-    margin-right: 15px;
-    display: flex;
-    align-items: center;
-    transition: all 0.3s ease;
-}
-#autoSaveCloud i { transition: transform 0.3s; }
-#autoSaveCloud.saving i { color: #f39c12; transform: scale(1.1); }
-#autoSaveCloud.success i { color: #27ae60; }
-#autoSaveCloud.error i { color: var(--red); }
 /* Con trỏ chuột lơ lửng trên màn hình */
 .peer-cursor {
     position: absolute;
@@ -1025,11 +992,8 @@
 
   <div style="display: flex; align-items: center;">
     <span id="syncStatusVB" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60;">✅ Đã đồng bộ</span>
-    <div id="autoSaveCloud" title="Tự động lưu đám mây" style="color: var(--blue); font-size: 18px; margin-right: 15px; display: flex; align-items: center; transition: all 0.3s ease;">
-        <i class="fas fa-cloud"></i>
-    </div>
     <button class="tool-btn" onclick="togglePanelVB('right')" style="margin-right: 10px;"><i class="fas fa-toolbox"></i> Công cụ</button>
-
+    <button class="tool-btn save-btn" onclick="savePostToSheet()"><i class="fas fa-save"></i> Lưu bài viết</button>
   </div>
 </div>
 <div class="workspace" id="workspaceArea">
@@ -1746,9 +1710,9 @@ const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
 
         // 4. Kéo máy chủ và đặt lịch quét tự động 20s/lần
         fetchDataFromServer();
-setInterval(() => {
-    if (actionQueue.length === 0) fetchDataFromServer(false); // Kéo Data ngầm không force UI
-}, 20000);
+        setInterval(() => {
+            if (!checkIsEditing() && actionQueue.length === 0) fetchDataFromServer();
+        }, 20000);
 
         // 5. Lắng nghe đồng bộ liên Tab
         window.addEventListener('storage', function(e) {
@@ -1817,14 +1781,12 @@ setInterval(() => {
                 currentSyncToken = sysData.syncToken;
                 localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
 
-            if (!checkIsEditing()) {
-                // Chỉ vẽ lại UI nếu là lần load đầu tiên (chưa có ID bài viết)
-                if (!currentPostId) processAndRenderPostUI();
-                document.getElementById('syncStatusVB').innerText = "✅ Sẵn sàng"; 
-                document.getElementById('syncStatusVB').style.color = "#27ae60";
-                hasPendingUpdate = false;
-            }
-                else {
+                if (!checkIsEditing()) {
+                    processAndRenderPostUI();
+                    document.getElementById('syncStatusVB').innerText = "✅ Sẵn sàng"; 
+                    document.getElementById('syncStatusVB').style.color = "#27ae60";
+                    hasPendingUpdate = false;
+                } else {
                     document.getElementById('syncStatusVB').innerText = "⚠️ Có dữ liệu mới"; 
                     document.getElementById('syncStatusVB').style.color = "#f39c12";
                     hasPendingUpdate = true;
@@ -1959,24 +1921,24 @@ setInterval(() => {
         else { targetRow = ttSheet.length; ttSheet.push([tabName, orderJson]); pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow+1, count: 1, tab: "thutuHeader_hidden"}); pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 1, val: tabName, tab: "thutuHeader_hidden"}); pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: orderJson, tab: "thutuHeader_hidden"}); }
     }
 
-// Thay thế hàm updateDraftValue hiện tại
-function updateDraftValue(headerName, el) {
-    if (!draftData || !draftData.headers) return;
-    let hIndex = draftData.headers.indexOf(headerName); if (hIndex === -1) return;
-    let cleanVal = el.innerHTML;
-    let textCheck = el.innerText.trim(); if (!textCheck || (textCheck === "Trống" && el.querySelector('i'))) cleanVal = "";
-    if (cleanVal === (draftData.data[hIndex] || "")) return; 
+    function updateDraftValue(headerName, el) {
+        if (!draftData || !draftData.headers) return;
+        let hIndex = draftData.headers.indexOf(headerName); if (hIndex === -1) return;
+        let cleanVal = el.innerHTML;
+        let textCheck = el.innerText.trim(); if (!textCheck || (textCheck === "Trống" && el.querySelector('i'))) cleanVal = "";
+        if (cleanVal === (draftData.data[hIndex] || "")) return; 
 
-    draftData.data[hIndex] = cleanVal; 
-    localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
-    
-    // Bắn realtime sang máy khác và bắt đầu đếm ngược lưu silent
-    if (typeof window.broadcastLeftPanelSync === 'function') {
-        window.broadcastLeftPanelSync(draftData);
+        draftData.data[hIndex] = cleanVal; localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
+        if (!sysData.sheets["_PLAN_DATA_"]) return;
+        let planRowIndex = draftData.planRowIndex; 
+
+        if (planRowIndex !== undefined && sysData.sheets["_PLAN_DATA_"][planRowIndex]) {
+            let newJsonData = JSON.stringify(draftData.data);
+            sysData.sheets["_PLAN_DATA_"][planRowIndex][2] = newJsonData; localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+            pushQueue({ type: 'SYNC_CELL', row: planRowIndex + 1, col: 3, val: newJsonData, tab: "_PLAN_DATA_" });
+            el.style.backgroundColor = "#e8f5e9"; setTimeout(() => el.style.backgroundColor = "", 1000);
+        } else { el.style.backgroundColor = "#ffcdd2"; setTimeout(() => el.style.backgroundColor = "", 1000); }
     }
-}
-
-
     
 function vbShowAlert(msg) {
     closeAllToolPopups();
@@ -5340,75 +5302,308 @@ async function downloadActiveImageWithMetadata() {
    ĐỘNG CƠ CỘNG TÁC & ĐỒNG BỘ SIÊU TỐC (V3.5 - BỌC THÉP TOÀN DIỆN)
 ==================================================================== */
 
+(function initRealtimeEngine() {
+    // 1. KHAI BÁO BIẾN CÁ NHÂN (Đã khôi phục myAvatar bị mất tích)
+    let rawEmail = localStorage.getItem('admin_email');
+    const myEmail = (rawEmail && rawEmail !== "undefined") ? rawEmail : ('anon_' + Math.floor(Math.random()*1000) + '@gmail.com');
+    
+    let rawName = localStorage.getItem('admin_name');
+    const myName = (rawName && rawName !== "undefined" && rawName !== "null") ? rawName : myEmail.split('@')[0];
+    
+    // PHỤC HỒI DÒNG HUYỆT TỬ NÀY:
+    const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
 
+    // 2. BẮT ROOM ID
+    const urlParams = new URLSearchParams(window.location.search);
+    let roomId = urlParams.get('id');
+    if (!roomId) {
+        try {
+            let draft = JSON.parse(localStorage.getItem('DRAFT_POST_DATA'));
+            if (draft && draft.data && draft.data[0]) {
+                roomId = draft.data[0];
+                window.history.replaceState(null, '', '?id=' + encodeURIComponent(roomId));
+            }
+        } catch(e) {}
+    }
+    roomId = (roomId || 'DRAFT_ROOM_GENERAL').replace(/[\.\#\$\[\]]/g, '_');
 
-    // ==========================================
-    // ĐỒNG BỘ REALTIME PHẦN "NGUỒN: KẾ HOẠCH" (PANEL TRÁI)
-    // ==========================================
-    window.broadcastLeftPanelSync = function(draftDataObj) {
-        leftPanelRef.set({ data: JSON.stringify(draftDataObj), sender: myDeviceId });
-        window.triggerHostSilenceCountdown();
+    const myDeviceId = 'dev_' + Math.random().toString(36).substring(2, 7);
+    const safeUserKey = myEmail.replace(/[\.\#\$\[\]]/g, '_') + '_' + myDeviceId;
+
+    const PALETTE = ['#01adee', '#db1010', '#8e44ad', '#27ae60', '#d35400', '#f39c12', '#16a085', '#2980b9'];
+    let hash = 0; for(let i=0; i<myEmail.length; i++) hash = myEmail.charCodeAt(i) + ((hash << 5) - hash);
+    const myColor = PALETTE[Math.abs(hash) % PALETTE.length];
+
+    const firebaseConfig = {
+        databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/"
     };
 
-    leftPanelRef.on('value', snapshot => {
-        const payload = snapshot.val();
-        if (!payload || payload.sender === myDeviceId) return;
-        try {
-            draftData = JSON.parse(payload.data);
-            localStorage.setItem("DRAFT_POST_DATA", payload.data);
-            
-            // Xóa chớp màn hình, chỉ cập nhật nội dung nhẹ nhàng
-            draftData.headers.forEach((h, i) => {
-                let rows = document.querySelectorAll('.data-row');
-                rows.forEach(r => {
-                    if (r.dataset.header === h) {
-                        let valCell = r.querySelector('.data-val');
-                        let newVal = draftData.data[i] || "";
-                        if (String(newVal).startsWith("http")) newVal = `<a href="${newVal}" target="_blank" style="color:var(--blue); word-break:break-all;">Link đính kèm</a>`;
-                        if (valCell.innerHTML !== newVal && document.activeElement !== valCell) {
-                            valCell.innerHTML = newVal || "<i style='color:#ccc;'>Trống</i>";
-                            valCell.style.backgroundColor = "#e6f7ff";
-                            setTimeout(() => valCell.style.backgroundColor = "", 1000);
-                        }
-                    }
-                });
-            });
-        } catch(e) {}
-    });
-
-    // Các hàm Caret & Mouse vị trí (Giữ nguyên như cũ)
-    let lastMouseTime = 0;
-    function broadcastMouse(clientX, clientY) {
-        if (!paperElem || Date.now() - lastMouseTime < 35) return; 
-        lastMouseTime = Date.now();
-        const rect = paperElem.getBoundingClientRect();
-        myPresenceRef.update({ x: clientX - rect.left, y: clientY - rect.top, updatedAt: firebase.database.ServerValue.TIMESTAMP });
-    }
-    window.addEventListener('mousemove', e => broadcastMouse(e.clientX, e.clientY));
+    if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
     
+    const myPresenceRef = db.ref(`collab_rooms/${roomId}/users/${safeUserKey}`);
+    const domSyncRef = db.ref(`collab_rooms/${roomId}/dom_state`);
+    const imageMetaLiveRef = db.ref(`collab_rooms/${roomId}/image_meta_subchannel`); // <-- KHÔI PHỤC KÊNH METADATA ẢNH
+
+    myPresenceRef.set({
+        name: myName, email: myEmail, avatar: myAvatar, color: myColor,
+        x: -9999, y: -9999, updatedAt: firebase.database.ServerValue.TIMESTAMP
+    });
+    myPresenceRef.onDisconnect().remove();
+
+    // --- HÀM BẢO TOÀN VỊ TRÍ CON TRỎ (Caret Preservation) ---
     function getCaretCharacterOffsetWithin(el) {
-        let caretOffset = 0; const sel = window.getSelection();
+        let caretOffset = 0;
+        const sel = window.getSelection();
         if (sel.rangeCount > 0) {
-            const range = sel.getRangeAt(0); const preCaretRange = range.cloneRange();
-            preCaretRange.selectNodeContents(el); preCaretRange.setEnd(range.endContainer, range.endOffset);
+            const range = sel.getRangeAt(0);
+            const preCaretRange = range.cloneRange();
+            preCaretRange.selectNodeContents(el);
+            preCaretRange.setEnd(range.endContainer, range.endOffset);
             caretOffset = preCaretRange.toString().length;
         }
         return caretOffset;
     }
+
     function setCaretPositionWithin(el, offset) {
-        const sel = window.getSelection(); const range = document.createRange();
+        const sel = window.getSelection();
+        const range = document.createRange();
         let charIndex = 0, found = false;
+
         function walk(node) {
             if (found) return;
             if (node.nodeType === Node.TEXT_NODE) {
                 const next = charIndex + node.length;
-                if (offset <= next) { range.setStart(node, offset - charIndex); range.collapse(true); sel.removeAllRanges(); sel.addRange(range); found = true; }
+                if (offset <= next) {
+                    range.setStart(node, offset - charIndex);
+                    range.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                    found = true;
+                }
                 charIndex = next;
-            } else { for (let i = 0; i < node.childNodes.length; i++) walk(node.childNodes[i]); }
+            } else {
+                for (let i = 0; i < node.childNodes.length; i++) walk(node.childNodes[i]);
+            }
         }
         walk(el);
     }
 
+    // --- PHẦN 1: BẮT TỌA ĐỘ CHUỘT & VẠCH GÕ CHỮ ---
+    let lastMouseTime = 0;
+    const paperElem = document.getElementById('editorContainer');
+
+    function broadcastMouse(clientX, clientY) {
+        if (!paperElem || Date.now() - lastMouseTime < 35) return; 
+        lastMouseTime = Date.now();
+
+        const rect = paperElem.getBoundingClientRect();
+        const paperX = clientX - rect.left;
+        const paperY = clientY - rect.top;
+
+        myPresenceRef.update({ x: paperX, y: paperY, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+    }
+
+    window.addEventListener('mousemove', e => broadcastMouse(e.clientX, e.clientY));
+    window.addEventListener('touchmove', e => { if(e.touches[0]) broadcastMouse(e.touches[0].clientX, e.touches[0].clientY); });
+
+    function broadcastCaretPosition() {
+        if (!paperElem) return;
+        const activeEl = document.activeElement;
+        if (!activeEl) return;
+
+        const paperRect = paperElem.getBoundingClientRect();
+        let caretX = 0; let caretY = 0; let isValid = false;
+
+        if (activeEl.isContentEditable) {
+            const sel = window.getSelection();
+            if (sel.rangeCount > 0) {
+                const range = sel.getRangeAt(0);
+                const rect = range.getBoundingClientRect(); 
+                if (rect.left !== 0 && rect.top !== 0) {
+                    caretX = rect.left - paperRect.left;
+                    caretY = rect.bottom - paperRect.top;
+                    isValid = true;
+                }
+            }
+        } else if (['INPUT', 'TEXTAREA'].includes(activeEl.tagName)) {
+            const rect = activeEl.getBoundingClientRect();
+            caretX = rect.right - paperRect.left - 5; 
+            caretY = rect.bottom - paperRect.top;
+            isValid = true;
+        }
+
+        if (isValid) {
+            myPresenceRef.update({ x: caretX, y: caretY, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+        }
+    }
+
+    ['keyup', 'input', 'mouseup', 'focusin'].forEach(evt => {
+        document.addEventListener(evt, () => { setTimeout(broadcastCaretPosition, 10); });
+    });
+
+    // --- BẮT REALTIME CHO BẢNG METADATA ẢNH ---
+    document.getElementById('vbMetadataTable')?.addEventListener('input', e => {
+        if (!vbActiveImage) return;
+        const metaCell = e.target.closest('.vb-meta-value');
+        if (!metaCell) return;
+
+        const payload = {
+            imageId: vbActiveImage.dataset.imageId,
+            metaKey: metaCell.dataset.metaKey,
+            text: metaCell.innerText.replace(/\u00a0/g, " ").trim(),
+            sender: myDeviceId
+        };
+        imageMetaLiveRef.set(payload);
+    });
+
+    // --- PHẦN 2: CAMERA GIÁM SÁT DOM ---
+    let isApplyingRemoteDOM = false;
+    let lastBroadcastedDOMHash = '';
+
+    const domCamera = new MutationObserver(() => {
+        if (isApplyingRemoteDOM) return;
+
+        const payload = {
+            postTitle: document.getElementById('postTitle')?.innerHTML || '',
+            postSapo: document.getElementById('postSapo')?.innerHTML || '',
+            coverHtml: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('coverEditor')) : (document.getElementById('coverEditor')?.innerHTML || ''),
+            postContent: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('postContent')) : (document.getElementById('postContent')?.innerHTML || ''),
+            sender: myDeviceId,
+            timestamp: Date.now()
+        };
+
+        const currentHash = payload.postTitle + payload.postSapo + payload.coverHtml + payload.postContent;
+        if (currentHash !== lastBroadcastedDOMHash) {
+            lastBroadcastedDOMHash = currentHash;
+            domSyncRef.set(payload);
+        }
+    });
+
+    if (paperElem) {
+        domCamera.observe(paperElem, { childList: true, subtree: true, characterData: true, attributes: true });
+    }
+
+    // --- PHẦN 3: LẮNG NGHE VÀ DÁN ĐÈ DOM ---
+
+    // 3.1 Nhận DOM
+    domSyncRef.on('value', snapshot => {
+        const domData = snapshot.val();
+        if (!domData || domData.sender === myDeviceId) return;
+
+        isApplyingRemoteDOM = true;
+
+        function smartInject(elementId, incomingHtml) {
+            const el = document.getElementById(elementId);
+            if (!el || el.innerHTML === incomingHtml) return;
+
+            if (document.activeElement === el || el.contains(document.activeElement)) {
+                const caretPos = getCaretCharacterOffsetWithin(el);
+                el.innerHTML = incomingHtml;
+                setCaretPositionWithin(el, caretPos);
+            } else {
+                el.innerHTML = incomingHtml;
+            }
+        }
+
+        smartInject('postTitle', domData.postTitle);
+        smartInject('postSapo', domData.postSapo);
+        smartInject('coverEditor', domData.coverHtml !== undefined ? domData.coverHtml : (domData.coverUrl ? `<img src="${domData.coverUrl}" class="vb-managed-image" data-image-role="cover">` : ''));
+// [THÊM DÒNG NÀY]: Xả sạch bộ nhớ bôi đen cũ trước khi đè DOM mới
+if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 'function') {
+    TableEditor.clearSelection();
+}
+        smartInject('postContent', domData.postContent);
+
+        if(typeof hydrateManagedImages === 'function') {
+            hydrateManagedImages(document.getElementById('coverEditor'), 'cover');
+            hydrateManagedImages(document.getElementById('postContent'), 'content');
+        }
+
+        // Nối lại dây tơ hồng cho đối tượng ảnh đang mở popup bị dán đè
+        if (vbActiveImage) {
+            let survivingId = vbActiveImage.dataset.imageId;
+            let revivedImgNode = document.querySelector(`img[data-image-id="${survivingId}"]`);
+            if (revivedImgNode) vbActiveImage = revivedImgNode;
+        }
+
+        setTimeout(() => { isApplyingRemoteDOM = false; }, 30);
+    });
+
+    // 3.2 Nhận User, Cursors & Avatars (BỌC THÉP CHỐNG ZOMBIE)
+    const usersListRef = db.ref(`collab_rooms/${roomId}/users`);
+    const cursorsCanvas = document.getElementById('collab-cursors-layer');
+    const avtBar = document.getElementById('collabAvatarList');
+    let lastAvtHash = '';
+
+    usersListRef.on('value', snapshot => {
+        const users = snapshot.val() || {};
+
+        if(cursorsCanvas) {
+            Array.from(cursorsCanvas.children).forEach(c => {
+                if (!users[c.id.replace('cursor_', '')]) c.remove();
+            });
+        }
+
+        let activeEmails = Object.keys(users).sort().join('|');
+        if (activeEmails !== lastAvtHash && avtBar) {
+            lastAvtHash = activeEmails;
+            let avtHtml = ''; let c = 0;
+            for(let k in users) {
+                let p = users[k];
+                if(!p || !p.email || p.email === "undefined") continue; 
+                c++;
+                let safeName = (p.name && p.name !== "undefined") ? p.name : p.email.split('@')[0];
+                avtHtml += `<div class="collab-user-node" style="--peer-color: ${p.color}; z-index: ${c};"><img src="${p.avatar}" alt="${safeName}" referrerpolicy="no-referrer" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'"><div class="collab-user-tooltip">${safeName}</div></div>`;
+            }
+            avtBar.innerHTML = avtHtml;
+        }
+
+        if(!cursorsCanvas) return;
+        for(let k in users) {
+            let peer = users[k];
+            if (!peer || !peer.email || peer.email === "undefined" || peer.email === myEmail) continue;
+
+            let safePeerName = (peer.name && peer.name !== "undefined") ? peer.name : "Ẩn danh";
+
+            let cursorDom = document.getElementById(`cursor_${k}`);
+            if (!cursorDom) {
+                cursorDom = document.createElement('div');
+                cursorDom.id = `cursor_${k}`;
+                cursorDom.className = 'peer-cursor';
+                cursorDom.style.setProperty('--peer-color', peer.color);
+                cursorDom.innerHTML = `<svg class="peer-cursor-arrow" viewBox="0 0 32 32"><polygon points="0,0 32,16 16,20 12,32"/></svg><div class="peer-cursor-label">${safePeerName}</div>`;
+                cursorsCanvas.appendChild(cursorDom);
+            }
+
+            cursorDom.style.transform = `translate(${peer.x}px, ${peer.y}px)`;
+        }
+    });
+
+    // 3.3 Nhận Meta ảnh
+    imageMetaLiveRef.on('value', snapshot => {
+        const data = snapshot.val();
+        if (!data || data.sender === myDeviceId) return;
+
+        if (vbActiveImage && vbActiveImage.dataset.imageId === data.imageId) {
+            const targetTd = document.querySelector(`#vbMetadataTable .vb-meta-value[data-meta-key="${data.metaKey}"]`);
+            if (targetTd && document.activeElement !== targetTd) {
+                targetTd.textContent = data.text;
+            }
+            let currentMeta = readImageMetadata(vbActiveImage);
+            currentMeta[data.metaKey] = data.text;
+            writeImageMetadata(vbActiveImage, currentMeta);
+        } else {
+            let targetImgDom = document.querySelector(`img[data-image-id="${data.imageId}"]`);
+            if (targetImgDom) {
+                let currentMeta = readImageMetadata(targetImgDom);
+                currentMeta[data.metaKey] = data.text;
+                writeImageMetadata(targetImgDom, currentMeta);
+            }
+        }
+    });
+
+})();
 /* ====================================================================
    BẢN CẬP NHẬT STUDIO ẢNH: CAROUSEL, SCALE %, REALTIME SYNC
 ==================================================================== */
@@ -5652,308 +5847,6 @@ document.addEventListener('mouseup', function() {
         markImageDirty(true);
     }
 });
-// ====================================================================
-// ĐỘNG CƠ CỘNG TÁC & ĐỒNG BỘ SIÊU TỐC (V8.1 - BỌC THÉP TOÀN DIỆN)
-// ====================================================================
-
-(function initRealtimeEngine() {
-    let rawEmail = localStorage.getItem('admin_email');
-    const myEmail = (rawEmail && rawEmail !== "undefined") ? rawEmail : ('anon_' + Math.floor(Math.random()*1000) + '@gmail.com');
-    let rawName = localStorage.getItem('admin_name');
-    const myName = (rawName && rawName !== "undefined" && rawName !== "null") ? rawName : myEmail.split('@')[0];
-    const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
-
-    const urlParams = new URLSearchParams(window.location.search);
-    let roomId = urlParams.get('id');
-    if (!roomId) {
-        try {
-            let draft = JSON.parse(localStorage.getItem('DRAFT_POST_DATA'));
-            if (draft && draft.data && draft.data[0]) roomId = draft.data[0];
-        } catch(e) {}
-    }
-    roomId = (roomId || 'DRAFT_ROOM_GENERAL').replace(/[\.\#\$\[\]]/g, '_');
-
-    const myDeviceId = 'dev_' + Math.random().toString(36).substring(2, 7);
-    const safeUserKey = myEmail.replace(/[\.\#\$\[\]]/g, '_') + '_' + myDeviceId;
-
-    const PALETTE = ['#01adee', '#db1010', '#8e44ad', '#27ae60', '#d35400', '#f39c12', '#16a085', '#2980b9'];
-    let hash = 0; for(let i=0; i<myEmail.length; i++) hash = myEmail.charCodeAt(i) + ((hash << 5) - hash);
-    const myColor = PALETTE[Math.abs(hash) % PALETTE.length];
-
-    const firebaseConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" };
-    if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    
-    const roomRef = db.ref(`collab_rooms/${roomId}`);
-    const myPresenceRef = roomRef.child(`users/${safeUserKey}`);
-    const domSyncRef = roomRef.child('dom_state');
-    const leftPanelRef = roomRef.child('left_panel_state');
-
-    // FIX LỖI VƯƠNG MIỆN: Dùng joinedAt để bầu Chủ phòng, người vào đầu tiên auto làm Host
-    myPresenceRef.set({ name: myName, email: myEmail, avatar: myAvatar, color: myColor, x: -9999, y: -9999, joinedAt: firebase.database.ServerValue.TIMESTAMP, updatedAt: firebase.database.ServerValue.TIMESTAMP });
-    myPresenceRef.onDisconnect().remove();
-
-    let isRoomHost = false;
-    let currentUsersCount = 0;
-    let silenceDiffTimer = null;
-
-    function evaluateHostRole(usersObj) {
-        if (!usersObj) return null;
-        const uids = Object.keys(usersObj);
-        currentUsersCount = uids.length;
-        if (uids.length === 0) return null;
-        // Bầu chọn dựa trên thời gian tham gia (joinedAt) thay vì chuột (updatedAt)
-        uids.sort((a, b) => (usersObj[a].joinedAt || 0) - (usersObj[b].joinedAt || 0));
-        const activeHostUid = uids[0];
-        isRoomHost = (activeHostUid === safeUserKey);
-        return activeHostUid;
-    }
-
-    // ĐẾM NGƯỢC LƯU NGẦM KHI CÒN 1 MÌNH
-    window.triggerHostSilenceCountdown = function() {
-        clearTimeout(silenceDiffTimer);
-        let cloud = document.getElementById('autoSaveCloud');
-        
-        if (currentUsersCount > 1) {
-            if (cloud) { cloud.className = 'saving'; cloud.innerHTML = '<i class="fas fa-cloud-upload-alt" style="color: #f39c12;"></i>'; }
-            setTimeout(() => { if (cloud) { cloud.className = ''; cloud.innerHTML = '<i class="fas fa-cloud" style="color: var(--blue);"></i>'; } }, 800);
-            return;
-        }
-
-        if (cloud) { cloud.className = 'saving'; cloud.innerHTML = '<i class="fas fa-sync fa-spin" style="color: #f39c12;"></i>'; }
-        silenceDiffTimer = setTimeout(() => {
-            if (currentUsersCount <= 1) window.silentCommitToSheet();
-        }, 4000);
-    };
-
-    let isApplyingRemoteDOM = false;
-    let lastBroadcastedDOMHash = '';
-    const paperElem = document.getElementById('editorContainer');
-
-    const domCamera = new MutationObserver(() => {
-        if (isApplyingRemoteDOM) return;
-
-        const payload = {
-            postTitle: document.getElementById('postTitle')?.innerHTML || '',
-            postSapo: document.getElementById('postSapo')?.innerHTML || '',
-            coverHtml: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('coverEditor')) : (document.getElementById('coverEditor')?.innerHTML || ''),
-            postContent: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('postContent')) : (document.getElementById('postContent')?.innerHTML || ''),
-            sender: myDeviceId, timestamp: Date.now()
-        };
-
-        const currentHash = payload.postTitle + payload.postSapo + payload.coverHtml + payload.postContent;
-        if (currentHash !== lastBroadcastedDOMHash) {
-            lastBroadcastedDOMHash = currentHash;
-            // FIX LỖI MẤT BÀI: Lưu thẳng DOM vào LocalStorage làm phao cứu sinh trước
-            localStorage.setItem(`POST_BACKUP_${roomId}`, JSON.stringify(payload));
-            domSyncRef.set(payload);
-            window.triggerHostSilenceCountdown();
-        }
-    });
-
-    if (paperElem) domCamera.observe(paperElem, { childList: true, subtree: true, characterData: true, attributes: true });
-
-    // NHẬN DỮ LIỆU DOM TỪ MÁY KHÁC
-    domSyncRef.on('value', snapshot => {
-        const domData = snapshot.val();
-        if (!domData || domData.sender === myDeviceId) return;
-
-        isApplyingRemoteDOM = true;
-        function smartInject(elementId, incomingHtml) {
-            const el = document.getElementById(elementId);
-            if (!el || el.innerHTML === incomingHtml) return;
-            if (document.activeElement === el || el.contains(document.activeElement)) {
-                const caretPos = getCaretCharacterOffsetWithin(el);
-                el.innerHTML = incomingHtml;
-                setCaretPositionWithin(el, caretPos);
-            } else { el.innerHTML = incomingHtml; }
-        }
-
-        smartInject('postTitle', domData.postTitle);
-        smartInject('postSapo', domData.postSapo);
-        smartInject('coverEditor', domData.coverHtml);
-        smartInject('postContent', domData.postContent);
-
-        if(typeof hydrateManagedImages === 'function') {
-            hydrateManagedImages(document.getElementById('coverEditor'), 'cover');
-            hydrateManagedImages(document.getElementById('postContent'), 'content');
-        }
-        setTimeout(() => { isApplyingRemoteDOM = false; }, 30);
-    });
-
-    const usersListRef = roomRef.child('users');
-    const avtBar = document.getElementById('collabAvatarList');
-    let lastAvtHash = '';
-
-    usersListRef.on('value', snapshot => {
-        const users = snapshot.val() || {};
-        const currentHostUid = evaluateHostRole(users);
-
-        let activeEmails = Object.keys(users).sort().join('|');
-        if (activeEmails !== lastAvtHash && avtBar) {
-            lastAvtHash = activeEmails;
-            let avtHtml = ''; let c = 0;
-            for(let k in users) {
-                let p = users[k];
-                if(!p || !p.email || p.email === "undefined") continue; 
-                c++;
-                let safeName = (p.name && p.name !== "undefined") ? p.name : p.email.split('@')[0];
-                let crownHtml = (k === currentHostUid) ? '<div class="host-crown" style="position: absolute; top: -12px; right: -6px; transform: rotate(18deg); font-size: 15px; z-index: 20;">👑</div>' : '';
-                
-                avtHtml += `
-                <div class="collab-user-node" style="position:relative; width:32px; height:32px; border-radius:50%; border:2px solid ${p.color}; margin-left:-10px; z-index: ${c}; background:#fff;">
-                    ${crownHtml}
-                    <img src="${p.avatar}" title="${safeName}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'">
-                </div>`;
-            }
-            avtBar.innerHTML = avtHtml;
-        }
-    });
-
-    let lastMouseTime = 0;
-    window.addEventListener('mousemove', e => {
-        if (!paperElem || Date.now() - lastMouseTime < 50) return; 
-        lastMouseTime = Date.now();
-        myPresenceRef.update({ updatedAt: firebase.database.ServerValue.TIMESTAMP });
-    });
-
-    function getCaretCharacterOffsetWithin(el) {
-        let caretOffset = 0; const sel = window.getSelection();
-        if (sel.rangeCount > 0) {
-            const range = sel.getRangeAt(0); const preCaretRange = range.cloneRange();
-            preCaretRange.selectNodeContents(el); preCaretRange.setEnd(range.endContainer, range.endOffset);
-            caretOffset = preCaretRange.toString().length;
-        }
-        return caretOffset;
-    }
-    function setCaretPositionWithin(el, offset) {
-        const sel = window.getSelection(); const range = document.createRange();
-        let charIndex = 0, found = false;
-        function walk(node) {
-            if (found) return;
-            if (node.nodeType === Node.TEXT_NODE) {
-                const next = charIndex + node.length;
-                if (offset <= next) { range.setStart(node, offset - charIndex); range.collapse(true); sel.removeAllRanges(); sel.addRange(range); found = true; }
-                charIndex = next;
-            } else { for (let i = 0; i < node.childNodes.length; i++) walk(node.childNodes[i]); }
-        }
-        walk(el);
-    }
-    
-    // =========================================================
-    // HÀM LƯU NGẦM CHÍNH THỨC - KHÔNG LÀM CHỚP GIAO DIỆN
-    // =========================================================
-    window.silentCommitToSheet = async function() {
-        const planId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : null);
-        if (!planId) return;
-
-        let cloudIcon = document.getElementById('autoSaveCloud');
-        if(cloudIcon) cloudIcon.innerHTML = '<i class="fas fa-sync fa-spin" style="color: #f39c12;"></i>';
-
-        try {
-            // Cập nhật Left Panel ngầm
-            if (draftData && sysData.sheets["_PLAN_DATA_"] && draftData.planRowIndex !== undefined) {
-                 const newJsonData = JSON.stringify(draftData.data);
-                 if (sysData.sheets["_PLAN_DATA_"][draftData.planRowIndex][2] !== newJsonData) {
-                     sysData.sheets["_PLAN_DATA_"][draftData.planRowIndex][2] = newJsonData;
-                     actionQueue.push({ type: 'SYNC_CELL', row: draftData.planRowIndex + 1, col: 3, val: newJsonData, tab: "_PLAN_DATA_" });
-                 }
-            }
-
-            // Đóng gói Dữ liệu Bài viết
-            const title = document.getElementById("postTitle").innerHTML;
-            const sapo = document.getElementById("postSapo").innerHTML;
-            const content = typeof serializeEditorContentForSheet === 'function' ? serializeEditorContentForSheet() : document.getElementById("postContent").innerHTML;
-            const finalHtml = `<div class="post-body">${content}</div>`;
-
-            if (!sysData.sheets["Bài viết_hidden"]) return; 
-            
-            const bvTab = sysData.sheets["Bài viết_hidden"];
-            let targetRow = -1;
-            for (let r = 1; r < bvTab.length; r++) { if (bvTab[r][0] === planId) { targetRow = r; break; } }
-
-            const rowData = [planId, title, sapo, "", finalHtml, ""];
-            let batchPayload = [...actionQueue]; actionQueue = [];
-            
-            if (targetRow !== -1) {
-                let isChanged = false;
-                for (let c = 1; c <= 5; c++) {
-                    if (bvTab[targetRow][c-1] !== rowData[c-1]) {
-                        bvTab[targetRow][c-1] = rowData[c-1];
-                        batchPayload.push({type:'SYNC_CELL', row: targetRow + 1, col: c, val: rowData[c - 1], tab: "Bài viết_hidden"});
-                        isChanged = true;
-                    }
-                }
-                if (!isChanged && batchPayload.length === 0) {
-                    if(cloudIcon) cloudIcon.innerHTML = '<i class="fas fa-cloud" style="color: #27ae60;"></i>';
-                    return;
-                }
-            } else {
-                targetRow = bvTab.length;
-                bvTab.push(rowData);
-                batchPayload.push({type:'STRUCTURAL', action:'insertRow', index: targetRow + 1, count: 1, tab: "Bài viết_hidden"});
-                for (let c = 1; c <= 5; c++) batchPayload.push({type:'SYNC_CELL', row: targetRow + 1, col: c, val: rowData[c - 1], tab: "Bài viết_hidden"});
-            }
-
-            fetch(API_URL, { method: "POST", body: JSON.stringify(batchPayload), headers: { "Content-Type": "text/plain;charset=utf-8" } })
-            .then(res => res.json())
-            .then(json => {
-                if (json.success) {
-                    currentSyncToken = json.syncToken;
-                    localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
-                    // Khi đã lưu an toàn lên Sheet, xóa phao cứu sinh LocalStorage
-                    localStorage.removeItem(`POST_BACKUP_${planId}`);
-                    if(cloudIcon) cloudIcon.innerHTML = '<i class="fas fa-cloud" title="Đã lưu an toàn" style="color: #27ae60;"></i>';
-                }
-            });
-
-        } catch (e) {
-            if(cloudIcon) cloudIcon.innerHTML = '<i class="fas fa-exclamation-triangle" style="color: var(--red);"></i>';
-        }
-    };
-
-    // CHỐT CHẶN BẢO VỆ: Nếu người dùng lỡ tay Tắt Tab / F5 trước khi 4 giây đếm ngược kết thúc -> Ép lưu ngay lập tức!
-    window.addEventListener('beforeunload', function (e) {
-        if (currentUsersCount <= 1 && isVBDirty) {
-            window.silentCommitToSheet();
-            // Lưu phòng hờ F5
-            const payload = {
-                postTitle: document.getElementById('postTitle')?.innerHTML || '',
-                postSapo: document.getElementById('postSapo')?.innerHTML || '',
-                coverHtml: document.getElementById('coverEditor')?.innerHTML || '',
-                postContent: document.getElementById('postContent')?.innerHTML || ''
-            };
-            localStorage.setItem(`POST_BACKUP_${roomId}`, JSON.stringify(payload));
-        }
-    });
-
-})();
-
-// ====================================================================
-// CHÈN VÀO HÀM LOAD POST ĐỂ PHỤC HỒI PHAO CỨU SINH KHI F5 MẤT MẠNG
-// ====================================================================
-const originalLoadPostIntoEditor = loadPostIntoEditor;
-loadPostIntoEditor = function(postId) {
-    // Kéo dữ liệu từ Google Sheets như bình thường
-    originalLoadPostIntoEditor(postId);
-    
-    // Rà soát xem có phao cứu sinh do tắt Tab đột ngột không?
-    let backupStr = localStorage.getItem(`POST_BACKUP_${postId}`);
-    if (backupStr) {
-        try {
-            let backup = JSON.parse(backupStr);
-            document.getElementById("postTitle").innerHTML = backup.postTitle || "";
-            document.getElementById("postSapo").innerHTML = backup.postSapo || "";
-            document.getElementById("coverEditor").innerHTML = backup.coverHtml || "";
-            document.getElementById("postContent").innerHTML = backup.postContent || "";
-            isVBDirty = true;
-            document.getElementById('syncStatusVB').innerText = "⚠️ Phục hồi chưa lưu";
-            document.getElementById('syncStatusVB').style.color = "var(--red)";
-            // Tái kích hoạt đếm ngược để đẩy phao cứu sinh lên Server
-            if(typeof window.triggerHostSilenceCountdown === 'function') window.triggerHostSilenceCountdown();
-        } catch(e) {}
-    }
-};
 </script>
 
 </body>
