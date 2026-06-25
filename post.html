@@ -1340,13 +1340,13 @@
       <i class="fas fa-image" style="color:#01adee;"></i>▾
     </button>
 <div class="vb-mini-popup" id="popupMiniImage" style="min-width: 220px; top:auto; bottom:100%; margin-bottom:5px;">
-      <div class="popup-item" onclick="chooseImageSource('upload')">
+      <div class="popup-item" onmousedown="event.preventDefault();" onclick="chooseImageSource('upload')">
         <i class="fas fa-upload" style="color:#01adee;"></i> Upload
       </div>
-      <div class="popup-item" onclick="chooseImageSource('drive')">
+      <div class="popup-item" onmousedown="event.preventDefault();" onclick="chooseImageSource('drive')">
         <i class="fab fa-google-drive" style="color:#34a853;"></i> Drive
       </div>
-      <div class="popup-item" onclick="chooseImageSource('url')">
+      <div class="popup-item" onmousedown="event.preventDefault();" onclick="chooseImageSource('url')">
         <i class="fas fa-link" style="color:#db1010;"></i> URL
       </div>
       
@@ -4302,22 +4302,36 @@ function chooseImageSource(type) {
     if (typeof TableEditor !== 'undefined') TableEditor.hideMenus();
 
     if (type === "upload") {
-        document.getElementById("vbImageFileInput")?.click();
+        // --- THUẬT TOÁN MỚI: TẠO INPUT ẢO ĐỂ BẮT FILE ---
+        // Khắc phục triệt để lỗi đứt gãy sự kiện từ Popup trôi nổi
+        let tempInput = document.createElement("input");
+        tempInput.type = "file";
+        tempInput.accept = "image/*";
+        tempInput.multiple = true;
+        
+        tempInput.onchange = async function(e) {
+            let files = e.target.files;
+            if (files && files.length > 0) {
+                // Đẩy file thẳng vào động cơ xử lý ảnh lõi
+                await insertImageFiles(files, vbImageTargetMode);
+            }
+        };
+        
+        // Kích hoạt mở hộp thoại chọn file
+        tempInput.click();
         return;
     }
+    
     if (type === "drive") {
-        // CẬP NHẬT: Đặt tên cửa sổ là 'googleDriveWindow' để trình duyệt tự tái sử dụng tab đã mở
         window.open("https://drive.google.com/drive/u/0/my-drive", "googleDriveWindow");
-        
-        setTimeout(() => {
-            window.focus();
-        }, 10);
+        setTimeout(() => window.focus(), 10);
 
         vbShowPrompt("Google Drive đã được mở.<br>Hãy chọn ảnh, sao chép liên kết chia sẻ rồi dán vào đây:", url => {
             if (url) insertManagedImage(createManagedImage(url.trim(), vbImageTargetMode, {}), vbImageTargetMode);
         });
         return;
     }
+    
     vbShowPrompt("Dán URL ảnh (https:// hoặc data:image/...):", url => {
         if (url) insertManagedImage(createManagedImage(url.trim(), vbImageTargetMode, {}), vbImageTargetMode);
     });
