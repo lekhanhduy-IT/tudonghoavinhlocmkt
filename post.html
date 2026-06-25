@@ -376,8 +376,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-direction: row-reverse; /* Để người vào sau xếp chồng lên người vào trước */
-    gap: -10px; /* Hiệu ứng thò thụt chồng đè */
+    flex-direction: row-reverse;
+    gap: -10px;
     padding: 0 15px;
     min-width: 100px;
 }
@@ -390,9 +390,20 @@
     border: 2px solid var(--peer-color, #01adee);
     box-shadow: 0 0 0 2px #ffffff;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28);
     user-select: none;
     background: #fff;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.collab-user-node .head-anchor {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .collab-user-node img {
@@ -402,8 +413,23 @@
     object-fit: cover;
 }
 
+.collab-user-node .host-crown {
+    position: absolute;
+    top: -12px;
+    right: -6px;
+    transform: rotate(18deg);
+    font-size: 15px;
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
+    z-index: 20;
+    pointer-events: none;
+    user-select: none;
+}
+
+.collab-user-node:hover .head-anchor {
+    transform: scale(1.15) translateY(-2px);
+}
+
 .collab-user-node:hover {
-    transform: translateY(-5px) scale(1.15);
     z-index: 1000 !important;
 }
 
@@ -425,7 +451,6 @@
     transition: transform 0.15s ease;
 }
 .collab-user-node:hover .collab-user-tooltip { transform: translateX(-50%) scale(1); }
-
 
 /* Con trỏ chuột lơ lửng trên màn hình */
 .peer-cursor {
@@ -993,10 +1018,9 @@
   <div style="display: flex; align-items: center;">
     <span id="syncStatusVB" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60;">✅ Đã đồng bộ</span>
     <button class="tool-btn" onclick="togglePanelVB('right')" style="margin-right: 10px;"><i class="fas fa-toolbox"></i> Công cụ</button>
-    <!--<button class="tool-btn save-btn" onclick="savePostToSheet()"><i class="fas fa-save"></i> Lưu bài viết</button>-->
-    <div id="autoSaveCloudIndicator" title="Hệ thống Master Canvas đang tự động bảo vệ bài viết" style="display: inline-flex; align-items: center; gap: 6px; background: #f1f5f9; border: 1px solid #cbd5e1; padding: 4px 12px; border-radius: 20px; font-weight: bold; user-select: none;">
-    <i class="fas fa-cloud" style="color: #0284c7;"></i> <span style="color: #64748b; font-size: 12px;">Đã đồng bộ Cloud</span>
-    </div>
+    <button class="tool-btn save-btn" id="autoSaveBtn" style="pointer-events: none; background: #e0f2f1; color: #00897b; border-color: #00897b;">
+      <i class="fas fa-cloud"></i> Tự động lưu
+    </button>
   </div>
 </div>
 <div class="workspace" id="workspaceArea">
@@ -1625,6 +1649,8 @@ const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
 
 
     let sysData = { sheets: {} }; 
+    let hasLoadedInitialPost = false;
+    window.currentUsersCount = 0;
     let draftData = null;
     let actionQueue = [];
     let currentSyncToken = 0;
@@ -1736,13 +1762,12 @@ const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
             });
         });
     });
-    function processAndRenderPostUI() {
+function processAndRenderPostUI() {
         loadGoogleFontsFromSheet(sysData);
         loadEmojisFromSheet(sysData);
         loadTemplatesFromSheet(sysData);
         prewarmPostImagesFromBrain(sysData);
 
-        // Tự động nạp dữ liệu từ _PLAN_DATA_ vào đệm nháp
         if (draftData && draftData.planRowIndex !== undefined && sysData.sheets["_PLAN_DATA_"]) {
             let planRow = sysData.sheets["_PLAN_DATA_"][draftData.planRowIndex];
             if (planRow && planRow[2]) {
@@ -1756,9 +1781,14 @@ const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
 
         let urlParams = new URLSearchParams(window.location.search);
         let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[0] : null);
-        if (postIdToLoad && !isVBDirty) {
+        
+        let isRealtimeActive = (typeof window.currentUsersCount !== 'undefined' && window.currentUsersCount > 0);
+        
+        // CHỈ nạp đè DOM bài viết vào Editor khi: Chưa nạp lần nào HOẶC (Đang không sửa VÀ không có kết nối Realtime)
+        if (postIdToLoad && (!hasLoadedInitialPost || (!isVBDirty && !isRealtimeActive))) {
             currentPostId = postIdToLoad;
             loadPostIntoEditor(postIdToLoad);
+            hasLoadedInitialPost = true;
         }
     }
 
@@ -1924,7 +1954,7 @@ const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
         else { targetRow = ttSheet.length; ttSheet.push([tabName, orderJson]); pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow+1, count: 1, tab: "thutuHeader_hidden"}); pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 1, val: tabName, tab: "thutuHeader_hidden"}); pushQueue({type:'SYNC_CELL', row: targetRow+1, col: 2, val: orderJson, tab: "thutuHeader_hidden"}); }
     }
 
-    function updateDraftValue(headerName, el) {
+function updateDraftValue(headerName, el) {
         if (!draftData || !draftData.headers) return;
         let hIndex = draftData.headers.indexOf(headerName); if (hIndex === -1) return;
         let cleanVal = el.innerHTML;
@@ -1941,6 +1971,9 @@ const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
             pushQueue({ type: 'SYNC_CELL', row: planRowIndex + 1, col: 3, val: newJsonData, tab: "_PLAN_DATA_" });
             el.style.backgroundColor = "#e8f5e9"; setTimeout(() => el.style.backgroundColor = "", 1000);
         } else { el.style.backgroundColor = "#ffcdd2"; setTimeout(() => el.style.backgroundColor = "", 1000); }
+        
+        // Kích hoạt lưu toàn bộ bài viết (nếu đủ điều kiện Host)
+        if (typeof window.triggerAutoSave === 'function') window.triggerAutoSave();
     }
     
 function vbShowAlert(msg) {
@@ -2176,21 +2209,19 @@ function vbShowPrompt(msg, callback) {
         }
     }
 
-    async function savePostToSheet() {
+async function savePostToSheetSeamless() {
         const title = document.getElementById("postTitle").innerHTML;
         const sapo = document.getElementById("postSapo").innerHTML;
         const planId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_" + new Date().getTime());
         currentPostId = planId;
 
-        const status = document.getElementById('syncStatusVB');
-        status.innerHTML = "⏳ Đang lưu ảnh vào Shared Drive...";
-        status.style.color = "#f39c12";
+        const btn = document.getElementById('autoSaveBtn');
+        if (btn) btn.innerHTML = '<i class="fas fa-sync fa-spin"></i> Đang lưu...';
 
         try {
             await uploadAllPendingPostImages(planId);
         } catch (uploadErr) {
-            status.innerHTML = "⚠️ Lỗi lưu ảnh";
-            status.style.color = "var(--red)";
+            if (btn) btn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Lỗi lưu ảnh';
             vbShowAlert("Không thể lưu toàn bộ ảnh vào Shared Drive:<br><br>" + escapeHtmlText(uploadErr.message || String(uploadErr)));
             return;
         }
@@ -2219,7 +2250,6 @@ function vbShowPrompt(msg, callback) {
                 pushQueue({type:'SYNC_CELL', row: 1, col: i + 1, val: header, tab: "Bài viết_hidden"});
             });
         } else {
-            // Tương thích Sheet cũ: bổ sung tiêu đề cột metadata nếu chưa có.
             const header = sysData.sheets["Bài viết_hidden"][0] || [];
             if (header[5] !== "Metadata Ảnh Bìa") {
                 header[5] = "Metadata Ảnh Bìa";
@@ -2232,9 +2262,6 @@ function vbShowPrompt(msg, callback) {
         for (let r = 1; r < bvTab.length; r++) {
             if (bvTab[r][0] === planId) { targetRow = r; break; }
         }
-
-        status.innerHTML = "⏳ Đang ghi Sheet...";
-        status.style.color = "#f39c12";
 
         const rowData = [planId, title, sapo, coverUrl, finalHtml, coverMetadata];
 
@@ -2252,12 +2279,15 @@ function vbShowPrompt(msg, callback) {
             }
         }
 
-        // Cập nhật cache cục bộ ngay để lần mở kế tiếp không phải chờ mạng.
         localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
         isVBDirty = false;
-        status.innerHTML = "✅ Ảnh đã lưu Drive, đang đồng bộ";
-        status.style.color = "#27ae60";
+        
+        if (btn) btn.innerHTML = '<i class="fas fa-cloud-check"></i> Đã lưu Sheet';
+        setTimeout(() => { if (btn) btn.innerHTML = '<i class="fas fa-cloud"></i> Tự động lưu'; }, 3000);
     }
+
+    // Đảm bảo mã ngoài vẫn gọi được nếu cần
+    window.savePostToSheet = savePostToSheetSeamless;
 
     function applyGoogleFontFromLink() {
         let linkHtml = document.getElementById("newFontLink").value.trim();
@@ -5306,17 +5336,14 @@ async function downloadActiveImageWithMetadata() {
 ==================================================================== */
 
 (function initRealtimeEngine() {
-    // 1. KHAI BÁO BIẾN CÁ NHÂN (Đã khôi phục myAvatar bị mất tích)
     let rawEmail = localStorage.getItem('admin_email');
     const myEmail = (rawEmail && rawEmail !== "undefined") ? rawEmail : ('anon_' + Math.floor(Math.random()*1000) + '@gmail.com');
     
     let rawName = localStorage.getItem('admin_name');
     const myName = (rawName && rawName !== "undefined" && rawName !== "null") ? rawName : myEmail.split('@')[0];
     
-    // PHỤC HỒI DÒNG HUYỆT TỬ NÀY:
     const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
 
-    // 2. BẮT ROOM ID
     const urlParams = new URLSearchParams(window.location.search);
     let roomId = urlParams.get('id');
     if (!roomId) {
@@ -5346,15 +5373,27 @@ async function downloadActiveImageWithMetadata() {
     
     const myPresenceRef = db.ref(`collab_rooms/${roomId}/users/${safeUserKey}`);
     const domSyncRef = db.ref(`collab_rooms/${roomId}/dom_state`);
-    const imageMetaLiveRef = db.ref(`collab_rooms/${roomId}/image_meta_subchannel`); // <-- KHÔI PHỤC KÊNH METADATA ẢNH
+    const imageMetaLiveRef = db.ref(`collab_rooms/${roomId}/image_meta_subchannel`);
+
+    // LOGIC AUTO-SAVE HOST
+    let isRoomHost = false;
+    let hostSilenceTimer = null;
+
+    window.triggerAutoSave = function() {
+        if (!isRoomHost || window.currentUsersCount > 1) return;
+        
+        clearTimeout(hostSilenceTimer);
+        hostSilenceTimer = setTimeout(() => {
+            if (typeof savePostToSheetSeamless === 'function') savePostToSheetSeamless();
+        }, 4500); 
+    };
 
     myPresenceRef.set({
         name: myName, email: myEmail, avatar: myAvatar, color: myColor,
-        x: -9999, y: -9999, updatedAt: firebase.database.ServerValue.TIMESTAMP
+        x: -9999, y: -9999, joinedAt: firebase.database.ServerValue.TIMESTAMP, updatedAt: firebase.database.ServerValue.TIMESTAMP
     });
     myPresenceRef.onDisconnect().remove();
 
-    // --- HÀM BẢO TOÀN VỊ TRÍ CON TRỎ (Caret Preservation) ---
     function getCaretCharacterOffsetWithin(el) {
         let caretOffset = 0;
         const sel = window.getSelection();
@@ -5392,18 +5431,15 @@ async function downloadActiveImageWithMetadata() {
         walk(el);
     }
 
-    // --- PHẦN 1: BẮT TỌA ĐỘ CHUỘT & VẠCH GÕ CHỮ ---
     let lastMouseTime = 0;
     const paperElem = document.getElementById('editorContainer');
 
     function broadcastMouse(clientX, clientY) {
         if (!paperElem || Date.now() - lastMouseTime < 35) return; 
         lastMouseTime = Date.now();
-
         const rect = paperElem.getBoundingClientRect();
         const paperX = clientX - rect.left;
         const paperY = clientY - rect.top;
-
         myPresenceRef.update({ x: paperX, y: paperY, updatedAt: firebase.database.ServerValue.TIMESTAMP });
     }
 
@@ -5445,7 +5481,6 @@ async function downloadActiveImageWithMetadata() {
         document.addEventListener(evt, () => { setTimeout(broadcastCaretPosition, 10); });
     });
 
-    // --- BẮT REALTIME CHO BẢNG METADATA ẢNH ---
     document.getElementById('vbMetadataTable')?.addEventListener('input', e => {
         if (!vbActiveImage) return;
         const metaCell = e.target.closest('.vb-meta-value');
@@ -5460,7 +5495,6 @@ async function downloadActiveImageWithMetadata() {
         imageMetaLiveRef.set(payload);
     });
 
-    // --- PHẦN 2: CAMERA GIÁM SÁT DOM ---
     let isApplyingRemoteDOM = false;
     let lastBroadcastedDOMHash = '';
 
@@ -5480,6 +5514,9 @@ async function downloadActiveImageWithMetadata() {
         if (currentHash !== lastBroadcastedDOMHash) {
             lastBroadcastedDOMHash = currentHash;
             domSyncRef.set(payload);
+            
+            // Nếu có thao tác DOM mới -> Đếm ngược để tự động lưu Sheet (nếu là Host & Một mình)
+            if (window.triggerAutoSave) window.triggerAutoSave();
         }
     });
 
@@ -5487,9 +5524,6 @@ async function downloadActiveImageWithMetadata() {
         domCamera.observe(paperElem, { childList: true, subtree: true, characterData: true, attributes: true });
     }
 
-    // --- PHẦN 3: LẮNG NGHE VÀ DÁN ĐÈ DOM ---
-
-    // 3.1 Nhận DOM
     domSyncRef.on('value', snapshot => {
         const domData = snapshot.val();
         if (!domData || domData.sender === myDeviceId) return;
@@ -5512,10 +5546,10 @@ async function downloadActiveImageWithMetadata() {
         smartInject('postTitle', domData.postTitle);
         smartInject('postSapo', domData.postSapo);
         smartInject('coverEditor', domData.coverHtml !== undefined ? domData.coverHtml : (domData.coverUrl ? `<img src="${domData.coverUrl}" class="vb-managed-image" data-image-role="cover">` : ''));
-// [THÊM DÒNG NÀY]: Xả sạch bộ nhớ bôi đen cũ trước khi đè DOM mới
-if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 'function') {
-    TableEditor.clearSelection();
-}
+        
+        if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 'function') {
+            TableEditor.clearSelection();
+        }
         smartInject('postContent', domData.postContent);
 
         if(typeof hydrateManagedImages === 'function') {
@@ -5523,7 +5557,6 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
             hydrateManagedImages(document.getElementById('postContent'), 'content');
         }
 
-        // Nối lại dây tơ hồng cho đối tượng ảnh đang mở popup bị dán đè
         if (vbActiveImage) {
             let survivingId = vbActiveImage.dataset.imageId;
             let revivedImgNode = document.querySelector(`img[data-image-id="${survivingId}"]`);
@@ -5533,7 +5566,6 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
         setTimeout(() => { isApplyingRemoteDOM = false; }, 30);
     });
 
-    // 3.2 Nhận User, Cursors & Avatars (BỌC THÉP CHỐNG ZOMBIE)
     const usersListRef = db.ref(`collab_rooms/${roomId}/users`);
     const cursorsCanvas = document.getElementById('collab-cursors-layer');
     const avtBar = document.getElementById('collabAvatarList');
@@ -5541,6 +5573,16 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
 
     usersListRef.on('value', snapshot => {
         const users = snapshot.val() || {};
+        const uids = Object.keys(users);
+        window.currentUsersCount = uids.length;
+
+        // Bầu chọn Chủ Phòng (Host) dựa theo thời gian vào phòng
+        let currentHostUid = null;
+        if (window.currentUsersCount > 0) {
+            const sortedUids = uids.sort((a, b) => (users[a].joinedAt || 0) - (users[b].joinedAt || 0));
+            currentHostUid = sortedUids[0];
+            isRoomHost = (currentHostUid === safeUserKey);
+        }
 
         if(cursorsCanvas) {
             Array.from(cursorsCanvas.children).forEach(c => {
@@ -5548,7 +5590,7 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
             });
         }
 
-        let activeEmails = Object.keys(users).sort().join('|');
+        let activeEmails = uids.sort().join('|');
         if (activeEmails !== lastAvtHash && avtBar) {
             lastAvtHash = activeEmails;
             let avtHtml = ''; let c = 0;
@@ -5557,7 +5599,16 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
                 if(!p || !p.email || p.email === "undefined") continue; 
                 c++;
                 let safeName = (p.name && p.name !== "undefined") ? p.name : p.email.split('@')[0];
-                avtHtml += `<div class="collab-user-node" style="--peer-color: ${p.color}; z-index: ${c};"><img src="${p.avatar}" alt="${safeName}" referrerpolicy="no-referrer" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'"><div class="collab-user-tooltip">${safeName}</div></div>`;
+                let crownHtml = (k === currentHostUid) ? `<div class="host-crown">👑</div>` : '';
+                let tooltipText = (k === currentHostUid) ? `${safeName} (Host)` : safeName;
+
+                avtHtml += `<div class="collab-user-node" style="--peer-color: ${p.color}; z-index: ${c};">
+                                <div class="head-anchor">
+                                    ${crownHtml}
+                                    <img src="${p.avatar}" alt="${safeName}" referrerpolicy="no-referrer" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'">
+                                </div>
+                                <div class="collab-user-tooltip">${tooltipText}</div>
+                            </div>`;
             }
             avtBar.innerHTML = avtHtml;
         }
@@ -5583,7 +5634,6 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
         }
     });
 
-    // 3.3 Nhận Meta ảnh
     imageMetaLiveRef.on('value', snapshot => {
         const data = snapshot.val();
         if (!data || data.sender === myDeviceId) return;
@@ -5605,7 +5655,6 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
             }
         }
     });
-
 })();
 /* ====================================================================
    BẢN CẬP NHẬT STUDIO ẢNH: CAROUSEL, SCALE %, REALTIME SYNC
@@ -5850,316 +5899,6 @@ document.addEventListener('mouseup', function() {
         markImageDirty(true);
     }
 });
-// =========================================================================
-// HỆ THỐNG MASTER CANVAS, DIFFING HOST & AUTO CLOUD SAVE (POST COLLAB V8.0)
-// =========================================================================
-
-const PostCollabEngine = (function() {
-    const firebaseConfig = {
-        databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/"
-    };
-    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    let currentRoomRef = null;
-    let myPresenceRef = null;
-    let lastBroadcastedHash = 0;
-    let isApplyingRemotePatch = false;
-
-    // QUYỀN LỰC CỦA VUA (HOST CHỦ PHÒNG)
-    let isRoomHost = false;
-    let silenceSaveTimer = null;
-    let lastBackedUpCanvasClone = null;
-
-    const myEmail = localStorage.getItem('admin_email') || 'anon_' + Math.floor(Math.random()*1000) + '@gmail.com';
-    const myName = localStorage.getItem('admin_name') || 'Thành viên';
-    const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
-    const myDeviceId = 'post_dev_' + Math.random().toString(36).substring(2, 7);
-
-    // Lấy ID phòng riêng biệt theo đúng bài viết đang mở
-    function getActivePostRoomId() {
-        const postId = window.vbActivePostId || document.querySelector('.post-item.active')?.dataset?.id || new URLSearchParams(window.location.search).get('id') || 'POST_DEFAULT_ROOM';
-        return 'post_room_' + String(postId).replace(/[\.\#\$\[\]]/g, '_');
-    }
-
-    function getSimpleHash(str) {
-        let h = 0; for(let i=0; i<str.length; i++) h = Math.imul(31, h) + str.charCodeAt(i) | 0;
-        return h;
-    }
-
-    // TẠO KHAY AVATAR & VƯƠNG MIỆN HOST NGHIÊNG 18 ĐỘ GÓC TRÊN PHẢI
-    function injectAvatarContainer() {
-        const toolbar = document.querySelector('.toolbar') || document.querySelector('.editor-toolbar') || document.body;
-        toolbar.style.position = 'relative'; toolbar.style.zIndex = '999999';
-
-        if (!document.getElementById('postTooltipEngine')) {
-            const style = document.createElement('style'); style.id = 'postTooltipEngine';
-            style.innerHTML = `
-                .peer-avatar-slot { position: relative; display: inline-flex; align-items: center; justify-content: center; }
-                .peer-avatar-slot .head-anchor { position: relative; display: flex; align-items: center; justify-content: center; transition: transform 0.2s; }
-                .peer-avatar-slot img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; cursor: pointer; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
-                
-                /* VƯƠNG MIỆN NẰM GÓC TRÊN PHẢI, NGHIÊNG VỀ BÊN PHẢI 18 ĐỘ */
-                .peer-avatar-slot .host-crown { position: absolute; top: -6px; right: -6px; transform: rotate(18deg); font-size: 15px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3)); z-index: 20; pointer-events: none; user-select: none; }
-
-                .peer-avatar-slot .peer-tag { position: absolute; top: 37px; left: 50%; transform: translateX(-50%) translateY(4px); color: #ffffff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; white-space: nowrap; pointer-events: none; opacity: 0; visibility: hidden; transition: all 0.15s; box-shadow: 0 2px 6px rgba(0,0,0,0.25); z-index: 1000000; }
-                .peer-avatar-slot .peer-tag::before { content: ''; position: absolute; top: -3px; left: 50%; transform: translateX(-50%) rotate(45deg); width: 6px; height: 6px; background: inherit; }
-                
-                .peer-avatar-slot:hover .head-anchor { transform: scale(1.15) translateY(-2px); }
-                .peer-avatar-slot:hover .peer-tag { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
-            `;
-            document.head.appendChild(style);
-        }
-
-        let container = document.getElementById('postOnlinePeers');
-        if (!container) {
-            container = document.createElement('div'); container.id = 'postOnlinePeers';
-            container.style.cssText = `position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 8px; z-index: 999999; background: transparent; pointer-events: auto;`;
-            
-            const targetAppend = document.querySelector('.toolbar') || document.body;
-            targetAppend.appendChild(container);
-        }
-        return container;
-    }
-
-    // BẦU HOST CHỦ PHÒNG
-    function evaluateHostRole(usersObj) {
-        if (!usersObj) return null;
-        const uids = Object.keys(usersObj);
-        if (uids.length === 0) return null;
-
-        uids.sort((a, b) => (usersObj[a].joinedAt || 0) - (usersObj[b].joinedAt || 0));
-        const kingUid = uids[0];
-        isRoomHost = (kingUid === myDeviceId);
-        return kingUid;
-    }
-
-    // CHỤP TOÀN BỘ BỨC TRANH CANVAS (Gồm cả phần Nguồn: Kế hoạch bên trái)
-    function captureCurrentPostCanvas() {
-        return {
-            title: document.getElementById('vbPostTitle')?.value || document.querySelector('input[placeholder*="Tiêu đề"]')?.value || "",
-            category: document.getElementById('vbPostCategory')?.value || "",
-            status: document.getElementById('vbPostStatus')?.value || "",
-            
-            // Quét tóm trọn phần Nguồn: Kế Hoạch bên trái
-            planSource: document.getElementById('vbPlanSource')?.value || document.querySelector('.left-plan-panel textarea')?.value || document.querySelector('textarea[placeholder*="Kế hoạch"]')?.value || "",
-            
-            // Quét nội dung vùng soạn thảo chính (Hỗ trợ cả div thuần lẫn CKEditor)
-            content: document.getElementById('vbPostEditor')?.innerHTML || document.querySelector('.ck-content')?.innerHTML || ""
-        };
-    }
-
-    // ĐIỀU KHIỂN TRẠNG THÁI ĐÁM MÂY
-    function setCloudState(state) {
-        const cloud = document.getElementById('autoSaveCloudIndicator');
-        if (!cloud) return;
-        if (state === 'saving') {
-            cloud.innerHTML = `<i class="fas fa-cloud-upload-alt fa-spin" style="color: #f59e0b;"></i> <span style="color:#f59e0b; font-size:12px;">Đang đồng bộ...</span>`;
-        } else if (state === 'saved') {
-            cloud.innerHTML = `<i class="fas fa-cloud" style="color: #0284c7;"></i> <span style="color:#64748b; font-size:12px;">Đã lưu vào Canvas</span>`;
-        } else if (state === 'sheet_ok') {
-            cloud.innerHTML = `<i class="fas fa-cloud-check" style="color: #10b981;"></i> <span style="color:#10b981; font-size:12px;">Đã cất kho lạnh Sheets</span>`;
-            setTimeout(() => setCloudState('saved'), 3500);
-        }
-    }
-
-    // ĐẾM NGƯỢC 4.5S IM LẶNG ĐỂ HOST BẮN VỀ KHO LẠNH GOOGLE SHEETS
-    function triggerHostSilenceCommit() {
-        if (!isRoomHost) return;
-        clearTimeout(silenceSaveTimer);
-        setCloudState('saving');
-
-        silenceSaveTimer = setTimeout(() => {
-            const currentCanvas = captureCurrentPostCanvas();
-            const currentHash = getSimpleHash(JSON.stringify(currentCanvas));
-            const oldHash = lastBackedUpCanvasClone ? getSimpleHash(JSON.stringify(lastBackedUpCanvasClone)) : 0;
-
-            if (currentHash !== oldHash) {
-                lastBackedUpCanvasClone = JSON.parse(JSON.stringify(currentCanvas));
-                
-                const payload = [{
-                    type: 'SAVE_BLOG_POST_CANVAS',
-                    tabName: window.POSTS_TAB_NAME || 'Bài Viết',
-                    postId: window.vbActivePostId || 'POST_DEFAULT',
-                    canvasData: currentCanvas
-                }];
-
-                fetch(API_URL, {
-                    method: 'POST', body: JSON.stringify(payload),
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-                }).then(r => r.json()).then(res => {
-                    if (res.success) setCloudState('sheet_ok');
-                }).catch(() => setCloudState('saved'));
-            } else {
-                setCloudState('saved');
-            }
-        }, 4500);
-    }
-
-    // KẾT NỐI VÀO PHÒNG HỌP BÀI VIẾT
-    function switchPostConferenceRoom() {
-        const roomId = getActivePostRoomId();
-        if (!roomId) return;
-
-        if (currentRoomRef) currentRoomRef.off();
-        if (myPresenceRef) myPresenceRef.remove();
-
-        currentRoomRef = db.ref(`collab_posts/${roomId}`);
-        myPresenceRef = currentRoomRef.child(`users/${myDeviceId}`);
-
-        myPresenceRef.set({ email: myEmail, name: myName, avatar: myAvatar, joinedAt: firebase.database.ServerValue.TIMESTAMP });
-        myPresenceRef.onDisconnect().remove();
-
-        // 1. Lắng nghe Peering & Bầu Vua
-        currentRoomRef.child('users').on('value', snap => {
-            const users = snap.val() || {};
-            const kingUid = evaluateHostRole(users);
-            const box = injectAvatarContainer();
-            if (!box) return;
-
-            box.innerHTML = '';
-            const palette = ['#01adee', '#e11d48', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
-
-            Object.keys(users).forEach(uid => {
-                const u = users[uid];
-                let hash = 0; for(let i=0; i<u.email.length; i++) hash = Math.imul(31, hash) + u.email.charCodeAt(i) | 0;
-                const peerColor = u.color || palette[Math.abs(hash) % palette.length];
-
-                const slot = document.createElement('div'); slot.className = 'peer-avatar-slot';
-                const headAnchor = document.createElement('div'); headAnchor.className = 'head-anchor';
-
-                if (uid === kingUid) {
-                    const crown = document.createElement('div'); crown.className = 'host-crown'; crown.innerText = '👑';
-                    headAnchor.appendChild(crown);
-                }
-
-                const img = document.createElement('img'); img.src = u.avatar || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
-                img.style.border = `2px solid ${peerColor}`;
-
-                const tooltip = document.createElement('div'); tooltip.className = 'peer-tag';
-                tooltip.style.backgroundColor = peerColor;
-                const rawName = u.name !== 'Thành viên' ? u.name : u.email.split('@')[0];
-                tooltip.innerText = (uid === kingUid) ? `${rawName} (Host)` : rawName;
-
-                slot.onmouseenter = () => img.style.boxShadow = `0 3px 8px ${peerColor}88`;
-                slot.onmouseleave = () => img.style.boxShadow = 'none';
-
-                headAnchor.appendChild(img); slot.appendChild(headAnchor); slot.appendChild(tooltip); box.appendChild(slot);
-            });
-        });
-
-        // 2. Lắng nghe Master Canvas từ mạng dội về
-        currentRoomRef.child('canvas').on('value', snap => {
-            const data = snap.val();
-            if (!data || data.sender === myDeviceId) return;
-
-            isApplyingRemotePatch = true;
-            try {
-                const incomingCanvas = JSON.parse(data.snapshot);
-                smartPatchDOM(incomingCanvas);
-                if (isRoomHost) triggerHostSilenceCommit();
-            } catch(e){} finally { isApplyingRemotePatch = false; }
-        });
-
-        lastBackedUpCanvasClone = captureCurrentPostCanvas();
-        setCloudState('saved');
-    }
-
-    // BROADCAST CANVAS KHI CÓ NGƯỜI GÕ
-    function broadcastPostCanvas() {
-        if (isApplyingRemotePatch) return;
-        const currentCanvas = captureCurrentPostCanvas();
-        const currentHash = getSimpleHash(JSON.stringify(currentCanvas));
-
-        if (currentHash !== lastBroadcastedHash) {
-            lastBroadcastedHash = currentHash;
-            if (currentRoomRef) {
-                currentRoomRef.child('canvas').set({
-                    snapshot: JSON.stringify(currentCanvas),
-                    sender: myDeviceId,
-                    timestamp: firebase.database.ServerValue.TIMESTAMP
-                });
-            }
-            setCloudState('saving');
-            if (isRoomHost) triggerHostSilenceCommit();
-        }
-    }
-
-    // THUẬT TOÁN VÁ DOM SƯỢN MỀM (Né tuyệt đối Caret của Local đang gõ)
-    function smartPatchDOM(newCanvas) {
-        function patchField(selector, newVal, isHtml = false) {
-            const el = document.getElementById(selector) || document.querySelector(selector);
-            if (!el) return;
-            
-            // [ÁI KIỂM SOÁT THÉP]: Nếu chuột/con trỏ Local đang đứng trong ô này -> BỎ QUA KHÔNG GHI ĐÈ!
-            if (document.activeElement === el || el.contains(document.activeElement)) return;
-
-            if (isHtml) {
-                if (el.innerHTML !== newVal) el.innerHTML = newVal;
-            } else {
-                if (el.value !== newVal) el.value = newVal;
-            }
-        }
-
-        patchField('vbPostTitle', newCanvas.title);
-        patchField('input[placeholder*="Tiêu đề"]', newCanvas.title);
-        patchField('vbPostCategory', newCanvas.category);
-        patchField('vbPostStatus', newCanvas.status);
-        
-        // Cập nhật mượt mà vùng Nguồn: Kế Hoạch bên trái
-        patchField('vbPlanSource', newCanvas.planSource); 
-        patchField('.left-plan-panel textarea', newCanvas.planSource);
-        patchField('textarea[placeholder*="Kế hoạch"]', newCanvas.planSource);
-        
-        // Cập nhật vùng soạn thảo chính
-        patchField('vbPostEditor', newCanvas.content, true);
-        patchField('.ck-content', newCanvas.content, true);
-    }
-
-    return { switchPostConferenceRoom, broadcastPostCanvas };
-})();
-
-// =========================================================================
-// MÓC NỐI TỰ ĐỘNG (HOOKS) VÀO KHÔNG GIAN SOẠN THẢO POST.HTML
-// =========================================================================
-
-window.addEventListener('DOMContentLoaded', () => {
-    const workspace = document.body;
-
-    // 1. Quét tóm mọi thao tác gõ phím, dán ảnh, xóa chữ trên toàn trang
-    workspace.addEventListener('input', (e) => {
-        const t = e.target;
-        if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable || t.classList.contains('ck-content')) {
-            PostCollabEngine.broadcastPostCanvas();
-        }
-    });
-
-    workspace.addEventListener('change', (e) => {
-        if (e.target.tagName === 'SELECT') PostCollabEngine.broadcastPostCanvas();
-    });
-
-    // 2. Mồi vào phòng họp ngay khi trang vừa tải xong
-    setTimeout(() => PostCollabEngine.switchPostConferenceRoom(), 800);
-});
-
-// 3. [BỌC THÉP TỐI THƯỢNG]: KHÓA MÕM HOÀN TOÀN LỆNH GHI ĐÈ TỪ GOOGLE SHEETS
-const nativeGlobalPostReceiver = window.onSystemDataFetched || function(){};
-window.onSystemDataFetched = function(incomingData) {
-    // Khi Google Sheets dội data định kỳ về -> Bỏ qua không cho phép nó dán đè làm chớp/mất giao diện bài viết!
-    console.log("🛡️ [Master Canvas] Đã bẻ gãy luồng ghi đè ngược từ Sheets để bảo vệ trải nghiệm gõ Realtime.");
-};
-
-// 4. Hook tự động nhảy phòng họp khi người dùng bấm chọn bài viết khác ở danh sách bên trái
-const nativeSelectPostHook = window.selectPost || window.loadPostDetail || function(){};
-window.selectPost = function(...args) {
-    nativeSelectPostHook(...args);
-    setTimeout(() => PostCollabEngine.switchPostConferenceRoom(), 250);
-};
-window.loadPostDetail = function(...args) {
-    nativeSelectPostHook(...args);
-    setTimeout(() => PostCollabEngine.switchPostConferenceRoom(), 250);
-};
-
 </script>
 
 </body>
