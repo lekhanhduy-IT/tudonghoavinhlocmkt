@@ -2310,99 +2310,74 @@ function vbShowPrompt(msg, callback) {
         }
     }
 
-    async function savePostToSheet() {
-        const title = document.getElementById("postTitle").innerHTML;
-        const sapo = document.getElementById("postSapo").innerHTML;
-        const planId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_" + new Date().getTime());
-        currentPostId = planId;
+async function savePostToSheet() {
+    const title = document.getElementById("postTitle").innerHTML;
+    const sapo = document.getElementById("postSapo").innerHTML;
+    const planId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_" + Date.now());
+    currentPostId = planId;
 
-        const status = document.getElementById('syncStatusVB');
-        status.innerHTML = "⏳ Đang lưu ảnh vào Shared Drive...";
-        status.style.color = "#f39c12";
+    const status = document.getElementById('syncStatusVB');
+    if (status) { status.innerHTML = "⏳ Đang chốt phòng lên Sheet..."; status.style.color = "#f39c12"; }
 
-        try {
-            await uploadAllPendingPostImages(planId);
-        } catch (uploadErr) {
-            status.innerHTML = "⚠️ Lỗi lưu ảnh";
-            status.style.color = "var(--red)";
-            vbShowAlert("Không thể lưu toàn bộ ảnh vào Shared Drive:<br><br>" + escapeHtmlText(uploadErr.message || String(uploadErr)));
-            return;
-        }
-
-        const coverImg = document.querySelector("#coverEditor img.vb-managed-image");
-        const coverUrl = coverImg ? (coverImg.dataset.driveUrl || normalizeDriveUrlForSheet(coverImg.getAttribute("src") || "")) : "";
-        
-        // --- SỬA LỖI: Gom thêm FrameState (Width, Height, Mode) và Scale % vào chung chuỗi Metadata ---
-        let coverMetaObj = coverImg ? readImageMetadata(coverImg) : {};
-        if (coverImg) {
-            coverMetaObj.frameState = readImageFrameState(coverImg);
-            coverMetaObj.scalePercent = coverImg.dataset.scalePercent || "100";
-        }
-        const coverMetadata = JSON.stringify(coverMetaObj);
-        
-const content = serializeEditorContentForSheet();
-        // Lấy tỷ lệ width hiện tại của khung soạn thảo (nếu không có thì mặc định 100%)
-        let currentWidth = document.getElementById('postContent').style.width || "100%";
-        // Gài thuộc tính data-width vào thẻ bọc ngoài cùng để lưu lên Sheet
-        const finalHtml = `<div class="post-body" data-width="${currentWidth}">${content}</div>`;
-
-        if (draftData && (!draftData.data[0] || draftData.data[0] !== planId)) {
-            draftData.data[0] = planId;
-            localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
-            if (sysData.sheets["_PLAN_DATA_"] && draftData.planRowIndex !== undefined) {
-                const newJsonData = JSON.stringify(draftData.data);
-                sysData.sheets["_PLAN_DATA_"][draftData.planRowIndex][2] = newJsonData;
-                pushQueue({ type: 'SYNC_CELL', row: draftData.planRowIndex + 1, col: 3, val: newJsonData, tab: "_PLAN_DATA_" });
-            }
-        }
-
-        if (!sysData.sheets["Bài viết_hidden"]) {
-            sysData.tabOrder.push("Bài viết_hidden");
-            sysData.sheets["Bài viết_hidden"] = [["ID", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML", "Metadata Ảnh Bìa"]];
-            pushQueue({type:'MANAGE_TAB', action:'create', tab: "Bài viết_hidden"});
-            ["ID", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML", "Metadata Ảnh Bìa"].forEach((header, i) => {
-                pushQueue({type:'SYNC_CELL', row: 1, col: i + 1, val: header, tab: "Bài viết_hidden"});
-            });
-        } else {
-            // Tương thích Sheet cũ: bổ sung tiêu đề cột metadata nếu chưa có.
-            const header = sysData.sheets["Bài viết_hidden"][0] || [];
-            if (header[5] !== "Metadata Ảnh Bìa") {
-                header[5] = "Metadata Ảnh Bìa";
-                pushQueue({type:'SYNC_CELL', row: 1, col: 6, val: "Metadata Ảnh Bìa", tab: "Bài viết_hidden"});
-            }
-        }
-
-        const bvTab = sysData.sheets["Bài viết_hidden"];
-        let targetRow = -1;
-        for (let r = 1; r < bvTab.length; r++) {
-            if (bvTab[r][0] === planId) { targetRow = r; break; }
-        }
-
-        status.innerHTML = "⏳ Đang ghi Sheet...";
-        status.style.color = "#f39c12";
-
-        const rowData = [planId, title, sapo, coverUrl, finalHtml, coverMetadata];
-
-        if (targetRow !== -1) {
-            bvTab[targetRow] = rowData;
-            for (let c = 1; c <= rowData.length; c++) {
-                pushQueue({type:'SYNC_CELL', row: targetRow + 1, col: c, val: rowData[c - 1], tab: "Bài viết_hidden"});
-            }
-        } else {
-            targetRow = bvTab.length;
-            bvTab.push(rowData);
-            pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow + 1, count: 1, tab: "Bài viết_hidden"});
-            for (let c = 1; c <= rowData.length; c++) {
-                pushQueue({type:'SYNC_CELL', row: targetRow + 1, col: c, val: rowData[c - 1], tab: "Bài viết_hidden"});
-            }
-        }
-
-        // Cập nhật cache cục bộ ngay để lần mở kế tiếp không phải chờ mạng.
-        localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
-        isVBDirty = false;
-        status.innerHTML = "✅ Ảnh đã lưu Drive, đang đồng bộ";
-        status.style.color = "#27ae60";
+    try { await uploadAllPendingPostImages(planId); } 
+    catch (uploadErr) {
+        if (status) { status.innerHTML = "⚠️ Lỗi lưu ảnh"; status.style.color = "var(--red)"; }
+        vbShowAlert("Lỗi upload Drive:<br>" + escapeHtmlText(uploadErr.message));
+        return;
     }
+
+    const coverImg = document.querySelector("#coverEditor img.vb-managed-image");
+    const coverUrl = coverImg ? (coverImg.dataset.driveUrl || normalizeDriveUrlForSheet(coverImg.getAttribute("src") || "")) : "";
+    let coverMetaObj = coverImg ? readImageMetadata(coverImg) : {};
+    if (coverImg) {
+        coverMetaObj.frameState = readImageFrameState(coverImg);
+        coverMetaObj.scalePercent = coverImg.dataset.scalePercent || "100";
+    }
+    const coverMetadata = JSON.stringify(coverMetaObj);
+    
+    const content = serializeEditorContentForSheet();
+    let currentWidth = document.getElementById('postContent').style.width || "100%";
+    const finalHtml = `<div class="post-body" data-width="${currentWidth}">${content}</div>`;
+
+    if (draftData && (!draftData.data[0] || draftData.data[0] !== planId)) {
+        draftData.data[0] = planId; localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
+        if (sysData.sheets["_PLAN_DATA_"] && draftData.planRowIndex !== undefined) {
+            const newJsonData = JSON.stringify(draftData.data);
+            sysData.sheets["_PLAN_DATA_"][draftData.planRowIndex][2] = newJsonData;
+            pushQueue({ type: 'SYNC_CELL', row: draftData.planRowIndex + 1, col: 3, val: newJsonData, tab: "_PLAN_DATA_" });
+        }
+    }
+
+    const bvTab = sysData.sheets["Bài viết_hidden"] || [];
+    let targetRow = -1;
+    for (let r = 1; r < bvTab.length; r++) { if (bvTab[r][0] === planId) { targetRow = r; break; } }
+
+    const rowData = [planId, title, sapo, coverUrl, finalHtml, coverMetadata];
+    const instantBatch = [];
+
+    if (targetRow !== -1) {
+        bvTab[targetRow] = rowData;
+        rowData.forEach((val, idx) => instantBatch.push({type: 'SYNC_CELL', row: targetRow + 1, col: idx + 1, val: val, tab: "Bài viết_hidden"}));
+    } else {
+        targetRow = bvTab.length; bvTab.push(rowData);
+        instantBatch.push({type: 'STRUCTURAL', action: 'insertRow', index: targetRow + 1, count: 1, tab: "Bài viết_hidden"});
+        rowData.forEach((val, idx) => instantBatch.push({type: 'SYNC_CELL', row: targetRow + 1, col: idx + 1, val: val, tab: "Bài viết_hidden"}));
+    }
+
+    localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+    isVBDirty = false;
+
+    // [CHÌA KHÓA BẤT TỬ keepalive]: Bỏ qua pushQueue! Bắn thẳng lên Google!
+    // Trình duyệt có sập nguồn hay bị bấm Ctrl+W tắt ngang, hệ điều hành vẫn ép gửi xong gói này!
+    fetch(API_URL, { 
+        method: "POST", 
+        body: JSON.stringify(instantBatch), 
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        keepalive: true 
+    }).then(() => {
+        if (status) { status.innerHTML = "✅ Đã lưu Sheet an toàn"; status.style.color = "#27ae60"; }
+    });
+}
 
     function applyGoogleFontFromLink() {
         let linkHtml = document.getElementById("newFontLink").value.trim();
@@ -5497,13 +5472,12 @@ async function downloadActiveImageWithMetadata() {
 
 
 /* ====================================================================
-   ĐỘNG CƠ CỘNG TÁC SIÊU CẤP V4.2 (FLAT-SESSION ARCHITECTURE)
+   ĐỘNG CƠ CỘNG TÁC V4.3 (CARET-TRACKING + INSTANT JANITOR)
 ==================================================================== */
 let globalActivePeopleCount = 1;
 let prevPeopleCount = 1;
-let autoSaveJanitorTimer = null;
 
-(function initCollabEngineV4_2() {
+(function initCollabEngineV4_3() {
     let rawEmail = localStorage.getItem('admin_email');
     const myEmail = (rawEmail && rawEmail !== "undefined" && rawEmail !== "null") ? rawEmail : ('anon_' + Math.floor(Math.random()*1000) + '@gmail.com');
     let rawName = localStorage.getItem('admin_name');
@@ -5512,8 +5486,6 @@ let autoSaveJanitorTimer = null;
 
     const urlParams = new URLSearchParams(window.location.search);
     let roomId = (urlParams.get('id') || 'DRAFT_ROOM_GENERAL').replace(/[\.\#\$\[\]]/g, '_');
-
-    // Tạo ID độc lập cho từng tab trình duyệt
     const mySessionId = 'sess_' + Math.random().toString(36).substring(2, 10);
 
     const PALETTE = ['#01adee', '#db1010', '#8e44ad', '#27ae60', '#d35400', '#f39c12', '#16a085', '#2980b9'];
@@ -5526,76 +5498,72 @@ let autoSaveJanitorTimer = null;
     const mySessionRef = db.ref(`collab_rooms/${roomId}/sessions/${mySessionId}`);
     const allSessionsRef = db.ref(`collab_rooms/${roomId}/sessions`);
     const domSyncRef = db.ref(`collab_rooms/${roomId}/dom_state`);
-    const imageMetaLiveRef = db.ref(`collab_rooms/${roomId}/image_meta_subchannel`);
 
-    // 1. Đăng ký phiên làm việc (Tắt tab -> Firebase tự hủy đúng session này)
-    mySessionRef.set({
-        name: myName, email: myEmail, avatar: myAvatar, color: myColor,
-        x: -9999, y: -9999, updatedAt: firebase.database.ServerValue.TIMESTAMP
-    });
+    mySessionRef.set({ name: myName, email: myEmail, avatar: myAvatar, color: myColor, x: -9999, y: -9999, updatedAt: firebase.database.ServerValue.TIMESTAMP });
     mySessionRef.onDisconnect().remove();
 
-    // --- HÀM VỊ TRÍ CARET ---
-    function getCaretOffset(el) {
-        let offset = 0; const sel = window.getSelection();
-        if (sel.rangeCount > 0) {
-            const range = sel.getRangeAt(0).cloneRange(); range.selectNodeContents(el);
-            range.setEnd(sel.getRangeAt(0).endContainer, sel.getRangeAt(0).endOffset); offset = range.toString().length;
+    // --- HÀM THẦN THÁNH: ĐO TỌA ĐỘ DUY NHẤT CỦA CON TRÓ NHÁY GÕ CHỮ ---
+    function broadcastTypingCaret() {
+        const sel = window.getSelection();
+        if (!sel.rangeCount) return;
+        
+        const container = document.getElementById('editorContainer');
+        if (!container.contains(sel.anchorNode)) return; // Chỉ bắt khi đang gõ trong giấy
+
+        const range = sel.getRangeAt(0).cloneRange();
+        range.collapse(false); // Đưa về đuôi chữ vừa gõ
+        
+        let rect = range.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) {
+            const sp = document.createElement('span'); sp.textContent = '\u200b';
+            range.insertNode(sp); rect = sp.getBoundingClientRect(); sp.remove();
         }
-        return offset;
+
+        const cRect = container.getBoundingClientRect();
+        // Cộng 2px ngang để cờ cắm sau lưng chữ, trừ 15px dọc để cờ ngang tầm mắt
+        mySessionRef.update({ x: rect.right - cRect.left + 2, y: rect.bottom - cRect.top - 15 });
     }
-    function setCaretOffset(el, offset) {
-        const sel = window.getSelection(); const range = document.createRange(); let charIndex = 0, found = false;
-        function walk(node) {
+
+    // Bắt mọi cử chỉ nháy con trỏ văn bản
+    ['keyup', 'mouseup', 'input', 'focusin'].forEach(evt => {
+        document.getElementById('editorContainer')?.addEventListener(evt, () => setTimeout(broadcastTypingCaret, 10));
+    });
+
+    // --- CAMERA DOM ---
+    let isApplyingRemoteDOM = false;
+    window.triggerDomCamera = function() {
+        if (isApplyingRemoteDOM || (typeof isBootingCanvas !== 'undefined' && isBootingCanvas)) return;
+        const payload = {
+            postTitle: document.getElementById('postTitle')?.innerHTML || '',
+            postSapo: document.getElementById('postSapo')?.innerHTML || '',
+            coverHtml: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('coverEditor')) : '',
+            postContent: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('postContent')) : '',
+            lastEditorSess: mySessionId
+        };
+        const curHash = payload.postTitle + payload.postSapo + payload.coverHtml + payload.postContent;
+        if (curHash !== window.lastBroadcastedDOMHash) { window.lastBroadcastedDOMHash = curHash; domSyncRef.set(payload); }
+    };
+    if (document.getElementById('editorContainer')) new MutationObserver(window.triggerDomCamera).observe(document.getElementById('editorContainer'), { childList: true, subtree: true, characterData: true });
+
+    // --- LẮNG NGHE TỪ PEER ---
+    function getCaretOffset(el) {
+        let off = 0; const s = window.getSelection();
+        if (s.rangeCount > 0) { const r = s.getRangeAt(0).cloneRange(); r.selectNodeContents(el); r.setEnd(s.getRangeAt(0).endContainer, s.getRangeAt(0).endOffset); off = r.toString().length; }
+        return off;
+    }
+    function setCaretOffset(el, off) {
+        const s = window.getSelection(); const r = document.createRange(); let idx = 0, found = false;
+        function walk(n) {
             if (found) return;
-            if (node.nodeType === Node.TEXT_NODE) {
-                const next = charIndex + node.length;
-                if (offset <= next) {
-                    range.setStart(node, offset - charIndex); range.collapse(true);
-                    sel.removeAllRanges(); sel.addRange(range); found = true;
-                }
-                charIndex = next;
-            } else { for (let i = 0; i < node.childNodes.length; i++) walk(node.childNodes[i]); }
+            if (n.nodeType === Node.TEXT_NODE) {
+                const next = idx + n.length;
+                if (off <= next) { r.setStart(n, off - idx); r.collapse(true); s.removeAllRanges(); s.addRange(r); found = true; }
+                idx = next;
+            } else { for (let i = 0; i < n.childNodes.length; i++) walk(n.childNodes[i]); }
         }
         walk(el);
     }
 
-    // --- PHẦN 1: BẮT TỌA ĐỘ CHUỘT ---
-    let lastMouseTime = 0;
-    const paperElem = document.getElementById('editorContainer');
-    function broadcastPointer(x, y) {
-        if (!paperElem || Date.now() - lastMouseTime < 45) return;
-        lastMouseTime = Date.now(); const rect = paperElem.getBoundingClientRect();
-        mySessionRef.update({ x: x - rect.left, y: y - rect.top, updatedAt: firebase.database.ServerValue.TIMESTAMP });
-    }
-    window.addEventListener('mousemove', e => broadcastPointer(e.clientX, e.clientY));
-
-    document.getElementById('vbMetadataTable')?.addEventListener('input', e => {
-        if (!vbActiveImage) return; const metaCell = e.target.closest('.vb-meta-value'); if (!metaCell) return;
-        imageMetaLiveRef.set({ imageId: vbActiveImage.dataset.imageId, metaKey: metaCell.dataset.metaKey, text: metaCell.innerText.replace(/\u00a0/g, " ").trim(), sender: mySessionId });
-    });
-
-    // --- PHẦN 2: CAMERA GIÁM SÁT DOM ---
-    let isApplyingRemoteDOM = false;
-    window.triggerDomCamera = function() {
-        if (isApplyingRemoteDOM || typeof isBootingCanvas !== 'undefined' && isBootingCanvas) return;
-        const payload = {
-            postTitle: document.getElementById('postTitle')?.innerHTML || '',
-            postSapo: document.getElementById('postSapo')?.innerHTML || '',
-            coverHtml: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('coverEditor')) : (document.getElementById('coverEditor')?.innerHTML || ''),
-            postContent: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('postContent')) : (document.getElementById('postContent')?.innerHTML || ''),
-            lastEditorSess: mySessionId
-        };
-        const currentHash = payload.postTitle + payload.postSapo + payload.coverHtml + payload.postContent;
-        if (currentHash !== window.lastBroadcastedDOMHash) {
-            window.lastBroadcastedDOMHash = currentHash;
-            domSyncRef.set(payload);
-        }
-    };
-
-    if (paperElem) new MutationObserver(window.triggerDomCamera).observe(paperElem, { childList: true, subtree: true, characterData: true, attributes: true });
-
-    // --- PHẦN 3: LẮNG NGHE REALTIME ---
     domSyncRef.on('value', snapshot => {
         const domData = snapshot.val();
         if (!domData || domData.lastEditorSess === mySessionId) return;
@@ -5606,42 +5574,31 @@ let autoSaveJanitorTimer = null;
                 const pos = getCaretOffset(el); el.innerHTML = html || ''; setCaretOffset(el, pos);
             } else el.innerHTML = html || '';
         }
-        if (typeof TableEditor !== 'undefined' && TableEditor.clearSelection) TableEditor.clearSelection();
         smartInject('postTitle', domData.postTitle); smartInject('postSapo', domData.postSapo);
         smartInject('coverEditor', domData.coverHtml); smartInject('postContent', domData.postContent);
         if(typeof hydrateManagedImages === 'function') { hydrateManagedImages(document.getElementById('coverEditor'), 'cover'); hydrateManagedImages(document.getElementById('postContent'), 'content'); }
         setTimeout(() => { isApplyingRemoteDOM = false; }, 35);
     });
 
-    // 3.2 Nhận Sessions -> Lọc trùng Email đẻ Avatar
     const cursorsLayer = document.getElementById('collab-cursors-layer');
     const avtBar = document.getElementById('collabAvatarList');
 
     allSessionsRef.on('value', snapshot => {
         const sessionsObj = snapshot.val() || {};
-        const sessList = Object.values(sessionsObj);
-
-        // THUẬT TOÁN GỘP CON CỪU: Nhóm các session có cùng Email lại làm 1
         const uniquePeopleMap = {};
-        sessList.forEach(s => { if (s && s.email) uniquePeopleMap[s.email] = s; });
+        Object.values(sessionsObj).forEach(s => { if (s && s.email) uniquePeopleMap[s.email] = s; });
         const activePeople = Object.values(uniquePeopleMap);
-        
         globalActivePeopleCount = activePeople.length;
 
-        // Cập nhật Avatar Bar
         if (avtBar) {
             avtBar.innerHTML = activePeople.map((p, idx) => `
-                <div class="collab-user-node" style="--peer-color: ${p.color}; z-index: ${idx+1};">
-                    <img src="${p.avatar}" alt="${p.name}" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'">
-                    <div class="collab-user-tooltip">${p.name}</div>
-                </div>`).join('');
+                <div class="collab-user-node" style="--peer-color: ${p.color}; z-index: ${idx+1};"><img src="${p.avatar}" alt="${p.name}"><div class="collab-user-tooltip">${p.name}</div></div>`).join('');
         }
 
-        // Cập nhật Cursors (Mỗi người thật chỉ hiện đúng 1 con trỏ mới nhất)
         if (cursorsLayer) {
             Array.from(cursorsLayer.children).forEach(c => { if (!uniquePeopleMap[c.getAttribute('data-email')]) c.remove(); });
             activePeople.forEach(peer => {
-                if (peer.email === myEmail) return; // Không vẽ chuột mình
+                if (peer.email === myEmail) return;
                 const safeId = 'cur_' + peer.email.replace(/[^a-zA-Z0-9]/g, '_');
                 let curDom = document.getElementById(safeId);
                 if (!curDom) {
@@ -5654,30 +5611,15 @@ let autoSaveJanitorTimer = null;
             });
         }
 
-        // [JANITOR KÍCH HOẠT TỨC THÌ]: Có người vừa thoát ra khiến phòng chỉ còn <=1 người -> LƯU NGAY!
-        if (globalActivePeopleCount <= 1 && prevPeopleCount > 1 && isVBDirty) {
-            console.log("🧹 Thợ săn: Phát hiện đồng đội vừa thoát chốt phòng, lưu Sheet!");
-            savePostToSheet();
-        }
+        // [KÍCH HOẠT THỢ SĂN TỨC THÌ]: Đồng đội tắt tab -> Bóp cò bớt 1 request lên Sheet ngay giây thứ 0!
+        if (globalActivePeopleCount <= 1 && prevPeopleCount > 1 && isVBDirty) savePostToSheet();
         prevPeopleCount = globalActivePeopleCount;
     });
 
-    imageMetaLiveRef.on('value', snap => {
-        const d = snap.val(); if (!d || d.sender === mySessionId) return;
-        let targetImg = vbActiveImage?.dataset.imageId === d.imageId ? vbActiveImage : document.querySelector(`img[data-image-id="${d.imageId}"]`);
-        if (targetImg) { let m = readImageMetadata(targetImg); m[d.metaKey] = d.text; writeImageMetadata(targetImg, m); }
-        if (vbActiveImage?.dataset.imageId === d.imageId) { let td = document.querySelector(`#vbMetadataTable .vb-meta-value[data-meta-key="${d.metaKey}"]`); if (td && document.activeElement !== td) td.textContent = d.text; }
-    });
-
-    // Quét nhịp gõ chữ bình thường khi ngồi 1 mình
+    let autoTimer = null;
     document.addEventListener('input', () => {
-        clearTimeout(autoSaveJanitorTimer);
-        autoSaveJanitorTimer = setTimeout(() => {
-            if (globalActivePeopleCount <= 1 && isVBDirty) {
-                console.log("🧹 Thợ săn: Gõ xong 15s im lặng, lưu Sheet!");
-                savePostToSheet();
-            }
-        }, 15000);
+        clearTimeout(autoTimer);
+        autoTimer = setTimeout(() => { if (globalActivePeopleCount <= 1 && isVBDirty) savePostToSheet(); }, 15000);
     });
 })();
 /* ====================================================================
