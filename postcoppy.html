@@ -1340,9 +1340,9 @@
       <i class="fas fa-image" style="color:#01adee;"></i>▾
     </button>
 <div class="vb-mini-popup" id="popupMiniImage" style="min-width: 220px; top:auto; bottom:100%; margin-bottom:5px;">
-      <div class="popup-item" onclick="chooseImageSource('upload')">
-        <i class="fas fa-upload" style="color:#01adee;"></i> Upload
-      </div>
+<div class="popup-item" onmousedown="event.preventDefault(); chooseImageSource('upload')">
+  <i class="fas fa-upload" style="color:#01adee;"></i> Upload
+</div>
       <div class="popup-item" onclick="chooseImageSource('drive')">
         <i class="fab fa-google-drive" style="color:#34a853;"></i> Drive
       </div>
@@ -4086,12 +4086,21 @@ function fileToDataUrl(file) {
 }
 
 async function insertImageFiles(files, mode = vbImageTargetMode, specificRange = null) {
-    const imageFiles = Array.from(files || []).filter(file => file && /^image\//i.test(file.type));
+    // Mở rộng bộ lọc: Windows đôi khi không trả về file.type, cần check thêm đuôi file
+    const imageFiles = Array.from(files || []).filter(file => {
+        if (!file) return false;
+        if (/^image\//i.test(file.type)) return true;
+        return /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(file.name);
+    });
+    
     for (const file of imageFiles) {
         const dataUrl = await fileToDataUrl(file);
         const metadata = { ...VB_DEFAULT_IMAGE_META, fileName: file.name || "" };
+        
+        // SINH THẺ <img> GẮN MÃ BASE64
         const img = createManagedImage(dataUrl, mode, metadata);
-        // Chuyền tay tọa độ qua khe cửa này tới insertManagedImage
+        
+        // DÁN THẺ <img> VÀO ĐÚNG VỊ TRÍ CON TRỎ (specificRange)
         insertManagedImage(img, mode, specificRange);
         if (mode === "cover") break;
     }
@@ -4201,9 +4210,15 @@ function initVbImageManager() {
         hydrateManagedImages(cover, "cover");
     });
 
-    fileInput?.addEventListener("change", async () => {
-        try { await insertImageFiles(fileInput.files, vbImageTargetMode); }
-        finally { fileInput.value = ""; }
+fileInput?.addEventListener("change", async () => {
+        try { 
+            // Truyền tọa độ con trỏ đã khóa vào hàm sinh thẻ img
+            await insertImageFiles(fileInput.files, vbImageTargetMode, window.pendingUploadRange); 
+        }
+        finally { 
+            fileInput.value = ""; 
+            window.pendingUploadRange = null; // Xóa bộ nhớ đệm
+        }
     });
     overlay?.addEventListener("mousedown", e => { if (e.target === overlay) closeImageProperties(); });
 
@@ -4301,7 +4316,9 @@ function chooseImageSource(type) {
     closeAllToolPopups();
     if (typeof TableEditor !== 'undefined') TableEditor.hideMenus();
 
-    if (type === "upload") {
+if (type === "upload") {
+        // LƯU LẠI TỌA ĐỘ CON TRỎ CHÍNH XÁC TRƯỚC KHI MỞ HỘP THOẠI CHỌN FILE
+        window.pendingUploadRange = savedRange ? savedRange.cloneRange() : null;
         document.getElementById("vbImageFileInput")?.click();
         return;
     }
@@ -5436,22 +5453,17 @@ async function downloadActiveImageWithMetadata() {
 
 
 /* ====================================================================
-   ĐỘNG CƠ CỘNG TÁC & ĐỒNG BỘ SIÊU TỐC (V3 - THEO LOGIC GOOGLE DOCS)
-==================================================================== */
-
-/* ====================================================================
-   ĐỘNG CƠ CỘNG TÁC & ĐỒNG BỘ SIÊU TỐC (V3.5 - BỌC THÉP TOÀN DIỆN)
+   ĐỘNG CƠ CỘNG TÁC & ĐỒNG BỘ SIÊU TỐC (V4.0 - MASTER CANVAS)
 ==================================================================== */
 
 (function initRealtimeEngine() {
-    // 1. KHAI BÁO BIẾN CÁ NHÂN (Đã khôi phục myAvatar bị mất tích)
+    // 1. KHAI BÁO BIẾN CÁ NHÂN (1 TÀI KHOẢN = 1 ĐỊNH DANH DUY NHẤT)
     let rawEmail = localStorage.getItem('admin_email');
     const myEmail = (rawEmail && rawEmail !== "undefined") ? rawEmail : ('anon_' + Math.floor(Math.random()*1000) + '@gmail.com');
     
     let rawName = localStorage.getItem('admin_name');
     const myName = (rawName && rawName !== "undefined" && rawName !== "null") ? rawName : myEmail.split('@')[0];
     
-    // PHỤC HỒI DÒNG HUYỆT TỬ NÀY:
     const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
 
     // 2. BẮT ROOM ID
@@ -5468,8 +5480,9 @@ async function downloadActiveImageWithMetadata() {
     }
     roomId = (roomId || 'DRAFT_ROOM_GENERAL').replace(/[\.\#\$\[\]]/g, '_');
 
-    const myDeviceId = 'dev_' + Math.random().toString(36).substring(2, 7);
-    const safeUserKey = myEmail.replace(/[\.\#\$\[\]]/g, '_') + '_' + myDeviceId;
+    // [GIẢI QUYẾT LỖI 1]: Khóa định danh thiết bị bằng email (Xóa random ID)
+    // Dù mở bao nhiêu tab hay thiết bị, 1 account chỉ tạo ra 1 Avatar & 1 Con trỏ
+    const safeUserKey = myEmail.replace(/[\.\#\$\[\]]/g, '_');
 
     const PALETTE = ['#01adee', '#db1010', '#8e44ad', '#27ae60', '#d35400', '#f39c12', '#16a085', '#2980b9'];
     let hash = 0; for(let i=0; i<myEmail.length; i++) hash = myEmail.charCodeAt(i) + ((hash << 5) - hash);
@@ -5482,15 +5495,53 @@ async function downloadActiveImageWithMetadata() {
     if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
     
-    const myPresenceRef = db.ref(`collab_rooms/${roomId}/users/${safeUserKey}`);
-    const domSyncRef = db.ref(`collab_rooms/${roomId}/dom_state`);
-    const imageMetaLiveRef = db.ref(`collab_rooms/${roomId}/image_meta_subchannel`); // <-- KHÔI PHỤC KÊNH METADATA ẢNH
+    const roomRef = db.ref(`collab_rooms/${roomId}`);
+    const myPresenceRef = roomRef.child(`users/${safeUserKey}`);
+    const domSyncRef = roomRef.child(`dom_state`);
+    const imageMetaLiveRef = roomRef.child(`image_meta_subchannel`); 
 
+    // Báo danh vào phòng
     myPresenceRef.set({
         name: myName, email: myEmail, avatar: myAvatar, color: myColor,
         x: -9999, y: -9999, updatedAt: firebase.database.ServerValue.TIMESTAMP
     });
+    // Rời phòng khi đóng tab
     myPresenceRef.onDisconnect().remove();
+
+    // --- [GIẢI QUYẾT LỖI 2]: CANVAS TỔNG THỂ ---
+    // Trước khi load data từ Sheet, kiểm tra xem Firebase đã có bản vẽ nào chưa
+    let isCanvasInitialized = false;
+    domSyncRef.once('value').then(snapshot => {
+        const domData = snapshot.val();
+        if (domData && domData.postContent) {
+            // Có dữ liệu tồn tại trên Firebase -> Kế thừa Canvas ngay lập tức
+            applyRemoteDOM(domData);
+            isCanvasInitialized = true;
+            console.log("📥 Đã kế thừa Canvas từ Firebase.");
+        } else {
+            // Chưa có dữ liệu trên Firebase -> Bắt đầu vẽ từ Local/Sheet
+            isCanvasInitialized = true;
+            if (typeof currentPostId !== "undefined" && currentPostId) {
+                loadPostIntoEditor(currentPostId); 
+            }
+            console.log("🆕 Tạo Canvas mới từ Sheet.");
+        }
+    });
+
+    // Vô hiệu hóa loadPostIntoEditor mặc định nếu Canvas Firebase đang được dùng
+    const origLoadPostIntoEditor = window.loadPostIntoEditor;
+    if (origLoadPostIntoEditor) {
+        window.loadPostIntoEditor = function(id) {
+            // Nếu Canvas Firebase đã có data, KHÔNG load đè từ sheet nữa
+            domSyncRef.once('value').then(snap => {
+                if (snap.exists() && snap.val().postContent) {
+                    console.log("🛡️ Bỏ qua load từ sheet vì Canvas Firebase đang giữ dữ liệu.");
+                    return;
+                }
+                origLoadPostIntoEditor.apply(this, arguments);
+            });
+        };
+    }
 
     // --- HÀM BẢO TOÀN VỊ TRÍ CON TRỎ (Caret Preservation) ---
     function getCaretCharacterOffsetWithin(el) {
@@ -5530,7 +5581,7 @@ async function downloadActiveImageWithMetadata() {
         walk(el);
     }
 
-    // --- PHẦN 1: BẮT TỌA ĐỘ CHUỘT & VẠCH GÕ CHỮ ---
+    // --- TỌA ĐỘ CHUỘT TỶ LỆ PHẦN TRĂM (CHỐNG LỆCH ZOOM/RESIZE) ---
     let lastMouseTime = 0;
     const paperElem = document.getElementById('editorContainer');
 
@@ -5539,10 +5590,12 @@ async function downloadActiveImageWithMetadata() {
         lastMouseTime = Date.now();
 
         const rect = paperElem.getBoundingClientRect();
-        const paperX = clientX - rect.left;
-        const paperY = clientY - rect.top;
+        
+        // Tính tọa độ theo %
+        const pctX = ((clientX - rect.left) / rect.width) * 100;
+        const pctY = ((clientY - rect.top) / rect.height) * 100;
 
-        myPresenceRef.update({ x: paperX, y: paperY, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+        myPresenceRef.update({ x: pctX, y: pctY, updatedAt: firebase.database.ServerValue.TIMESTAMP });
     }
 
     window.addEventListener('mousemove', e => broadcastMouse(e.clientX, e.clientY));
@@ -5554,7 +5607,7 @@ async function downloadActiveImageWithMetadata() {
         if (!activeEl) return;
 
         const paperRect = paperElem.getBoundingClientRect();
-        let caretX = 0; let caretY = 0; let isValid = false;
+        let pctX = -9999; let pctY = -9999; let isValid = false;
 
         if (activeEl.isContentEditable) {
             const sel = window.getSelection();
@@ -5562,20 +5615,20 @@ async function downloadActiveImageWithMetadata() {
                 const range = sel.getRangeAt(0);
                 const rect = range.getBoundingClientRect(); 
                 if (rect.left !== 0 && rect.top !== 0) {
-                    caretX = rect.left - paperRect.left;
-                    caretY = rect.bottom - paperRect.top;
+                    pctX = ((rect.left - paperRect.left) / paperRect.width) * 100;
+                    pctY = ((rect.bottom - paperRect.top) / paperRect.height) * 100;
                     isValid = true;
                 }
             }
         } else if (['INPUT', 'TEXTAREA'].includes(activeEl.tagName)) {
             const rect = activeEl.getBoundingClientRect();
-            caretX = rect.right - paperRect.left - 5; 
-            caretY = rect.bottom - paperRect.top;
+            pctX = ((rect.right - paperRect.left - 5) / paperRect.width) * 100; 
+            pctY = ((rect.bottom - paperRect.top) / paperRect.height) * 100;
             isValid = true;
         }
 
         if (isValid) {
-            myPresenceRef.update({ x: caretX, y: caretY, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+            myPresenceRef.update({ x: pctX, y: pctY, updatedAt: firebase.database.ServerValue.TIMESTAMP });
         }
     }
 
@@ -5593,24 +5646,24 @@ async function downloadActiveImageWithMetadata() {
             imageId: vbActiveImage.dataset.imageId,
             metaKey: metaCell.dataset.metaKey,
             text: metaCell.innerText.replace(/\u00a0/g, " ").trim(),
-            sender: myDeviceId
+            sender: safeUserKey
         };
         imageMetaLiveRef.set(payload);
     });
 
-    // --- PHẦN 2: CAMERA GIÁM SÁT DOM ---
+    // --- CAMERA GIÁM SÁT DOM ---
     let isApplyingRemoteDOM = false;
     let lastBroadcastedDOMHash = '';
 
     const domCamera = new MutationObserver(() => {
-        if (isApplyingRemoteDOM) return;
+        if (isApplyingRemoteDOM || !isCanvasInitialized) return;
 
         const payload = {
             postTitle: document.getElementById('postTitle')?.innerHTML || '',
             postSapo: document.getElementById('postSapo')?.innerHTML || '',
             coverHtml: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('coverEditor')) : (document.getElementById('coverEditor')?.innerHTML || ''),
             postContent: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('postContent')) : (document.getElementById('postContent')?.innerHTML || ''),
-            sender: myDeviceId,
+            sender: safeUserKey,
             timestamp: Date.now()
         };
 
@@ -5625,18 +5678,28 @@ async function downloadActiveImageWithMetadata() {
         domCamera.observe(paperElem, { childList: true, subtree: true, characterData: true, attributes: true });
     }
 
-    // --- PHẦN 3: LẮNG NGHE VÀ DÁN ĐÈ DOM ---
-
-    // 3.1 Nhận DOM
-    domSyncRef.on('value', snapshot => {
-        const domData = snapshot.val();
-        if (!domData || domData.sender === myDeviceId) return;
-
+// --- LẮNG NGHE VÀ DÁN ĐÈ DOM TỪ LƯỚI REALTIME ---
+    function applyRemoteDOM(domData) {
         isApplyingRemoteDOM = true;
 
         function smartInject(elementId, incomingHtml) {
             const el = document.getElementById(elementId);
             if (!el || el.innerHTML === incomingHtml) return;
+
+            // [BẢN VÁ: GIẢI QUYẾT LỖI MẤT ẢNH BASE64 COLLAB]
+            // Cất giữ lại src của các ảnh base64 do chính máy này vừa chèn.
+            // Tránh việc bị "Khung chờ lưu" (placeholder) từ máy khác dội ngược về ghi đè.
+            const localPendingImages = {};
+            el.querySelectorAll('img').forEach(img => {
+                const src = img.getAttribute('src') || "";
+                const imgId = img.getAttribute('data-image-id');
+                
+                // Nếu là ảnh thật chưa lưu (bắt đầu bằng data:image) 
+                // và KHÔNG mang nhãn 'data-pending-remote-image' (nhãn của Khung chờ từ máy khác)
+                if (imgId && src.startsWith('data:image/') && !img.hasAttribute('data-pending-remote-image')) {
+                    localPendingImages[imgId] = src;
+                }
+            });
 
             if (document.activeElement === el || el.contains(document.activeElement)) {
                 const caretPos = getCaretCharacterOffsetWithin(el);
@@ -5645,15 +5708,29 @@ async function downloadActiveImageWithMetadata() {
             } else {
                 el.innerHTML = incomingHtml;
             }
+
+            // [BẢN VÁ: PHỤC HỒI ẢNH GỐC]
+            // Sau khi DOM từ máy khác dán đè lên, ta bơm lại nội dung Base64 gốc
+            // vào đúng cái khung ảnh đó để chủ nhân không bị mất hình.
+            if (Object.keys(localPendingImages).length > 0) {
+                el.querySelectorAll('img').forEach(img => {
+                    const imgId = img.getAttribute('data-image-id');
+                    if (imgId && localPendingImages[imgId]) {
+                        img.setAttribute('src', localPendingImages[imgId]);
+                        img.removeAttribute('data-pending-remote-image'); // Gỡ mác chờ lưu để ảnh hiển thị rực rỡ
+                    }
+                });
+            }
         }
 
         smartInject('postTitle', domData.postTitle);
         smartInject('postSapo', domData.postSapo);
         smartInject('coverEditor', domData.coverHtml !== undefined ? domData.coverHtml : (domData.coverUrl ? `<img src="${domData.coverUrl}" class="vb-managed-image" data-image-role="cover">` : ''));
-// [THÊM DÒNG NÀY]: Xả sạch bộ nhớ bôi đen cũ trước khi đè DOM mới
-if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 'function') {
-    TableEditor.clearSelection();
-}
+        
+        if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 'function') {
+            TableEditor.clearSelection();
+        }
+        
         smartInject('postContent', domData.postContent);
 
         if(typeof hydrateManagedImages === 'function') {
@@ -5661,7 +5738,6 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
             hydrateManagedImages(document.getElementById('postContent'), 'content');
         }
 
-        // Nối lại dây tơ hồng cho đối tượng ảnh đang mở popup bị dán đè
         if (vbActiveImage) {
             let survivingId = vbActiveImage.dataset.imageId;
             let revivedImgNode = document.querySelector(`img[data-image-id="${survivingId}"]`);
@@ -5669,10 +5745,16 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
         }
 
         setTimeout(() => { isApplyingRemoteDOM = false; }, 30);
+    }
+
+    domSyncRef.on('value', snapshot => {
+        const domData = snapshot.val();
+        if (!domData || domData.sender === safeUserKey) return;
+        applyRemoteDOM(domData);
     });
 
-    // 3.2 Nhận User, Cursors & Avatars (BỌC THÉP CHỐNG ZOMBIE)
-    const usersListRef = db.ref(`collab_rooms/${roomId}/users`);
+    // --- HIỂN THỊ AVATAR VÀ CON TRỎ CHUỘT ---
+    const usersListRef = roomRef.child(`users`);
     const cursorsCanvas = document.getElementById('collab-cursors-layer');
     const avtBar = document.getElementById('collabAvatarList');
     let lastAvtHash = '';
@@ -5700,10 +5782,12 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
             avtBar.innerHTML = avtHtml;
         }
 
-        if(!cursorsCanvas) return;
+        if(!cursorsCanvas || !paperElem) return;
+        const paperRect = paperElem.getBoundingClientRect();
+
         for(let k in users) {
             let peer = users[k];
-            if (!peer || !peer.email || peer.email === "undefined" || peer.email === myEmail) continue;
+            if (!peer || !peer.email || peer.email === "undefined" || k === safeUserKey) continue;
 
             let safePeerName = (peer.name && peer.name !== "undefined") ? peer.name : "Ẩn danh";
 
@@ -5717,14 +5801,18 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
                 cursorsCanvas.appendChild(cursorDom);
             }
 
-            cursorDom.style.transform = `translate(${peer.x}px, ${peer.y}px)`;
+            // Giải mã % tọa độ ra pixel dựa trên kích thước khung hiện tại
+            let actualX = (peer.x / 100) * paperRect.width;
+            let actualY = (peer.y / 100) * paperRect.height;
+
+            cursorDom.style.transform = `translate(${actualX}px, ${actualY}px)`;
         }
     });
 
-    // 3.3 Nhận Meta ảnh
+    // --- NHẬN META ẢNH ---
     imageMetaLiveRef.on('value', snapshot => {
         const data = snapshot.val();
-        if (!data || data.sender === myDeviceId) return;
+        if (!data || data.sender === safeUserKey) return;
 
         if (vbActiveImage && vbActiveImage.dataset.imageId === data.imageId) {
             const targetTd = document.querySelector(`#vbMetadataTable .vb-meta-value[data-meta-key="${data.metaKey}"]`);
@@ -5743,7 +5831,6 @@ if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 
             }
         }
     });
-
 })();
 /* ====================================================================
    BẢN CẬP NHẬT STUDIO ẢNH: CAROUSEL, SCALE %, REALTIME SYNC
