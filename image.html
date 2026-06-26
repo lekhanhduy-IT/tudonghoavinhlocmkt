@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="light" />
-  <title>Cân bằng ảnh thông minh – Bản có ảnh xem trước</title>
+  <title>Cân bằng ảnh thông minh</title>
   <style>
     :root {
       --red: #ff2d32;
@@ -397,17 +397,27 @@
       font-size: 13px;
     }
 
-    .side-panel {
-      position: sticky;
-      top: 106px;
-      display: grid;
-      gap: 16px;
-      max-height: calc(100vh - 124px);
-      overflow: auto;
-      padding-right: 3px;
-      scrollbar-width: thin;
-      scrollbar-color: #b9c8d8 transparent;
-    }
+.side-panel {
+  position: sticky;
+  top: 106px;
+  display: grid;
+  gap: 16px;
+  max-height: calc(100vh - 124px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 3px;
+
+  /* Firefox */
+  scrollbar-width: none;
+
+  /* IE và Edge cũ */
+  -ms-overflow-style: none;
+}
+
+/* Chrome, Edge, Safari */
+.side-panel::-webkit-scrollbar {
+  display: none;
+}
 
     .panel-card { padding: 18px; }
 
@@ -793,6 +803,122 @@
       opacity: 1 !important;
       backdrop-filter: none !important;
       mix-blend-mode: normal !important;
+    }
+
+
+    /* Giao diện phẳng: không header, không bo góc, các panel lớn sát mép */
+    html,
+    body {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+    }
+
+    *,
+    *::before,
+    *::after {
+      border-radius: 0 !important;
+    }
+
+    .app-shell {
+      width: 100% !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+
+    .workspace {
+      margin: 0 !important;
+      padding: 0 !important;
+      gap: 0 !important;
+      align-items: stretch !important;
+    }
+
+    .card,
+    .viewer-card,
+    .panel-card,
+    .side-panel {
+      margin: 0 !important;
+      padding: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+    }
+
+    .side-panel {
+      top: 0 !important;
+      gap: 0 !important;
+      max-height: 100vh !important;
+      padding-right: 0 !important;
+    }
+
+    .viewer-toolbar,
+    .panel-title-row,
+    .image-meta,
+    .footer-note {
+      margin: 0 !important;
+    }
+
+    .viewer-toolbar,
+    .panel-title-row,
+    .image-meta,
+    .footer-note {
+      padding: 0 !important;
+    }
+
+    .drop-zone,
+    .compare-stage,
+    .processed-clip,
+    .preset-thumb,
+    .preset-btn,
+    .meta-item,
+    .diagnosis-item,
+    .control-row,
+    .btn,
+    .select,
+    .small-pill,
+    .progress-wrap,
+    .progress-track,
+    .progress-bar,
+    .view-label,
+    .upload-orb {
+      border-radius: 0 !important;
+    }
+
+    /* Chỉ các nút kéo được giữ dạng tròn */
+    .split-handle {
+      border-radius: 50% !important;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      border-radius: 50% !important;
+    }
+
+    input[type="range"]::-moz-range-thumb {
+      border-radius: 50% !important;
+    }
+
+
+    /* Cân chỉnh khoảng đệm panel trái và chiều cao hàng Chẩn đoán ảnh */
+    .side-panel {
+      padding-left: 20px !important;
+      padding-right: 20px !important;
+      box-sizing: border-box !important;
+    }
+
+    .side-panel > .panel-card:first-child > .panel-title-row {
+      height: 42px !important;
+      min-height: 42px !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      box-sizing: border-box !important;
+      align-items: center !important;
+    }
+
+    @media (max-width: 860px) {
+      .side-panel {
+        padding-left: 16px !important;
+        padding-right: 16px !important;
+      }
     }
 
   </style>
