@@ -5661,7 +5661,7 @@ async function downloadActiveImageWithMetadata() {
         domCamera.observe(paperElem, { childList: true, subtree: true, characterData: true, attributes: true });
     }
 
-    // --- LẮNG NGHE VÀ DÁN ĐÈ DOM TỪ LƯỚI REALTIME ---
+// --- LẮNG NGHE VÀ DÁN ĐÈ DOM TỪ LƯỚI REALTIME ---
     function applyRemoteDOM(domData) {
         isApplyingRemoteDOM = true;
 
@@ -5669,12 +5669,40 @@ async function downloadActiveImageWithMetadata() {
             const el = document.getElementById(elementId);
             if (!el || el.innerHTML === incomingHtml) return;
 
+            // [BẢN VÁ: GIẢI QUYẾT LỖI MẤT ẢNH BASE64 COLLAB]
+            // Cất giữ lại src của các ảnh base64 do chính máy này vừa chèn.
+            // Tránh việc bị "Khung chờ lưu" (placeholder) từ máy khác dội ngược về ghi đè.
+            const localPendingImages = {};
+            el.querySelectorAll('img').forEach(img => {
+                const src = img.getAttribute('src') || "";
+                const imgId = img.getAttribute('data-image-id');
+                
+                // Nếu là ảnh thật chưa lưu (bắt đầu bằng data:image) 
+                // và KHÔNG mang nhãn 'data-pending-remote-image' (nhãn của Khung chờ từ máy khác)
+                if (imgId && src.startsWith('data:image/') && !img.hasAttribute('data-pending-remote-image')) {
+                    localPendingImages[imgId] = src;
+                }
+            });
+
             if (document.activeElement === el || el.contains(document.activeElement)) {
                 const caretPos = getCaretCharacterOffsetWithin(el);
                 el.innerHTML = incomingHtml;
                 setCaretPositionWithin(el, caretPos);
             } else {
                 el.innerHTML = incomingHtml;
+            }
+
+            // [BẢN VÁ: PHỤC HỒI ẢNH GỐC]
+            // Sau khi DOM từ máy khác dán đè lên, ta bơm lại nội dung Base64 gốc
+            // vào đúng cái khung ảnh đó để chủ nhân không bị mất hình.
+            if (Object.keys(localPendingImages).length > 0) {
+                el.querySelectorAll('img').forEach(img => {
+                    const imgId = img.getAttribute('data-image-id');
+                    if (imgId && localPendingImages[imgId]) {
+                        img.setAttribute('src', localPendingImages[imgId]);
+                        img.removeAttribute('data-pending-remote-image'); // Gỡ mác chờ lưu để ảnh hiển thị rực rỡ
+                    }
+                });
             }
         }
 
