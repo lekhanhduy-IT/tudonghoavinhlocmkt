@@ -4529,6 +4529,12 @@ function applyPixelCropRealtime() {
     });
     updateImageModeStatus("crop");
     markImageDirty(true);
+    
+    // [BẢN VÁ QUAN TRỌNG]: Tự động đồng bộ ngay khi gõ phím
+    if (document.getElementById('vbSyncAllCheckbox')?.checked) {
+        syncStateToAllImages();
+    }
+    if (typeof updatePreviewUI === 'function') updatePreviewUI();
 }
 
 function applyRatioScaleRealtime() {
@@ -4552,6 +4558,12 @@ function applyRatioScaleRealtime() {
     });
     updateImageModeStatus("scale");
     markImageDirty(true);
+
+    // [BẢN VÁ QUAN TRỌNG]: Tự động đồng bộ ngay khi gõ phím
+    if (document.getElementById('vbSyncAllCheckbox')?.checked) {
+        syncStateToAllImages();
+    }
+    if (typeof updatePreviewUI === 'function') updatePreviewUI();
 }
 
 function initImagePropertyRealtimeControls() {
@@ -6119,17 +6131,7 @@ initImagePropertyRealtimeControls = function() {
         });
     }
     
-    // Gắn trigger Sync cho các ô Kích thước & Tỷ lệ
-    ['vbImgWidth', 'vbImgHeight', 'vbRatioWidth', 'vbRatioHeight'].forEach(id => {
-        let el = document.getElementById(id);
-        if(el && !el.dataset.syncBound) {
-             el.dataset.syncBound = "1";
-             el.addEventListener('input', () => {
-                 if(syncChk.checked) syncStateToAllImages();
-                 updatePreviewUI();
-             });
-        }
-    });
+    // Đã xóa bỏ các dòng mã rác gán sự kiện input dư thừa ở đây
 };
 
 // ==========================================
