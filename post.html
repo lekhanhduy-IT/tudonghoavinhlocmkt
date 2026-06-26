@@ -5239,15 +5239,22 @@ function serializeRealtimeSafeHtml(element) {
     if (!element) return "";
     const clone = element.cloneNode(true);
     clone.querySelectorAll(".vb-image-frame").forEach(frame => frame.classList.remove("vb-image-active", "vb-crop-dragging"));
- clone.querySelectorAll(".vb-selected-cell").forEach(cell => cell.classList.remove("vb-selected-cell"));
+    clone.querySelectorAll(".vb-selected-cell").forEach(cell => cell.classList.remove("vb-selected-cell"));
+
+    // [BẢN VÁ]: Lấy chính xác Tên hoặc Gmail của người dùng hiện tại từ bộ nhớ hệ thống
+    let rawEmail = localStorage.getItem('admin_email');
+    let uEmail = (rawEmail && rawEmail !== "undefined" && rawEmail !== "null") ? rawEmail : "Ẩn danh";
+    let rawName = localStorage.getItem('admin_name');
+    let uName = (rawName && rawName !== "undefined" && rawName !== "null") ? rawName : uEmail.split('@')[0];
+    let placeholderText = `${uName} đang chèn ảnh`;
+
     clone.querySelectorAll("img").forEach(img => {
         const driveUrl = img.dataset.driveUrl || "";
         if (driveUrl) {
             img.setAttribute("src", runtimeImageUrl(driveUrl));
-        // Phát hiện ảnh đang tải ngầm hoặc ảnh Base64 để che lại khi gửi cho người khác xem
-} else if (img.dataset.isLocalUpload === "true" || /^data:image\//i.test(img.getAttribute("src") || "") || /^blob:/i.test(img.getAttribute("src") || "")) {
+        } else if (img.dataset.isLocalUpload === "true" || /^data:image\//i.test(img.getAttribute("src") || "") || /^blob:/i.test(img.getAttribute("src") || "")) {
             img.setAttribute("src", "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(
-                '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540"><rect width="100%" height="100%" fill="#f4f6f8"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#888" font-family="Arial" font-size="24">Ảnh đang chờ lưu vào Drive</text></svg>'
+                `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540"><rect width="100%" height="100%" fill="#f4f6f8"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#888" font-family="Arial" font-size="24">${placeholderText}</text></svg>`
             ));
             img.dataset.pendingRemoteImage = "1";
         }
@@ -5925,7 +5932,7 @@ let vbCurrentPopupIndex = 0;
 let vbPreviewDragState = null;
 
 // Hàm mở Popup ghi đè
-// Hàm mở Popup ghi đè
+// Hàm mở Popup thông tin ảnh
 function openImageProperties(img) {
     if (!img) return;
     document.querySelectorAll(".vb-image-active").forEach(el => el.classList.remove("vb-image-active"));
@@ -5936,14 +5943,9 @@ function openImageProperties(img) {
     let isCover = img.closest("#coverEditor") !== null;
     
     if (isCover) {
-        // Nếu là ảnh bìa, ẩn điều hướng
         document.querySelector('.vb-preview-nav').style.display = 'none';
-        
-        // ---- CODE THÊM MỚI: Bỏ tích checkbox đồng bộ khi là ảnh bìa ----
         let syncCheckbox = document.getElementById('vbSyncAllCheckbox');
         if (syncCheckbox) syncCheckbox.checked = false;
-        // ---------------------------------------------------------------
-        
     } else {
         document.querySelector('.vb-preview-nav').style.display = 'flex';
         vbCurrentPopupIndex = vbContentImagesList.indexOf(img);
@@ -5954,17 +5956,22 @@ function openImageProperties(img) {
     frame.classList.add("vb-image-active");
     rememberImageInsertionTarget(isCover ? "cover" : "content");
 
+    // Nạp thông số của ảnh ĐƯỢC CHỌN vào Form
     populateImagePropertiesForm(img, {resetHistory: true});
     document.getElementById("vbImagePopupOverlay").style.display = "flex";
     
     updatePreviewUI();
+
+    // [BẢN VÁ QUAN TRỌNG]: Nếu mở ảnh mà Nút Đồng Bộ ĐANG BẬT -> Lập tức ép tất cả ảnh khác khớp với Form
+    if (!isCover && document.getElementById('vbSyncAllCheckbox').checked) {
+        syncStateToAllImages();
+    }
 }
 
-// Logic Carousel qua lại ảnh
+// Hàm chuyển ảnh bằng nút < >
 function vbNavigatePopupImage(direction) {
     if(vbContentImagesList.length <= 1) return;
     
-    // Lưu metadata đang sửa dở cho ảnh hiện tại
     if(vbActiveImage) {
         writeImageMetadata(vbActiveImage, collectMetadataFromGrid());
         vbActiveImage.closest('.vb-image-frame').classList.remove("vb-image-active");
@@ -5976,15 +5983,19 @@ function vbNavigatePopupImage(direction) {
     
     vbActiveImage = vbContentImagesList[vbCurrentPopupIndex];
     
-    // Focus và cuộn bài viết đến ảnh mới
     const newFrame = ensureManagedImageFrame(vbActiveImage, "content");
     newFrame.classList.add("vb-image-active");
     newFrame.scrollIntoView({ behavior: "smooth", block: "center" });
 
+    // Cập nhật lại form lấy thông số ĐÚNG CỦA ẢNH MỚI
     populateImagePropertiesForm(vbActiveImage, {resetHistory: true});
     updatePreviewUI();
-}
 
+    // [BẢN VÁ QUAN TRỌNG]: NẾU nút Đồng Bộ ĐANG BẬT -> Lấy thông số của ảnh mới này áp đặt ngay cho toàn bài
+    if (document.getElementById('vbSyncAllCheckbox').checked) {
+        syncStateToAllImages();
+    }
+}
 // Cập nhật giao diện Preview bên trái
 function updatePreviewUI() {
     if(!vbActiveImage) return;
@@ -6050,11 +6061,12 @@ function applyScalePercentRealtime() {
     if(document.getElementById('vbSyncAllCheckbox').checked) syncStateToAllImages();
 }
 
-// Logic đồng bộ hàng loạt (Sync) - Ép buộc lấy thông số từ FORM
+// Hàm ép Đồng Bộ toàn bộ ảnh theo Form hiện tại
 function syncStateToAllImages() {
-    if (!vbActiveImage || document.getElementById('vbSyncAllCheckbox').checked === false) return;
+    const syncChk = document.getElementById('vbSyncAllCheckbox');
+    if (!vbActiveImage || !syncChk || !syncChk.checked) return;
     
-    // Đọc thông số trực tiếp từ ô nhập liệu hiện tại
+    // Đọc thông số trực tiếp từ Ô NHẬP LIỆU trên form
     const targetWidth = parseFloat(document.getElementById("vbImgWidth").value) || 1;
     const targetHeight = parseFloat(document.getElementById("vbImgHeight").value) || 1;
     const ratioW = parseFloat(document.getElementById("vbRatioWidth").value) || 1;
@@ -6064,8 +6076,9 @@ function syncStateToAllImages() {
     const masterState = readImageFrameState(vbActiveImage);
     
     vbContentImagesList.forEach(img => {
-        if(img === vbActiveImage) return; // Bỏ qua chính nó
+        if(img === vbActiveImage) return; // Bỏ qua ảnh đang mở (vì nó đã chuẩn)
         
+        // Đồng bộ Scale %
         img.dataset.scalePercent = masterScale;
         
         const currentState = readImageFrameState(img);
@@ -6075,7 +6088,7 @@ function syncStateToAllImages() {
             targetHeight: targetHeight,
             ratioWidth: ratioW,
             ratioHeight: ratioH,
-            // GIỮ NGUYÊN VÙNG CẮT CỦA TỪNG ẢNH ĐỂ KHÔNG BỊ TRƯỢT MẶT NGƯỜI
+            // Cực kì quan trọng: GIỮ NGUYÊN VÙNG CẮT (objectPos) của từng ảnh, không lấy objectPos của ảnh Master
             objectPosX: currentState.objectPosX, 
             objectPosY: currentState.objectPosY
         };
