@@ -4119,31 +4119,41 @@ async function insertImageFiles(files, mode = vbImageTargetMode, specificRange =
 }
 
 // HÀM TẢI NGẦM VÀ TRÁO LINK
+// HÀM TẢI NGẦM VÀ TRÁO LINK
 async function backgroundUploadToDrive(clientId, file, postId) {
     try {
-        // A. Nén ảnh thành chuỗi Base64 nhẹ để gửi API (Không làm lag Server)
+        // [VÁ LỖI ẢNH 4000px]: Bỏ FileReader, dùng Link ảo ném thẳng vào Canvas để chống treo máy
         const base64Data = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const imgObj = new Image();
-                imgObj.onload = () => {
-                    const MAX_WIDTH = 1600, MAX_HEIGHT = 1600;
-                    let w = imgObj.width, h = imgObj.height;
-                    if (w > MAX_WIDTH || h > MAX_HEIGHT) {
-                        if (w > h) { h = Math.round((h *= MAX_WIDTH / w)); w = MAX_WIDTH; } 
-                        else { w = Math.round((w *= MAX_HEIGHT / h)); h = MAX_HEIGHT; }
-                    }
-                    const canvas = document.createElement("canvas");
-                    canvas.width = w; canvas.height = h;
-                    const ctx = canvas.getContext("2d");
-                    ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, w, h);
-                    ctx.drawImage(imgObj, 0, 0, w, h);
-                    resolve(canvas.toDataURL("image/jpeg", 0.8)); // Nén JPEG 80%
-                };
-                imgObj.onerror = reject;
-                imgObj.src = e.target.result;
+            const imgObj = new Image();
+            const objectUrl = URL.createObjectURL(file); // Mở cổng link ảo siêu tốc
+            
+            imgObj.onload = () => {
+                URL.revokeObjectURL(objectUrl); // Xóa link ảo ngay lập tức để giải phóng RAM
+                const MAX_WIDTH = 1600, MAX_HEIGHT = 1600;
+                let w = imgObj.width, h = imgObj.height;
+                
+                // Thuật toán bóp ảnh
+                if (w > MAX_WIDTH || h > MAX_HEIGHT) {
+                    if (w > h) { h = Math.round((h *= MAX_WIDTH / w)); w = MAX_WIDTH; } 
+                    else { w = Math.round((w *= MAX_HEIGHT / h)); h = MAX_HEIGHT; }
+                }
+                
+                const canvas = document.createElement("canvas");
+                canvas.width = w; canvas.height = h;
+                const ctx = canvas.getContext("2d");
+                ctx.fillStyle = "#ffffff"; 
+                ctx.fillRect(0, 0, w, h);
+                ctx.drawImage(imgObj, 0, 0, w, h);
+                
+                resolve(canvas.toDataURL("image/jpeg", 0.8)); // Xuất Base64 gửi Drive
             };
-            reader.readAsDataURL(file);
+            
+            imgObj.onerror = () => {
+                URL.revokeObjectURL(objectUrl);
+                reject(new Error("Lỗi nén ảnh."));
+            };
+            
+            imgObj.src = objectUrl; // Bơm link ảo vào Image
         });
 
         // B. Kiểm tra xem ảnh có bị người dùng XÓA chưa? Nếu xóa rồi thì ngưng lưu
@@ -4182,6 +4192,8 @@ async function backgroundUploadToDrive(clientId, file, postId) {
         }
     } catch (e) {
         console.error("Lỗi tải ảnh ngầm:", e);
+        const statusBox = document.getElementById("syncStatusVB");
+        if(statusBox) { statusBox.innerText = "⚠️ Lỗi tải ảnh"; statusBox.style.color = "var(--red)"; }
     }
 }
 
@@ -6074,11 +6086,15 @@ function applyScalePercentRealtime() {
 }
 
 // Hàm ép Đồng Bộ toàn bộ ảnh theo Form hiện tại
+// Hàm ép Đồng Bộ toàn bộ ảnh theo Form hiện tại
 function syncStateToAllImages() {
     const syncChk = document.getElementById('vbSyncAllCheckbox');
     if (!vbActiveImage || !syncChk || !syncChk.checked) return;
     
-    // Đọc thông số trực tiếp từ Ô NHẬP LIỆU trên form
+    // [VÁ LỖI]: Quét trực tiếp danh sách ảnh TƯƠI SỐNG từ DOM 
+    // (Đề phòng Firebase vừa ghi đè làm mảng cũ trở thành "bóng ma")
+    const liveImages = Array.from(document.querySelectorAll("#postContent img.vb-managed-image"));
+    
     const targetWidth = parseFloat(document.getElementById("vbImgWidth").value) || 1;
     const targetHeight = parseFloat(document.getElementById("vbImgHeight").value) || 1;
     const ratioW = parseFloat(document.getElementById("vbRatioWidth").value) || 1;
@@ -6087,8 +6103,9 @@ function syncStateToAllImages() {
     
     const masterState = readImageFrameState(vbActiveImage);
     
-    vbContentImagesList.forEach(img => {
-        if(img === vbActiveImage) return; // Bỏ qua ảnh đang mở (vì nó đã chuẩn)
+    liveImages.forEach(img => {
+        // So sánh bằng ID thay vì Object để không bị lỗi nếu ảnh vừa bị Firebase tạo mới
+        if(img.dataset.imageId === vbActiveImage.dataset.imageId) return; 
         
         // Đồng bộ Scale %
         img.dataset.scalePercent = masterScale;
@@ -6100,13 +6117,17 @@ function syncStateToAllImages() {
             targetHeight: targetHeight,
             ratioWidth: ratioW,
             ratioHeight: ratioH,
-            // Cực kì quan trọng: GIỮ NGUYÊN VÙNG CẮT (objectPos) của từng ảnh, không lấy objectPos của ảnh Master
+            // Giữ nguyên vùng kéo (Pan) của từng ảnh độc lập
             objectPosX: currentState.objectPosX, 
             objectPosY: currentState.objectPosY
         };
         
         applyImageFrameState(img, newState);
     });
+    
+    // Cập nhật lại mảng điều hướng để nút qua lại < > lấy đúng ảnh thật
+    vbContentImagesList = liveImages; 
+    
     markImageDirty(true);
 }
 
