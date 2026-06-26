@@ -1692,238 +1692,168 @@ const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
         fetchDataFromServer(true);
     }
 
-    // KÍCH HOẠT KHI TẢI TRANG
+    // KÍCH HOẠT KHI TẢI TRANG - FIREBASE LÀ NGUỒN HIỂN THỊ CHÍNH
     window.addEventListener('load', async () => {
-        // 0. Khởi tạo trình quản lý ảnh bìa và ảnh nội dung.
         initVbImageManager();
 
-        // 1. Phục hồi sự kiện bôi đen cho Editor
-        let editors = ['postContent', 'postTitle', 'postSapo', 'coverEditor'];
+        const editors = ['postContent', 'postTitle', 'postSapo', 'coverEditor'];
         editors.forEach(id => {
-            let el = document.getElementById(id);
-            if (el) {
-                el.addEventListener('mouseup', () => { saveSelection(); updateToolbarState(); });
-                el.addEventListener('keyup', () => { saveSelection(); updateToolbarState(); });
-                el.addEventListener('mouseleave', saveSelection);
-                el.addEventListener('input', () => { 
-                    isVBDirty = true; 
-                    let s = document.getElementById('syncStatusVB');
-                    if (s.innerText !== "⏳ Đang lưu nền...") {
-                        s.innerText = "⚠️ Chưa lưu";
-                        s.style.color = "var(--red)";
-                    }
-                });
-            }
+            const el = document.getElementById(id);
+            if (!el || el.dataset.vbCoreBound === '1') return;
+            el.dataset.vbCoreBound = '1';
+            el.addEventListener('mouseup', () => { saveSelection(); updateToolbarState(); });
+            el.addEventListener('keyup', () => { saveSelection(); updateToolbarState(); });
+            el.addEventListener('mouseleave', saveSelection);
+            el.addEventListener('input', () => {
+                isVBDirty = true;
+                const st = document.getElementById('syncStatusVB');
+                if (st && st.innerText !== '⏳ Đang lưu nền...') {
+                    st.innerText = '⚠️ Chưa lưu';
+                    st.style.color = 'var(--red)';
+                }
+            });
         });
 
-        // 2. Ép dán văn bản thuần cho Tiêu đề và Sapo
         ['postTitle', 'postSapo'].forEach(id => {
-            let el = document.getElementById(id);
-            if (el) {
-                el.addEventListener('paste', function(e) {
-                    e.preventDefault();
-                    let text = (e.originalEvent || e).clipboardData.getData('text/plain');
-                    if (id === 'postTitle') text = text.replace(/(\r\n|\n|\r)/gm, " ");
-                    document.execCommand('insertText', false, text);
-                });
-            }
+            const el = document.getElementById(id);
+            if (!el || el.dataset.vbPlainPasteBound === '1') return;
+            el.dataset.vbPlainPasteBound = '1';
+            el.addEventListener('paste', function(e) {
+                e.preventDefault();
+                let text = (e.originalEvent || e).clipboardData.getData('text/plain');
+                if (id === 'postTitle') text = text.replace(/(\r\n|\n|\r)/gm, ' ');
+                document.execCommand('insertText', false, text);
+            });
         });
 
-        // 3. Khởi tạo dữ liệu từ Local Cache
+        // Cache chỉ dùng để bootstrap phòng Firebase chưa từng tồn tại.
         try {
-            let cached = localStorage.getItem("MKT_DATA");
+            const cached = localStorage.getItem('MKT_DATA');
             if (cached) {
-                let parsed = JSON.parse(cached);
+                const parsed = JSON.parse(cached);
                 if (parsed && parsed.sheets) {
                     sysData = parsed;
-                    currentSyncToken = sysData.syncToken || 0;
-                    document.getElementById('syncStatusVB').innerHTML = "⚡ Chế độ nhanh (Local)";
+                    currentSyncToken = parsed.syncToken || 0;
                 }
             }
             loadDraftData();
+        } catch (err) {
+            console.warn('Không đọc được cache bootstrap:', err);
+        }
 
-            let urlParams = new URLSearchParams(window.location.search);
-            currentPostId = urlParams.get('id') || (draftData ? draftData.data[0] : null);
-            // if (currentPostId) loadPostIntoEditor(currentPostId);
-
-            processAndRenderPostUI();
-        } catch (err) { console.error("Lỗi nạp Cache:", err); }
-
-        // 4. Kéo máy chủ và đặt lịch quét tự động 20s/lần
-        fetchDataFromServer();
-        setInterval(() => {
-            if (!checkIsEditing() && actionQueue.length === 0) fetchDataFromServer();
-        }, 20000);
-
-        // 5. Lắng nghe đồng bộ liên Tab
-        window.addEventListener('storage', function(e) {
-            if (e.key === "MKT_DATA") {
-                try {
-                    let newData = JSON.parse(e.newValue);
-                    if (newData && newData.sheets) { sysData = newData; processAndRenderPostUI(); }
-                } catch(err) {}
-            }
-        });
-
-        // 6. Tự động áp dụng dữ liệu mới khi click ra ngoài
-        ['mousedown', 'focusout'].forEach(evt => {
-            document.addEventListener(evt, () => {
-                setTimeout(() => {
-                    if (hasPendingUpdate && !checkIsEditing()) { hasPendingUpdate = false; fetchDataFromServer(true); }
-                }, 200);
-            });
-        });
+        if (window.VBRealtimeCanvas) {
+            await window.VBRealtimeCanvas.start();
+        }
     });
-function processAndRenderPostUI() {
-    loadGoogleFontsFromSheet(sysData);
-    loadEmojisFromSheet(sysData);
-    loadTemplatesFromSheet(sysData);
-    prewarmPostImagesFromBrain(sysData);
-    renderImageLibraries();
 
-    if (draftData && draftData.planRowIndex !== undefined && sysData.sheets["_PLAN_DATA_"]) {
-        let planRow = sysData.sheets["_PLAN_DATA_"][draftData.planRowIndex];
-        if (planRow && planRow[2]) {
-            try { draftData.data = JSON.parse(planRow[2]); localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData)); } catch(e) {}
+    // Chỉ render dữ liệu context đang nằm trong Firebase room_state.
+    // Tuyệt đối không gọi loadPostIntoEditor ở đây để tránh ghi đè canvas chung.
+    function processAndRenderPostUI(roomState) {
+        if (roomState && roomState.context) {
+            const ctx = roomState.context;
+            sysData = {
+                ...(sysData || {}),
+                sheets: { ...((sysData && sysData.sheets) || {}), ...(ctx.sheets || {}) },
+                attributes: { ...((sysData && sysData.attributes) || {}), ...(ctx.attributes || {}) },
+                tabOrder: Array.isArray(ctx.tabOrder) ? ctx.tabOrder.slice() : ((sysData && sysData.tabOrder) || []),
+                syncToken: ctx.syncToken || currentSyncToken || 0
+            };
+            currentSyncToken = sysData.syncToken || 0;
+            localStorage.setItem('MKT_DATA', JSON.stringify(sysData));
         }
-    }
-    loadDraftData();
 
-    let urlParams = new URLSearchParams(window.location.search);
-    let postIdToLoad = urlParams.get('id') || (draftData ? draftData.data[0] : null);
-    
-    if (postIdToLoad && !isVBDirty) {
-        currentPostId = postIdToLoad;
-        smartCanvasBootV4_2(postIdToLoad); // Gọi động cơ V4.2
-    }
-}
+        if (roomState && roomState.draftData) {
+            draftData = roomState.draftData;
+            localStorage.setItem('DRAFT_POST_DATA', JSON.stringify(draftData));
+        } else {
+            loadDraftData();
+        }
 
-let isBootingCanvas = true; // Khiên bảo vệ DOM
-
-async function smartCanvasBootV4_2(postId) {
-    isBootingCanvas = true; // Khóa mõm MutationObserver lại
-    const safeRoomId = postId.replace(/[\.\#\$\[\]]/g, '_');
-    const db = firebase.database();
-    
-    const domSnap = await db.ref(`collab_rooms/${safeRoomId}/dom_state`).once('value');
-    const liveCanvas = domSnap.val();
-
-    if (liveCanvas && (liveCanvas.postContent || liveCanvas.postTitle)) {
-        console.log("⚡ Kế thừa Canvas Live từ Firebase...");
-        document.getElementById("postTitle").innerHTML = liveCanvas.postTitle || "";
-        document.getElementById("postSapo").innerHTML = liveCanvas.postSapo || "";
-        document.getElementById("coverEditor").innerHTML = liveCanvas.coverHtml || "";
-        document.getElementById("postContent").innerHTML = liveCanvas.postContent || "";
-    } else {
-        console.log("📥 Phòng mới tinh -> Nạp gốc từ Sheet...");
-        loadPostIntoEditor(postId);
+        loadGoogleFontsFromSheet(sysData);
+        loadEmojisFromSheet(sysData);
+        loadTemplatesFromSheet(sysData);
+        prewarmPostImagesFromBrain(sysData);
+        renderImageLibraries();
+        loadDraftData();
     }
 
-    hydrateManagedImages(document.getElementById("postContent"), "content");
-    hydrateManagedImages(document.getElementById("coverEditor"), "cover");
-
-    // Đợi DOM ổn định 500ms mới dỡ khiên cho Camera hoạt động
-    setTimeout(() => { 
-        isBootingCanvas = false; 
-        lastBroadcastedDOMHash = (document.getElementById('postTitle')?.innerHTML||'') + (document.getElementById('postSapo')?.innerHTML||'') + (document.getElementById('coverEditor')?.innerHTML||'') + (document.getElementById('postContent')?.innerHTML||'');
-    }, 500);
-}
-async function smartCanvasBoot(postId) {
-    const safeRoomId = postId.replace(/[\.\#\$\[\]]/g, '_');
-    const db = firebase.database();
-    
-    // 1. Quét két sắt Firebase trước
-    const domSnap = await db.ref(`collab_rooms/${safeRoomId}/dom_state`).once('value');
-    const liveCanvas = domSnap.val();
-
-    if (liveCanvas && (liveCanvas.postContent || liveCanvas.postTitle)) {
-        // [TRƯỜNG HỢP A]: Phòng đang có người gõ, hoặc lần trước gõ xong tắt máy chưa bấm Lưu
-        console.log("⚡ Kế thừa Canvas Realtime từ Firebase...");
-        
-        document.getElementById("postTitle").innerHTML = liveCanvas.postTitle || "";
-        document.getElementById("postSapo").innerHTML = liveCanvas.postSapo || "";
-        document.getElementById("coverEditor").innerHTML = liveCanvas.coverHtml || "";
-        document.getElementById("postContent").innerHTML = liveCanvas.postContent || "";
-
-        hydrateManagedImages(document.getElementById("postContent"), "content");
-        hydrateManagedImages(document.getElementById("coverEditor"), "cover");
-
-        isVBDirty = true;
-        let s = document.getElementById('syncStatusVB');
-        if (s) { s.innerText = "⚠️ Chưa lưu (Kế thừa bản Live)"; s.style.color = "var(--red)"; }
-
-    } else {
-        // [TRƯỜNG HỢP B]: Phòng mới tinh -> Tải bản gốc từ Sheet
-        console.log("📥 Khởi tạo Canvas gốc từ Google Sheets...");
-        loadPostIntoEditor(postId); // Hàm cũ của bạn
-
-        // Tải xong lập tức đẩy lên Firebase để người vào thứ 2 kế thừa
-        setTimeout(() => { if (window.triggerDomCamera) window.triggerDomCamera(); }, 1000);
-    }
-}
-
+    // Trong chế độ canvas chung, nút làm mới chỉ đọc lại Firebase.
     async function fetchDataFromServer(forceFromGoogle = false) {
-        try {
-            if (actionQueue.length === 0) {
-                document.getElementById('syncStatusVB').innerText = "🔄 Đang tải...";
-                document.getElementById('syncStatusVB').style.color = "var(--blue)";
-            }
-            let fetchUrl = (!forceFromGoogle && window.location.hostname !== 'localhost') ? "/api/get-brain" : API_URL + "?t=" + new Date().getTime();
-            let res = await fetch(fetchUrl);
-            let json = await res.json();
-
-            if (fetchUrl === "/api/get-brain") {
-                if (!json.success || (json.success && json.data.syncToken < currentSyncToken)) {
-                    res = await fetch(API_URL + "?t=" + new Date().getTime());
-                    json = await res.json();
-                }
-            }
-
-            if (json.success) { 
-                sysData = json.data; 
-                currentSyncToken = sysData.syncToken;
-                localStorage.setItem("MKT_DATA", JSON.stringify(sysData)); 
-
-                if (!checkIsEditing()) {
-                    processAndRenderPostUI();
-                    document.getElementById('syncStatusVB').innerText = "✅ Sẵn sàng"; 
-                    document.getElementById('syncStatusVB').style.color = "#27ae60";
-                    hasPendingUpdate = false;
-                } else {
-                    document.getElementById('syncStatusVB').innerText = "⚠️ Có dữ liệu mới"; 
-                    document.getElementById('syncStatusVB').style.color = "#f39c12";
-                    hasPendingUpdate = true;
-                }
-            }
-        } catch(e) { 
-            document.getElementById('syncStatusVB').innerText = "⚠️ Ngoại tuyến"; 
-            document.getElementById('syncStatusVB').style.color = "var(--red)";
+        if (window.VBRealtimeCanvas && window.VBRealtimeCanvas.isReady()) {
+            return window.VBRealtimeCanvas.refreshFromFirebase();
         }
+        return fetchBootstrapSystemData(forceFromGoogle);
+    }
+
+    async function fetchBootstrapSystemData(forceFromGoogle = false) {
+        const status = document.getElementById('syncStatusVB');
+        try {
+            if (status) {
+                status.innerText = '🔄 Đang tạo phòng...';
+                status.style.color = 'var(--blue)';
+            }
+            let fetchUrl = (!forceFromGoogle && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1')
+                ? '/api/get-brain'
+                : API_URL + '?t=' + Date.now();
+            let res = await fetch(fetchUrl, { cache: 'no-store' });
+            let json = await res.json();
+            if (!json.success && fetchUrl === '/api/get-brain') {
+                res = await fetch(API_URL + '?t=' + Date.now(), { cache: 'no-store' });
+                json = await res.json();
+            }
+            if (!json.success || !json.data) throw new Error(json.error || 'Không lấy được dữ liệu bootstrap');
+            sysData = json.data;
+            currentSyncToken = sysData.syncToken || 0;
+            localStorage.setItem('MKT_DATA', JSON.stringify(sysData));
+            return sysData;
+        } catch (err) {
+            if (status) {
+                status.innerText = '⚠️ Không tạo được phòng';
+                status.style.color = 'var(--red)';
+            }
+            throw err;
+        }
+    }
+
+    function forceFetchData() {
+        if (window.VBRealtimeCanvas) window.VBRealtimeCanvas.refreshFromFirebase();
     }
 
     function pushQueue(action) {
-        actionQueue.push(action); 
-        localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
-        let s = document.getElementById('syncStatusVB'); 
-        s.innerText = "⏳ Gom dữ liệu..."; s.style.color = "#f39c12";
+        actionQueue.push(action);
+        localStorage.setItem('MKT_DATA', JSON.stringify(sysData));
+        const s = document.getElementById('syncStatusVB');
+        if (s) { s.innerText = '⏳ Gom dữ liệu...'; s.style.color = '#f39c12'; }
         clearTimeout(syncTimer);
+        syncTimer = setTimeout(() => flushActionQueueNow(), 1500);
 
-        syncTimer = setTimeout(() => {
-            let batch = [...actionQueue]; actionQueue = []; 
-            s.innerText = "⏳ Đang lưu nền...";
-            fetch(API_URL, { method: "POST", body: JSON.stringify(batch), headers: { "Content-Type": "text/plain;charset=utf-8" } })
-            .then(res => res.json())
-            .then(json => { 
-                if (json.success) { 
-                    s.innerText = "✅ Đã lưu an toàn"; s.style.color = "#27ae60"; 
-                    if (json.syncToken > currentSyncToken) {
-                        currentSyncToken = json.syncToken;
-                        if (!checkIsEditing()) fetchDataFromServer(true);
-                        else { s.innerText = "⚠️ Có dữ liệu mới"; s.style.color = "#f39c12"; hasPendingUpdate = true; }
-                    }
-                } 
-            }).catch(e => { s.innerText = "⚠️ Lỗi mạng"; s.style.color = "var(--red)"; });
-        }, 1500); 
+        // Những bảng phụ cũng được phản chiếu vào context Firebase của phòng.
+        if (window.VBRealtimeCanvas) window.VBRealtimeCanvas.scheduleContextSync();
+    }
+
+    async function flushActionQueueNow(options = {}) {
+        if (!actionQueue.length) return { success: true, syncToken: currentSyncToken };
+        clearTimeout(syncTimer);
+        const batch = actionQueue.splice(0, actionQueue.length);
+        const s = document.getElementById('syncStatusVB');
+        if (s) { s.innerText = '⏳ Đang ghi Sheet...'; s.style.color = '#f39c12'; }
+        try {
+            const res = await fetch(API_URL, {
+                method: 'POST',
+                body: JSON.stringify(batch),
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                keepalive: !!options.keepalive
+            });
+            const json = await res.json();
+            if (!json.success) throw new Error(json.error || 'Sheet trả về lỗi');
+            currentSyncToken = json.syncToken || currentSyncToken;
+            if (s) { s.innerText = '✅ Đã lưu Sheet'; s.style.color = '#27ae60'; }
+            return json;
+        } catch (err) {
+            actionQueue = batch.concat(actionQueue);
+            if (s) { s.innerText = '⚠️ Lỗi ghi Sheet'; s.style.color = 'var(--red)'; }
+            throw err;
+        }
     }
 
     // NẠP BÀI VIẾT VÀO EDITOR
@@ -2310,80 +2240,103 @@ function vbShowPrompt(msg, callback) {
         }
     }
 
-async function savePostToSheet() {
-    window.isSavingToSheet = true; // [KHÓA MÕM CAMERA]
+    async function savePostToSheet() {
+        const title = document.getElementById("postTitle").innerHTML;
+        const sapo = document.getElementById("postSapo").innerHTML;
+        const planId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_" + new Date().getTime());
+        currentPostId = planId;
 
-    const title = document.getElementById("postTitle").innerHTML;
-    const sapo = document.getElementById("postSapo").innerHTML;
-    const planId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_" + Date.now());
-    currentPostId = planId;
+        const status = document.getElementById('syncStatusVB');
+        status.innerHTML = "⏳ Đang lưu ảnh vào Shared Drive...";
+        status.style.color = "#f39c12";
 
-    const status = document.getElementById('syncStatusVB');
-    if (status) { status.innerHTML = "⏳ Đang chốt phòng lên Sheet..."; status.style.color = "#f39c12"; }
-
-    try { await uploadAllPendingPostImages(planId); } 
-    catch (uploadErr) {
-        window.isSavingToSheet = false;
-        if (status) { status.innerHTML = "⚠️ Lỗi lưu ảnh"; status.style.color = "var(--red)"; }
-        vbShowAlert("Lỗi upload Drive:<br>" + escapeHtmlText(uploadErr.message));
-        return;
-    }
-
-    const coverImg = document.querySelector("#coverEditor img.vb-managed-image");
-    const coverUrl = coverImg ? (coverImg.dataset.driveUrl || normalizeDriveUrlForSheet(coverImg.getAttribute("src") || "")) : "";
-    let coverMetaObj = coverImg ? readImageMetadata(coverImg) : {};
-    if (coverImg) {
-        coverMetaObj.frameState = readImageFrameState(coverImg);
-        coverMetaObj.scalePercent = coverImg.dataset.scalePercent || "100";
-    }
-    const coverMetadata = JSON.stringify(coverMetaObj);
-    
-    const content = serializeEditorContentForSheet();
-    let currentWidth = document.getElementById('postContent').style.width || "100%";
-    const finalHtml = `<div class="post-body" data-width="${currentWidth}">${content}</div>`;
-
-    if (draftData && (!draftData.data[0] || draftData.data[0] !== planId)) {
-        draftData.data[0] = planId; localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
-        if (sysData.sheets["_PLAN_DATA_"] && draftData.planRowIndex !== undefined) {
-            const newJsonData = JSON.stringify(draftData.data);
-            sysData.sheets["_PLAN_DATA_"][draftData.planRowIndex][2] = newJsonData;
-            pushQueue({ type: 'SYNC_CELL', row: draftData.planRowIndex + 1, col: 3, val: newJsonData, tab: "_PLAN_DATA_" });
+        try {
+            await uploadAllPendingPostImages(planId);
+        } catch (uploadErr) {
+            status.innerHTML = "⚠️ Lỗi lưu ảnh";
+            status.style.color = "var(--red)";
+            vbShowAlert("Không thể lưu toàn bộ ảnh vào Shared Drive:<br><br>" + escapeHtmlText(uploadErr.message || String(uploadErr)));
+            return;
         }
-    }
 
-    const bvTab = sysData.sheets["Bài viết_hidden"] || [];
-    let targetRow = -1;
-    for (let r = 1; r < bvTab.length; r++) { if (bvTab[r][0] === planId) { targetRow = r; break; } }
-
-    const rowData = [planId, title, sapo, coverUrl, finalHtml, coverMetadata];
-    const instantBatch = [];
-
-    if (targetRow !== -1) {
-        bvTab[targetRow] = rowData;
-        rowData.forEach((val, idx) => instantBatch.push({type: 'SYNC_CELL', row: targetRow + 1, col: idx + 1, val: val, tab: "Bài viết_hidden"}));
-    } else {
-        targetRow = bvTab.length; bvTab.push(rowData);
-        instantBatch.push({type: 'STRUCTURAL', action: 'insertRow', index: targetRow + 1, count: 1, tab: "Bài viết_hidden"});
-        rowData.forEach((val, idx) => instantBatch.push({type: 'SYNC_CELL', row: targetRow + 1, col: idx + 1, val: val, tab: "Bài viết_hidden"}));
-    }
-
-    localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
-    isVBDirty = false;
-
-    fetch(API_URL, { 
-        method: "POST", body: JSON.stringify(instantBatch), 
-        headers: { "Content-Type": "text/plain;charset=utf-8" }, keepalive: true 
-    }).then(() => {
-        if (status) { status.innerHTML = "✅ Đã lưu Sheet an toàn"; status.style.color = "#27ae60"; }
+        const coverImg = document.querySelector("#coverEditor img.vb-managed-image");
+        const coverUrl = coverImg ? (coverImg.dataset.driveUrl || normalizeDriveUrlForSheet(coverImg.getAttribute("src") || "")) : "";
         
-        // [GIẾT CHẾT VĨNH VIỄN ZOMBIE FIREBASE]
-        const safeRoom = (planId || '').replace(/[\.\#\$\[\]]/g, '_');
-        if (typeof firebase !== 'undefined' && firebase.database) {
-            firebase.database().ref(`collab_rooms/${safeRoom}/dom_state`).remove();
+        // --- SỬA LỖI: Gom thêm FrameState (Width, Height, Mode) và Scale % vào chung chuỗi Metadata ---
+        let coverMetaObj = coverImg ? readImageMetadata(coverImg) : {};
+        if (coverImg) {
+            coverMetaObj.frameState = readImageFrameState(coverImg);
+            coverMetaObj.scalePercent = coverImg.dataset.scalePercent || "100";
         }
-        setTimeout(() => { window.isSavingToSheet = false; }, 2000);
-    });
-}
+        const coverMetadata = JSON.stringify(coverMetaObj);
+        
+const content = serializeEditorContentForSheet();
+        // Lấy tỷ lệ width hiện tại của khung soạn thảo (nếu không có thì mặc định 100%)
+        let currentWidth = document.getElementById('postContent').style.width || "100%";
+        // Gài thuộc tính data-width vào thẻ bọc ngoài cùng để lưu lên Sheet
+        const finalHtml = `<div class="post-body" data-width="${currentWidth}">${content}</div>`;
+
+        if (draftData && (!draftData.data[0] || draftData.data[0] !== planId)) {
+            draftData.data[0] = planId;
+            localStorage.setItem("DRAFT_POST_DATA", JSON.stringify(draftData));
+            if (sysData.sheets["_PLAN_DATA_"] && draftData.planRowIndex !== undefined) {
+                const newJsonData = JSON.stringify(draftData.data);
+                sysData.sheets["_PLAN_DATA_"][draftData.planRowIndex][2] = newJsonData;
+                pushQueue({ type: 'SYNC_CELL', row: draftData.planRowIndex + 1, col: 3, val: newJsonData, tab: "_PLAN_DATA_" });
+            }
+        }
+
+        if (!sysData.sheets["Bài viết_hidden"]) {
+            sysData.tabOrder.push("Bài viết_hidden");
+            sysData.sheets["Bài viết_hidden"] = [["ID", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML", "Metadata Ảnh Bìa"]];
+            pushQueue({type:'MANAGE_TAB', action:'create', tab: "Bài viết_hidden"});
+            ["ID", "Tiêu đề", "Sapo", "Ảnh Bìa", "Nội Dung HTML", "Metadata Ảnh Bìa"].forEach((header, i) => {
+                pushQueue({type:'SYNC_CELL', row: 1, col: i + 1, val: header, tab: "Bài viết_hidden"});
+            });
+        } else {
+            // Tương thích Sheet cũ: bổ sung tiêu đề cột metadata nếu chưa có.
+            const header = sysData.sheets["Bài viết_hidden"][0] || [];
+            if (header[5] !== "Metadata Ảnh Bìa") {
+                header[5] = "Metadata Ảnh Bìa";
+                pushQueue({type:'SYNC_CELL', row: 1, col: 6, val: "Metadata Ảnh Bìa", tab: "Bài viết_hidden"});
+            }
+        }
+
+        const bvTab = sysData.sheets["Bài viết_hidden"];
+        let targetRow = -1;
+        for (let r = 1; r < bvTab.length; r++) {
+            if (bvTab[r][0] === planId) { targetRow = r; break; }
+        }
+
+        status.innerHTML = "⏳ Đang ghi Sheet...";
+        status.style.color = "#f39c12";
+
+        const rowData = [planId, title, sapo, coverUrl, finalHtml, coverMetadata];
+
+        if (targetRow !== -1) {
+            bvTab[targetRow] = rowData;
+            for (let c = 1; c <= rowData.length; c++) {
+                pushQueue({type:'SYNC_CELL', row: targetRow + 1, col: c, val: rowData[c - 1], tab: "Bài viết_hidden"});
+            }
+        } else {
+            targetRow = bvTab.length;
+            bvTab.push(rowData);
+            pushQueue({type:'STRUCTURAL', action:'insertRow', index: targetRow + 1, count: 1, tab: "Bài viết_hidden"});
+            for (let c = 1; c <= rowData.length; c++) {
+                pushQueue({type:'SYNC_CELL', row: targetRow + 1, col: c, val: rowData[c - 1], tab: "Bài viết_hidden"});
+            }
+        }
+
+        // Cập nhật cache cục bộ ngay để lần mở kế tiếp không phải chờ mạng.
+        localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+        await flushActionQueueNow();
+        isVBDirty = false;
+        if (window.VBRealtimeCanvas && window.VBRealtimeCanvas.isReady()) {
+            await window.VBRealtimeCanvas.markSheetSaved();
+        }
+        status.innerHTML = "✅ Đã lưu Sheet";
+        status.style.color = "#27ae60";
+    }
 
     function applyGoogleFontFromLink() {
         let linkHtml = document.getElementById("newFontLink").value.trim();
@@ -3630,36 +3583,19 @@ function toggleVietbaiMode() {
 // BỔ SUNG HÀM NÀY VÀO CUỐI THẺ <script> CỦA FILE: post.html
 
 window.forceReloadDraft = function() {
-    loadDraftData();
-    let postIdToLoad = (draftData && draftData.data) ? draftData.data[0] : null;
-
-    // =========================================================================
-    // CHỐT CHẶN PHÂN LẬP PHÒNG: Kiểm tra xem ID bài gửi sang có khớp ID trên URL không?
-    // =========================================================================
-    const urlParams = new URLSearchParams(window.location.search);
-    let currentUrlId = urlParams.get('id');
-
-    if (postIdToLoad && postIdToLoad !== currentUrlId) {
-        // Phát hiện user vừa bấm Viết bài cho một dòng khác bên Kế Hoạch!
-        // -> Ra lệnh tải lại toàn bộ trang Post sạch sẽ với URL mới để giết chết vĩnh viễn socket cũ
-        window.location.replace('post.html?id=' + encodeURIComponent(postIdToLoad));
-        return; 
+    try { loadDraftData(); } catch (e) {}
+    let nextId = null;
+    if (draftData && Array.isArray(draftData.data) && draftData.data[0]) nextId = String(draftData.data[0]);
+    if (!nextId && draftData) {
+        nextId = `PLAN_${draftData.tabName || draftData.sourceTab || 'KE_HOACH'}_${draftData.planRowIndex ?? 'NEW'}`;
     }
-    else {
-        // NẾU LÀ DÒNG KẾ HOẠCH MỚI TINH: Phải dọn sạch rác của bài gõ trước đó!
-        currentPostId = null;
-        document.getElementById("postTitle").innerHTML = "";
-        document.getElementById("postSapo").innerHTML = "";
-        document.getElementById("coverEditor").innerHTML = "";
-        document.getElementById("postContent").innerHTML = "";
-        isVBDirty = false;
+    const currentId = new URLSearchParams(window.location.search).get('id');
+    if (nextId && nextId !== currentId) {
+        window.location.replace('post.html?id=' + encodeURIComponent(nextId));
+        return;
     }
-
-    // Chớp đèn tín hiệu cho user biết đã ăn dòng mới
-    let syncStatus = document.getElementById('syncStatusVB');
-    if (syncStatus) {
-        syncStatus.innerText = "⚡ Đã nạp Kế hoạch mới";
-        syncStatus.style.color = "#27ae60";
+    if (window.VBRealtimeCanvas) {
+        window.VBRealtimeCanvas.refreshFromFirebase();
     }
 };
 
@@ -5478,208 +5414,694 @@ async function downloadActiveImageWithMetadata() {
 
 
 /* ====================================================================
-   ĐỘNG CƠ CỘNG TÁC V4.4 (SEMANTIC CARET & ZOMBIE DISARMER)
+   ĐỘNG CƠ CỘNG TÁC & ĐỒNG BỘ SIÊU TỐC (V3 - THEO LOGIC GOOGLE DOCS)
 ==================================================================== */
-let globalActivePeopleCount = 1;
-let prevPeopleCount = 1;
-let lastKnownSessionsV44 = {};
 
-(function initCollabEngineV4_4() {
-    let rawEmail = localStorage.getItem('admin_email');
-    const myEmail = (rawEmail && rawEmail !== "undefined" && rawEmail !== "null") ? rawEmail : ('anon_' + Math.floor(Math.random()*1000) + '@gmail.com');
-    let rawName = localStorage.getItem('admin_name');
-    const myName = (rawName && rawName !== "undefined" && rawName !== "null") ? rawName : myEmail.split('@')[0];
-    const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
+/* ====================================================================
+   ĐỘNG CƠ CỘNG TÁC & ĐỒNG BỘ SIÊU TỐC (V3.5 - BỌC THÉP TOÀN DIỆN)
+==================================================================== */
 
-    const urlParams = new URLSearchParams(window.location.search);
-    let roomId = (urlParams.get('id') || 'DRAFT_ROOM_GENERAL').replace(/[\.\#\$\[\]]/g, '_');
-    const mySessionId = 'sess_' + Math.random().toString(36).substring(2, 10);
+(function initRealtimeCanvasEngine() {
+    const FIREBASE_ROOT = 'collab_rooms_v4';
+    const CONTEXT_SHEETS = [
+        'Google Fonts_hidden', 'emoji_hidden', 'Mẫu html_hidden', 'Thư viện_hidden',
+        '_PLAN_DATA_', 'thutuHeader_hidden', 'Bài viết_hidden'
+    ];
+    const STALE_CONNECTION_MS = 55000;
+    const HEARTBEAT_MS = 12000;
+    const CANVAS_DEBOUNCE_MS = 110;
+    const CONTEXT_DEBOUNCE_MS = 350;
 
-    const PALETTE = ['#01adee', '#db1010', '#8e44ad', '#27ae60', '#d35400', '#f39c12', '#16a085', '#2980b9'];
-    let hash = 0; for(let i=0; i<myEmail.length; i++) hash = myEmail.charCodeAt(i) + ((hash << 5) - hash);
-    const myColor = PALETTE[Math.abs(hash) % PALETTE.length];
+    let db = null;
+    let roomIdRaw = '';
+    let roomKey = '';
+    let accountKey = '';
+    let connectionId = '';
+    let myEmail = '';
+    let myName = '';
+    let myAvatar = '';
+    let myColor = '#01adee';
+    let roomRef = null;
+    let roomStateRef = null;
+    let accountsRef = null;
+    let myAccountRef = null;
+    let myConnectionRef = null;
+    let imageMetaLiveRef = null;
+    let started = false;
+    let ready = false;
+    let applyingRemote = false;
+    let lastAppliedRevision = 0;
+    let canvasTimer = null;
+    let contextTimer = null;
+    let heartbeatTimer = null;
+    let observer = null;
+    let saveInFlight = null;
+    let currentRoomState = null;
+    let lastAvatarHash = '';
+    let knownActiveConnectionCount = 0;
 
-    if(!firebase.apps.length) firebase.initializeApp({ databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" });
-    const db = firebase.database();
+    const safeFirebaseKey = value => String(value || '').replace(/[.#$\[\]\/]/g, '_');
+    const cloneJson = value => JSON.parse(JSON.stringify(value ?? null));
+    const now = () => Date.now();
 
-    const mySessionRef = db.ref(`collab_rooms/${roomId}/sessions/${mySessionId}`);
-    const allSessionsRef = db.ref(`collab_rooms/${roomId}/sessions`);
-    const domSyncRef = db.ref(`collab_rooms/${roomId}/dom_state`);
+    function resolveIdentity() {
+        const rawEmail = localStorage.getItem('admin_email');
+        myEmail = (rawEmail && rawEmail !== 'undefined' && rawEmail !== 'null')
+            ? rawEmail.trim().toLowerCase()
+            : 'anonymous@local.invalid';
+        const rawName = localStorage.getItem('admin_name');
+        myName = (rawName && rawName !== 'undefined' && rawName !== 'null')
+            ? rawName
+            : myEmail.split('@')[0];
+        myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
+        accountKey = safeFirebaseKey(myEmail);
+        connectionId = (window.crypto && window.crypto.randomUUID)
+            ? window.crypto.randomUUID().replace(/-/g, '')
+            : 'tab_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        const palette = ['#01adee', '#db1010', '#8e44ad', '#27ae60', '#d35400', '#f39c12', '#16a085', '#2980b9'];
+        let hash = 0;
+        for (let i = 0; i < myEmail.length; i++) hash = myEmail.charCodeAt(i) + ((hash << 5) - hash);
+        myColor = palette[Math.abs(hash) % palette.length];
+    }
 
-    mySessionRef.set({ name: myName, email: myEmail, avatar: myAvatar, color: myColor, fieldId: '', charIdx: -1, updatedAt: firebase.database.ServerValue.TIMESTAMP });
-    mySessionRef.onDisconnect().remove();
+    function resolveRoomId() {
+        const params = new URLSearchParams(window.location.search);
+        roomIdRaw = params.get('id') || '';
+        if (!roomIdRaw) {
+            try {
+                const d = JSON.parse(localStorage.getItem('DRAFT_POST_DATA') || 'null');
+                if (d && d.data && d.data[0]) roomIdRaw = String(d.data[0]);
+                else if (d) roomIdRaw = `PLAN_${d.tabName || d.sourceTab || 'KE_HOACH'}_${d.planRowIndex ?? 'NEW'}`;
+            } catch (e) {}
+        }
+        roomIdRaw = roomIdRaw || 'DRAFT_ROOM_GENERAL';
+        roomKey = safeFirebaseKey(roomIdRaw);
+        currentPostId = roomIdRaw;
+        if (!params.get('id')) window.history.replaceState(null, '', '?id=' + encodeURIComponent(roomIdRaw));
+    }
 
-    // --- PHẦN 1: BẮT CHỈ SỐ KÝ TỰ (SEMANTIC INDEX) ---
-    function broadcastSemanticCaret() {
+    function initFirebase() {
+        const firebaseConfig = {
+            databaseURL: 'https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/'
+        };
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+        roomRef = db.ref(`${FIREBASE_ROOT}/${roomKey}`);
+        roomStateRef = roomRef.child('room_state');
+        accountsRef = roomRef.child('accounts');
+        myAccountRef = accountsRef.child(accountKey);
+        myConnectionRef = myAccountRef.child(`connections/${connectionId}`);
+        imageMetaLiveRef = roomRef.child('image_meta_subchannel');
+    }
+
+    function setStatus(text, color) {
+        const el = document.getElementById('syncStatusVB');
+        if (!el) return;
+        el.innerText = text;
+        el.style.color = color;
+    }
+
+    async function registerPresence() {
+        await myAccountRef.child('profile').update({
+            name: myName,
+            email: myEmail,
+            avatar: myAvatar,
+            color: myColor,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+        });
+        await myConnectionRef.set({
+            connectedAt: firebase.database.ServerValue.TIMESTAMP,
+            lastSeen: firebase.database.ServerValue.TIMESTAMP,
+            pageVisible: !document.hidden
+        });
+        myConnectionRef.onDisconnect().remove();
+        heartbeatTimer = setInterval(() => {
+            myConnectionRef.update({
+                lastSeen: firebase.database.ServerValue.TIMESTAMP,
+                pageVisible: !document.hidden
+            });
+        }, HEARTBEAT_MS);
+    }
+
+    function countLiveConnections(accounts, at = now()) {
+        let count = 0;
+        Object.values(accounts || {}).forEach(account => {
+            Object.values((account && account.connections) || {}).forEach(conn => {
+                const seen = Number(conn && (conn.lastSeen || conn.connectedAt) || 0);
+                if (!seen || at - seen <= STALE_CONNECTION_MS) count++;
+            });
+        });
+        return count;
+    }
+
+    function accountHasLiveConnection(account, at = now()) {
+        return Object.values((account && account.connections) || {}).some(conn => {
+            const seen = Number(conn && (conn.lastSeen || conn.connectedAt) || 0);
+            return !seen || at - seen <= STALE_CONNECTION_MS;
+        });
+    }
+
+    function bindPresenceRendering() {
+        const cursorsCanvas = document.getElementById('collab-cursors-layer');
+        const avatarBar = document.getElementById('collabAvatarList');
+
+        accountsRef.on('value', snapshot => {
+            const accounts = snapshot.val() || {};
+            knownActiveConnectionCount = countLiveConnections(accounts);
+            const activeEntries = Object.entries(accounts)
+                .filter(([, account]) => accountHasLiveConnection(account))
+                .sort((a, b) => String(a[1]?.profile?.email || a[0]).localeCompare(String(b[1]?.profile?.email || b[0])));
+
+            const avatarHash = activeEntries.map(([key, account]) => `${key}:${account?.profile?.updatedAt || ''}`).join('|');
+            if (avatarBar && avatarHash !== lastAvatarHash) {
+                lastAvatarHash = avatarHash;
+                avatarBar.innerHTML = activeEntries.map(([key, account], index) => {
+                    const p = account.profile || {};
+                    const name = escapeHtmlText(p.name || (p.email ? p.email.split('@')[0] : 'Người dùng'));
+                    const avatar = escapeHtmlText(p.avatar || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png');
+                    const color = p.color || '#01adee';
+                    return `<div class="collab-user-node" data-account="${key}" style="--peer-color:${color};z-index:${index + 1}"><img src="${avatar}" alt="${name}" referrerpolicy="no-referrer" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'"><div class="collab-user-tooltip">${name}</div></div>`;
+                }).join('');
+            }
+
+            if (!cursorsCanvas) return;
+            const activeKeys = new Set(activeEntries.map(([key]) => key));
+            Array.from(cursorsCanvas.children).forEach(node => {
+                const key = node.dataset.accountKey;
+                if (!activeKeys.has(key) || key === accountKey) node.remove();
+            });
+
+            activeEntries.forEach(([key, account]) => {
+                if (key === accountKey) return;
+                const p = account.profile || {};
+                const cursor = account.cursor;
+                if (!cursor) return;
+                let node = Array.from(cursorsCanvas.children).find(el => el.dataset.accountKey === key);
+                if (!node) {
+                    node = document.createElement('div');
+                    node.className = 'peer-cursor';
+                    node.dataset.accountKey = key;
+                    node.style.setProperty('--peer-color', p.color || '#01adee');
+                    const safeName = escapeHtmlText(p.name || p.email || 'Người dùng');
+                    node.innerHTML = `<svg class="peer-cursor-arrow" viewBox="0 0 32 32"><polygon points="0,0 32,16 16,20 12,32"/></svg><div class="peer-cursor-label">${safeName}</div>`;
+                    cursorsCanvas.appendChild(node);
+                }
+                placeRemoteCursor(node, cursor);
+            });
+        });
+    }
+
+    function rangeFromCharacterOffset(el, offset) {
+        const range = document.createRange();
+        let remaining = Math.max(0, Number(offset) || 0);
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        let node;
+        while ((node = walker.nextNode())) {
+            if (remaining <= node.nodeValue.length) {
+                range.setStart(node, remaining);
+                range.collapse(true);
+                return range;
+            }
+            remaining -= node.nodeValue.length;
+        }
+        range.selectNodeContents(el);
+        range.collapse(false);
+        return range;
+    }
+
+    function getCaretOffset(el) {
         const sel = window.getSelection();
-        if (!sel.rangeCount) return;
+        if (!sel || !sel.rangeCount || !el.contains(sel.anchorNode)) return 0;
+        const r = sel.getRangeAt(0).cloneRange();
+        r.selectNodeContents(el);
+        r.setEnd(sel.anchorNode, sel.anchorOffset);
+        return r.toString().length;
+    }
 
-        const node = sel.anchorNode;
-        const targetField = node?.nodeType === 3 ? node.parentNode?.closest('#postTitle, #postSapo, #coverEditor, #postContent') : node?.closest('#postTitle, #postSapo, #coverEditor, #postContent');
-        if (!targetField) return;
+    function placeRemoteCursor(node, cursor) {
+        const paper = document.getElementById('editorContainer');
+        if (!paper) return;
+        const paperRect = paper.getBoundingClientRect();
+        let x = Number(cursor.xRatio || 0) * paperRect.width;
+        let y = Number(cursor.yRatio || 0) * paperRect.height;
 
-        const range = sel.getRangeAt(0).cloneRange();
-        range.selectNodeContents(targetField);
-        range.setEnd(sel.getRangeAt(0).endContainer, sel.getRangeAt(0).endOffset);
+        if (cursor.mode === 'caret' && cursor.fieldId) {
+            const field = document.getElementById(cursor.fieldId);
+            if (field) {
+                try {
+                    const range = rangeFromCharacterOffset(field, cursor.charOffset);
+                    const rect = range.getBoundingClientRect();
+                    if (rect && (rect.left || rect.top)) {
+                        x = rect.left - paperRect.left;
+                        y = rect.bottom - paperRect.top;
+                    }
+                } catch (e) {}
+            }
+        }
+        node.style.transform = `translate(${Math.max(0, x)}px, ${Math.max(0, y)}px)`;
+    }
 
-        mySessionRef.update({
-            fieldId: targetField.id,
-            charIdx: range.toString().length,
+    let lastCursorWrite = 0;
+    function publishPointer(clientX, clientY) {
+        if (!myAccountRef || now() - lastCursorWrite < 35) return;
+        lastCursorWrite = now();
+        const paper = document.getElementById('editorContainer');
+        if (!paper) return;
+        const rect = paper.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        myAccountRef.child('cursor').set({
+            mode: 'pointer',
+            xRatio: Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)),
+            yRatio: Math.min(1, Math.max(0, (clientY - rect.top) / rect.height)),
+            writerConnection: connectionId,
             updatedAt: firebase.database.ServerValue.TIMESTAMP
         });
     }
 
-    ['keyup', 'mouseup', 'input', 'focusin'].forEach(evt => {
-        document.getElementById('editorContainer')?.addEventListener(evt, () => setTimeout(broadcastSemanticCaret, 10));
-    });
-
-    // --- PHẦN 2: CAMERA DOM (ĐÃ BỌC THÉP CHỐNG ZOMBIE) ---
-    let isApplyingRemoteDOM = false;
-    window.triggerDomCamera = function() {
-        // Hễ đang tải trang, đang nhận DOM máy khác, hoặc ĐANG LƯU SHEET -> CẤM CHỤP!
-        if (isApplyingRemoteDOM || (typeof isBootingCanvas !== 'undefined' && isBootingCanvas) || window.isSavingToSheet) return;
-        
-        const payload = {
-            postTitle: document.getElementById('postTitle')?.innerHTML || '',
-            postSapo: document.getElementById('postSapo')?.innerHTML || '',
-            coverHtml: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('coverEditor')) : '',
-            postContent: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('postContent')) : '',
-            lastEditorSess: mySessionId
-        };
-        const curHash = payload.postTitle + payload.postSapo + payload.coverHtml + payload.postContent;
-        if (curHash !== window.lastBroadcastedDOMHash) { window.lastBroadcastedDOMHash = curHash; domSyncRef.set(payload); }
-    };
-    if (document.getElementById('editorContainer')) new MutationObserver(window.triggerDomCamera).observe(document.getElementById('editorContainer'), { childList: true, subtree: true, characterData: true });
-
-    // --- PHẦN 3: THUẬT TOÁN ĐẢO NGƯỢC SEMANTIC THÀNH PIXEL ---
-    function getCoordsOfCharIdx(fieldEl, targetIdx) {
-        if (!fieldEl || targetIdx < 0) return null;
-        const range = document.createRange();
-        let cur = 0, found = false, pos = null;
-
-        function walk(n) {
-            if (found) return;
-            if (n.nodeType === Node.TEXT_NODE) {
-                let next = cur + n.length;
-                if (targetIdx <= next) {
-                    range.setStart(n, Math.max(0, targetIdx - cur));
-                    range.collapse(true);
-                    let r = range.getBoundingClientRect();
-                    if (r.width === 0 && r.height === 0) {
-                        let sp = document.createElement('span'); sp.textContent = '\u200b';
-                        range.insertNode(sp); r = sp.getBoundingClientRect(); sp.remove();
-                    }
-                    const pRect = document.getElementById('editorContainer').getBoundingClientRect();
-                    pos = { x: r.left - pRect.left + 2, y: r.top - pRect.top - 14 };
-                    found = true;
-                }
-                cur = next;
-            } else { for (let i = 0; i < n.childNodes.length; i++) walk(n.childNodes[i]); }
-        }
-        walk(fieldEl);
-
-        if (!found) { // Nếu gõ ở tít đáy bài viết lố số chữ
-            range.selectNodeContents(fieldEl); range.collapse(false);
-            let r = range.getBoundingClientRect();
-            const pRect = document.getElementById('editorContainer').getBoundingClientRect();
-            pos = { x: r.right - pRect.left + 2, y: r.bottom - pRect.top - 14 };
-        }
-        return pos;
-    }
-
-    function redrawAllPeerSemanticCursors() {
-        const cursorsLayer = document.getElementById('collab-cursors-layer');
-        if (!cursorsLayer) return;
-
-        Object.values(lastKnownSessionsV44).forEach(peer => {
-            if (peer.email === myEmail || !peer.fieldId) return;
-            const fieldEl = document.getElementById(peer.fieldId);
-            const pos = getCoordsOfCharIdx(fieldEl, peer.charIdx);
-            
-            const safeId = 'cur_' + peer.email.replace(/[^a-zA-Z0-9]/g, '_');
-            let curDom = document.getElementById(safeId);
-            if (!curDom) {
-                curDom = document.createElement('div'); curDom.id = safeId; curDom.setAttribute('data-email', peer.email); curDom.className = 'peer-cursor';
-                curDom.style.setProperty('--peer-color', peer.color);
-                curDom.innerHTML = `<svg class="peer-cursor-arrow" viewBox="0 0 32 32"><polygon points="0,0 32,16 16,20 12,32"/></svg><div class="peer-cursor-label">${peer.name}</div>`;
-                cursorsLayer.appendChild(curDom);
-            }
-            if (pos) curDom.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+    function publishCaret() {
+        const active = document.activeElement;
+        if (!active) return;
+        const field = active.closest && active.closest('#postTitle,#postSapo,#coverEditor,#postContent');
+        if (!field) return;
+        const paper = document.getElementById('editorContainer');
+        if (!paper) return;
+        const paperRect = paper.getBoundingClientRect();
+        const fieldRect = field.getBoundingClientRect();
+        myAccountRef.child('cursor').set({
+            mode: 'caret',
+            fieldId: field.id,
+            charOffset: getCaretOffset(field),
+            xRatio: Math.min(1, Math.max(0, (fieldRect.left - paperRect.left) / Math.max(1, paperRect.width))),
+            yRatio: Math.min(1, Math.max(0, (fieldRect.top - paperRect.top) / Math.max(1, paperRect.height))),
+            writerConnection: connectionId,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
         });
     }
 
-    // Khi bạn co giãn cửa sổ hoặc trình duyệt tự xuống dòng -> Trải lại chuột đồng đội
-    window.addEventListener('resize', redrawAllPeerSemanticCursors);
-
-    function getCaretOffset(el) {
-        let off = 0; const s = window.getSelection();
-        if (s.rangeCount > 0) { const r = s.getRangeAt(0).cloneRange(); r.selectNodeContents(el); r.setEnd(s.getRangeAt(0).endContainer, s.getRangeAt(0).endOffset); off = r.toString().length; }
-        return off;
-    }
-    function setCaretOffset(el, off) {
-        const s = window.getSelection(); const r = document.createRange(); let idx = 0, found = false;
-        function walk(n) {
-            if (found) return;
-            if (n.nodeType === Node.TEXT_NODE) {
-                const next = idx + n.length;
-                if (off <= next) { r.setStart(n, off - idx); r.collapse(true); s.removeAllRanges(); s.addRange(r); found = true; }
-                idx = next;
-            } else { for (let i = 0; i < n.childNodes.length; i++) walk(n.childNodes[i]); }
-        }
-        walk(el);
+    function bindCursorBroadcast() {
+        window.addEventListener('mousemove', e => publishPointer(e.clientX, e.clientY), { passive: true });
+        window.addEventListener('touchmove', e => {
+            if (e.touches && e.touches[0]) publishPointer(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: true });
+        ['keyup', 'input', 'mouseup', 'focusin'].forEach(evt => {
+            document.addEventListener(evt, () => setTimeout(publishCaret, 0));
+        });
     }
 
-    domSyncRef.on('value', snapshot => {
-        const domData = snapshot.val();
-        if (!domData || domData.lastEditorSess === mySessionId) return;
-        isApplyingRemoteDOM = true;
-        function smartInject(id, html) {
-            const el = document.getElementById(id); if (!el || el.innerHTML === (html || '')) return;
-            if (document.activeElement === el || el.contains(document.activeElement)) {
-                const pos = getCaretOffset(el); el.innerHTML = html || ''; setCaretOffset(el, pos);
-            } else el.innerHTML = html || '';
+    function buildContextSnapshot() {
+        const sheets = {};
+        CONTEXT_SHEETS.forEach(name => {
+            if (sysData && sysData.sheets && sysData.sheets[name] !== undefined) sheets[name] = cloneJson(sysData.sheets[name]);
+        });
+        return {
+            sheets,
+            attributes: cloneJson((sysData && sysData.attributes) || {}),
+            tabOrder: cloneJson((sysData && sysData.tabOrder) || []),
+            syncToken: currentSyncToken || (sysData && sysData.syncToken) || 0
+        };
+    }
+
+    function serializeSharedCanvasHtml(element) {
+        if (!element) return '';
+        const clone = element.cloneNode(true);
+        clone.querySelectorAll('.vb-image-frame').forEach(frame => frame.classList.remove('vb-image-active', 'vb-crop-dragging'));
+        clone.querySelectorAll('.vb-selected-cell').forEach(cell => cell.classList.remove('vb-selected-cell'));
+        clone.querySelectorAll('img').forEach(img => {
+            img.removeAttribute('data-vb-bound');
+            img.classList.remove('vb-image-active');
+        });
+        return clone.innerHTML;
+    }
+
+    function captureCanvas() {
+        const content = document.getElementById('postContent');
+        return {
+            postTitle: document.getElementById('postTitle')?.innerHTML || '',
+            postSapo: document.getElementById('postSapo')?.innerHTML || '',
+            coverHtml: serializeSharedCanvasHtml(document.getElementById('coverEditor')),
+            postContent: serializeSharedCanvasHtml(content),
+            contentWidth: content?.style.width || '100%',
+            contentMargin: content?.style.margin || '',
+            updatedBy: myEmail,
+            writerConnection: connectionId,
+            updatedAtClient: now()
+        };
+    }
+
+    function captureRoomStateForCreate() {
+        return {
+            schemaVersion: 4,
+            postId: roomIdRaw,
+            canvas: captureCanvas(),
+            context: buildContextSnapshot(),
+            draftData: cloneJson(draftData),
+            meta: {
+                initializedAt: firebase.database.ServerValue.TIMESTAMP,
+                initializedBy: myEmail,
+                dirty: true,
+                sheetSavePending: true,
+                lastRevision: 1
+            }
+        };
+    }
+
+    function setCaretPositionWithin(el, offset) {
+        try {
+            const range = rangeFromCharacterOffset(el, offset);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+        } catch (e) {}
+    }
+
+    function smartInject(elementId, html) {
+        const el = document.getElementById(elementId);
+        if (!el || el.innerHTML === (html || '')) return;
+        let caret = null;
+        if (document.activeElement === el || el.contains(document.activeElement)) caret = getCaretOffset(el);
+        el.innerHTML = html || '';
+        if (caret !== null) setCaretPositionWithin(el, caret);
+    }
+
+    function applyRoomState(state, source = 'remote') {
+        if (!state || !state.canvas) return;
+        const revision = Number(state.meta && state.meta.lastRevision || 0);
+        if (source === 'remote' && revision && revision < lastAppliedRevision) return;
+        lastAppliedRevision = Math.max(lastAppliedRevision, revision);
+        currentRoomState = state;
+        applyingRemote = true;
+        try {
+            processAndRenderPostUI(state);
+            smartInject('postTitle', state.canvas.postTitle);
+            smartInject('postSapo', state.canvas.postSapo);
+            smartInject('coverEditor', state.canvas.coverHtml);
+            if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 'function') TableEditor.clearSelection();
+            smartInject('postContent', state.canvas.postContent);
+            const content = document.getElementById('postContent');
+            if (content) {
+                content.style.width = state.canvas.contentWidth || '100%';
+                content.style.margin = state.canvas.contentMargin || ((state.canvas.contentWidth && state.canvas.contentWidth !== '100%') ? '0 auto' : '');
+            }
+            const widthInput = document.getElementById('contentWidthInput');
+            if (widthInput) widthInput.value = parseInt(state.canvas.contentWidth || '100') || 100;
+            if (typeof hydrateManagedImages === 'function') {
+                hydrateManagedImages(document.getElementById('coverEditor'), 'cover');
+                hydrateManagedImages(document.getElementById('postContent'), 'content');
+            }
+            if (typeof globalHeadingSyncTrigger === 'function') setTimeout(globalHeadingSyncTrigger, 60);
+            isVBDirty = !!(state.meta && state.meta.dirty);
+            setStatus('⚠️ Chưa lưu', 'var(--red)');
+        } finally {
+            setTimeout(() => { applyingRemote = false; }, 25);
         }
-        smartInject('postTitle', domData.postTitle); smartInject('postSapo', domData.postSapo);
-        smartInject('coverEditor', domData.coverHtml); smartInject('postContent', domData.postContent);
-        if(typeof hydrateManagedImages === 'function') { hydrateManagedImages(document.getElementById('coverEditor'), 'cover'); hydrateManagedImages(document.getElementById('postContent'), 'content'); }
-        
-        setTimeout(() => { 
-            isApplyingRemoteDOM = false; 
-            redrawAllPeerSemanticCursors(); // Văn bản thay đổi độ dài -> Trải lại cờ chuột!
-        }, 35);
-    });
+    }
 
-    const cursorsLayer = document.getElementById('collab-cursors-layer');
-    const avtBar = document.getElementById('collabAvatarList');
+    async function bootstrapRoomIfMissing() {
+        const first = await roomStateRef.once('value');
+        if (first.exists()) return first.val();
 
-    allSessionsRef.on('value', snapshot => {
-        const sessionsObj = snapshot.val() || {};
-        const uniquePeopleMap = {};
-        Object.values(sessionsObj).forEach(s => { if (s && s.email) uniquePeopleMap[s.email] = s; });
-        
-        lastKnownSessionsV44 = uniquePeopleMap; // Lưu hòm bộ nhớ
-        const activePeople = Object.values(uniquePeopleMap);
-        globalActivePeopleCount = activePeople.length;
+        // Ưu tiên migrate canvas Firebase V3/V3.5 cũ để không mất bản nháp đang tồn tại.
+        const legacyDomSnap = await db.ref(`collab_rooms/${roomKey}/dom_state`).once('value');
+        const legacyDom = legacyDomSnap.val();
 
-        if (avtBar) {
-            avtBar.innerHTML = activePeople.map((p, idx) => `
-                <div class="collab-user-node" style="--peer-color: ${p.color}; z-index: ${idx+1};"><img src="${p.avatar}" alt="${p.name}"><div class="collab-user-tooltip">${p.name}</div></div>`).join('');
+        // Chỉ khi Firebase mới và Firebase cũ đều chưa có context thì mới lấy Sheet để bootstrap.
+        if (!sysData || !sysData.sheets || !Object.keys(sysData.sheets).length) {
+            await fetchBootstrapSystemData(false);
+        }
+        loadDraftData();
+        currentPostId = roomIdRaw;
+        processAndRenderPostUI({ context: buildContextSnapshot(), draftData: cloneJson(draftData) });
+        loadPostIntoEditor(roomIdRaw);
+
+        const candidate = captureRoomStateForCreate();
+        if (legacyDom) {
+            candidate.canvas = {
+                ...candidate.canvas,
+                postTitle: legacyDom.postTitle || '',
+                postSapo: legacyDom.postSapo || '',
+                coverHtml: legacyDom.coverHtml !== undefined
+                    ? legacyDom.coverHtml
+                    : (legacyDom.coverUrl ? `<img src="${legacyDom.coverUrl}" class="vb-managed-image" data-image-role="cover">` : ''),
+                postContent: legacyDom.postContent || '',
+                contentWidth: legacyDom.contentWidth || candidate.canvas.contentWidth || '100%',
+                updatedBy: legacyDom.sender || 'legacy-migration',
+                writerConnection: connectionId,
+                updatedAtClient: Number(legacyDom.timestamp || Date.now())
+            };
+            candidate.meta.migratedFrom = 'collab_rooms/dom_state';
+            candidate.meta.migratedAt = firebase.database.ServerValue.TIMESTAMP;
         }
 
-        if (cursorsLayer) {
-            Array.from(cursorsLayer.children).forEach(c => { if (!uniquePeopleMap[c.getAttribute('data-email')]) c.remove(); });
+        const result = await roomStateRef.transaction(current => current || candidate, undefined, false);
+        return result.snapshot.val();
+    }
+
+    function scheduleCanvasSync() {
+        if (!ready || applyingRemote) return;
+        clearTimeout(canvasTimer);
+        canvasTimer = setTimeout(async () => {
+            if (!ready || applyingRemote) return;
+            const canvas = captureCanvas();
+            const nextRevision = Math.max(lastAppliedRevision + 1, now());
+            lastAppliedRevision = nextRevision;
+            isVBDirty = true;
+            setStatus('⚠️ Chưa lưu', 'var(--red)');
+            await roomStateRef.update({
+                canvas,
+                'meta/dirty': true,
+                'meta/sheetSavePending': true,
+                'meta/lastRevision': nextRevision,
+                'meta/lastEditedAt': firebase.database.ServerValue.TIMESTAMP,
+                'meta/lastEditedBy': myEmail
+            });
+        }, CANVAS_DEBOUNCE_MS);
+    }
+
+    function scheduleContextSync() {
+        if (!ready) return;
+        clearTimeout(contextTimer);
+        contextTimer = setTimeout(() => {
+            roomStateRef.update({
+                context: buildContextSnapshot(),
+                draftData: cloneJson(draftData),
+                'meta/contextUpdatedAt': firebase.database.ServerValue.TIMESTAMP,
+                'meta/contextUpdatedBy': myEmail
+            });
+        }, CONTEXT_DEBOUNCE_MS);
+    }
+
+    function bindCanvasCamera() {
+        const paper = document.getElementById('editorContainer');
+        if (!paper) return;
+        observer = new MutationObserver(() => scheduleCanvasSync());
+        observer.observe(paper, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+            attributes: true,
+            attributeFilter: ['style', 'class', 'src', 'data-image-meta', 'data-frame-state', 'data-scale-percent']
+        });
+        paper.addEventListener('input', scheduleCanvasSync, true);
+        paper.addEventListener('change', scheduleCanvasSync, true);
+    }
+
+    function bindRoomStateListener() {
+        roomStateRef.on('value', snapshot => {
+            const state = snapshot.val();
+            if (!state || !state.canvas) return;
+            if (state.canvas.writerConnection === connectionId && currentRoomState) {
+                currentRoomState = state;
+                return;
+            }
+            applyRoomState(state, 'remote');
+        });
+    }
+
+    function bindImageMetadataChannel() {
+        const table = document.getElementById('vbMetadataTable');
+        if (table && table.dataset.firebaseMetaBound !== '1') {
+            table.dataset.firebaseMetaBound = '1';
+            table.addEventListener('input', e => {
+                if (!vbActiveImage) return;
+                const cell = e.target.closest('.vb-meta-value');
+                if (!cell) return;
+                imageMetaLiveRef.set({
+                    imageId: vbActiveImage.dataset.imageId,
+                    metaKey: cell.dataset.metaKey,
+                    text: cell.innerText.replace(/\u00a0/g, ' ').trim(),
+                    writerConnection: connectionId,
+                    updatedAt: firebase.database.ServerValue.TIMESTAMP
+                });
+                scheduleCanvasSync();
+            });
         }
-        redrawAllPeerSemanticCursors();
 
-        if (globalActivePeopleCount <= 1 && prevPeopleCount > 1 && isVBDirty) savePostToSheet();
-        prevPeopleCount = globalActivePeopleCount;
-    });
+        imageMetaLiveRef.on('value', snapshot => {
+            const data = snapshot.val();
+            if (!data || data.writerConnection === connectionId) return;
+            const img = document.querySelector(`img[data-image-id="${CSS.escape(data.imageId || '')}"]`);
+            if (img) {
+                const meta = readImageMetadata(img);
+                meta[data.metaKey] = data.text;
+                writeImageMetadata(img, meta);
+            }
+            if (vbActiveImage && vbActiveImage.dataset.imageId === data.imageId) {
+                const target = document.querySelector(`#vbMetadataTable .vb-meta-value[data-meta-key="${CSS.escape(data.metaKey || '')}"]`);
+                if (target && document.activeElement !== target) target.textContent = data.text;
+            }
+        });
+    }
 
-    let autoTimer = null;
-    document.addEventListener('input', () => {
-        clearTimeout(autoTimer);
-        autoTimer = setTimeout(() => { if (globalActivePeopleCount <= 1 && isVBDirty) savePostToSheet(); }, 15000);
-    });
+    async function refreshFromFirebase() {
+        if (!roomStateRef) return;
+        setStatus('🔄 Đang đọc canvas...', 'var(--blue)');
+        const snap = await roomStateRef.once('value');
+        if (snap.exists()) applyRoomState(snap.val(), 'manual');
+        return snap.val();
+    }
+
+    async function markSheetSaved() {
+        if (!roomStateRef) return;
+        isVBDirty = false;
+        await roomStateRef.update({
+            'meta/dirty': false,
+            'meta/sheetSavePending': false,
+            'meta/lastSheetSavedAt': firebase.database.ServerValue.TIMESTAMP,
+            'meta/lastSheetSavedBy': myEmail
+        });
+        setStatus('✅ Đã lưu Sheet', '#27ae60');
+    }
+
+    async function requestSheetSave(reason = 'manual') {
+        if (saveInFlight) return saveInFlight;
+        saveInFlight = (async () => {
+            try {
+                await roomStateRef.update({
+                    'meta/lastSaveReason': reason,
+                    'meta/saveStartedAt': firebase.database.ServerValue.TIMESTAMP
+                });
+                await savePostToSheet();
+                await flushActionQueueNow({ keepalive: reason !== 'manual' });
+                await markSheetSaved();
+            } finally {
+                saveInFlight = null;
+            }
+        })();
+        return saveInFlight;
+    }
+
+    async function maybeSaveAsLastConnection(reason) {
+        if (!ready || !isVBDirty) return;
+        try {
+            const snap = await accountsRef.once('value');
+            const count = countLiveConnections(snap.val() || {});
+            if (count <= 1) await requestSheetSave(reason);
+        } catch (err) {
+            console.warn('Không thể tự lưu khi người cuối rời phòng:', err);
+        }
+    }
+
+    function buildBeaconActions() {
+        if (!sysData || !sysData.sheets || !sysData.sheets['Bài viết_hidden']) return [];
+        const pendingImage = document.querySelector('#editorContainer img.vb-image-pending, #editorContainer img[src^="data:image/"]');
+        if (pendingImage) return [];
+        const tab = sysData.sheets['Bài viết_hidden'];
+        let row = -1;
+        for (let r = 1; r < tab.length; r++) if (String(tab[r][0]) === String(currentPostId)) { row = r; break; }
+        if (row < 0) return [];
+        const coverImg = document.querySelector('#coverEditor img.vb-managed-image');
+        const coverUrl = coverImg ? (coverImg.dataset.driveUrl || normalizeDriveUrlForSheet(coverImg.getAttribute('src') || '')) : '';
+        let coverMeta = coverImg ? readImageMetadata(coverImg) : {};
+        if (coverImg) {
+            coverMeta.frameState = readImageFrameState(coverImg);
+            coverMeta.scalePercent = coverImg.dataset.scalePercent || '100';
+        }
+        const width = document.getElementById('postContent').style.width || '100%';
+        const rowData = [
+            currentPostId,
+            document.getElementById('postTitle').innerHTML,
+            document.getElementById('postSapo').innerHTML,
+            coverUrl,
+            `<div class="post-body" data-width="${width}">${serializeEditorContentForSheet()}</div>`,
+            JSON.stringify(coverMeta)
+        ];
+        return rowData.map((val, idx) => ({ type: 'SYNC_CELL', row: row + 1, col: idx + 1, val, tab: 'Bài viết_hidden' }));
+    }
+
+    function pageExitBestEffort() {
+        clearInterval(heartbeatTimer);
+        if (knownActiveConnectionCount <= 1 && isVBDirty) {
+            const actions = buildBeaconActions();
+            if (actions.length && navigator.sendBeacon) {
+                try {
+                    navigator.sendBeacon(API_URL, new Blob([JSON.stringify(actions)], { type: 'text/plain;charset=utf-8' }));
+                } catch (e) {}
+            }
+            roomStateRef.update({
+                'meta/sheetSavePending': true,
+                'meta/lastExitAt': firebase.database.ServerValue.TIMESTAMP
+            });
+        }
+        try { myConnectionRef.remove(); } catch (e) {}
+    }
+
+    function bindLifecycle() {
+        document.addEventListener('visibilitychange', () => {
+            myConnectionRef.update({
+                lastSeen: firebase.database.ServerValue.TIMESTAMP,
+                pageVisible: !document.hidden
+            });
+            if (document.hidden) {
+                setTimeout(() => {
+                    if (document.hidden) maybeSaveAsLastConnection('last-user-hidden');
+                }, 1200);
+            }
+        });
+        window.addEventListener('pagehide', pageExitBestEffort);
+        window.addEventListener('beforeunload', pageExitBestEffort);
+    }
+
+    async function start() {
+        if (started) return;
+        started = true;
+        resolveIdentity();
+        resolveRoomId();
+        initFirebase();
+        bindPresenceRendering(); // listener trước để tài khoản vào sau thấy avatar cũ ngay.
+        await registerPresence();
+        bindCursorBroadcast();
+        bindLifecycle();
+
+        setStatus('🔄 Đang vào canvas chung...', 'var(--blue)');
+        const state = await bootstrapRoomIfMissing();
+        applyRoomState(state, 'initial');
+        bindRoomStateListener();
+        bindCanvasCamera();
+        bindImageMetadataChannel();
+        ready = true;
+
+        // Mỗi phiên mở lại là một phiên biên tập mới; canvas vẫn giữ nguyên từ Firebase.
+        isVBDirty = true;
+        await roomStateRef.update({
+            'meta/dirty': true,
+            'meta/sheetSavePending': true,
+            'meta/lastOpenedAt': firebase.database.ServerValue.TIMESTAMP,
+            'meta/lastOpenedBy': myEmail
+        });
+        setStatus('⚠️ Chưa lưu', 'var(--red)');
+    }
+
+    window.VBRealtimeCanvas = {
+        start,
+        isReady: () => ready,
+        refreshFromFirebase,
+        scheduleCanvasSync,
+        scheduleContextSync,
+        markSheetSaved,
+        requestSheetSave,
+        getRoomId: () => roomIdRaw,
+        getAccountKey: () => accountKey
+    };
 })();
 /* ====================================================================
    BẢN CẬP NHẬT STUDIO ẢNH: CAROUSEL, SCALE %, REALTIME SYNC
@@ -6047,7 +6469,6 @@ function renderImageLibraries() {
         container.appendChild(item);
     }
 }
-
 </script>
 
 </body>
