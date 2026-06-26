@@ -2311,6 +2311,8 @@ function vbShowPrompt(msg, callback) {
     }
 
 async function savePostToSheet() {
+    window.isSavingToSheet = true; // [KHÓA MÕM CAMERA]
+
     const title = document.getElementById("postTitle").innerHTML;
     const sapo = document.getElementById("postSapo").innerHTML;
     const planId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_" + Date.now());
@@ -2321,6 +2323,7 @@ async function savePostToSheet() {
 
     try { await uploadAllPendingPostImages(planId); } 
     catch (uploadErr) {
+        window.isSavingToSheet = false;
         if (status) { status.innerHTML = "⚠️ Lỗi lưu ảnh"; status.style.color = "var(--red)"; }
         vbShowAlert("Lỗi upload Drive:<br>" + escapeHtmlText(uploadErr.message));
         return;
@@ -2367,15 +2370,18 @@ async function savePostToSheet() {
     localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
     isVBDirty = false;
 
-    // [CHÌA KHÓA BẤT TỬ keepalive]: Bỏ qua pushQueue! Bắn thẳng lên Google!
-    // Trình duyệt có sập nguồn hay bị bấm Ctrl+W tắt ngang, hệ điều hành vẫn ép gửi xong gói này!
     fetch(API_URL, { 
-        method: "POST", 
-        body: JSON.stringify(instantBatch), 
-        headers: { "Content-Type": "text/plain;charset=utf-8" },
-        keepalive: true 
+        method: "POST", body: JSON.stringify(instantBatch), 
+        headers: { "Content-Type": "text/plain;charset=utf-8" }, keepalive: true 
     }).then(() => {
         if (status) { status.innerHTML = "✅ Đã lưu Sheet an toàn"; status.style.color = "#27ae60"; }
+        
+        // [GIẾT CHẾT VĨNH VIỄN ZOMBIE FIREBASE]
+        const safeRoom = (planId || '').replace(/[\.\#\$\[\]]/g, '_');
+        if (typeof firebase !== 'undefined' && firebase.database) {
+            firebase.database().ref(`collab_rooms/${safeRoom}/dom_state`).remove();
+        }
+        setTimeout(() => { window.isSavingToSheet = false; }, 2000);
     });
 }
 
@@ -5472,12 +5478,13 @@ async function downloadActiveImageWithMetadata() {
 
 
 /* ====================================================================
-   ĐỘNG CƠ CỘNG TÁC V4.3 (CARET-TRACKING + INSTANT JANITOR)
+   ĐỘNG CƠ CỘNG TÁC V4.4 (SEMANTIC CARET & ZOMBIE DISARMER)
 ==================================================================== */
 let globalActivePeopleCount = 1;
 let prevPeopleCount = 1;
+let lastKnownSessionsV44 = {};
 
-(function initCollabEngineV4_3() {
+(function initCollabEngineV4_4() {
     let rawEmail = localStorage.getItem('admin_email');
     const myEmail = (rawEmail && rawEmail !== "undefined" && rawEmail !== "null") ? rawEmail : ('anon_' + Math.floor(Math.random()*1000) + '@gmail.com');
     let rawName = localStorage.getItem('admin_name');
@@ -5499,40 +5506,39 @@ let prevPeopleCount = 1;
     const allSessionsRef = db.ref(`collab_rooms/${roomId}/sessions`);
     const domSyncRef = db.ref(`collab_rooms/${roomId}/dom_state`);
 
-    mySessionRef.set({ name: myName, email: myEmail, avatar: myAvatar, color: myColor, x: -9999, y: -9999, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+    mySessionRef.set({ name: myName, email: myEmail, avatar: myAvatar, color: myColor, fieldId: '', charIdx: -1, updatedAt: firebase.database.ServerValue.TIMESTAMP });
     mySessionRef.onDisconnect().remove();
 
-    // --- HÀM THẦN THÁNH: ĐO TỌA ĐỘ DUY NHẤT CỦA CON TRÓ NHÁY GÕ CHỮ ---
-    function broadcastTypingCaret() {
+    // --- PHẦN 1: BẮT CHỈ SỐ KÝ TỰ (SEMANTIC INDEX) ---
+    function broadcastSemanticCaret() {
         const sel = window.getSelection();
         if (!sel.rangeCount) return;
-        
-        const container = document.getElementById('editorContainer');
-        if (!container.contains(sel.anchorNode)) return; // Chỉ bắt khi đang gõ trong giấy
+
+        const node = sel.anchorNode;
+        const targetField = node?.nodeType === 3 ? node.parentNode?.closest('#postTitle, #postSapo, #coverEditor, #postContent') : node?.closest('#postTitle, #postSapo, #coverEditor, #postContent');
+        if (!targetField) return;
 
         const range = sel.getRangeAt(0).cloneRange();
-        range.collapse(false); // Đưa về đuôi chữ vừa gõ
-        
-        let rect = range.getBoundingClientRect();
-        if (rect.width === 0 && rect.height === 0) {
-            const sp = document.createElement('span'); sp.textContent = '\u200b';
-            range.insertNode(sp); rect = sp.getBoundingClientRect(); sp.remove();
-        }
+        range.selectNodeContents(targetField);
+        range.setEnd(sel.getRangeAt(0).endContainer, sel.getRangeAt(0).endOffset);
 
-        const cRect = container.getBoundingClientRect();
-        // Cộng 2px ngang để cờ cắm sau lưng chữ, trừ 15px dọc để cờ ngang tầm mắt
-        mySessionRef.update({ x: rect.right - cRect.left + 2, y: rect.bottom - cRect.top - 15 });
+        mySessionRef.update({
+            fieldId: targetField.id,
+            charIdx: range.toString().length,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+        });
     }
 
-    // Bắt mọi cử chỉ nháy con trỏ văn bản
     ['keyup', 'mouseup', 'input', 'focusin'].forEach(evt => {
-        document.getElementById('editorContainer')?.addEventListener(evt, () => setTimeout(broadcastTypingCaret, 10));
+        document.getElementById('editorContainer')?.addEventListener(evt, () => setTimeout(broadcastSemanticCaret, 10));
     });
 
-    // --- CAMERA DOM ---
+    // --- PHẦN 2: CAMERA DOM (ĐÃ BỌC THÉP CHỐNG ZOMBIE) ---
     let isApplyingRemoteDOM = false;
     window.triggerDomCamera = function() {
-        if (isApplyingRemoteDOM || (typeof isBootingCanvas !== 'undefined' && isBootingCanvas)) return;
+        // Hễ đang tải trang, đang nhận DOM máy khác, hoặc ĐANG LƯU SHEET -> CẤM CHỤP!
+        if (isApplyingRemoteDOM || (typeof isBootingCanvas !== 'undefined' && isBootingCanvas) || window.isSavingToSheet) return;
+        
         const payload = {
             postTitle: document.getElementById('postTitle')?.innerHTML || '',
             postSapo: document.getElementById('postSapo')?.innerHTML || '',
@@ -5545,7 +5551,66 @@ let prevPeopleCount = 1;
     };
     if (document.getElementById('editorContainer')) new MutationObserver(window.triggerDomCamera).observe(document.getElementById('editorContainer'), { childList: true, subtree: true, characterData: true });
 
-    // --- LẮNG NGHE TỪ PEER ---
+    // --- PHẦN 3: THUẬT TOÁN ĐẢO NGƯỢC SEMANTIC THÀNH PIXEL ---
+    function getCoordsOfCharIdx(fieldEl, targetIdx) {
+        if (!fieldEl || targetIdx < 0) return null;
+        const range = document.createRange();
+        let cur = 0, found = false, pos = null;
+
+        function walk(n) {
+            if (found) return;
+            if (n.nodeType === Node.TEXT_NODE) {
+                let next = cur + n.length;
+                if (targetIdx <= next) {
+                    range.setStart(n, Math.max(0, targetIdx - cur));
+                    range.collapse(true);
+                    let r = range.getBoundingClientRect();
+                    if (r.width === 0 && r.height === 0) {
+                        let sp = document.createElement('span'); sp.textContent = '\u200b';
+                        range.insertNode(sp); r = sp.getBoundingClientRect(); sp.remove();
+                    }
+                    const pRect = document.getElementById('editorContainer').getBoundingClientRect();
+                    pos = { x: r.left - pRect.left + 2, y: r.top - pRect.top - 14 };
+                    found = true;
+                }
+                cur = next;
+            } else { for (let i = 0; i < n.childNodes.length; i++) walk(n.childNodes[i]); }
+        }
+        walk(fieldEl);
+
+        if (!found) { // Nếu gõ ở tít đáy bài viết lố số chữ
+            range.selectNodeContents(fieldEl); range.collapse(false);
+            let r = range.getBoundingClientRect();
+            const pRect = document.getElementById('editorContainer').getBoundingClientRect();
+            pos = { x: r.right - pRect.left + 2, y: r.bottom - pRect.top - 14 };
+        }
+        return pos;
+    }
+
+    function redrawAllPeerSemanticCursors() {
+        const cursorsLayer = document.getElementById('collab-cursors-layer');
+        if (!cursorsLayer) return;
+
+        Object.values(lastKnownSessionsV44).forEach(peer => {
+            if (peer.email === myEmail || !peer.fieldId) return;
+            const fieldEl = document.getElementById(peer.fieldId);
+            const pos = getCoordsOfCharIdx(fieldEl, peer.charIdx);
+            
+            const safeId = 'cur_' + peer.email.replace(/[^a-zA-Z0-9]/g, '_');
+            let curDom = document.getElementById(safeId);
+            if (!curDom) {
+                curDom = document.createElement('div'); curDom.id = safeId; curDom.setAttribute('data-email', peer.email); curDom.className = 'peer-cursor';
+                curDom.style.setProperty('--peer-color', peer.color);
+                curDom.innerHTML = `<svg class="peer-cursor-arrow" viewBox="0 0 32 32"><polygon points="0,0 32,16 16,20 12,32"/></svg><div class="peer-cursor-label">${peer.name}</div>`;
+                cursorsLayer.appendChild(curDom);
+            }
+            if (pos) curDom.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+        });
+    }
+
+    // Khi bạn co giãn cửa sổ hoặc trình duyệt tự xuống dòng -> Trải lại chuột đồng đội
+    window.addEventListener('resize', redrawAllPeerSemanticCursors);
+
     function getCaretOffset(el) {
         let off = 0; const s = window.getSelection();
         if (s.rangeCount > 0) { const r = s.getRangeAt(0).cloneRange(); r.selectNodeContents(el); r.setEnd(s.getRangeAt(0).endContainer, s.getRangeAt(0).endOffset); off = r.toString().length; }
@@ -5577,7 +5642,11 @@ let prevPeopleCount = 1;
         smartInject('postTitle', domData.postTitle); smartInject('postSapo', domData.postSapo);
         smartInject('coverEditor', domData.coverHtml); smartInject('postContent', domData.postContent);
         if(typeof hydrateManagedImages === 'function') { hydrateManagedImages(document.getElementById('coverEditor'), 'cover'); hydrateManagedImages(document.getElementById('postContent'), 'content'); }
-        setTimeout(() => { isApplyingRemoteDOM = false; }, 35);
+        
+        setTimeout(() => { 
+            isApplyingRemoteDOM = false; 
+            redrawAllPeerSemanticCursors(); // Văn bản thay đổi độ dài -> Trải lại cờ chuột!
+        }, 35);
     });
 
     const cursorsLayer = document.getElementById('collab-cursors-layer');
@@ -5587,6 +5656,8 @@ let prevPeopleCount = 1;
         const sessionsObj = snapshot.val() || {};
         const uniquePeopleMap = {};
         Object.values(sessionsObj).forEach(s => { if (s && s.email) uniquePeopleMap[s.email] = s; });
+        
+        lastKnownSessionsV44 = uniquePeopleMap; // Lưu hòm bộ nhớ
         const activePeople = Object.values(uniquePeopleMap);
         globalActivePeopleCount = activePeople.length;
 
@@ -5597,21 +5668,9 @@ let prevPeopleCount = 1;
 
         if (cursorsLayer) {
             Array.from(cursorsLayer.children).forEach(c => { if (!uniquePeopleMap[c.getAttribute('data-email')]) c.remove(); });
-            activePeople.forEach(peer => {
-                if (peer.email === myEmail) return;
-                const safeId = 'cur_' + peer.email.replace(/[^a-zA-Z0-9]/g, '_');
-                let curDom = document.getElementById(safeId);
-                if (!curDom) {
-                    curDom = document.createElement('div'); curDom.id = safeId; curDom.setAttribute('data-email', peer.email); curDom.className = 'peer-cursor';
-                    curDom.style.setProperty('--peer-color', peer.color);
-                    curDom.innerHTML = `<svg class="peer-cursor-arrow" viewBox="0 0 32 32"><polygon points="0,0 32,16 16,20 12,32"/></svg><div class="peer-cursor-label">${peer.name}</div>`;
-                    cursorsLayer.appendChild(curDom);
-                }
-                curDom.style.transform = `translate(${peer.x}px, ${peer.y}px)`;
-            });
         }
+        redrawAllPeerSemanticCursors();
 
-        // [KÍCH HOẠT THỢ SĂN TỨC THÌ]: Đồng đội tắt tab -> Bóp cò bớt 1 request lên Sheet ngay giây thứ 0!
         if (globalActivePeopleCount <= 1 && prevPeopleCount > 1 && isVBDirty) savePostToSheet();
         prevPeopleCount = globalActivePeopleCount;
     });
