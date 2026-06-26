@@ -25,6 +25,9 @@
     html { scroll-behavior: smooth; }
 
     body {
+      overflow-x: hidden;
+      overscroll-behavior: none;
+      scrollbar-gutter: stable;
       margin: 0;
       min-height: 100vh;
       color: var(--ink);
@@ -42,6 +45,8 @@
     .app-shell {
       width: min(1480px, calc(100% - 32px));
       margin: 24px auto 40px;
+      overflow: hidden;
+      overscroll-behavior: none;
     }
 
     .topbar {
@@ -397,21 +402,25 @@
       font-size: 13px;
     }
 
-.side-panel {
-  position: sticky;
-  top: 106px;
-  display: grid;
-  gap: 16px;
-  max-height: calc(100vh - 124px);
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 3px;
+    .side-panel {
+      position: sticky;
+      top: 106px;
+      display: grid;
+      gap: 16px;
+      max-height: calc(100vh - 124px);
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 3px;
 
-  /* Firefox */
-  scrollbar-width: none;
+      overscroll-behavior-x: none;
+      overscroll-behavior-y: contain;
 
-  /* IE và Edge cũ */
-  -ms-overflow-style: none;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+
+.side-panel::-webkit-scrollbar {
+  display: none;
 }
 
 /* Chrome, Edge, Safari */
