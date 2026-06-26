@@ -1340,9 +1340,9 @@
       <i class="fas fa-image" style="color:#01adee;"></i>▾
     </button>
 <div class="vb-mini-popup" id="popupMiniImage" style="min-width: 220px; top:auto; bottom:100%; margin-bottom:5px;">
-      <div class="popup-item" onclick="chooseImageSource('upload')">
-        <i class="fas fa-upload" style="color:#01adee;"></i> Upload
-      </div>
+<div class="popup-item" onmousedown="event.preventDefault(); chooseImageSource('upload')">
+  <i class="fas fa-upload" style="color:#01adee;"></i> Upload
+</div>
       <div class="popup-item" onclick="chooseImageSource('drive')">
         <i class="fab fa-google-drive" style="color:#34a853;"></i> Drive
       </div>
@@ -4086,12 +4086,21 @@ function fileToDataUrl(file) {
 }
 
 async function insertImageFiles(files, mode = vbImageTargetMode, specificRange = null) {
-    const imageFiles = Array.from(files || []).filter(file => file && /^image\//i.test(file.type));
+    // Mở rộng bộ lọc: Windows đôi khi không trả về file.type, cần check thêm đuôi file
+    const imageFiles = Array.from(files || []).filter(file => {
+        if (!file) return false;
+        if (/^image\//i.test(file.type)) return true;
+        return /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(file.name);
+    });
+    
     for (const file of imageFiles) {
         const dataUrl = await fileToDataUrl(file);
         const metadata = { ...VB_DEFAULT_IMAGE_META, fileName: file.name || "" };
+        
+        // SINH THẺ <img> GẮN MÃ BASE64
         const img = createManagedImage(dataUrl, mode, metadata);
-        // Chuyền tay tọa độ qua khe cửa này tới insertManagedImage
+        
+        // DÁN THẺ <img> VÀO ĐÚNG VỊ TRÍ CON TRỎ (specificRange)
         insertManagedImage(img, mode, specificRange);
         if (mode === "cover") break;
     }
@@ -4201,9 +4210,15 @@ function initVbImageManager() {
         hydrateManagedImages(cover, "cover");
     });
 
-    fileInput?.addEventListener("change", async () => {
-        try { await insertImageFiles(fileInput.files, vbImageTargetMode); }
-        finally { fileInput.value = ""; }
+fileInput?.addEventListener("change", async () => {
+        try { 
+            // Truyền tọa độ con trỏ đã khóa vào hàm sinh thẻ img
+            await insertImageFiles(fileInput.files, vbImageTargetMode, window.pendingUploadRange); 
+        }
+        finally { 
+            fileInput.value = ""; 
+            window.pendingUploadRange = null; // Xóa bộ nhớ đệm
+        }
     });
     overlay?.addEventListener("mousedown", e => { if (e.target === overlay) closeImageProperties(); });
 
@@ -4301,7 +4316,9 @@ function chooseImageSource(type) {
     closeAllToolPopups();
     if (typeof TableEditor !== 'undefined') TableEditor.hideMenus();
 
-    if (type === "upload") {
+if (type === "upload") {
+        // LƯU LẠI TỌA ĐỘ CON TRỎ CHÍNH XÁC TRƯỚC KHI MỞ HỘP THOẠI CHỌN FILE
+        window.pendingUploadRange = savedRange ? savedRange.cloneRange() : null;
         document.getElementById("vbImageFileInput")?.click();
         return;
     }
