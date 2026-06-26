@@ -4086,34 +4086,21 @@ function fileToDataUrl(file) {
 }
 
 async function insertImageFiles(files, mode = vbImageTargetMode, specificRange = null) {
+    // Mở rộng bộ lọc: Windows đôi khi không trả về file.type, cần check thêm đuôi file
     const imageFiles = Array.from(files || []).filter(file => {
         if (!file) return false;
         if (/^image\//i.test(file.type)) return true;
         return /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(file.name);
     });
-
-    // Khởi tạo kho lưu trữ file tạm trên RAM trình duyệt
-    window.pendingUploadFiles = window.pendingUploadFiles || new Map();
-
+    
     for (const file of imageFiles) {
-        // DÙNG BLOB URL: Tạo link ảo siêu tốc trỏ thẳng vào ổ cứng máy tính, bỏ qua Base64
-        const localBlobUrl = URL.createObjectURL(file);
+        const dataUrl = await fileToDataUrl(file);
         const metadata = { ...VB_DEFAULT_IMAGE_META, fileName: file.name || "" };
         
-        // Sinh thẻ <img> với đường link ảo
-        const img = createManagedImage(localBlobUrl, mode, metadata);
+        // SINH THẺ <img> GẮN MÃ BASE64
+        const img = createManagedImage(dataUrl, mode, metadata);
         
-        // Đánh dấu đây là file từ thiết bị và cất File gốc vào RAM chờ lúc Lưu bài
-        img.dataset.isLocalFile = "true";
-        window.pendingUploadFiles.set(img.dataset.imageId, file);
-
-        // Ép hệ thống đợi đọc xong kích thước gốc từ link ảo mới đóng khung (Khắc phục tàng hình ảnh 4000px)
-        await new Promise((resolve) => {
-            if (img.complete && img.naturalWidth > 0) resolve();
-            else { img.onload = resolve; img.onerror = resolve; }
-        });
-        
-        // Dán thẻ <img> vào đúng vị trí con trỏ
+        // DÁN THẺ <img> VÀO ĐÚNG VỊ TRÍ CON TRỎ (specificRange)
         insertManagedImage(img, mode, specificRange);
         if (mode === "cover") break;
     }
@@ -5085,32 +5072,21 @@ async function uploadAllPendingPostImages(postId) {
         throw new Error("Có ảnh từ thiết bị khác vẫn đang chờ được lưu vào Drive. Hãy chờ máy đang chỉnh sửa hoàn tất lưu bài rồi thử lại.");
     }
 
-const pending = [];
+    const pending = [];
+allImages.forEach((img, index) => {
+    const source = getUploadSourceForImage(img);
     
-    // Đổi forEach thành for để xử lý đồng bộ File gốc sang Base64 gửi cho Google Script
-    for (let index = 0; index < allImages.length; index++) {
-        const img = allImages[index];
-        let source = getUploadSourceForImage(img);
+    // 1. CHẶN CÁC ẢNH RÁC, ẢNH BÓNG MA
+    if (!source) return; // Bỏ qua ảnh không có nguồn
+    if (source.trim() === "" || source.startsWith("file://")) return; // Bỏ qua ảnh rỗng hoặc ảnh copy từ ổ cứng máy tính chưa qua xử lý
+    
+    // 2. CHẶN ẢNH TRACKING PIXEL (Kích thước <= 5px thường là rác copy từ web khác)
+    const rect = img.getBoundingClientRect();
+    if (rect.width > 0 && rect.width <= 5 && rect.height > 0 && rect.height <= 5) {
+        return; 
+    }
 
-        // 1. CHẶN CÁC ẢNH RÁC, ẢNH BÓNG MA
-        if (!source) continue; 
-        if (source.trim() === "" || source.startsWith("file://")) continue; 
-        
-        // 2. CHẶN ẢNH TRACKING PIXEL (Rác copy từ web khác)
-        const rect = img.getBoundingClientRect();
-        if (rect.width > 0 && rect.width <= 5 && rect.height > 0 && rect.height <= 5) continue;
-
-        // 3. BIẾN HÓA TRƯỚC KHI LƯU: Lấy file từ RAM biến thành Base64 gửi đi Drive
-        if (img.dataset.isLocalFile === "true") {
-            const file = window.pendingUploadFiles?.get(img.dataset.imageId);
-            if (file) {
-                source = await new Promise(resolve => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.readAsDataURL(file);
-                });
-            }
-        }
+    // ... giữ nguyên phần code xử lý meta bên dưới ...
 
         const metadata = readImageMetadata(img);
         const mimeMatch = source.match(/^data:([^;,]+)/i);
@@ -5129,7 +5105,7 @@ const pending = [];
             fileName: sanitizeUploadFileName(fileName, `${postId}-image-${index + 1}.jpg`),
             metadata
         });
-    }
+    });
 
     if (!pending.length) return;
 
@@ -5185,7 +5161,7 @@ function serializeRealtimeSafeHtml(element) {
         const driveUrl = img.dataset.driveUrl || "";
         if (driveUrl) {
             img.setAttribute("src", runtimeImageUrl(driveUrl));
-        } else if (/^data:image\//i.test(img.getAttribute("src") || "") || /^blob:/i.test(img.getAttribute("src") || "")) {
+        } else if (/^data:image\//i.test(img.getAttribute("src") || "")) {
             img.setAttribute("src", "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(
                 '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540"><rect width="100%" height="100%" fill="#f4f6f8"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#888" font-family="Arial" font-size="24">Ảnh đang chờ lưu vào Drive</text></svg>'
             ));
