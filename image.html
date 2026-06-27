@@ -2362,6 +2362,404 @@ function bind(){
   document.head.appendChild(v21Style);
 })();
 
+
+
+(function(){
+  // ================= V22 FIX: xoay layer/group, text resize đủ 4 góc, auto-fit chữ, Ctrl+V ảnh, toolbar HTML text =================
+  const v22Style=document.createElement('style');
+  v22Style.textContent=`
+    .context-top-toolbar{
+      flex-wrap:nowrap!important;
+      align-items:stretch!important;
+      overflow-x:auto!important;
+      overflow-y:hidden!important;
+      contain:layout paint;
+    }
+    .context-top-toolbar > *{
+      flex:0 0 auto!important;
+      min-width:max-content;
+    }
+    .context-top-toolbar .top-tool.wide{min-width:88px!important;justify-content:center!important}
+    .context-top-toolbar .top-tool[data-top-action="effects"],
+    .context-top-toolbar .top-tool[data-top-action="animate"],
+    .context-top-toolbar .top-tool[data-top-action="position"]{min-width:92px!important;padding:0 14px!important}
+    .selection-box.selection-text .selection-handle{display:none!important}
+    .selection-box.selection-text .selection-handle[data-dir="nw"],
+    .selection-box.selection-text .selection-handle[data-dir="ne"],
+    .selection-box.selection-text .selection-handle[data-dir="se"],
+    .selection-box.selection-text .selection-handle[data-dir="sw"]{display:block!important}
+    .selection-box.selection-text .rotate-handle{display:block!important}
+    .selection-box.selection-group .rotate-handle{display:block!important}
+    .design-layer[data-layer-type="text"] .layer-content.text-content{
+      overflow:visible!important;
+      align-items:flex-start!important;
+      justify-content:flex-start!important;
+      min-width:100%;
+      min-height:100%;
+    }
+    .design-layer[data-layer-type="html"] .layer-content.html-card,
+    .design-layer[data-layer-type="html"] .layer-content.html-card *{
+      pointer-events:auto!important;
+      user-select:text;
+    }
+    .html-card strong,.html-card span{display:block;max-width:100%;line-height:1.16}
+    .html-field-toggle{height:100%;display:inline-flex;align-items:center;border-right:1px solid var(--line);background:#fff}
+    .html-field-toggle button{height:100%;border:0;border-right:1px solid var(--line);background:#fff;padding:0 10px;font-weight:900}
+    .html-field-toggle button.active{background:#f0e9ff;color:#6f2bd9}
+  `;
+  document.head.appendChild(v22Style);
+
+  const v22KnownFonts=['Poppins','Inter','Arial','Roboto','Montserrat','Be Vietnam Pro','Georgia','Verdana'];
+  const v22StyleActions=new Set(['font-down','font-up','bold','italic','underline','strike','case','align','list','spacing']);
+
+  function v22ToHex(v){
+    v=String(v||'').trim();
+    if(/^#[0-9a-f]{6}$/i.test(v))return v.toUpperCase();
+    if(/^#[0-9a-f]{3}$/i.test(v))return ('#'+v.slice(1).split('').map(x=>x+x).join('')).toUpperCase();
+    const m=v.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
+    if(m)return '#'+[+m[1],+m[2],+m[3]].map(n=>clamp(Math.round(n),0,255).toString(16).padStart(2,'0')).join('').toUpperCase();
+    return '#000000';
+  }
+  function v22IsSolid(v){return v&&typeof v==='object'&&v.type==='solid'}
+  function v22IsGradient(v){return v&&typeof v==='object'&&v.type==='gradient'}
+  function v22ColorToCss(c){
+    if(!c)return '#000000';
+    if(typeof c==='string')return c;
+    if(v22IsSolid(c))return `rgba(${c.rgb.r}, ${c.rgb.g}, ${c.rgb.b}, ${c.alpha??1})`;
+    if(v22IsGradient(c)){
+      const stops=(c.stops||[]).map(s=>`${v22ColorToCss(s.color)} ${s.position}%`).join(', ');
+      if(c.gradientType==='radial')return `radial-gradient(circle, ${stops})`;
+      if(c.gradientType==='conic')return `conic-gradient(from ${c.angle||0}deg, ${stops})`;
+      return `linear-gradient(${c.angle??90}deg, ${stops})`;
+    }
+    return '#000000';
+  }
+  function v22SolidFallback(v){
+    if(v22IsGradient(v))return v.stops?.[0]?.color?.hex||'#000000';
+    if(v22IsSolid(v))return v.hex;
+    return v22ToHex(v||'#000000');
+  }
+  function v22CanvasPaint(ctx,c,w,h){
+    if(v22IsGradient(c)){
+      const g=c.gradientType==='radial'?ctx.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.max(w,h)/2):ctx.createLinearGradient(0,0,w,h);
+      (c.stops||[]).forEach(s=>g.addColorStop(clamp((s.position||0)/100,0,1),v22ColorToCss(s.color)));
+      return g;
+    }
+    return v22ColorToCss(c);
+  }
+
+  function v22Cap(s){return String(s||'').charAt(0).toUpperCase()+String(s||'').slice(1)}
+  function v22HtmlField(layer){return layer?.htmlActiveField==='subtitle'?'subtitle':'title'}
+  function v22HtmlKey(field,prop){return `${field}${v22Cap(prop)}`}
+  function v22DecorationToggle(value,token){const set=new Set(String(value||'none').split(/\s+/).filter(x=>x&&x!=='none'));set.has(token)?set.delete(token):set.add(token);return set.size?[...set].join(' '):'none'}
+  function v22HtmlFieldStyle(layer,field=v22HtmlField(layer)){
+    const isTitle=field!=='subtitle';
+    const get=(prop,def)=>layer[v22HtmlKey(field,prop)] ?? def;
+    return {
+      fontFamily:get('fontFamily',layer.fontFamily||'Inter'),
+      fontSize:Number(get('fontSize',isTitle?28:15)),
+      fontWeight:Number(get('fontWeight',isTitle?800:400)),
+      fontStyle:get('fontStyle','normal'),
+      textDecoration:get('textDecoration','none'),
+      color:get('color',v22SolidFallback(layer.htmlColor||'#ffffff')),
+      textAlign:get('textAlign','left'),
+      lineHeight:Number(get('lineHeight',1.16)),
+      letterSpacing:Number(get('letterSpacing',0))
+    };
+  }
+  function v22SetHtmlFieldStyle(layer,field,prop,value){layer[v22HtmlKey(field,prop)]=value}
+  function v22SetHtmlTopField(layer,fieldName,value){
+    const field=v22HtmlField(layer);
+    if(fieldName==='fontFamily')v22SetHtmlFieldStyle(layer,field,'fontFamily',value);
+    if(fieldName==='fontSize')v22SetHtmlFieldStyle(layer,field,'fontSize',clamp(Number(value)||42,6,300));
+    if(fieldName==='color')v22SetHtmlFieldStyle(layer,field,'color',value);
+  }
+  function v22HtmlFieldStyleText(layer,field){
+    const s=v22HtmlFieldStyle(layer,field);
+    return `font-family:${fontStack(s.fontFamily)};font-size:${s.fontSize}px;font-weight:${s.fontWeight};font-style:${s.fontStyle};text-decoration:${s.textDecoration};color:${s.color};text-align:${s.textAlign};line-height:${s.lineHeight};letter-spacing:${s.letterSpacing}px;`;
+  }
+
+  function v22MeasureTextLayer(layer){
+    const meas=document.createElement('div');
+    meas.style.cssText=`position:fixed;left:-100000px;top:-100000px;z-index:-1;visibility:hidden;display:inline-block;width:max-content;max-width:none;min-width:0;height:auto;white-space:pre;padding:4px;box-sizing:border-box;font-family:${fontStack(layer.fontFamily||'Poppins')};font-size:${layer.fontSize||42}px;font-weight:${layer.fontWeight||700};font-style:${layer.fontStyle||'normal'};text-decoration:${layer.textDecoration||'none'};line-height:${layer.lineHeight||1.2};letter-spacing:${layer.letterSpacing||0}px;`;
+    meas.textContent=String(layer.content||'Văn bản');
+    document.body.appendChild(meas);
+    const rect=meas.getBoundingClientRect();
+    meas.remove();
+    return {width:Math.ceil(rect.width)+10,height:Math.ceil(rect.height)+10};
+  }
+  function v22AutoFitTextLayer(layer,{growOnly=true}={}){
+    if(!layer||layer.type!=='text')return false;
+    const m=v22MeasureTextLayer(layer);
+    const nextW=Math.max(28,m.width),nextH=Math.max(28,m.height);
+    const oldW=layer.width,oldH=layer.height;
+    layer.width=growOnly?Math.max(layer.width||0,nextW):nextW;
+    layer.height=growOnly?Math.max(layer.height||0,nextH):nextH;
+    return oldW!==layer.width||oldH!==layer.height;
+  }
+
+  const v22RenderLayerContent=renderLayerContent;
+  renderLayerContent=function(layer){
+    if(layer?.type==='html'){
+      const editing=state.htmlEditId===layer.id;
+      const bg=layer.htmlBackground?v22ColorToCss(layer.htmlBackground):`linear-gradient(135deg,${v22SolidFallback(layer.htmlBg1||'#2947d3')},${v22SolidFallback(layer.htmlBg2||'#12bee7')})`;
+      const titleStyle=v22HtmlFieldStyleText(layer,'title');
+      const subtitleStyle=v22HtmlFieldStyleText(layer,'subtitle');
+      return `<div class="layer-content html-card" style="background:${bg};color:${v22SolidFallback(layer.htmlColor||'#ffffff')}"><strong data-html-field="title" contenteditable="${editing?'true':'false'}" spellcheck="false" style="${titleStyle}">${escapeHtml(layer.title||'TIÊU ĐỀ')}</strong><span data-html-field="subtitle" contenteditable="${editing?'true':'false'}" spellcheck="false" style="${subtitleStyle}">${escapeHtml(layer.subtitle||'Nội dung khối HTML')}</span></div>`;
+    }
+    return v22RenderLayerContent(layer);
+  };
+
+  const v22BindLayerEvents=bindLayerEvents;
+  bindLayerEvents=function(){
+    v22BindLayerEvents();
+    $$('.design-layer',els.page).forEach(el=>{
+      const layer=getLayer(el.dataset.layerId);
+      if(!layer)return;
+      if(layer.type==='text'){
+        const editor=$('[data-inline-editor="text"]',el);
+        if(editor){
+          editor.addEventListener('input',()=>{
+            layer.content=editor.innerText;
+            if(v22AutoFitTextLayer(layer,{growOnly:true})){
+              el.style.cssText=layerStyle(layer);
+              renderSelection();
+              syncControls();
+            }
+          });
+        }
+      }
+      if(layer.type==='html'){
+        $$('[data-html-field]',el).forEach(fieldEl=>{
+          fieldEl.addEventListener('pointerdown',()=>{layer.htmlActiveField=fieldEl.dataset.htmlField||'title';renderTopToolbar(layer)},true);
+          fieldEl.addEventListener('focus',()=>{layer.htmlActiveField=fieldEl.dataset.htmlField||'title';renderTopToolbar(layer)});
+        });
+      }
+    });
+  };
+
+  const v22OnLayerPointerDown=onLayerPointerDown;
+  onLayerPointerDown=function(e){
+    const layer=getLayer(e.currentTarget?.dataset?.layerId);
+    const field=e.target.closest?.('[data-html-field]')?.dataset?.htmlField;
+    if(layer?.type==='html'&&field){layer.htmlActiveField=field;state.primaryId=layer.id}
+    return v22OnLayerPointerDown(e);
+  };
+
+  const v22EnterHtmlEdit=enterHtmlEdit;
+  enterHtmlEdit=function(layer,field='title'){
+    if(layer?.type==='html')layer.htmlActiveField=field==='subtitle'?'subtitle':'title';
+    return v22EnterHtmlEdit(layer,field);
+  };
+
+  function v22FontOptions(value){
+    return [...new Set([...v22KnownFonts,...(state.customFonts||[]),value].filter(Boolean))].map(f=>`<option value="${escapeHtml(f)}" ${f===value?'selected':''}>${escapeHtml(f)}</option>`).join('');
+  }
+
+  const v22RenderTopToolbar=renderTopToolbar;
+  renderTopToolbar=function(layer){
+    if(layer?.type!=='html')return v22RenderTopToolbar(layer);
+    const host=els.contextTopToolbar;if(!host)return;
+    if(state.selectedIds.length!==1){host.classList.remove('visible');host.innerHTML='';return}
+    const field=v22HtmlField(layer),style=v22HtmlFieldStyle(layer,field),deco=style.textDecoration||'none';
+    host.innerHTML=`
+      <span class="html-field-toggle"><button type="button" class="${field==='title'?'active':''}" data-top-action="html-field-title">Tiêu đề</button><button type="button" class="${field==='subtitle'?'active':''}" data-top-action="html-field-subtitle">Mô tả</button></span>
+      <select class="top-select" data-top-field="fontFamily" aria-label="Font HTML">${v22FontOptions(style.fontFamily)}</select>
+      <button class="top-tool" data-top-action="font-down" title="Giảm cỡ chữ"><i class="fa-solid fa-minus"></i></button><input class="top-number" data-top-field="fontSize" type="number" min="6" max="300" value="${style.fontSize}"><button class="top-tool" data-top-action="font-up" title="Tăng cỡ chữ"><i class="fa-solid fa-plus"></i></button>
+      <label class="top-field" title="Màu chữ HTML"><i class="fa-solid fa-a"></i><input class="top-color" data-top-field="color" type="color" value="${v22SolidFallback(style.color||'#ffffff')}"><span class="color-underline" style="background:${v22SolidFallback(style.color||'#ffffff')}"></span></label>
+      <button class="top-tool ${style.fontWeight>=600?'active':''}" data-top-action="bold"><b>B</b></button><button class="top-tool ${style.fontStyle==='italic'?'active':''}" data-top-action="italic"><i>I</i></button><button class="top-tool ${deco.includes('underline')?'active':''}" data-top-action="underline"><u>U</u></button><button class="top-tool ${deco.includes('line-through')?'active':''}" data-top-action="strike"><s>S</s></button>
+      <button class="top-tool" data-top-action="case" title="Đổi hoa thường">aA</button><button class="top-tool" data-top-action="align" title="Căn chữ"><i class="fa-solid fa-align-${style.textAlign==='center'?'center':style.textAlign==='right'?'right':'left'}"></i></button><button class="top-tool" data-top-action="spacing" title="Khoảng cách"><i class="fa-solid fa-text-width"></i></button>
+      <button class="top-tool wide" data-top-action="edit-html"><i class="fa-solid fa-pen"></i> Sửa</button>
+      <label class="top-range-wrap">Trong suốt <input data-top-field="opacity" type="range" min="0" max="100" value="${Math.round((layer.opacity??1)*100)}"><span class="opacity-value" data-opacity-value>${Math.round((layer.opacity??1)*100)}%</span></label>
+      <button class="top-tool wide" data-top-action="effects">Effects</button><button class="top-tool wide" data-top-action="animate">Animate</button><button class="top-tool wide" data-top-action="position">Position</button><button class="top-tool" data-top-action="copy-style" title="Sao chép kiểu"><i class="fa-solid fa-paint-roller"></i></button>`;
+    host.classList.add('visible');
+  };
+
+  const v22SetLayerFieldValue=setLayerFieldValue;
+  setLayerFieldValue=function(layer,field,value){
+    if(layer?.type==='html')return v22SetHtmlTopField(layer,field,value);
+    const ret=v22SetLayerFieldValue(layer,field,value);
+    if(layer?.type==='text'&&['fontFamily','fontSize'].includes(field))v22AutoFitTextLayer(layer,{growOnly:true});
+    return ret;
+  };
+
+  const v22TextTargets=textTargets;
+  textTargets=function(){
+    const l=primaryLayer();
+    if(l?.type==='html'&&state.selectedIds.length===1&&l.lockMode!=='full')return [l];
+    return v22TextTargets();
+  };
+
+  applyTopFieldLive=function(field,value){
+    const targets=textTargets();
+    if(!targets.length)return;
+    targets.forEach(l=>{setLayerFieldValue(l,field,value);updateLayerDom(l)});
+    if(field==='fontFamily')targets.forEach(l=>{
+      const fam=l.type==='html'?v22HtmlFieldStyle(l).fontFamily:l.fontFamily;
+      const size=l.type==='html'?v22HtmlFieldStyle(l).fontSize:l.fontSize;
+      const weight=l.type==='html'?v22HtmlFieldStyle(l).fontWeight:l.fontWeight;
+      loadFontFamily(fam,size,weight).then(()=>updateLayerDom(l));
+    });
+    renderSelection();queueLayerThumbnailRefresh();
+  };
+
+  handleTopField=function(field,value){
+    const targets=textTargets();
+    if(!targets.length||field==='opacity')return;
+    transact('Thay đổi thuộc tính layer',()=>targets.forEach(l=>setLayerFieldValue(l,field,value)));
+  };
+
+  const v22HandleTopAction=handleTopAction;
+  handleTopAction=function(action,button){
+    const layer=primaryLayer();
+    if(!layer||layer.lockMode==='full')return;
+    if(layer.type==='html'&&action==='html-field-title'){layer.htmlActiveField='title';renderTopToolbar(layer);return}
+    if(layer.type==='html'&&action==='html-field-subtitle'){layer.htmlActiveField='subtitle';renderTopToolbar(layer);return}
+    if(layer.type==='html'&&v22StyleActions.has(action)){
+      transact('Thay đổi chữ trong khối HTML',()=>{
+        const field=v22HtmlField(layer),style=v22HtmlFieldStyle(layer,field);
+        if(action==='font-down')v22SetHtmlFieldStyle(layer,field,'fontSize',Math.max(6,style.fontSize-1));
+        if(action==='font-up')v22SetHtmlFieldStyle(layer,field,'fontSize',Math.min(300,style.fontSize+1));
+        if(action==='bold')v22SetHtmlFieldStyle(layer,field,'fontWeight',style.fontWeight>=600?400:800);
+        if(action==='italic')v22SetHtmlFieldStyle(layer,field,'fontStyle',style.fontStyle==='italic'?'normal':'italic');
+        if(action==='underline')v22SetHtmlFieldStyle(layer,field,'textDecoration',v22DecorationToggle(style.textDecoration,'underline'));
+        if(action==='strike')v22SetHtmlFieldStyle(layer,field,'textDecoration',v22DecorationToggle(style.textDecoration,'line-through'));
+        if(action==='case')layer[field]=String(layer[field]||'').split('').some(c=>c!==c.toUpperCase())?String(layer[field]||'').toUpperCase():String(layer[field]||'').toLowerCase();
+        if(action==='align')v22SetHtmlFieldStyle(layer,field,'textAlign',style.textAlign==='left'?'center':style.textAlign==='center'?'right':'left');
+        if(action==='list')layer[field]=String(layer[field]||'').split('\n').map(x=>x.startsWith('• ')?x.slice(2):`• ${x}`).join('\n');
+        if(action==='spacing')v22SetHtmlFieldStyle(layer,field,'letterSpacing',((style.letterSpacing||0)+1)%7);
+      });
+      return;
+    }
+    if(layer.type==='text'&&v22StyleActions.has(action)){
+      transact('Thay đổi thuộc tính chữ',()=>{
+        if(action==='font-down')layer.fontSize=Math.max(6,(layer.fontSize||42)-1);
+        if(action==='font-up')layer.fontSize=Math.min(300,(layer.fontSize||42)+1);
+        if(action==='bold')layer.fontWeight=(layer.fontWeight||400)>=600?400:700;
+        if(action==='italic')layer.fontStyle=layer.fontStyle==='italic'?'normal':'italic';
+        if(action==='underline')changeTextDecoration(layer,'underline');
+        if(action==='strike')changeTextDecoration(layer,'line-through');
+        if(action==='case')layer.content=String(layer.content||'').split('').some(c=>c!==c.toUpperCase())?String(layer.content||'').toUpperCase():String(layer.content||'').toLowerCase();
+        if(action==='align')layer.textAlign=layer.textAlign==='left'?'center':layer.textAlign==='center'?'right':'left';
+        if(action==='list')layer.content=String(layer.content||'').split('\n').map(x=>x.startsWith('• ')?x.slice(2):`• ${x}`).join('\n');
+        if(action==='spacing')layer.letterSpacing=((layer.letterSpacing||0)+1)%7;
+        v22AutoFitTextLayer(layer,{growOnly:true});
+      });
+      return;
+    }
+    return v22HandleTopAction(action,button);
+  };
+
+  const v22RenderSelection=renderSelection;
+  renderSelection=function(){
+    const ret=v22RenderSelection.apply(this,arguments);
+    const layers=selectedLayers().filter(l=>l.lockMode!=='full');
+    const primary=primaryLayer();
+    if(layers.length&&els.selectionBox.classList.contains('visible')){
+      const rotate=$('#rotateHandle');
+      if(rotate){
+        const canRotate=!state.cropEditId && (layers.length>1 || primary?.type==='text' || state.selectedIds.length===1);
+        rotate.style.display=canRotate?'block':'none';
+      }
+      if(primary?.type==='text'){
+        const cornerDirs=new Set(['nw','ne','se','sw']);
+        $$('.selection-handle',els.selectionBox).forEach(h=>{h.style.display=cornerDirs.has(h.dataset.dir)?'block':'none'});
+      }
+      if(layers.length>1){
+        els.selectionBox.classList.add('selection-group');
+        const rotate=$('#rotateHandle');if(rotate)rotate.style.display='block';
+      }
+    }
+    return ret;
+  };
+
+  rotateStart=function(e){
+    e.preventDefault();e.stopPropagation();
+    const layers=selectedLayers().filter(l=>l.lockMode!=='full');
+    if(!layers.length)return;
+    const before=snapshot(),bounds=selectionBounds();
+    if(!bounds)return;
+    const center={x:bounds.left+bounds.width/2,y:bounds.top+bounds.height/2};
+    const start=pointInPage(e),startAngle=Math.atan2(start.y-center.y,start.x-center.x);
+    const originals=layers.map(l=>({id:l.id,cx:l.x+l.width/2,cy:l.y+l.height/2,rotation:l.rotation||0}));
+    const move=ev=>{
+      const p=pointInPage(ev),delta=(Math.atan2(p.y-center.y,p.x-center.x)-startAngle)*180/Math.PI;
+      const rad=delta*Math.PI/180,cos=Math.cos(rad),sin=Math.sin(rad);
+      originals.forEach(o=>{
+        const l=getLayer(o.id);if(!l)return;
+        const dx=o.cx-center.x,dy=o.cy-center.y;
+        const ncx=center.x+dx*cos-dy*sin,ncy=center.y+dx*sin+dy*cos;
+        l.x=ncx-l.width/2;l.y=ncy-l.height/2;l.rotation=Math.round(o.rotation+delta);
+        const linked=syncAttachedGeometry(l);updateLayerDom(l);if(linked)updateLayerDom(linked);
+      });
+      renderSelection();
+    };
+    const up=()=>{window.removeEventListener('pointermove',move);commit(before,layers.length>1?'Xoay group':'Xoay layer');renderAll()};
+    window.addEventListener('pointermove',move);
+    window.addEventListener('pointerup',up,{once:true});
+  };
+
+  async function v22AddPastedImageBlob(blob){
+    if(!blob||!blob.type?.startsWith('image/'))return false;
+    finishInlineEdit();finishCropEdit();
+    const before=snapshot();
+    const ext=(blob.type.split('/')[1]||'png').replace('jpeg','jpg');
+    const file=new File([blob],`anh-dan-${Date.now()}.${ext}`,{type:blob.type});
+    const src=await readFile(file),info=await imageInfo(src);
+    const asset={id:uid('asset'),name:file.name,src,width:info.width,height:info.height};
+    state.uploads.unshift(asset);
+    const maxW=Math.min(680,state.page.width*.82),maxH=Math.min(680,state.page.height*.82),ratio=Math.min(1,maxW/info.width,maxH/info.height);
+    const w=Math.max(40,Math.round(info.width*ratio)),h=Math.max(40,Math.round(info.height*ratio));
+    const vr=els.viewport.getBoundingClientRect(),pr=els.page.getBoundingClientRect();
+    const center={x:(vr.left+vr.width/2-pr.left)/state.zoom,y:(vr.top+vr.height/2-pr.top)/state.zoom};
+    const layer=baseLayer('image',{name:file.name,src,assetId:asset.id,width:w,height:h,x:clamp(center.x-w/2,0,Math.max(0,state.page.width-w)),y:clamp(center.y-h/2,0,Math.max(0,state.page.height-h)),filters:defaultFilters(),cropX:50,cropY:50});
+    state.layers.push(layer);state.selectedIds=[layer.id];state.primaryId=layer.id;
+    commit(before,'Dán ảnh vào canvas');renderAll();switchTab('uploads');toast('Đã dán ảnh vào canvas');
+    return true;
+  }
+  async function v22ReadClipboardImageBlob(){
+    if(!navigator.clipboard?.read)return null;
+    try{
+      const items=await navigator.clipboard.read();
+      for(const item of items){
+        const type=(item.types||[]).find(t=>t.startsWith('image/'));
+        if(type)return await item.getType(type);
+      }
+    }catch(err){}
+    return null;
+  }
+  const v22PasteClipboard=pasteClipboard;
+  pasteClipboard=async function(){
+    const blob=await v22ReadClipboardImageBlob();
+    if(blob&&await v22AddPastedImageBlob(blob))return;
+    return v22PasteClipboard();
+  };
+  document.addEventListener('paste',async e=>{
+    if(document.activeElement?.isContentEditable||['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;
+    const item=[...(e.clipboardData?.items||[])].find(x=>x.type&&x.type.startsWith('image/'));
+    if(!item)return;
+    e.preventDefault();e.stopImmediatePropagation();
+    const blob=item.getAsFile();
+    await v22AddPastedImageBlob(blob);
+  },true);
+
+  const v22DrawLayer=drawLayer;
+  drawLayer=async function(ctx,l,ox=0,oy=0){
+    if(l?.type!=='html')return v22DrawLayer(ctx,l,ox,oy);
+    if(l.visible===false)return;
+    ctx.save();
+    const w=l.width,h=l.height;
+    ctx.translate(l.x+w/2-ox,l.y+h/2-oy);ctx.rotate((l.rotation||0)*Math.PI/180);ctx.scale((l.scale||1)*(l.flipX?-1:1),(l.scale||1)*(l.flipY?-1:1));ctx.globalAlpha=l.opacity??1;ctx.translate(-w/2,-h/2);
+    const bg=l.htmlBackground?l.htmlBackground:null;
+    if(bg)ctx.fillStyle=v22CanvasPaint(ctx,bg,w,h);else{const g=ctx.createLinearGradient(0,0,w,h);g.addColorStop(0,v22SolidFallback(l.htmlBg1||'#2947d3'));g.addColorStop(1,v22SolidFallback(l.htmlBg2||'#12bee7'));ctx.fillStyle=g}
+    ctx.fillRect(0,0,w,h);
+    function drawField(text,field,y){
+      const s=v22HtmlFieldStyle(l,field);ctx.fillStyle=v22SolidFallback(s.color||l.htmlColor||'#fff');ctx.font=`${s.fontStyle||'normal'} ${s.fontWeight||400} ${s.fontSize||16}px ${canvasFontFamily(s.fontFamily||'Inter')}, Arial`;ctx.textBaseline='top';ctx.textAlign=s.textAlign||'left';const x=s.textAlign==='center'?w/2:s.textAlign==='right'?w-24:24;String(text||'').split('\n').forEach((line,i)=>ctx.fillText(line,x,y+i*s.fontSize*(s.lineHeight||1.16),w-48));
+    }
+    drawField(l.title||'TIÊU ĐỀ','title',24);drawField(l.subtitle||'','subtitle',78);ctx.restore();
+  };
+})();
+
 try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.onmessage=e=>{const m=e.data;if(!m||m.clientId===state.clientId||m.type!=='doc-operation')return;state.applyingRemote=true;restore(m.after);state.applyingRemote=false;toast(`Đã đồng bộ: ${m.label||'thay đổi'}`)}}catch(e){}
 ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
 })();
