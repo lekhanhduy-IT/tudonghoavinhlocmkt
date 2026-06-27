@@ -718,7 +718,16 @@ function transferToPost() {
                         }
                         showContextMenu(e);
                     };
-                    
+                    tr.ondblclick = (e) => {
+                    // 1. Ngăn không cho kích hoạt nếu double-click vào vạch kéo giãn cột/dòng
+                    if (e.target.classList.contains('resizer-col') || e.target.classList.contains('resizer-row')) return;
+
+                    // 2. Ép chọn đúng dòng đang double-click vào bộ nhớ
+                    handleRowClick(e, tr, rowItem, headers);
+
+                    // 3. Gọi hàm chuyển sang trang Post
+                    transferToPost();
+                    };
                     let dObj = new Date(rowItem.date); let dStrVN = `${String(dObj.getDate()).padStart(2,'0')}/${String(dObj.getMonth()+1).padStart(2,'0')}/${dObj.getFullYear()}`;
                     
                     let tdNum = document.createElement("td"); tdNum.className = "row-index"; 
