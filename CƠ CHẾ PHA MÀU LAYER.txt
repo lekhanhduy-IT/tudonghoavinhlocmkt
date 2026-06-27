@@ -1,0 +1,3046 @@
+//==========================================
+PHẦN ĐẦU: FIX LỖI HIỆN TẠI VÀ BỔ SUNG
+//==========================================
+
+GIAO DIỆN BỊ TRÀN, KHÔNG THẤY ĐƯỢC PHẦN DÃY PAGE, BỊ LỖI FONT POPPIN, KHÔNG THỂ CLICK VÀO Ô MÀU CHŨ ĐỂ MỞ BẢNG MÀU MÀ CHỈ CÓ THỂ CLICK VÀO CHỮ A ĐỂ MỞ BẢNG MÀU, KHÔNG THỂ GIỮ NGUYÊN BẢNG MÀU ĐỂ KÉO CHỌN MÀU TRONG BẢNG, CHỈ CÓ THỂ CLICK 1 LẦN TRONG BẢNG ĐỂ CHỌN MÀU.
+HÃY CHUẨN LẠI KÍCH THƯỚC GIAO DIỆN
+CHO PHÉP KÉO MỘT LAYER VÀO MỘT PAGE BẤT KỲ ĐỂ ĐẶT LAYER ĐÓ VÀO PAGE ĐÃ KÉO VÀO
+SỬA LỖI CÁC FONTS CHỮ
+THÊM Ô NHẬP LINK GOOGLE FONTS (MÔ TẢ BẰNG ICON SVG CHỮ G 4 MÀU ĐỎ VÀNG XANH DƯƠNG XANH LÁ CỦA GOOGLE, )
+CÁC ELEMENTS NHƯ SHAP, FRAME, HTML, TEXT TRONG TAB ELEMENTS PHẢI HIỆN THỊ RA NGOÀI BẰNG CHÍNH KẾT QUẢ THU NHỎ CỦA NÓ KHI ADD VÀO CANVAS CHÍNH
+BẢNG MÀU ĐỔI THÀNH YÊU CẦU SAU:
+//==========================================
+PHẦN SAU: CẬP NHẬT CƠ CHẾ TRỘN MÀU
+//==========================================
+PROTOTYPE KỸ THUẬT LẬP TRÌNH WEB
+CHỨC NĂNG CHỌN MÀU, PHÂN TÍCH MÀU VÀ ĐỔI MÀU THEO LAYER TRÊN CANVAS
+
+======================================================================
+1. MỤC TIÊU
+======================================================================
+
+Xây dựng hệ thống chọn màu giống Canva cho trình thiết kế web.
+
+Khi người dùng click vào một layer trên canvas như:
+
+- Text layer
+- Image layer
+- Shape layer
+- Frame layer
+- HTML layer
+- SVG element layer
+- Group layer
+- Component layer
+
+Hệ thống phải:
+
+1. Chọn đúng layer trên canvas.
+2. Hiển thị contextual toolbar của layer.
+3. Phân tích layer đó đang có bao nhiêu màu có thể chỉnh.
+4. Hiển thị bấy nhiêu ô màu trên context menu hoặc top toolbar.
+5. Tất cả ô màu phải là hình tròn.
+6. Click vào từng ô màu sẽ mở sidebar chọn màu.
+7. Sidebar màu hiển thị:
+   - Màu cơ bản.
+   - Màu có trong thiết kế.
+   - Màu đang có trong các layer.
+   - Màu của layer đang click.
+   - Màu gradient.
+   - Bộ màu thương hiệu nếu có.
+   - Ô tìm màu bằng tên hoặc mã HEX.
+8. Khi chọn màu xong:
+   - Màu được áp dụng ngay vào đúng color slot của layer.
+   - Ô màu trên toolbar đổi sang màu vừa chọn.
+   - Sidebar vẫn có thể giữ mở để chọn tiếp.
+9. Nếu click lại vào ô màu đã chọn:
+   - Mở lại sidebar màu.
+   - Focus đúng color slot đang chỉnh.
+10. Nếu click vào màu đang chọn trong sidebar:
+   - Mở bảng màu canvas/custom color picker cho ô màu đó.
+11. Nếu màu là gradient:
+   - Cho phép chỉnh lại từng màu trong gradient.
+   - Cho phép thêm/xóa color stop.
+   - Cho phép đổi hướng gradient.
+   - Cho phép đổi kiểu gradient.
+12. Mọi thay đổi màu phải hỗ trợ Undo/Redo.
+
+
+======================================================================
+2. KHÁI NIỆM COLOR SLOT
+======================================================================
+
+Color slot là một vị trí màu có thể chỉnh sửa của một layer.
+
+Ví dụ text layer có thể có:
+
+- textFill
+- textStroke
+- textBackground
+- textShadowColor
+
+Ví dụ shape layer có thể có:
+
+- fill
+- stroke
+- shadowColor
+- gradientStop1
+- gradientStop2
+
+Ví dụ HTML layer có thể có nhiều màu:
+
+- color
+- background-color
+- border-color
+- box-shadow color
+- SVG fill bên trong
+- CSS variable màu
+
+Ví dụ SVG element có thể có:
+
+- path fill 1
+- path fill 2
+- path stroke 1
+- gradient stop 1
+- gradient stop 2
+
+Nếu layer có 3 màu thì toolbar hiện 3 ô màu tròn.
+Nếu layer có 4 màu thì toolbar hiện 4 ô màu tròn.
+Nếu layer có 10 màu thì toolbar hiện 10 ô màu tròn hoặc gom vào nút "More colors" nếu quá nhiều.
+
+Mỗi color slot cần có cấu trúc dữ liệu:
+
+type ColorSlot = {
+  id: string;
+  layerId: string;
+  slotKey: string;
+  label: string;
+
+  value: ColorValue;
+
+  editable: boolean;
+  visible: boolean;
+
+  source: "text" | "shape" | "image" | "frame" | "html" | "svg" | "group";
+
+  cssProperty?: string;
+  svgPathId?: string;
+  gradientStopIndex?: number;
+  path?: string;
+
+  applyMode:
+    | "replace-solid"
+    | "replace-gradient-stop"
+    | "replace-css-property"
+    | "replace-svg-fill"
+    | "replace-svg-stroke"
+    | "replace-image-filter"
+    | "replace-html-style";
+};
+
+
+======================================================================
+3. KIỂU DỮ LIỆU MÀU
+======================================================================
+
+Hệ thống cần hỗ trợ solid color và gradient color.
+
+type SolidColor = {
+  type: "solid";
+  hex: string;
+  rgb: {
+    r: number;
+    g: number;
+    b: number;
+  };
+  alpha: number;
+};
+
+type GradientColor = {
+  type: "gradient";
+  gradientType: "linear" | "radial" | "conic";
+  angle: number;
+  stops: Array<{
+    id: string;
+    color: SolidColor;
+    position: number;
+  }>;
+};
+
+type ColorValue = SolidColor | GradientColor;
+
+Ví dụ solid:
+
+{
+  type: "solid",
+  hex: "#00843D",
+  rgb: {
+    r: 0,
+    g: 132,
+    b: 61
+  },
+  alpha: 1
+}
+
+Ví dụ gradient:
+
+{
+  type: "gradient",
+  gradientType: "linear",
+  angle: 90,
+  stops: [
+    {
+      id: "stop-1",
+      color: {
+        type: "solid",
+        hex: "#00843D",
+        rgb: { r: 0, g: 132, b: 61 },
+        alpha: 1
+      },
+      position: 0
+    },
+    {
+      id: "stop-2",
+      color: {
+        type: "solid",
+        hex: "#FFD966",
+        rgb: { r: 255, g: 217, b: 102 },
+        alpha: 1
+      },
+      position: 100
+    }
+  ]
+}
+
+
+======================================================================
+4. STATE TỔNG THỂ
+======================================================================
+
+const editorState = {
+  selectedLayerIds: [],
+  primaryLayerId: null,
+  selectedLayerType: null,
+
+  activeColorSlotId: null,
+
+  colorSidebar: {
+    isOpen: false,
+    mode: "solid",
+    targetLayerId: null,
+    targetSlotId: null,
+    activeColor: null
+  },
+
+  contextualToolbar: {
+    isOpen: false,
+    targetLayerId: null,
+    colorSlots: []
+  },
+
+  designColorAnalysis: {
+    colorsInDesign: [],
+    colorsByLayer: {},
+    colorsByPage: {},
+    lastAnalyzedAt: null
+  },
+
+  clipboard: {},
+
+  history: {}
+};
+
+
+======================================================================
+5. CLICK VÀO LAYER TRÊN CANVAS
+======================================================================
+
+Khi người dùng click vào layer:
+
+function handleCanvasPointerDown(event) {
+  const layerElement = event.target.closest("[data-layer-id]");
+
+  if (!layerElement) {
+    clearSelection();
+    closeColorSidebar();
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  const layerId = layerElement.dataset.layerId;
+  const layerType = layerElement.dataset.layerType;
+
+  selectLayerAndShowColorSlots({
+    layerId,
+    layerType,
+    layerElement
+  });
+}
+
+function selectLayerAndShowColorSlots({
+  layerId,
+  layerType,
+  layerElement
+}) {
+  closeTransientMenusExceptColorSidebarIfPinned();
+
+  selectionStore.selectOnly(layerId);
+
+  const bounds = calculateLayerScreenBounds(layerElement);
+
+  const colorSlots = extractEditableColorSlots({
+    layerId,
+    layerType
+  });
+
+  contextualToolbarStore.open({
+    targetLayerId: layerId,
+    layerType,
+    bounds,
+    colorSlots
+  });
+
+  renderSelectionOverlay({
+    layerId,
+    layerType,
+    bounds
+  });
+
+  renderLayerContextualToolbar({
+    layerId,
+    layerType,
+    bounds,
+    colorSlots
+  });
+
+  renderTopToolbarByLayerType({
+    layerId,
+    layerType,
+    colorSlots
+  });
+}
+
+
+======================================================================
+6. PHÂN TÍCH COLOR SLOT THEO LOẠI LAYER
+======================================================================
+
+function extractEditableColorSlots({
+  layerId,
+  layerType
+}) {
+  const layer = documentStore.getLayer(layerId);
+
+  switch (layerType) {
+    case "text":
+      return extractTextColorSlots(layer);
+
+    case "image":
+      return extractImageColorSlots(layer);
+
+    case "shape":
+      return extractShapeColorSlots(layer);
+
+    case "frame":
+      return extractFrameColorSlots(layer);
+
+    case "html":
+      return extractHtmlColorSlots(layer);
+
+    case "svg":
+      return extractSvgColorSlots(layer);
+
+    case "group":
+      return extractGroupColorSlots(layer);
+
+    default:
+      return [];
+  }
+}
+
+
+======================================================================
+7. TEXT LAYER COLOR SLOTS
+======================================================================
+
+Text layer thường có các màu:
+
+- Màu chữ
+- Màu viền chữ
+- Màu nền chữ
+- Màu shadow
+
+function extractTextColorSlots(layer) {
+  const slots = [];
+
+  if (layer.style.color) {
+    slots.push({
+      id: `${layer.id}:text-fill`,
+      layerId: layer.id,
+      slotKey: "textFill",
+      label: "Text color",
+      value: normalizeColor(layer.style.color),
+      editable: true,
+      visible: true,
+      source: "text",
+      cssProperty: "color",
+      applyMode: "replace-css-property"
+    });
+  }
+
+  if (layer.style.webkitTextStrokeColor) {
+    slots.push({
+      id: `${layer.id}:text-stroke`,
+      layerId: layer.id,
+      slotKey: "textStroke",
+      label: "Text stroke",
+      value: normalizeColor(layer.style.webkitTextStrokeColor),
+      editable: true,
+      visible: true,
+      source: "text",
+      cssProperty: "-webkit-text-stroke-color",
+      applyMode: "replace-css-property"
+    });
+  }
+
+  if (layer.style.backgroundColor) {
+    slots.push({
+      id: `${layer.id}:text-background`,
+      layerId: layer.id,
+      slotKey: "textBackground",
+      label: "Text background",
+      value: normalizeColor(layer.style.backgroundColor),
+      editable: true,
+      visible: true,
+      source: "text",
+      cssProperty: "background-color",
+      applyMode: "replace-css-property"
+    });
+  }
+
+  if (layer.style.shadowColor) {
+    slots.push({
+      id: `${layer.id}:text-shadow`,
+      layerId: layer.id,
+      slotKey: "textShadow",
+      label: "Shadow color",
+      value: normalizeColor(layer.style.shadowColor),
+      editable: true,
+      visible: true,
+      source: "text",
+      cssProperty: "text-shadow",
+      applyMode: "replace-css-property"
+    });
+  }
+
+  return slots;
+}
+
+
+======================================================================
+8. SHAPE LAYER COLOR SLOTS
+======================================================================
+
+Shape layer có thể có:
+
+- Fill
+- Stroke
+- Shadow
+- Gradient fill
+- Gradient stroke
+
+function extractShapeColorSlots(layer) {
+  const slots = [];
+
+  if (layer.fill) {
+    slots.push({
+      id: `${layer.id}:fill`,
+      layerId: layer.id,
+      slotKey: "fill",
+      label: "Fill color",
+      value: normalizeColorValue(layer.fill),
+      editable: true,
+      visible: true,
+      source: "shape",
+      applyMode: layer.fill.type === "gradient"
+        ? "replace-gradient-stop"
+        : "replace-solid"
+    });
+  }
+
+  if (layer.stroke) {
+    slots.push({
+      id: `${layer.id}:stroke`,
+      layerId: layer.id,
+      slotKey: "stroke",
+      label: "Border color",
+      value: normalizeColorValue(layer.stroke),
+      editable: true,
+      visible: true,
+      source: "shape",
+      applyMode: "replace-solid"
+    });
+  }
+
+  if (layer.shadow?.color) {
+    slots.push({
+      id: `${layer.id}:shadow`,
+      layerId: layer.id,
+      slotKey: "shadow",
+      label: "Shadow color",
+      value: normalizeColor(layer.shadow.color),
+      editable: true,
+      visible: true,
+      source: "shape",
+      applyMode: "replace-solid"
+    });
+  }
+
+  return expandGradientSlots(slots);
+}
+
+
+======================================================================
+9. FRAME LAYER COLOR SLOTS
+======================================================================
+
+Frame layer có thể có:
+
+- Background color
+- Border color
+- Overlay color
+- Mask color
+
+function extractFrameColorSlots(layer) {
+  const slots = [];
+
+  if (layer.background) {
+    slots.push({
+      id: `${layer.id}:frame-background`,
+      layerId: layer.id,
+      slotKey: "frameBackground",
+      label: "Frame background",
+      value: normalizeColorValue(layer.background),
+      editable: true,
+      visible: true,
+      source: "frame",
+      applyMode: "replace-solid"
+    });
+  }
+
+  if (layer.border?.color) {
+    slots.push({
+      id: `${layer.id}:frame-border`,
+      layerId: layer.id,
+      slotKey: "frameBorder",
+      label: "Frame border",
+      value: normalizeColor(layer.border.color),
+      editable: true,
+      visible: true,
+      source: "frame",
+      applyMode: "replace-solid"
+    });
+  }
+
+  if (layer.overlay?.color) {
+    slots.push({
+      id: `${layer.id}:frame-overlay`,
+      layerId: layer.id,
+      slotKey: "frameOverlay",
+      label: "Frame overlay",
+      value: normalizeColor(layer.overlay.color),
+      editable: true,
+      visible: true,
+      source: "frame",
+      applyMode: "replace-solid"
+    });
+  }
+
+  return expandGradientSlots(slots);
+}
+
+
+======================================================================
+10. IMAGE LAYER COLOR SLOTS
+======================================================================
+
+Image layer không phải lúc nào cũng đổi trực tiếp từng màu như shape.
+
+Có thể hỗ trợ các loại màu sau:
+
+- Tint color
+- Overlay color
+- Duotone color 1
+- Duotone color 2
+- Background remover mask color
+- Filter color
+- Dominant colors chỉ dùng để gợi ý, không phải lúc nào cũng editable
+
+function extractImageColorSlots(layer) {
+  const slots = [];
+
+  if (layer.tint?.color) {
+    slots.push({
+      id: `${layer.id}:image-tint`,
+      layerId: layer.id,
+      slotKey: "imageTint",
+      label: "Image tint",
+      value: normalizeColor(layer.tint.color),
+      editable: true,
+      visible: true,
+      source: "image",
+      applyMode: "replace-image-filter"
+    });
+  }
+
+  if (layer.overlay?.color) {
+    slots.push({
+      id: `${layer.id}:image-overlay`,
+      layerId: layer.id,
+      slotKey: "imageOverlay",
+      label: "Image overlay",
+      value: normalizeColor(layer.overlay.color),
+      editable: true,
+      visible: true,
+      source: "image",
+      applyMode: "replace-solid"
+    });
+  }
+
+  if (layer.duotone?.darkColor) {
+    slots.push({
+      id: `${layer.id}:duotone-dark`,
+      layerId: layer.id,
+      slotKey: "duotoneDark",
+      label: "Duotone dark",
+      value: normalizeColor(layer.duotone.darkColor),
+      editable: true,
+      visible: true,
+      source: "image",
+      applyMode: "replace-image-filter"
+    });
+  }
+
+  if (layer.duotone?.lightColor) {
+    slots.push({
+      id: `${layer.id}:duotone-light`,
+      layerId: layer.id,
+      slotKey: "duotoneLight",
+      label: "Duotone light",
+      value: normalizeColor(layer.duotone.lightColor),
+      editable: true,
+      visible: true,
+      source: "image",
+      applyMode: "replace-image-filter"
+    });
+  }
+
+  return slots;
+}
+
+Phân tích màu trong ảnh:
+
+async function analyzeImageLayerColors(layer) {
+  const imageBitmap = await loadImageBitmap(layer.source);
+
+  const colors = await extractDominantColorsFromImage({
+    imageBitmap,
+    maxColors: 12,
+    sampleSize: 128
+  });
+
+  return colors;
+}
+
+Lưu ý kỹ thuật:
+
+- Nếu ảnh khác domain và không có CORS thì canvas sẽ bị tainted.
+- Cần dùng ảnh same-origin, proxy ảnh, hoặc server-side color extraction.
+- Dominant colors từ image nên hiển thị trong section "Colors from selected image".
+- Không tự động thay pixel ảnh gốc nếu chưa có engine xử lý ảnh.
+
+
+======================================================================
+11. HTML LAYER COLOR SLOTS
+======================================================================
+
+HTML layer có thể chứa nhiều CSS màu.
+
+Cần parse:
+
+- Inline style
+- CSS variables
+- style tag
+- computed style
+- SVG bên trong HTML
+- background
+- border
+- box-shadow
+- color
+- fill
+- stroke
+
+function extractHtmlColorSlots(layer) {
+  const html = layer.html;
+  const root = parseHtmlToVirtualDom(html);
+
+  const colorEntries = [];
+
+  walkHtmlNodes(root, node => {
+    const styles = extractNodeStyles(node);
+
+    for (const [property, value] of Object.entries(styles)) {
+      if (isColorValue(value)) {
+        colorEntries.push({
+          nodeId: node.dataset?.nodeId || generateNodePath(node),
+          property,
+          value
+        });
+      }
+
+      if (isGradientValue(value)) {
+        colorEntries.push({
+          nodeId: node.dataset?.nodeId || generateNodePath(node),
+          property,
+          value: parseGradient(value)
+        });
+      }
+    }
+  });
+
+  return colorEntries.map((entry, index) => ({
+    id: `${layer.id}:html-color-${index}`,
+    layerId: layer.id,
+    slotKey: `htmlColor.${index}`,
+    label: `${entry.property}`,
+    value: normalizeColorValue(entry.value),
+    editable: true,
+    visible: true,
+    source: "html",
+    cssProperty: entry.property,
+    path: entry.nodeId,
+    applyMode: "replace-html-style"
+  }));
+}
+
+Khi HTML layer có 3 màu thì toolbar hiện 3 ô màu.
+Khi HTML layer có 4 màu thì toolbar hiện 4 ô màu.
+Khi HTML layer có nhiều hơn 8 màu thì có thể hiện 8 ô đầu + nút More.
+
+
+======================================================================
+12. SVG ELEMENT COLOR SLOTS
+======================================================================
+
+SVG element có thể có nhiều path và nhiều màu.
+
+Cần parse:
+
+- fill
+- stroke
+- stop-color
+- gradient
+- CSS style trong SVG
+- currentColor nếu có
+
+function extractSvgColorSlots(layer) {
+  const svgRoot = parseSvg(layer.svg);
+
+  const slots = [];
+
+  walkSvgNodes(svgRoot, node => {
+    const nodeId = node.getAttribute("id") || generateSvgNodePath(node);
+
+    const fill = node.getAttribute("fill");
+    const stroke = node.getAttribute("stroke");
+
+    if (isColorValue(fill)) {
+      slots.push({
+        id: `${layer.id}:${nodeId}:fill`,
+        layerId: layer.id,
+        slotKey: `svg.${nodeId}.fill`,
+        label: "SVG fill",
+        value: normalizeColor(fill),
+        editable: true,
+        visible: true,
+        source: "svg",
+        svgPathId: nodeId,
+        applyMode: "replace-svg-fill"
+      });
+    }
+
+    if (isColorValue(stroke)) {
+      slots.push({
+        id: `${layer.id}:${nodeId}:stroke`,
+        layerId: layer.id,
+        slotKey: `svg.${nodeId}.stroke`,
+        label: "SVG stroke",
+        value: normalizeColor(stroke),
+        editable: true,
+        visible: true,
+        source: "svg",
+        svgPathId: nodeId,
+        applyMode: "replace-svg-stroke"
+      });
+    }
+  });
+
+  return expandGradientSlots(slots);
+}
+
+
+======================================================================
+13. GROUP LAYER COLOR SLOTS
+======================================================================
+
+Group layer có thể chứa nhiều layer con.
+
+Khi click group:
+
+- Có thể hiển thị màu đại diện của tất cả layer con.
+- Có thể gộp các màu trùng nhau.
+- Có thể cho phép thay tất cả màu giống nhau trong group.
+
+function extractGroupColorSlots(groupLayer) {
+  const childLayers = getAllChildren(groupLayer.id);
+
+  const allSlots = [];
+
+  childLayers.forEach(child => {
+    const childSlots = extractEditableColorSlots({
+      layerId: child.id,
+      layerType: child.type
+    });
+
+    allSlots.push(...childSlots);
+  });
+
+  return mergeDuplicateColorSlots(allSlots);
+}
+
+Ví dụ group có 5 layer nhưng chỉ có 3 màu khác nhau thì context toolbar có thể hiện 3 ô màu.
+
+Khi đổi một màu trong group:
+
+- Có thể đổi tất cả slot đang dùng màu đó.
+- Hoặc chỉ đổi slot đại diện nếu người dùng chọn chi tiết trong sidebar.
+
+
+======================================================================
+14. MỞ SIDEBAR MÀU KHI CLICK Ô MÀU
+======================================================================
+
+Tất cả ô màu trong toolbar là hình tròn.
+
+function handleColorChipClick(event, colorSlotId) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const slot = colorSlotStore.getSlot(colorSlotId);
+
+  editorState.activeColorSlotId = colorSlotId;
+
+  colorSidebarStore.open({
+    targetLayerId: slot.layerId,
+    targetSlotId: slot.id,
+    activeColor: slot.value,
+    mode: slot.value.type === "gradient"
+      ? "gradient"
+      : "solid"
+  });
+
+  renderColorSidebar();
+}
+
+Quy tắc:
+
+- Click ô màu lần đầu: mở sidebar.
+- Click lại chính ô đó: sidebar vẫn mở và focus đúng slot đó.
+- Click ô màu khác: sidebar chuyển sang slot mới.
+- Sidebar không làm layer bị bỏ chọn.
+- Sidebar không che mất selection state.
+
+
+======================================================================
+15. CONTEXTUAL TOOLBAR HIỂN THỊ NHIỀU Ô MÀU
+======================================================================
+
+Ví dụ render toolbar:
+
+function renderColorSlotsInToolbar(colorSlots) {
+  const container = document.createElement("div");
+  container.className = "toolbar-color-slots";
+
+  colorSlots.forEach(slot => {
+    const chip = createColorChip(slot);
+
+    container.appendChild(chip);
+  });
+
+  return container;
+}
+
+function createColorChip(slot) {
+  const button = document.createElement("button");
+
+  button.className = "color-chip";
+  button.dataset.colorSlotId = slot.id;
+  button.title = slot.label;
+  button.setAttribute("aria-label", slot.label);
+
+  applyColorChipBackground(button, slot.value);
+
+  button.addEventListener("pointerdown", event => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
+
+  button.addEventListener("click", event => {
+    handleColorChipClick(event, slot.id);
+  });
+
+  return button;
+}
+
+Nếu layer có nhiều màu:
+
+- 1 màu: hiển thị 1 ô tròn.
+- 2 màu: hiển thị 2 ô tròn.
+- 3 màu: hiển thị 3 ô tròn.
+- 4 màu: hiển thị 4 ô tròn.
+- Nhiều hơn 8 màu: hiển thị 8 ô đầu + nút More Colors.
+
+Nút More Colors cũng là hình tròn hoặc dạng icon tròn.
+
+
+======================================================================
+16. CSS BẮT BUỘC CHO Ô MÀU HÌNH TRÒN
+======================================================================
+
+.color-chip {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: 999px;
+  border: 2px solid #ffffff;
+  outline: 1px solid rgba(0, 0, 0, 0.18);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  position: relative;
+}
+
+.color-chip:hover {
+  outline: 2px solid #8b3dff;
+}
+
+.color-chip.is-active {
+  outline: 3px solid #8b3dff;
+}
+
+.color-chip.is-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.color-chip-gradient {
+  background-size: cover;
+}
+
+.color-chip-transparent {
+  background:
+    linear-gradient(45deg, #ccc 25%, transparent 25%),
+    linear-gradient(-45deg, #ccc 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #ccc 75%),
+    linear-gradient(-45deg, transparent 75%, #ccc 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
+}
+
+.toolbar-color-slots {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+
+======================================================================
+17. BACKGROUND CỦA Ô MÀU
+======================================================================
+
+function applyColorChipBackground(element, colorValue) {
+  if (colorValue.type === "solid") {
+    element.style.background = colorToCss(colorValue);
+    element.classList.remove("color-chip-gradient");
+    return;
+  }
+
+  if (colorValue.type === "gradient") {
+    element.style.background = gradientToCss(colorValue);
+    element.classList.add("color-chip-gradient");
+    return;
+  }
+}
+
+function colorToCss(color) {
+  return `rgba(${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b}, ${color.alpha})`;
+}
+
+function gradientToCss(gradient) {
+  const stops = gradient.stops
+    .map(stop => {
+      return `${colorToCss(stop.color)} ${stop.position}%`;
+    })
+    .join(", ");
+
+  if (gradient.gradientType === "linear") {
+    return `linear-gradient(${gradient.angle}deg, ${stops})`;
+  }
+
+  if (gradient.gradientType === "radial") {
+    return `radial-gradient(circle, ${stops})`;
+  }
+
+  if (gradient.gradientType === "conic") {
+    return `conic-gradient(from ${gradient.angle}deg, ${stops})`;
+  }
+}
+
+
+======================================================================
+18. SIDEBAR MÀU
+======================================================================
+
+Sidebar màu là panel bên trái hoặc bên phải màn hình.
+
+Cấu trúc sidebar:
+
+<div class="color-sidebar">
+  <header class="color-sidebar-header">
+    <h2>Text color</h2>
+    <button data-action="close-color-sidebar">×</button>
+  </header>
+
+  <div class="color-search">
+    <input
+      type="text"
+      placeholder='Try "blue" or "#00c4cc"'
+    />
+  </div>
+
+  <section data-section="selected-layer-colors">
+    <h3>Colors in selected layer</h3>
+    <div class="color-grid"></div>
+  </section>
+
+  <section data-section="text-colors">
+    <h3>Text colors</h3>
+    <div class="color-grid"></div>
+  </section>
+
+  <section data-section="colors-in-design">
+    <h3>Colors in this design</h3>
+    <div class="color-grid"></div>
+  </section>
+
+  <section data-section="colors-in-all-layers">
+    <h3>Colors in all layers</h3>
+    <div class="color-grid"></div>
+  </section>
+
+  <section data-section="default-solid-colors">
+    <h3>Default solid colors</h3>
+    <div class="color-grid"></div>
+  </section>
+
+  <section data-section="default-gradient-colors">
+    <h3>Default gradient colors</h3>
+    <div class="color-grid"></div>
+  </section>
+
+  <section data-section="brand-kit">
+    <h3>Brand Kit</h3>
+    <div class="color-grid"></div>
+  </section>
+</div>
+
+
+======================================================================
+19. STATE CỦA SIDEBAR MÀU
+======================================================================
+
+const colorSidebarState = {
+  isOpen: false,
+
+  targetLayerId: null,
+  targetSlotId: null,
+
+  title: "Text color",
+
+  activeColor: null,
+
+  mode: "solid",
+
+  sections: {
+    selectedLayerColors: [],
+    textColors: [],
+    colorsInDesign: [],
+    colorsInAllLayers: [],
+    defaultSolidColors: [],
+    defaultGradientColors: [],
+    brandKitColors: []
+  },
+
+  customColorPicker: {
+    isOpen: false,
+    colorSlotId: null,
+    color: null
+  },
+
+  gradientEditor: {
+    isOpen: false,
+    colorSlotId: null,
+    activeStopId: null
+  }
+};
+
+
+======================================================================
+20. BUILD SIDEBAR THEO COLOR SLOT ĐANG CHỌN
+======================================================================
+
+function buildColorSidebarState(slot) {
+  const layer = documentStore.getLayer(slot.layerId);
+
+  return {
+    isOpen: true,
+
+    targetLayerId: slot.layerId,
+    targetSlotId: slot.id,
+
+    title: getColorSidebarTitle(slot, layer),
+
+    activeColor: slot.value,
+
+    mode: slot.value.type === "gradient"
+      ? "gradient"
+      : "solid",
+
+    sections: {
+      selectedLayerColors: getColorsFromLayer(layer),
+      textColors: getAllTextColorsInDocument(),
+      colorsInDesign: getColorsInCurrentDesign(),
+      colorsInAllLayers: getColorsFromAllLayers(),
+      defaultSolidColors: getDefaultSolidColors(),
+      defaultGradientColors: getDefaultGradientColors(),
+      brandKitColors: getBrandKitColors()
+    }
+  };
+}
+
+function getColorSidebarTitle(slot, layer) {
+  if (slot.source === "text") {
+    return "Text color";
+  }
+
+  if (slot.source === "shape") {
+    return "Shape color";
+  }
+
+  if (slot.source === "image") {
+    return "Image color";
+  }
+
+  if (slot.source === "frame") {
+    return "Frame color";
+  }
+
+  if (slot.source === "html") {
+    return "HTML color";
+  }
+
+  if (slot.source === "svg") {
+    return "Element color";
+  }
+
+  return "Color";
+}
+
+
+======================================================================
+21. CÁC SECTION MÀU TRONG SIDEBAR
+======================================================================
+
+1. Colors in selected layer
+
+Lấy tất cả màu của layer đang click.
+
+Ví dụ layer text có:
+
+- màu chữ đen
+- màu nền vàng
+- màu shadow xanh
+
+thì section này hiện 3 ô màu tròn.
+
+2. Text colors
+
+Lấy toàn bộ màu chữ đang dùng trong document.
+
+3. Colors in this design
+
+Lấy màu chủ đạo từ tất cả page hiện tại hoặc toàn bộ thiết kế.
+
+4. Colors in all layers
+
+Quét toàn bộ layer trong document và gom màu.
+
+5. Default solid colors
+
+Bộ màu cơ bản mặc định.
+
+6. Default gradient colors
+
+Bộ màu gradient mặc định.
+
+7. Brand Kit
+
+Bộ màu thương hiệu.
+
+8. Colors from selected image
+
+Chỉ hiện nếu layer đang chọn là image hoặc có image asset.
+
+9. Recent colors
+
+Các màu người dùng vừa dùng gần đây.
+
+
+======================================================================
+22. LẤY MÀU TRONG THIẾT KẾ
+======================================================================
+
+function analyzeColorsInDesign(document) {
+  const colorMap = new Map();
+
+  document.pages.forEach(page => {
+    page.layers.forEach(layer => {
+      const slots = extractEditableColorSlots({
+        layerId: layer.id,
+        layerType: layer.type
+      });
+
+      slots.forEach(slot => {
+        collectColorValue(colorMap, slot.value, {
+          layerId: layer.id,
+          pageId: page.id,
+          slotId: slot.id
+        });
+      });
+    });
+  });
+
+  return Array.from(colorMap.values())
+    .sort((a, b) => b.count - a.count);
+}
+
+function collectColorValue(colorMap, colorValue, meta) {
+  if (colorValue.type === "solid") {
+    addSolidColorToMap(colorMap, colorValue, meta);
+    return;
+  }
+
+  if (colorValue.type === "gradient") {
+    colorValue.stops.forEach(stop => {
+      addSolidColorToMap(colorMap, stop.color, meta);
+    });
+  }
+}
+
+function addSolidColorToMap(colorMap, color, meta) {
+  const key = normalizeHex(color.hex);
+
+  if (!colorMap.has(key)) {
+    colorMap.set(key, {
+      color,
+      count: 0,
+      usedBy: []
+    });
+  }
+
+  const item = colorMap.get(key);
+
+  item.count += 1;
+  item.usedBy.push(meta);
+}
+
+
+======================================================================
+23. LẤY MÀU TỪ LAYER ĐANG CLICK
+======================================================================
+
+function getColorsFromLayer(layer) {
+  const slots = extractEditableColorSlots({
+    layerId: layer.id,
+    layerType: layer.type
+  });
+
+  const colors = [];
+
+  slots.forEach(slot => {
+    if (slot.value.type === "solid") {
+      colors.push({
+        label: slot.label,
+        color: slot.value,
+        sourceSlotId: slot.id
+      });
+    }
+
+    if (slot.value.type === "gradient") {
+      slot.value.stops.forEach(stop => {
+        colors.push({
+          label: `${slot.label} stop ${stop.position}%`,
+          color: stop.color,
+          sourceSlotId: slot.id,
+          gradientStopId: stop.id
+        });
+      });
+    }
+  });
+
+  return dedupeColors(colors);
+}
+
+
+======================================================================
+24. LẤY MÀU TỪ CÁC TEXT LAYER
+======================================================================
+
+function getAllTextColorsInDocument() {
+  const textLayers = documentStore
+    .getAllLayers()
+    .filter(layer => layer.type === "text");
+
+  const colors = [];
+
+  textLayers.forEach(layer => {
+    const slots = extractTextColorSlots(layer);
+
+    slots.forEach(slot => {
+      if (slot.slotKey === "textFill") {
+        colors.push({
+          color: slot.value,
+          layerId: layer.id,
+          label: "Text color"
+        });
+      }
+    });
+  });
+
+  return dedupeColors(colors);
+}
+
+
+======================================================================
+25. LẤY MÀU TỪ TẤT CẢ LAYER
+======================================================================
+
+function getColorsFromAllLayers() {
+  const allLayers = documentStore.getAllLayers();
+
+  const colors = [];
+
+  allLayers.forEach(layer => {
+    const slots = extractEditableColorSlots({
+      layerId: layer.id,
+      layerType: layer.type
+    });
+
+    slots.forEach(slot => {
+      if (slot.value.type === "solid") {
+        colors.push({
+          color: slot.value,
+          layerId: layer.id,
+          label: slot.label
+        });
+      }
+
+      if (slot.value.type === "gradient") {
+        slot.value.stops.forEach(stop => {
+          colors.push({
+            color: stop.color,
+            layerId: layer.id,
+            label: slot.label
+          });
+        });
+      }
+    });
+  });
+
+  return dedupeColors(colors);
+}
+
+
+======================================================================
+26. MÀU CƠ BẢN
+======================================================================
+
+function getDefaultSolidColors() {
+  return [
+    "#000000",
+    "#222222",
+    "#555555",
+    "#777777",
+    "#999999",
+    "#BBBBBB",
+    "#FFFFFF",
+
+    "#FF3131",
+    "#FF5757",
+    "#F45ACB",
+    "#CB6CE6",
+    "#8C52FF",
+    "#5E17EB",
+
+    "#0097B2",
+    "#0CC0DF",
+    "#5CE1E6",
+    "#38B6FF",
+    "#5271FF",
+    "#004AAD",
+    "#1800AD",
+
+    "#00BF63",
+    "#7ED957",
+    "#C1FF72",
+    "#FFDE59",
+    "#FFBD59",
+    "#FF914D",
+    "#FF6D1F"
+  ].map(hexToSolidColor);
+}
+
+
+======================================================================
+27. MÀU GRADIENT MẶC ĐỊNH
+======================================================================
+
+function getDefaultGradientColors() {
+  return [
+    createLinearGradient("#000000", "#FFFFFF", 90),
+    createLinearGradient("#00843D", "#FFD966", 90),
+    createLinearGradient("#7B2CBF", "#FFD60A", 90),
+    createLinearGradient("#00C4CC", "#7B2CBF", 90),
+    createLinearGradient("#FF3131", "#FFBD59", 90),
+    createLinearGradient("#004AAD", "#38B6FF", 90),
+    createLinearGradient("#00BF63", "#C1FF72", 90),
+    createLinearGradient("#FF66C4", "#8C52FF", 90)
+  ];
+}
+
+function createLinearGradient(hex1, hex2, angle) {
+  return {
+    type: "gradient",
+    gradientType: "linear",
+    angle,
+    stops: [
+      {
+        id: generateId(),
+        color: hexToSolidColor(hex1),
+        position: 0
+      },
+      {
+        id: generateId(),
+        color: hexToSolidColor(hex2),
+        position: 100
+      }
+    ]
+  };
+}
+
+
+======================================================================
+28. CLICK MÀU TRONG SIDEBAR
+======================================================================
+
+Khi click một màu trong sidebar:
+
+function handleSidebarColorClick(colorValue) {
+  const slotId = colorSidebarStore.state.targetSlotId;
+
+  const slot = colorSlotStore.getSlot(slotId);
+
+  if (!slot) {
+    return;
+  }
+
+  applyColorToSlot({
+    slot,
+    colorValue,
+    commitToHistory: true
+  });
+
+  updateColorChip(slot.id, colorValue);
+
+  colorSidebarStore.setActiveColor(colorValue);
+}
+
+Quy tắc:
+
+- Nếu slot hiện tại là solid thì thay màu solid.
+- Nếu slot hiện tại là gradient và đang chọn một gradient stop thì thay màu stop đó.
+- Nếu slot hiện tại là gradient nhưng chưa chọn stop thì mở gradient editor.
+- Nếu colorValue là gradient thì áp dụng gradient cho slot nếu slot hỗ trợ gradient.
+- Nếu slot không hỗ trợ gradient thì lấy màu stop đầu tiên hoặc báo không hỗ trợ.
+
+
+======================================================================
+29. ÁP DỤNG MÀU VÀO SLOT
+======================================================================
+
+function applyColorToSlot({
+  slot,
+  colorValue,
+  commitToHistory
+}) {
+  const layer = documentStore.getLayer(slot.layerId);
+
+  if (!layer || !slot.editable) {
+    return;
+  }
+
+  const before = cloneLayer(layer);
+
+  switch (slot.applyMode) {
+    case "replace-solid":
+      applySolidColor(layer, slot, colorValue);
+      break;
+
+    case "replace-css-property":
+      applyCssPropertyColor(layer, slot, colorValue);
+      break;
+
+    case "replace-html-style":
+      applyHtmlStyleColor(layer, slot, colorValue);
+      break;
+
+    case "replace-svg-fill":
+      applySvgFillColor(layer, slot, colorValue);
+      break;
+
+    case "replace-svg-stroke":
+      applySvgStrokeColor(layer, slot, colorValue);
+      break;
+
+    case "replace-gradient-stop":
+      applyGradientColor(layer, slot, colorValue);
+      break;
+
+    case "replace-image-filter":
+      applyImageFilterColor(layer, slot, colorValue);
+      break;
+  }
+
+  documentStore.updateLayer(layer.id, layer);
+
+  rerenderLayer(layer.id);
+
+  refreshToolbarColorSlots(layer.id);
+
+  if (commitToHistory) {
+    history.push({
+      type: "CHANGE_LAYER_COLOR",
+      layerId: layer.id,
+      slotId: slot.id,
+      before,
+      after: cloneLayer(layer)
+    });
+  }
+}
+
+
+======================================================================
+30. APPLY SOLID COLOR
+======================================================================
+
+function applySolidColor(layer, slot, colorValue) {
+  const color =
+    colorValue.type === "solid"
+      ? colorValue
+      : colorValue.stops[0].color;
+
+  layer[slot.slotKey] = color;
+}
+
+
+======================================================================
+31. APPLY CSS PROPERTY COLOR
+======================================================================
+
+function applyCssPropertyColor(layer, slot, colorValue) {
+  const cssValue =
+    colorValue.type === "solid"
+      ? colorToCss(colorValue)
+      : gradientToCss(colorValue);
+
+  layer.style[slot.cssProperty] = cssValue;
+}
+
+
+======================================================================
+32. APPLY HTML STYLE COLOR
+======================================================================
+
+function applyHtmlStyleColor(layer, slot, colorValue) {
+  const root = parseHtmlToVirtualDom(layer.html);
+
+  const targetNode = findHtmlNodeByPath(root, slot.path);
+
+  if (!targetNode) {
+    return;
+  }
+
+  const cssValue =
+    colorValue.type === "solid"
+      ? colorToCss(colorValue)
+      : gradientToCss(colorValue);
+
+  targetNode.style[slot.cssProperty] = cssValue;
+
+  layer.html = serializeHtml(root);
+}
+
+
+======================================================================
+33. APPLY SVG FILL COLOR
+======================================================================
+
+function applySvgFillColor(layer, slot, colorValue) {
+  const svgRoot = parseSvg(layer.svg);
+
+  const targetNode = findSvgNodeByPath(
+    svgRoot,
+    slot.svgPathId
+  );
+
+  if (!targetNode) {
+    return;
+  }
+
+  const cssValue =
+    colorValue.type === "solid"
+      ? colorToCss(colorValue)
+      : gradientToSvgPaint(svgRoot, colorValue);
+
+  targetNode.setAttribute("fill", cssValue);
+
+  layer.svg = serializeSvg(svgRoot);
+}
+
+
+======================================================================
+34. APPLY SVG STROKE COLOR
+======================================================================
+
+function applySvgStrokeColor(layer, slot, colorValue) {
+  const svgRoot = parseSvg(layer.svg);
+
+  const targetNode = findSvgNodeByPath(
+    svgRoot,
+    slot.svgPathId
+  );
+
+  if (!targetNode) {
+    return;
+  }
+
+  const cssValue =
+    colorValue.type === "solid"
+      ? colorToCss(colorValue)
+      : gradientToSvgPaint(svgRoot, colorValue);
+
+  targetNode.setAttribute("stroke", cssValue);
+
+  layer.svg = serializeSvg(svgRoot);
+}
+
+
+======================================================================
+35. APPLY GRADIENT COLOR
+======================================================================
+
+function applyGradientColor(layer, slot, colorValue) {
+  if (colorValue.type === "gradient") {
+    layer[slot.slotKey] = colorValue;
+    return;
+  }
+
+  const currentValue = getLayerSlotValue(layer, slot);
+
+  if (currentValue.type === "gradient") {
+    const activeStopId =
+      colorSidebarStore.state.gradientEditor.activeStopId;
+
+    const stop = currentValue.stops.find(
+      item => item.id === activeStopId
+    );
+
+    if (stop) {
+      stop.color = colorValue;
+    }
+
+    layer[slot.slotKey] = currentValue;
+    return;
+  }
+
+  layer[slot.slotKey] = colorValue;
+}
+
+
+======================================================================
+36. APPLY IMAGE FILTER COLOR
+======================================================================
+
+function applyImageFilterColor(layer, slot, colorValue) {
+  const color =
+    colorValue.type === "solid"
+      ? colorValue
+      : colorValue.stops[0].color;
+
+  if (slot.slotKey === "imageTint") {
+    layer.tint.color = color;
+  }
+
+  if (slot.slotKey === "duotoneDark") {
+    layer.duotone.darkColor = color;
+  }
+
+  if (slot.slotKey === "duotoneLight") {
+    layer.duotone.lightColor = color;
+  }
+
+  if (slot.slotKey === "imageOverlay") {
+    layer.overlay.color = color;
+  }
+}
+
+
+======================================================================
+37. CLICK LẠI Ô MÀU ĐÃ CHỌN
+======================================================================
+
+Khi click lại ô màu đang active:
+
+function handleActiveColorChipClick(slotId) {
+  const isSameSlot =
+    colorSidebarStore.state.targetSlotId === slotId;
+
+  if (isSameSlot && colorSidebarStore.state.isOpen) {
+    focusColorSidebarSlot(slotId);
+    return;
+  }
+
+  openColorSidebarForSlot(slotId);
+}
+
+Yêu cầu:
+
+- Không reset màu đã chọn.
+- Không đóng sidebar.
+- Không bỏ chọn layer.
+- Sidebar scroll tới section liên quan nếu cần.
+- Nếu slot là gradient thì mở đúng gradient editor.
+
+
+======================================================================
+38. CLICK VÀO MÀU ĐÃ CHỌN TRONG SIDEBAR
+======================================================================
+
+Khi click vào ô màu đang active trong sidebar:
+
+function handleActiveSidebarColorClick(colorValue) {
+  openCustomColorPicker({
+    slotId: colorSidebarStore.state.targetSlotId,
+    color: colorValue
+  });
+}
+
+Kết quả:
+
+- Mở bảng màu canvas/custom color picker.
+- Cho phép nhập HEX.
+- Cho phép kéo chọn màu.
+- Cho phép chỉnh alpha.
+- Cho phép eyedropper nếu trình duyệt hỗ trợ.
+- Khi kéo chọn màu, cập nhật layer realtime.
+- Khi nhả chuột hoặc blur input, commit history.
+
+
+======================================================================
+39. CUSTOM COLOR PICKER
+======================================================================
+
+Custom color picker gồm:
+
+- Color canvas saturation/lightness
+- Hue slider
+- Alpha slider
+- HEX input
+- RGB input
+- HSL input
+- Eyedropper
+- Preview màu cũ
+- Preview màu mới
+
+State:
+
+const customColorPickerState = {
+  isOpen: false,
+  slotId: null,
+  originalColor: null,
+  draftColor: null,
+  isDragging: false
+};
+
+Khi kéo trên canvas màu:
+
+function handleCustomColorDrag(nextColor) {
+  customColorPickerState.draftColor = nextColor;
+
+  applyColorToSlot({
+    slot: getActiveColorSlot(),
+    colorValue: nextColor,
+    commitToHistory: false
+  });
+}
+
+Khi kết thúc kéo:
+
+function commitCustomColorChange() {
+  history.push({
+    type: "CHANGE_CUSTOM_COLOR",
+    slotId: customColorPickerState.slotId,
+    before: customColorPickerState.originalColor,
+    after: customColorPickerState.draftColor
+  });
+}
+
+
+======================================================================
+40. GRADIENT EDITOR
+======================================================================
+
+Nếu color slot là gradient, sidebar hiển thị gradient editor.
+
+Gradient editor gồm:
+
+- Danh sách color stop hình tròn.
+- Thanh gradient preview.
+- Nút thêm màu.
+- Nút xóa màu.
+- Chọn kiểu gradient: linear, radial, conic.
+- Chọn góc gradient.
+- Chỉnh vị trí từng stop.
+- Chỉnh màu từng stop.
+
+State:
+
+const gradientEditorState = {
+  isOpen: true,
+  slotId: null,
+  gradientType: "linear",
+  angle: 90,
+  activeStopId: null,
+  stops: []
+};
+
+Khi click một stop:
+
+function handleGradientStopClick(stopId) {
+  gradientEditorStore.setActiveStop(stopId);
+
+  const stop = gradientEditorStore
+    .state
+    .stops
+    .find(item => item.id === stopId);
+
+  openCustomColorPicker({
+    slotId: gradientEditorStore.state.slotId,
+    color: stop.color,
+    gradientStopId: stopId
+  });
+}
+
+Khi thêm stop:
+
+function addGradientStop(position) {
+  const gradient = getActiveGradient();
+
+  gradient.stops.push({
+    id: generateId(),
+    color: hexToSolidColor("#FFFFFF"),
+    position
+  });
+
+  sortGradientStops(gradient);
+
+  applyColorToSlot({
+    slot: getActiveColorSlot(),
+    colorValue: gradient,
+    commitToHistory: true
+  });
+}
+
+Khi đổi hướng gradient:
+
+function updateGradientAngle(angle) {
+  const gradient = getActiveGradient();
+
+  gradient.angle = angle;
+
+  applyColorToSlot({
+    slot: getActiveColorSlot(),
+    colorValue: gradient,
+    commitToHistory: false
+  });
+}
+
+
+======================================================================
+41. UI GRADIENT TOÀN BỘ LÀ HÌNH TRÒN Ở Ô MÀU
+======================================================================
+
+Các color stop cũng phải là hình tròn.
+
+.gradient-stop-chip {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 2px solid #ffffff;
+  outline: 1px solid rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+}
+
+.gradient-stop-chip.is-active {
+  outline: 3px solid #8b3dff;
+}
+
+.gradient-preview {
+  height: 32px;
+  border-radius: 999px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+
+======================================================================
+42. SIDEBAR COLOR GRID
+======================================================================
+
+Tất cả ô màu trong sidebar phải là hình tròn.
+
+.color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 40px);
+  gap: 12px;
+  align-items: center;
+}
+
+.sidebar-color-chip {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 2px solid #ffffff;
+  outline: 1px solid rgba(0, 0, 0, 0.18);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.14);
+  cursor: pointer;
+  padding: 0;
+  overflow: hidden;
+}
+
+.sidebar-color-chip:hover {
+  outline: 2px solid #8b3dff;
+}
+
+.sidebar-color-chip.is-selected {
+  outline: 3px solid #8b3dff;
+}
+
+.sidebar-color-chip.is-add-color {
+  display: grid;
+  place-items: center;
+  background: conic-gradient(
+    red,
+    yellow,
+    lime,
+    cyan,
+    blue,
+    magenta,
+    red
+  );
+}
+
+.sidebar-color-chip.is-eyedropper {
+  background: #ffffff;
+}
+
+
+======================================================================
+43. SEARCH MÀU TRONG SIDEBAR
+======================================================================
+
+Ô tìm kiếm cho phép nhập:
+
+- Tên màu: blue, red, green, yellow
+- Mã HEX: #00843D
+- RGB: rgb(0, 132, 61)
+- HSL: hsl(148, 100%, 26%)
+
+function handleColorSearchInput(value) {
+  const parsedColor = parseColorInput(value);
+
+  if (parsedColor) {
+    colorSidebarStore.setSearchResult({
+      type: "color",
+      color: parsedColor
+    });
+  } else {
+    colorSidebarStore.setSearchResult({
+      type: "suggestions",
+      colors: searchNamedColors(value)
+    });
+  }
+}
+
+Khi nhấn Enter:
+
+function applySearchColor() {
+  const color = colorSidebarStore.state.searchResult.color;
+
+  if (!color) {
+    return;
+  }
+
+  handleSidebarColorClick(color);
+}
+
+
+======================================================================
+44. EYEDROPPER
+======================================================================
+
+Nếu trình duyệt hỗ trợ EyeDropper API:
+
+async function pickColorFromScreen() {
+  if (!window.EyeDropper) {
+    showToast("Trình duyệt không hỗ trợ Eyedropper.");
+    return;
+  }
+
+  const eyeDropper = new EyeDropper();
+
+  const result = await eyeDropper.open();
+
+  const color = hexToSolidColor(result.sRGBHex);
+
+  handleSidebarColorClick(color);
+}
+
+Eyedropper là một ô tròn trong sidebar.
+
+
+======================================================================
+45. CẬP NHẬT REALTIME KHI CHỌN MÀU
+======================================================================
+
+Khi hover màu có thể preview tạm thời:
+
+function handleSidebarColorHover(colorValue) {
+  const slot = getActiveColorSlot();
+
+  previewColorToSlot({
+    slot,
+    colorValue
+  });
+}
+
+Khi mouseleave nếu chưa click:
+
+function cancelColorPreview() {
+  restoreOriginalColorForActiveSlot();
+}
+
+Khi click màu:
+
+function confirmColorSelection(colorValue) {
+  applyColorToSlot({
+    slot: getActiveColorSlot(),
+    colorValue,
+    commitToHistory: true
+  });
+}
+
+Nếu không muốn preview hover thì chỉ apply khi click.
+
+
+======================================================================
+46. UPDATE Ô MÀU SAU KHI CHỌN
+======================================================================
+
+function updateColorChip(slotId, colorValue) {
+  const chips = document.querySelectorAll(
+    `[data-color-slot-id="${slotId}"]`
+  );
+
+  chips.forEach(chip => {
+    applyColorChipBackground(chip, colorValue);
+    chip.classList.add("is-active");
+  });
+}
+
+Sau khi chọn màu:
+
+- Color chip trên top toolbar đổi màu.
+- Color chip trên floating toolbar đổi màu.
+- Color chip trong sidebar được đánh dấu selected.
+- Layer trên canvas đổi màu ngay.
+- Layer thumbnail nếu có cũng được cập nhật.
+- Undo stack nhận một command.
+
+
+======================================================================
+47. PHÂN TÍCH MÀU THEO TRANG HIỆN TẠI
+======================================================================
+
+function getColorsInCurrentPage() {
+  const page = documentStore.getCurrentPage();
+
+  const colors = [];
+
+  page.layers.forEach(layer => {
+    const slots = extractEditableColorSlots({
+      layerId: layer.id,
+      layerType: layer.type
+    });
+
+    slots.forEach(slot => {
+      colors.push(...flattenColorValue(slot.value));
+    });
+  });
+
+  return dedupeColors(colors);
+}
+
+
+======================================================================
+48. PHÂN TÍCH MÀU TOÀN BỘ THIẾT KẾ
+======================================================================
+
+function getColorsInCurrentDesign() {
+  const pages = documentStore.getPages();
+
+  const colors = [];
+
+  pages.forEach(page => {
+    page.layers.forEach(layer => {
+      const slots = extractEditableColorSlots({
+        layerId: layer.id,
+        layerType: layer.type
+      });
+
+      slots.forEach(slot => {
+        colors.push(...flattenColorValue(slot.value));
+      });
+    });
+  });
+
+  return dedupeColors(colors);
+}
+
+
+======================================================================
+49. FLATTEN GRADIENT THÀNH MÀU ĐƠN
+======================================================================
+
+function flattenColorValue(colorValue) {
+  if (!colorValue) {
+    return [];
+  }
+
+  if (colorValue.type === "solid") {
+    return [colorValue];
+  }
+
+  if (colorValue.type === "gradient") {
+    return colorValue.stops.map(stop => stop.color);
+  }
+
+  return [];
+}
+
+
+======================================================================
+50. DEDUPE COLORS
+======================================================================
+
+function dedupeColors(colors) {
+  const map = new Map();
+
+  colors.forEach(item => {
+    const color = item.color || item;
+    const key = normalizeHex(color.hex);
+
+    if (!map.has(key)) {
+      map.set(key, {
+        color,
+        count: 0,
+        sources: []
+      });
+    }
+
+    const existing = map.get(key);
+
+    existing.count += 1;
+
+    if (item.layerId || item.sourceSlotId) {
+      existing.sources.push(item);
+    }
+  });
+
+  return Array.from(map.values())
+    .sort((a, b) => b.count - a.count);
+}
+
+
+======================================================================
+51. CHỌN MÀU THEO LAYER ĐANG CLICK
+======================================================================
+
+Khi sidebar mở từ layer nào thì section đầu tiên là màu của chính layer đó.
+
+function renderSelectedLayerColorsSection() {
+  const layer = documentStore.getLayer(
+    colorSidebarStore.state.targetLayerId
+  );
+
+  const colors = getColorsFromLayer(layer);
+
+  renderColorSection({
+    title: "Colors in selected layer",
+    colors
+  });
+}
+
+Khi click màu trong section này:
+
+- Áp dụng màu đó cho slot đang active.
+- Nếu màu đó chính là màu đang active thì mở custom color picker.
+- Nếu là gradient thì mở gradient editor.
+
+
+======================================================================
+52. CHỌN MÀU THEO CÁC LAYER KHÁC
+======================================================================
+
+Section Colors in all layers hiển thị màu được gom từ toàn bộ layer.
+
+Mỗi màu cần có tooltip:
+
+- Mã HEX.
+- Số lần sử dụng.
+- Loại layer đang dùng màu.
+- Page đang dùng màu.
+
+Ví dụ tooltip:
+
+#00843D
+Used 12 times
+Text, Shape, Frame
+
+
+======================================================================
+53. CHỌN MÀU THEO BỘ GRADIENT
+======================================================================
+
+Gradient chips cũng là hình tròn.
+
+function renderGradientChip(gradient) {
+  const button = document.createElement("button");
+
+  button.className =
+    "sidebar-color-chip gradient-color-chip";
+
+  button.style.background =
+    gradientToCss(gradient);
+
+  button.addEventListener("click", () => {
+    handleSidebarColorClick(gradient);
+  });
+
+  return button;
+}
+
+Khi chọn gradient:
+
+- Nếu active slot hỗ trợ gradient thì áp dụng gradient.
+- Nếu active slot đang là solid nhưng layer cho phép gradient thì chuyển slot sang gradient.
+- Nếu active slot không hỗ trợ gradient thì hiển thị thông báo hoặc lấy màu đầu tiên của gradient.
+
+function canSlotAcceptGradient(slot) {
+  return [
+    "fill",
+    "stroke",
+    "frameBackground",
+    "textFill",
+    "textBackground",
+    "htmlColor"
+  ].includes(slot.slotKey);
+}
+
+
+======================================================================
+54. PHA LẠI MÀU GRADIENT
+======================================================================
+
+Khi slot hiện tại là gradient hoặc người dùng click gradient chip đang chọn:
+
+openGradientEditor({
+  slotId: activeSlot.id,
+  gradient: activeSlot.value
+});
+
+Gradient editor cho phép:
+
+- Click từng stop hình tròn để sửa màu.
+- Kéo stop để đổi vị trí.
+- Click thanh gradient để thêm stop.
+- Delete stop nếu có nhiều hơn 2 stop.
+- Đổi angle.
+- Đổi type linear/radial/conic.
+- Đổi màu từng stop bằng custom color picker.
+- Preview realtime trên layer.
+
+Khi chỉnh gradient:
+
+function updateActiveGradient(nextGradient) {
+  applyColorToSlot({
+    slot: getActiveColorSlot(),
+    colorValue: nextGradient,
+    commitToHistory: false
+  });
+
+  updateColorChip(
+    getActiveColorSlot().id,
+    nextGradient
+  );
+}
+
+Khi kết thúc chỉnh:
+
+function commitGradientChange() {
+  history.push({
+    type: "CHANGE_GRADIENT",
+    slotId: getActiveColorSlot().id,
+    before: gradientEditorState.originalGradient,
+    after: gradientEditorState.currentGradient
+  });
+}
+
+
+======================================================================
+55. MÀU THƯƠNG HIỆU
+======================================================================
+
+Có thể cấu hình màu thương hiệu từ file listcolor.jpg hoặc thiết lập brand kit.
+
+const brandColors = [
+  "#00843D",
+  "#00A651",
+  "#E53935",
+  "#D4AF37",
+  "#FFFFFF",
+  "#111111"
+].map(hexToSolidColor);
+
+Section Brand Kit:
+
+function getBrandKitColors() {
+  return brandKitStore.colors.map(hexToSolidColor);
+}
+
+Mỗi màu thương hiệu là một chip tròn.
+
+
+======================================================================
+56. PHÂN TÍCH MÀU TỪ ẢNH THIẾT KẾ
+======================================================================
+
+Nếu cần lấy màu từ ảnh raster trong layer image:
+
+async function extractDominantColorsFromImage({
+  imageBitmap,
+  maxColors,
+  sampleSize
+}) {
+  const canvas = new OffscreenCanvas(
+    sampleSize,
+    sampleSize
+  );
+
+  const ctx = canvas.getContext("2d");
+
+  ctx.drawImage(
+    imageBitmap,
+    0,
+    0,
+    sampleSize,
+    sampleSize
+  );
+
+  const imageData = ctx.getImageData(
+    0,
+    0,
+    sampleSize,
+    sampleSize
+  );
+
+  const pixels = imageData.data;
+
+  const buckets = new Map();
+
+  for (let i = 0; i < pixels.length; i += 4) {
+    const r = quantize(pixels[i], 16);
+    const g = quantize(pixels[i + 1], 16);
+    const b = quantize(pixels[i + 2], 16);
+    const a = pixels[i + 3];
+
+    if (a < 128) {
+      continue;
+    }
+
+    const key = `${r},${g},${b}`;
+
+    buckets.set(
+      key,
+      (buckets.get(key) || 0) + 1
+    );
+  }
+
+  return Array.from(buckets.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, maxColors)
+    .map(([key]) => {
+      const [r, g, b] = key
+        .split(",")
+        .map(Number);
+
+      return {
+        type: "solid",
+        hex: rgbToHex(r, g, b),
+        rgb: { r, g, b },
+        alpha: 1
+      };
+    });
+}
+
+function quantize(value, step) {
+  return Math.round(value / step) * step;
+}
+
+
+======================================================================
+57. SIDEBAR KHÔNG LÀM MẤT SELECTION
+======================================================================
+
+Tất cả click trong sidebar phải stop propagation.
+
+colorSidebarElement.addEventListener(
+  "pointerdown",
+  event => {
+    event.stopPropagation();
+  }
+);
+
+colorSidebarElement.addEventListener(
+  "click",
+  event => {
+    event.stopPropagation();
+  }
+);
+
+Nếu không chặn:
+
+- Click sidebar có thể bị hiểu là click ngoài canvas.
+- Layer bị bỏ chọn.
+- Toolbar bị tắt.
+- Color slot active bị mất.
+
+
+======================================================================
+58. CLICK RA NGOÀI SIDEBAR
+======================================================================
+
+Tùy UX:
+
+Cách 1:
+- Click canvas vẫn giữ sidebar nếu đang chỉnh màu.
+
+Cách 2:
+- Click vùng trống đóng sidebar.
+
+Đề xuất cho prototype:
+
+- Click layer khác: sidebar cập nhật theo layer mới nếu đang mở.
+- Click vùng trống: đóng sidebar và bỏ chọn layer.
+- Click toolbar hoặc sidebar: không đóng.
+
+function handleGlobalPointerDown(event) {
+  if (event.target.closest(".color-sidebar")) {
+    return;
+  }
+
+  if (event.target.closest(".contextual-toolbar")) {
+    return;
+  }
+
+  if (event.target.closest("[data-layer-id]")) {
+    return;
+  }
+
+  closeColorSidebar();
+  clearSelection();
+}
+
+
+======================================================================
+59. CHUYỂN LAYER KHI SIDEBAR ĐANG MỞ
+======================================================================
+
+Nếu sidebar đang mở và người dùng click layer khác:
+
+1. Chọn layer mới.
+2. Phân tích color slots của layer mới.
+3. Context toolbar đổi sang layer mới.
+4. Sidebar cập nhật title và sections theo layer mới.
+5. Active color slot mặc định là slot đầu tiên của layer mới.
+
+function handleLayerChangeWhileColorSidebarOpen(layerId) {
+  const layer = documentStore.getLayer(layerId);
+
+  const slots = extractEditableColorSlots({
+    layerId: layer.id,
+    layerType: layer.type
+  });
+
+  if (colorSidebarStore.state.isOpen) {
+    const firstSlot = slots[0];
+
+    if (firstSlot) {
+      colorSidebarStore.open({
+        targetLayerId: layer.id,
+        targetSlotId: firstSlot.id,
+        activeColor: firstSlot.value,
+        mode: firstSlot.value.type === "gradient"
+          ? "gradient"
+          : "solid"
+      });
+    }
+  }
+}
+
+
+======================================================================
+60. UNDO / REDO
+======================================================================
+
+Mọi thao tác đổi màu phải hỗ trợ Undo/Redo.
+
+Command:
+
+class ChangeColorCommand {
+  constructor({
+    layerId,
+    slotId,
+    before,
+    after
+  }) {
+    this.layerId = layerId;
+    this.slotId = slotId;
+    this.before = before;
+    this.after = after;
+  }
+
+  execute() {
+    documentStore.updateLayer(
+      this.layerId,
+      this.after
+    );
+
+    rerenderLayer(this.layerId);
+    refreshToolbarColorSlots(this.layerId);
+  }
+
+  undo() {
+    documentStore.updateLayer(
+      this.layerId,
+      this.before
+    );
+
+    rerenderLayer(this.layerId);
+    refreshToolbarColorSlots(this.layerId);
+  }
+
+  redo() {
+    this.execute();
+  }
+}
+
+Khi kéo màu realtime:
+
+- Không push history mỗi pixel.
+- Chỉ push history khi người dùng thả chuột.
+- Trong lúc kéo chỉ preview/update draft.
+
+
+======================================================================
+61. REALTIME UPDATE NHIỀU NGƯỜI DÙNG
+======================================================================
+
+Nếu editor có collaboration realtime:
+
+const operation = {
+  type: "CHANGE_LAYER_COLOR",
+  documentId,
+  pageId,
+  layerId,
+  slotId,
+  colorValue,
+  userId,
+  timestamp: Date.now()
+};
+
+Quy trình:
+
+1. Apply màu ở local ngay.
+2. Gửi operation lên server.
+3. Server broadcast cho client khác.
+4. Client khác update layer.
+5. Nếu conflict thì dùng last-write-wins hoặc CRDT operation.
+
+
+======================================================================
+62. PERFORMANCE
+======================================================================
+
+Không phân tích màu toàn bộ document mỗi lần click nếu document lớn.
+
+Nên cache:
+
+const colorAnalysisCache = {
+  documentVersion: 0,
+  pageVersionMap: {},
+  layerVersionMap: {},
+
+  colorsInDesign: [],
+  colorsByPage: {},
+  colorsByLayer: {}
+};
+
+Khi layer đổi màu:
+
+- Invalidate cache của layer đó.
+- Invalidate cache của page chứa layer.
+- Invalidate colorsInDesign nếu cần.
+
+function invalidateColorCacheByLayer(layerId) {
+  delete colorAnalysisCache.colorsByLayer[layerId];
+
+  const pageId = documentStore.getPageIdByLayer(layerId);
+
+  delete colorAnalysisCache.colorsByPage[pageId];
+
+  colorAnalysisCache.colorsInDesign = null;
+}
+
+
+======================================================================
+63. ACCESSIBILITY
+======================================================================
+
+Mỗi ô màu phải có aria-label.
+
+Ví dụ:
+
+<button
+  class="color-chip"
+  aria-label="Text color #000000"
+  aria-pressed="true"
+></button>
+
+Sidebar:
+
+<aside
+  class="color-sidebar"
+  aria-label="Color picker"
+></aside>
+
+Keyboard:
+
+- Tab: chuyển giữa các ô màu.
+- Enter: chọn màu.
+- Space: chọn màu.
+- Escape: đóng sidebar hoặc custom picker.
+- Arrow keys: di chuyển trong grid màu.
+- Ctrl + Z: undo.
+- Ctrl + Y: redo.
+
+Color chip đang active:
+
+aria-current="true"
+
+
+======================================================================
+64. CSS SIDEBAR MÀU
+======================================================================
+
+.color-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 440px;
+  height: 100vh;
+  z-index: 95000;
+  background: #ffffff;
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 4px 0 18px rgba(0, 0, 0, 0.12);
+  overflow-y: auto;
+  padding: 20px 22px;
+}
+
+.color-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.color-sidebar h2 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.color-sidebar h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 24px 0 12px;
+}
+
+.color-search input {
+  width: 100%;
+  height: 48px;
+  border-radius: 14px;
+  border: 1px solid #d6d9de;
+  padding: 0 16px;
+  font-size: 15px;
+}
+
+.color-section {
+  margin-bottom: 24px;
+}
+
+
+======================================================================
+65. CSS CUSTOM COLOR PICKER
+======================================================================
+
+.custom-color-picker {
+  position: absolute;
+  z-index: 97000;
+  width: 320px;
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.2);
+  padding: 16px;
+}
+
+.color-canvas {
+  width: 100%;
+  height: 180px;
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: crosshair;
+}
+
+.hue-slider,
+.alpha-slider {
+  width: 100%;
+  height: 18px;
+  border-radius: 999px;
+  margin-top: 12px;
+}
+
+.color-input-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+
+======================================================================
+66. KIỂM TRA COLOR VALUE
+======================================================================
+
+function isColorValue(value) {
+  if (!value) {
+    return false;
+  }
+
+  return (
+    /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(value) ||
+    /^rgb\(/i.test(value) ||
+    /^rgba\(/i.test(value) ||
+    /^hsl\(/i.test(value) ||
+    /^hsla\(/i.test(value) ||
+    isNamedColor(value)
+  );
+}
+
+function isGradientValue(value) {
+  if (!value) {
+    return false;
+  }
+
+  return (
+    value.includes("linear-gradient") ||
+    value.includes("radial-gradient") ||
+    value.includes("conic-gradient")
+  );
+}
+
+
+======================================================================
+67. NORMALIZE MÀU
+======================================================================
+
+function normalizeColor(value) {
+  if (typeof value === "string") {
+    const rgb = parseCssColorToRgb(value);
+
+    return {
+      type: "solid",
+      hex: rgbToHex(rgb.r, rgb.g, rgb.b),
+      rgb: {
+        r: rgb.r,
+        g: rgb.g,
+        b: rgb.b
+      },
+      alpha: rgb.a ?? 1
+    };
+  }
+
+  return value;
+}
+
+function normalizeColorValue(value) {
+  if (isGradientValue(value)) {
+    return parseGradient(value);
+  }
+
+  return normalizeColor(value);
+}
+
+
+======================================================================
+68. LAYER CÓ NHIỀU MÀU
+======================================================================
+
+Ví dụ một shape có:
+
+- fill: #00843D
+- stroke: #FFD966
+- shadow: #000000
+
+Context toolbar phải render 3 ô màu tròn:
+
+[fill chip] [stroke chip] [shadow chip]
+
+Ví dụ một HTML card có:
+
+- color: #111111
+- background: #FFFFFF
+- border-color: #00843D
+- box-shadow: rgba(0,0,0,0.25)
+
+Context toolbar render 4 ô màu tròn:
+
+[text chip] [background chip] [border chip] [shadow chip]
+
+Ví dụ một SVG logo có:
+
+- path 1 fill: #00843D
+- path 2 fill: #E53935
+- path 3 fill: #D4AF37
+- stroke: #FFFFFF
+
+Context toolbar render 4 ô màu tròn.
+
+
+======================================================================
+69. MORE COLORS KHI QUÁ NHIỀU SLOT
+======================================================================
+
+Nếu layer có quá nhiều màu:
+
+const MAX_VISIBLE_COLOR_CHIPS = 8;
+
+function getVisibleColorSlots(slots) {
+  return {
+    visibleSlots: slots.slice(0, MAX_VISIBLE_COLOR_CHIPS),
+    hiddenSlots: slots.slice(MAX_VISIBLE_COLOR_CHIPS)
+  };
+}
+
+Nút more:
+
+<button class="color-chip color-chip-more">
+  +3
+</button>
+
+Nút này vẫn phải là hình tròn.
+
+Khi click:
+
+- Mở popover danh sách tất cả color slots.
+- Mỗi slot vẫn là chip tròn.
+- Có label tên slot bên cạnh nếu cần.
+
+
+======================================================================
+70. LUỒNG TỔNG QUÁT
+======================================================================
+
+CLICK LAYER
+    ↓
+Hit-test layer trên canvas
+    ↓
+Cập nhật selectedLayerId
+    ↓
+Xác định layerType
+    ↓
+Extract editable color slots
+    ↓
+Nếu layer có N màu
+    ↓
+Render N color chips hình tròn trên context menu / toolbar
+    ↓
+Người dùng click một color chip
+    ↓
+Set activeColorSlotId
+    ↓
+Mở color sidebar
+    ↓
+Sidebar load:
+    - màu layer đang chọn
+    - màu text
+    - màu trong thiết kế
+    - màu tất cả layer
+    - màu cơ bản
+    - màu gradient
+    - brand kit
+    - màu ảnh nếu có
+    ↓
+Người dùng click màu
+    ↓
+Apply màu vào đúng slot
+    ↓
+Update layer trên canvas realtime
+    ↓
+Update chip thành màu mới
+    ↓
+Push Undo/Redo command
+    ↓
+Sidebar vẫn mở để chọn tiếp
+
+
+======================================================================
+71. LUỒNG GRADIENT
+======================================================================
+
+CLICK COLOR CHIP ĐANG LÀ GRADIENT
+    ↓
+Mở sidebar ở mode gradient
+    ↓
+Hiển thị gradient preview
+    ↓
+Hiển thị các stop hình tròn
+    ↓
+Người dùng click stop
+    ↓
+Mở custom color picker cho stop đó
+    ↓
+Người dùng đổi màu
+    ↓
+Preview gradient realtime trên layer
+    ↓
+Người dùng đổi angle/type/position
+    ↓
+Update gradient realtime
+    ↓
+Khi kết thúc chỉnh
+    ↓
+Commit vào history
+
+
+======================================================================
+72. LUỒNG CLICK LẠI MÀU ĐÃ CHỌN
+======================================================================
+
+CLICK LẠI COLOR CHIP ĐANG ACTIVE
+    ↓
+Kiểm tra sidebar có mở không
+    ↓
+Nếu chưa mở:
+    → mở sidebar
+    ↓
+Nếu đang mở:
+    → focus đúng slot
+    → scroll đến màu đang chọn
+    ↓
+Nếu click màu đang active trong sidebar
+    → mở custom color picker
+    ↓
+Nếu màu active là gradient
+    → mở gradient editor
+
+
+======================================================================
+73. KẾT QUẢ MONG ĐỢI
+======================================================================
+
+Sau khi hoàn thành prototype:
+
+- Click text layer hiện đúng các ô màu của text layer.
+- Click image layer hiện đúng các ô màu chỉnh được của image.
+- Click shape hiện fill, stroke, shadow hoặc gradient.
+- Click frame hiện background, border, overlay.
+- Click HTML layer tự phân tích các màu CSS bên trong.
+- Click SVG element tự phân tích fill, stroke và gradient stop.
+- Layer có bao nhiêu màu thì context menu hiện bấy nhiêu ô màu.
+- Tất cả ô màu đều là hình tròn.
+- Click ô màu mở sidebar màu.
+- Sidebar có màu cơ bản.
+- Sidebar có màu đang dùng trong thiết kế.
+- Sidebar có màu đang dùng trong tất cả layer.
+- Sidebar có màu của layer đang chọn.
+- Sidebar có màu gradient.
+- Sidebar có custom color picker.
+- Chọn màu xong layer đổi màu realtime.
+- Ô màu trên toolbar đổi sang màu đã chọn.
+- Click lại ô màu đã chọn mở lại sidebar đúng slot.
+- Click màu đang chọn trong sidebar mở bảng màu canvas.
+- Gradient cho phép pha lại màu.
+- Tất cả thao tác đổi màu hỗ trợ Undo/Redo.

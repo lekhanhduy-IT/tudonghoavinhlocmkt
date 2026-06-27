@@ -1,0 +1,1907 @@
+HIỂN THỊ CONTEXTUAL MENU KHI CLICK VÀO TEXT LAYER VÀ IMAGE LAYER TRÊN CANVAS
+======================================================================
+0. THÊM
+======================================================================
+1. Sau khi đặt vào frame thì phải cho phép click 2 lần ảnh trong frame để hiện khung ảnh góc dưới frame để kéo căn chỉnh ảnh trong frame.
+2. Thêm ô custom size width height canva chính trên toolbar.
+3. Cho phép click vào ô text để sửa text,
+4. Cho phép sửa trực tiếp nội dung trong khối html sau khi chèn vào canvas.
+5. Cho phép hiện thêm thanh context menu
+======================================================================
+1. MỤC TIÊU
+======================================================================
+
+Xây dựng cơ chế nhận diện layer được người dùng click trên canvas và hiển thị bộ công cụ theo ngữ cảnh tương ứng với từng loại layer.
+
+Hệ thống phải phân biệt tối thiểu hai loại layer:
+
+1. Text layer.
+2. Image layer.
+
+Khi người dùng click chuột trái vào một layer:
+
+- Layer được đưa vào trạng thái selected.
+- Hiển thị selection bounding box.
+- Hiển thị các resize handle phù hợp.
+- Hiển thị contextual floating toolbar gần layer.
+- Thay đổi top editor toolbar theo loại layer.
+- Đóng menu của layer trước đó.
+- Cập nhật selection state.
+- Không mở menu chuột phải mặc định của trình duyệt.
+
+Lưu ý:
+
+Trong đặc tả này, “context menu” được hiểu là contextual toolbar hoặc contextual action menu xuất hiện khi người dùng click chọn layer, không nhất thiết là menu được mở bằng chuột phải.
+
+
+======================================================================
+2. CẤU TRÚC DỮ LIỆU LAYER
+======================================================================
+
+Mỗi layer cần có một object dữ liệu thống nhất.
+
+Ví dụ text layer:
+
+const textLayer = {
+  id: "layer-text-001",
+  type: "text",
+  x: 112,
+  y: 328,
+  width: 300,
+  height: 32,
+  rotation: 0,
+  opacity: 1,
+  locked: false,
+  visible: true,
+
+  content: "Your paragraph text",
+
+  style: {
+    fontFamily: "Poppins",
+    fontSize: 16.9,
+    fontWeight: 700,
+    fontStyle: "normal",
+    textDecoration: "none",
+    textAlign: "center",
+    color: "#000000",
+    lineHeight: 1.2,
+    letterSpacing: 0
+  },
+
+  transform: {
+    scaleX: 1,
+    scaleY: 1,
+    rotate: 0
+  }
+};
+
+Ví dụ image layer:
+
+const imageLayer = {
+  id: "layer-image-001",
+  type: "image",
+  x: 142,
+  y: 140,
+  width: 298,
+  height: 104,
+  rotation: 0,
+  opacity: 1,
+  locked: false,
+  visible: true,
+
+  source: "https://example.com/image.png",
+
+  crop: {
+    x: 0,
+    y: 0,
+    width: 1,
+    height: 1
+  },
+
+  filters: {
+    brightness: 0,
+    contrast: 0,
+    saturation: 0,
+    blur: 0
+  },
+
+  transform: {
+    scaleX: 1,
+    scaleY: 1,
+    rotate: 0,
+    flipX: false,
+    flipY: false
+  }
+};
+
+
+======================================================================
+3. CẤU TRÚC DOM ĐỀ XUẤT
+======================================================================
+
+<div id="editor">
+  <div id="top-toolbar"></div>
+
+  <div id="canvas-viewport">
+    <div id="canvas-page">
+
+      <div
+        class="canvas-layer text-layer"
+        data-layer-id="layer-text-001"
+        data-layer-type="text"
+      >
+        Your paragraph text
+      </div>
+
+      <div
+        class="canvas-layer image-layer"
+        data-layer-id="layer-image-001"
+        data-layer-type="image"
+      >
+        <img
+          src="image.png"
+          draggable="false"
+          alt=""
+        >
+      </div>
+
+      <div id="selection-overlay"></div>
+
+    </div>
+  </div>
+
+  <div id="contextual-toolbar-root"></div>
+</div>
+
+Các layer phải có:
+
+- data-layer-id.
+- data-layer-type.
+- pointer-events phù hợp.
+- position: absolute.
+- transform-origin rõ ràng.
+- z-index theo layer tree.
+
+
+======================================================================
+4. STATE QUẢN LÝ SELECTION
+======================================================================
+
+const editorState = {
+  selectedLayerIds: [],
+  primaryLayerId: null,
+  selectedLayerType: null,
+
+  selectionBounds: null,
+
+  activeTool: "select",
+
+  contextualToolbar: {
+    visible: false,
+    type: null,
+    x: 0,
+    y: 0
+  },
+
+  textEditMode: false,
+  imageEditMode: false
+};
+
+Ví dụ khi chọn text layer:
+
+editorState.selectedLayerIds = [
+  "layer-text-001"
+];
+
+editorState.primaryLayerId =
+  "layer-text-001";
+
+editorState.selectedLayerType =
+  "text";
+
+Ví dụ khi chọn image layer:
+
+editorState.selectedLayerIds = [
+  "layer-image-001"
+];
+
+editorState.primaryLayerId =
+  "layer-image-001";
+
+editorState.selectedLayerType =
+  "image";
+
+
+======================================================================
+5. ĐĂNG KÝ SỰ KIỆN CLICK TRÊN CANVAS
+======================================================================
+
+Nên dùng event delegation trên canvas container.
+
+const canvasPage =
+  document.getElementById("canvas-page");
+
+canvasPage.addEventListener(
+  "pointerdown",
+  handleCanvasPointerDown
+);
+
+function handleCanvasPointerDown(event) {
+  const layerElement =
+    event.target.closest("[data-layer-id]");
+
+  if (!layerElement) {
+    clearSelection();
+    return;
+  }
+
+  event.stopPropagation();
+
+  const layerId =
+    layerElement.dataset.layerId;
+
+  const layerType =
+    layerElement.dataset.layerType;
+
+  selectLayer({
+    layerId,
+    layerType,
+    layerElement,
+    pointerEvent: event
+  });
+}
+
+Nên sử dụng pointerdown thay vì click vì pointerdown:
+
+- Phản hồi nhanh hơn.
+- Dùng chung cho chuột, bút và màn hình cảm ứng.
+- Có thể kết hợp với drag.
+- Có thể phân biệt pointer type.
+- Không phải chờ pointerup mới chọn layer.
+
+
+======================================================================
+6. HÀM SELECT LAYER
+======================================================================
+
+function selectLayer({
+  layerId,
+  layerType,
+  layerElement,
+  pointerEvent
+}) {
+  closeAllTransientMenus();
+
+  editorState.selectedLayerIds = [
+    layerId
+  ];
+
+  editorState.primaryLayerId =
+    layerId;
+
+  editorState.selectedLayerType =
+    layerType;
+
+  editorState.textEditMode = false;
+  editorState.imageEditMode = false;
+
+  removeSelectedClassFromAllLayers();
+
+  layerElement.classList.add(
+    "is-selected"
+  );
+
+  const bounds =
+    calculateLayerScreenBounds(
+      layerElement
+    );
+
+  editorState.selectionBounds =
+    bounds;
+
+  renderSelectionOverlay({
+    layerId,
+    layerType,
+    bounds
+  });
+
+  renderTopToolbar({
+    layerId,
+    layerType
+  });
+
+  renderContextualToolbar({
+    layerId,
+    layerType,
+    bounds
+  });
+}
+
+
+======================================================================
+7. TÍNH BOUNDING BOX CỦA LAYER
+======================================================================
+
+Với DOM layer:
+
+function calculateLayerScreenBounds(
+  layerElement
+) {
+  const rect =
+    layerElement.getBoundingClientRect();
+
+  return {
+    left: rect.left,
+    top: rect.top,
+    right: rect.right,
+    bottom: rect.bottom,
+    width: rect.width,
+    height: rect.height,
+    centerX:
+      rect.left + rect.width / 2,
+    centerY:
+      rect.top + rect.height / 2
+  };
+}
+
+Nếu canvas có zoom hoặc pan, cần chuyển đổi tọa độ:
+
+function canvasToScreen(point) {
+  return {
+    x:
+      canvasViewportLeft +
+      canvasPanX +
+      point.x * canvasZoom,
+
+    y:
+      canvasViewportTop +
+      canvasPanY +
+      point.y * canvasZoom
+  };
+}
+
+Nếu layer có rotation, không được chỉ sử dụng x, y, width, height gốc.
+
+Phải tính transformed bounding box hoặc dùng getBoundingClientRect() nếu layer được render bằng DOM transform.
+
+
+======================================================================
+8. SELECTION OVERLAY
+======================================================================
+
+Selection overlay nên được render tách biệt với layer để:
+
+- Không làm thay đổi kích thước thật của layer.
+- Không ảnh hưởng nội dung text.
+- Không nằm trong ảnh export.
+- Không làm lệch layout.
+- Dễ kiểm soát resize handle.
+- Dễ thay đổi theo từng loại layer.
+
+Ví dụ:
+
+function renderSelectionOverlay({
+  layerId,
+  layerType,
+  bounds
+}) {
+  const overlay =
+    document.getElementById(
+      "selection-overlay"
+    );
+
+  overlay.dataset.targetLayerId =
+    layerId;
+
+  overlay.dataset.targetLayerType =
+    layerType;
+
+  overlay.className =
+    `selection-overlay selection-${layerType}`;
+
+  positionOverlay(overlay, bounds);
+
+  if (layerType === "text") {
+    renderTextSelectionHandles(
+      overlay
+    );
+  }
+
+  if (layerType === "image") {
+    renderImageSelectionHandles(
+      overlay
+    );
+  }
+}
+
+
+======================================================================
+9. HANDLE CỦA TEXT LAYER
+======================================================================
+
+Theo prototype, text layer có thể hiển thị:
+
+- Viền chọn màu tím.
+- Handle tròn ở hai đầu trái và phải.
+- Có thể có handle thay đổi chiều rộng.
+- Rotation handle phía dưới.
+- Move handle phía dưới hoặc cho phép kéo trực tiếp layer.
+- Không nhất thiết hiển thị đầy đủ tám resize handle như ảnh.
+
+Ví dụ cấu trúc:
+
+<div class="selection-overlay selection-text">
+  <button
+    class="resize-handle resize-left"
+    data-resize-direction="left"
+  ></button>
+
+  <button
+    class="resize-handle resize-right"
+    data-resize-direction="right"
+  ></button>
+
+  <button
+    class="rotate-handle"
+    data-action="rotate"
+  ></button>
+
+  <button
+    class="move-handle"
+    data-action="move"
+  ></button>
+</div>
+
+Khi kéo handle trái hoặc phải:
+
+- Thay đổi width của text box.
+- Không tự thay đổi font size.
+- Text tự wrap theo width mới.
+- Chiều cao tự cập nhật theo nội dung nếu dùng auto-height.
+
+Khi double-click text layer:
+
+- Chuyển sang text edit mode.
+- Đặt caret tại vị trí click.
+- Ẩn hoặc giảm bớt resize handles.
+- Giữ top text toolbar.
+- Floating toolbar có thể ẩn để tránh che nội dung.
+
+
+======================================================================
+10. HANDLE CỦA IMAGE LAYER
+======================================================================
+
+Image layer cần hiển thị:
+
+- Bốn corner handles.
+- Bốn side handles.
+- Rotation handle.
+- Viền chọn màu tím.
+- Floating contextual toolbar phía trên.
+
+Ví dụ:
+
+<div class="selection-overlay selection-image">
+  <button class="resize-handle nw"></button>
+  <button class="resize-handle n"></button>
+  <button class="resize-handle ne"></button>
+  <button class="resize-handle e"></button>
+  <button class="resize-handle se"></button>
+  <button class="resize-handle s"></button>
+  <button class="resize-handle sw"></button>
+  <button class="resize-handle w"></button>
+
+  <button class="rotate-handle"></button>
+</div>
+
+Corner handle:
+
+- Resize theo cả width và height.
+- Giữ tỷ lệ ảnh mặc định.
+- Nhấn Shift có thể bỏ giữ tỷ lệ hoặc đảo cơ chế tùy UX.
+
+Side handle:
+
+- Có thể resize riêng width hoặc height.
+- Hoặc chuyển sang crop mode tùy thiết kế sản phẩm.
+
+Double-click image:
+
+- Chuyển sang crop mode.
+- Hiển thị vùng crop.
+- Cho phép di chuyển ảnh bên trong frame.
+- Hiển thị top toolbar dành cho crop.
+
+
+======================================================================
+11. CONTEXTUAL FLOATING TOOLBAR
+======================================================================
+
+Contextual floating toolbar xuất hiện gần layer được chọn.
+
+Toolbar được render bằng Portal vào document.body để không bị ảnh hưởng bởi:
+
+- overflow: hidden.
+- transform.
+- stacking context.
+- canvas zoom.
+- canvas clipping.
+
+Ví dụ React:
+
+createPortal(
+  <ContextualToolbar />,
+  document.body
+);
+
+Hoặc JavaScript thuần:
+
+const toolbarRoot =
+  document.getElementById(
+    "contextual-toolbar-root"
+  );
+
+toolbarRoot.appendChild(
+  toolbarElement
+);
+
+Toolbar nên có:
+
+position: fixed;
+z-index: 100000;
+
+Không đặt toolbar trực tiếp bên trong layer.
+
+
+======================================================================
+12. TÍNH VỊ TRÍ FLOATING TOOLBAR
+======================================================================
+
+Toolbar ưu tiên nằm phía trên layer.
+
+function calculateToolbarPosition({
+  bounds,
+  toolbarWidth,
+  toolbarHeight
+}) {
+  const gap = 10;
+  const safeMargin = 8;
+
+  let left =
+    bounds.centerX -
+    toolbarWidth / 2;
+
+  let top =
+    bounds.top -
+    toolbarHeight -
+    gap;
+
+  if (top < safeMargin) {
+    top =
+      bounds.bottom +
+      gap;
+  }
+
+  if (
+    left + toolbarWidth >
+    window.innerWidth -
+    safeMargin
+  ) {
+    left =
+      window.innerWidth -
+      toolbarWidth -
+      safeMargin;
+  }
+
+  if (left < safeMargin) {
+    left = safeMargin;
+  }
+
+  return {
+    left,
+    top
+  };
+}
+
+Toolbar phải được tính lại khi:
+
+- Layer di chuyển.
+- Layer resize.
+- Canvas zoom.
+- Canvas pan.
+- Window resize.
+- Viewport scroll.
+- Thay đổi loại layer.
+- Chọn layer khác.
+
+
+======================================================================
+13. FLOATING TOOLBAR CỦA TEXT LAYER
+======================================================================
+
+Khi selectedLayerType === "text", hiển thị toolbar như sau:
+
+[
+  {
+    id: "ask-canva",
+    label: "Ask Canva",
+    icon: "sparkle"
+  },
+  {
+    id: "magic-write",
+    label: "Magic Write",
+    icon: "magic-pen"
+  },
+  {
+    id: "comment",
+    label: "Comment",
+    icon: "comment-plus"
+  },
+  {
+    id: "lock",
+    label: "Lock",
+    icon: "lock"
+  },
+  {
+    id: "duplicate",
+    label: "Duplicate",
+    icon: "duplicate"
+  },
+  {
+    id: "delete",
+    label: "Delete",
+    icon: "trash"
+  },
+  {
+    id: "more",
+    label: "More",
+    icon: "ellipsis"
+  }
+]
+
+Ví dụ cấu hình:
+
+const textFloatingMenu = [
+  {
+    id: "ask-canva",
+    icon: "sparkle",
+    label: "Ask Canva",
+    action: openAskCanva
+  },
+  {
+    id: "magic-write",
+    icon: "magic-pen",
+    label: "Magic Write",
+    action: openMagicWrite
+  },
+  {
+    id: "comment",
+    icon: "comment",
+    label: "Comment",
+    action: createComment
+  },
+  {
+    id: "lock",
+    icon: "lock",
+    label: "Lock",
+    action: toggleLayerLock
+  },
+  {
+    id: "duplicate",
+    icon: "duplicate",
+    label: "Duplicate",
+    action: duplicateLayer
+  },
+  {
+    id: "delete",
+    icon: "trash",
+    label: "Delete",
+    action: deleteLayer
+  },
+  {
+    id: "more",
+    icon: "ellipsis",
+    label: "More",
+    action: openMoreActions
+  }
+];
+
+
+======================================================================
+14. FLOATING TOOLBAR CỦA IMAGE LAYER
+======================================================================
+
+Khi selectedLayerType === "image", hiển thị toolbar như sau:
+
+[
+  {
+    id: "ask-canva",
+    label: "Ask Canva",
+    icon: "sparkle"
+  },
+  {
+    id: "comment",
+    label: "Comment",
+    icon: "comment-plus"
+  },
+  {
+    id: "lock",
+    label: "Lock",
+    icon: "lock"
+  },
+  {
+    id: "duplicate",
+    label: "Duplicate",
+    icon: "duplicate"
+  },
+  {
+    id: "delete",
+    label: "Delete",
+    icon: "trash"
+  },
+  {
+    id: "more",
+    label: "More",
+    icon: "ellipsis"
+  }
+]
+
+Ví dụ:
+
+const imageFloatingMenu = [
+  {
+    id: "ask-canva",
+    icon: "sparkle",
+    label: "Ask Canva",
+    action: openAskCanva
+  },
+  {
+    id: "comment",
+    icon: "comment",
+    label: "Comment",
+    action: createComment
+  },
+  {
+    id: "lock",
+    icon: "lock",
+    label: "Lock",
+    action: toggleLayerLock
+  },
+  {
+    id: "duplicate",
+    icon: "duplicate",
+    label: "Duplicate",
+    action: duplicateLayer
+  },
+  {
+    id: "delete",
+    icon: "trash",
+    label: "Delete",
+    action: deleteLayer
+  },
+  {
+    id: "more",
+    icon: "ellipsis",
+    label: "More",
+    action: openMoreActions
+  }
+];
+
+
+======================================================================
+15. HÀM CHỌN MENU THEO LOẠI LAYER
+======================================================================
+
+function getFloatingMenuByLayerType(
+  layerType
+) {
+  switch (layerType) {
+    case "text":
+      return textFloatingMenu;
+
+    case "image":
+      return imageFloatingMenu;
+
+    default:
+      return defaultFloatingMenu;
+  }
+}
+
+function renderContextualToolbar({
+  layerId,
+  layerType,
+  bounds
+}) {
+  const menuItems =
+    getFloatingMenuByLayerType(
+      layerType
+    );
+
+  contextualToolbarStore.open({
+    targetLayerId: layerId,
+    layerType,
+    menuItems,
+    bounds
+  });
+}
+
+
+======================================================================
+16. TOP TOOLBAR CỦA TEXT LAYER
+======================================================================
+
+Khi người dùng click text layer, top toolbar chuyển sang text editing toolbar.
+
+Các chức năng theo prototype:
+
+1. Font family.
+2. Font size.
+3. Giảm font size.
+4. Tăng font size.
+5. Text color.
+6. Bold.
+7. Italic.
+8. Underline.
+9. Strikethrough.
+10. Uppercase/lowercase.
+11. Text alignment.
+12. Bulleted list.
+13. Text spacing.
+14. Transparency.
+15. Effects.
+16. Animate.
+17. Position.
+18. Copy style hoặc paint format.
+
+Cấu hình:
+
+const textTopToolbarItems = [
+  "font-family",
+  "font-size",
+  "text-color",
+  "bold",
+  "italic",
+  "underline",
+  "strikethrough",
+  "text-case",
+  "text-align",
+  "list",
+  "text-spacing",
+  "transparency",
+  "effects",
+  "animate",
+  "position",
+  "copy-style"
+];
+
+State top toolbar lấy trực tiếp từ style của layer:
+
+const selectedTextStyle = {
+  fontFamily: selectedLayer.style.fontFamily,
+  fontSize: selectedLayer.style.fontSize,
+  fontWeight: selectedLayer.style.fontWeight,
+  fontStyle: selectedLayer.style.fontStyle,
+  textDecoration:
+    selectedLayer.style.textDecoration,
+  color: selectedLayer.style.color,
+  textAlign:
+    selectedLayer.style.textAlign
+};
+
+Các nút active phải phản ánh trạng thái layer.
+
+Ví dụ:
+
+isBoldActive =
+  selectedLayer.style.fontWeight >= 600;
+
+isItalicActive =
+  selectedLayer.style.fontStyle === "italic";
+
+isUnderlineActive =
+  selectedLayer.style.textDecoration
+    .includes("underline");
+
+
+======================================================================
+17. TOP TOOLBAR CỦA IMAGE LAYER
+======================================================================
+
+Khi người dùng click image layer, top toolbar chuyển sang image editing toolbar.
+
+Các chức năng theo prototype:
+
+1. Edit.
+2. BG Remover.
+3. Eraser.
+4. Transparency.
+5. Border hoặc image style.
+6. Crop.
+7. Flip.
+8. Position hoặc layer order.
+9. Effects.
+10. Animate.
+11. Position.
+12. Copy style hoặc paint format.
+
+Cấu hình:
+
+const imageTopToolbarItems = [
+  "edit-image",
+  "background-remover",
+  "eraser",
+  "transparency",
+  "border-style",
+  "crop",
+  "flip",
+  "image-adjustments",
+  "effects",
+  "animate",
+  "position",
+  "copy-style"
+];
+
+Một số action có thể phụ thuộc vào quyền hoặc gói dịch vụ:
+
+{
+  id: "background-remover",
+  premium: true,
+  disabled: !userCapabilities.canRemoveBackground
+}
+
+Top toolbar phải được render từ cấu hình theo layer type:
+
+function renderTopToolbar({
+  layerId,
+  layerType
+}) {
+  const items =
+    layerType === "text"
+      ? textTopToolbarItems
+      : imageTopToolbarItems;
+
+  topToolbarStore.setItems(items);
+
+  topToolbarStore.setTargetLayerId(
+    layerId
+  );
+}
+
+
+======================================================================
+18. CLICK TEXT LAYER
+======================================================================
+
+Luồng xử lý khi click một text layer:
+
+Người dùng pointerdown trên text layer
+        ↓
+Event delegation tìm [data-layer-id]
+        ↓
+Đọc data-layer-type="text"
+        ↓
+Kiểm tra layer có đang bị khóa hay không
+        ↓
+Đóng menu và popover trước đó
+        ↓
+Cập nhật selectedLayerIds
+        ↓
+Cập nhật primaryLayerId
+        ↓
+Gắn class is-selected vào text layer
+        ↓
+Tính transformed bounding box
+        ↓
+Render selection overlay dành cho text
+        ↓
+Hiển thị handle trái và phải
+        ↓
+Hiển thị rotation handle
+        ↓
+Render floating text toolbar
+        ↓
+Render top text toolbar
+        ↓
+Đồng bộ font, size, màu và định dạng
+        ↓
+Giữ text layer ở trạng thái selected
+
+Click lần đầu:
+
+- Chọn text box.
+- Cho phép move hoặc resize.
+
+Double-click:
+
+- Chuyển sang text edit mode.
+- Đặt caret.
+- Cho phép bôi đen văn bản.
+- Keyboard input được chuyển vào text editor.
+
+
+======================================================================
+19. CLICK IMAGE LAYER
+======================================================================
+
+Luồng xử lý khi click một image layer:
+
+Người dùng pointerdown trên image layer
+        ↓
+Event delegation tìm [data-layer-id]
+        ↓
+Đọc data-layer-type="image"
+        ↓
+Kiểm tra layer có đang bị khóa hay không
+        ↓
+Đóng contextual menu của text layer
+        ↓
+Cập nhật selectedLayerIds
+        ↓
+Cập nhật primaryLayerId
+        ↓
+Gắn class is-selected vào image layer
+        ↓
+Tính transformed bounding box
+        ↓
+Render image selection overlay
+        ↓
+Hiển thị tám resize handles
+        ↓
+Hiển thị rotation handle
+        ↓
+Render floating image toolbar
+        ↓
+Render top image toolbar
+        ↓
+Đồng bộ opacity, crop, filter và flip state
+        ↓
+Giữ image layer ở trạng thái selected
+
+Click lần đầu:
+
+- Chọn image layer.
+- Cho phép move, resize và rotate.
+
+Double-click:
+
+- Chuyển sang crop mode.
+- Hiển thị phần ảnh nằm ngoài crop frame.
+- Cho phép di chuyển ảnh trong frame.
+- Hiển thị crop controls.
+
+
+======================================================================
+20. CHUYỂN TỪ TEXT LAYER SANG IMAGE LAYER
+======================================================================
+
+Khi text layer đang được chọn và người dùng click image layer:
+
+1. Kết thúc text edit mode nếu đang bật.
+2. Lưu nội dung text hiện tại.
+3. Blur contenteditable.
+4. Xóa selection range của text.
+5. Bỏ class is-selected khỏi text layer.
+6. Xóa text selection overlay.
+7. Đóng text floating toolbar.
+8. Cập nhật primaryLayerId sang image layer.
+9. Cập nhật selectedLayerType thành image.
+10. Render image selection overlay.
+11. Render image floating toolbar.
+12. Thay top toolbar bằng image toolbar.
+
+Không được để đồng thời:
+
+- Text toolbar và image toolbar cùng hiển thị.
+- Hai floating toolbar cùng hiển thị.
+- Hai layer cùng mang trạng thái primary selection nếu không phải multi-select.
+
+
+======================================================================
+21. CHUYỂN TỪ IMAGE LAYER SANG TEXT LAYER
+======================================================================
+
+Khi image layer đang được chọn và người dùng click text layer:
+
+1. Kết thúc image edit hoặc crop mode.
+2. Commit crop nếu đã thay đổi.
+3. Bỏ class is-selected khỏi image layer.
+4. Xóa image selection overlay.
+5. Đóng image floating toolbar.
+6. Cập nhật primaryLayerId sang text layer.
+7. Cập nhật selectedLayerType thành text.
+8. Render text selection overlay.
+9. Render text floating toolbar.
+10. Thay top toolbar bằng text toolbar.
+
+
+======================================================================
+22. CLICK VÀO VÙNG TRỐNG CỦA CANVAS
+======================================================================
+
+Khi click vùng trống:
+
+function clearSelection() {
+  editorState.selectedLayerIds = [];
+  editorState.primaryLayerId = null;
+  editorState.selectedLayerType = null;
+  editorState.selectionBounds = null;
+  editorState.textEditMode = false;
+  editorState.imageEditMode = false;
+
+  removeSelectedClassFromAllLayers();
+  hideSelectionOverlay();
+  hideContextualToolbar();
+  renderDefaultTopToolbar();
+}
+
+Luồng xử lý:
+
+Click canvas background
+        ↓
+Không tìm thấy [data-layer-id]
+        ↓
+Commit thay đổi layer hiện tại
+        ↓
+Bỏ chọn layer
+        ↓
+Ẩn selection overlay
+        ↓
+Ẩn floating toolbar
+        ↓
+Đóng popover
+        ↓
+Khôi phục top toolbar mặc định
+
+
+======================================================================
+23. XỬ LÝ DRAG LAYER
+======================================================================
+
+Khi pointerdown trên phần thân layer và di chuyển quá drag threshold:
+
+const DRAG_THRESHOLD = 4;
+
+if (
+  Math.abs(currentX - startX) >
+    DRAG_THRESHOLD ||
+  Math.abs(currentY - startY) >
+    DRAG_THRESHOLD
+) {
+  beginLayerDrag();
+}
+
+Trong khi drag:
+
+- Giữ layer selected.
+- Floating toolbar có thể tạm ẩn.
+- Selection overlay di chuyển cùng layer.
+- Không mở text edit mode.
+- Không kích hoạt click action khi pointerup.
+- Dùng requestAnimationFrame để cập nhật vị trí.
+- Dùng pointer capture để không mất drag.
+
+Ví dụ:
+
+event.currentTarget.setPointerCapture(
+  event.pointerId
+);
+
+Khi drag kết thúc:
+
+- Commit vị trí mới vào document model.
+- Cập nhật bounding box.
+- Render lại toolbar.
+- Ghi một history transaction.
+
+
+======================================================================
+24. XỬ LÝ RESIZE
+======================================================================
+
+Mỗi resize handle phải có:
+
+data-resize-direction="nw"
+data-resize-direction="n"
+data-resize-direction="ne"
+data-resize-direction="e"
+data-resize-direction="se"
+data-resize-direction="s"
+data-resize-direction="sw"
+data-resize-direction="w"
+
+Khi pointerdown trên handle:
+
+function handleResizeStart(event) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const direction =
+    event.currentTarget.dataset
+      .resizeDirection;
+
+  resizeController.start({
+    layerId:
+      editorState.primaryLayerId,
+
+    direction,
+
+    pointerId:
+      event.pointerId,
+
+    startX:
+      event.clientX,
+
+    startY:
+      event.clientY
+  });
+}
+
+Text layer:
+
+- Side handle thay đổi chiều rộng text box.
+- Chiều cao có thể tự động theo nội dung.
+- Corner handle có thể scale font nếu sản phẩm hỗ trợ.
+
+Image layer:
+
+- Corner handle resize giữ tỷ lệ.
+- Side handle thay đổi width hoặc height.
+- Có thể giới hạn minimum width và minimum height.
+
+
+======================================================================
+25. XỬ LÝ ROTATE
+======================================================================
+
+Khi pointerdown trên rotation handle:
+
+1. Ghi nhận tâm layer.
+2. Tính góc ban đầu.
+3. Theo dõi pointermove.
+4. Tính góc mới bằng Math.atan2().
+5. Cập nhật transform rotate.
+6. Cập nhật selection overlay.
+7. Cập nhật toolbar position.
+8. Commit vào history khi pointerup.
+
+Ví dụ:
+
+const angle =
+  Math.atan2(
+    pointerY - centerY,
+    pointerX - centerX
+  );
+
+const degrees =
+  angle * 180 / Math.PI;
+
+
+======================================================================
+26. LOCK LAYER
+======================================================================
+
+Khi click Lock:
+
+function toggleLayerLock(layerId) {
+  const layer =
+    documentStore.getLayer(layerId);
+
+  layer.locked = !layer.locked;
+
+  updateLayer(layer);
+
+  renderSelectionOverlayForLayer(
+    layer
+  );
+
+  renderContextualToolbarForLayer(
+    layer
+  );
+}
+
+Khi layer bị khóa:
+
+- Không drag.
+- Không resize.
+- Không rotate.
+- Không edit text.
+- Không crop ảnh.
+- Có thể vẫn cho phép chọn.
+- Hiển thị icon lock.
+- Ẩn resize handles.
+- Thay action Lock thành Unlock.
+
+
+======================================================================
+27. DUPLICATE LAYER
+======================================================================
+
+function duplicateLayer(layerId) {
+  const source =
+    documentStore.getLayer(layerId);
+
+  const duplicated =
+    structuredClone(source);
+
+  duplicated.id =
+    generateLayerId();
+
+  duplicated.x += 12;
+  duplicated.y += 12;
+
+  documentStore.insertLayerAfter(
+    layerId,
+    duplicated
+  );
+
+  selectLayerById(
+    duplicated.id
+  );
+
+  history.push({
+    type: "DUPLICATE_LAYER",
+    sourceLayerId: layerId,
+    duplicatedLayerId:
+      duplicated.id
+  });
+}
+
+
+======================================================================
+28. DELETE LAYER
+======================================================================
+
+function deleteLayer(layerId) {
+  const layer =
+    documentStore.getLayer(layerId);
+
+  if (!layer || layer.locked) {
+    return;
+  }
+
+  history.execute(
+    new DeleteLayerCommand(layerId)
+  );
+
+  clearSelection();
+}
+
+Sau khi xóa:
+
+- Layer biến mất khỏi canvas.
+- Selection overlay biến mất.
+- Floating toolbar biến mất.
+- Top toolbar trở lại mặc định.
+- Có thể Undo bằng Ctrl + Z.
+
+
+======================================================================
+29. MORE ACTIONS
+======================================================================
+
+Khi click nút dấu ba chấm:
+
+openMoreActions({
+  anchorElement:
+    moreButtonElement,
+
+  targetLayerId:
+    editorState.primaryLayerId,
+
+  layerType:
+    editorState.selectedLayerType
+});
+
+Menu More có thể gồm:
+
+- Copy.
+- Copy style.
+- Paste.
+- Duplicate.
+- Delete.
+- Layer order.
+- Align to page.
+- Comment.
+- Lock.
+- Show element timings.
+- Download selection.
+
+More menu phải thay đổi theo layer type và trạng thái layer.
+
+
+======================================================================
+30. XỬ LÝ EVENT PROPAGATION
+======================================================================
+
+Các nút trong contextual toolbar không được làm mất selection.
+
+toolbarElement.addEventListener(
+  "pointerdown",
+  event => {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+);
+
+Nếu không chặn propagation:
+
+- Click toolbar có thể bị hiểu là click ngoài canvas.
+- Layer bị bỏ chọn trước khi action chạy.
+- Toolbar đóng ngoài ý muốn.
+- Text editor bị blur.
+
+
+======================================================================
+31. CSS CƠ BẢN
+======================================================================
+
+.canvas-layer {
+  position: absolute;
+  box-sizing: border-box;
+  user-select: none;
+  touch-action: none;
+}
+
+.text-layer {
+  cursor: move;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.text-layer[data-editing="true"] {
+  cursor: text;
+  user-select: text;
+}
+
+.image-layer {
+  cursor: move;
+}
+
+.image-layer img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+}
+
+.selection-overlay {
+  position: fixed;
+  pointer-events: none;
+  border: 2px solid #8b3dff;
+  box-sizing: border-box;
+  z-index: 90000;
+}
+
+.resize-handle,
+.rotate-handle,
+.move-handle {
+  position: absolute;
+  pointer-events: auto;
+  background: #ffffff;
+  border: 1px solid #b7b7b7;
+  touch-action: none;
+}
+
+.resize-handle {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.contextual-toolbar {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 4px 8px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 24px;
+  box-shadow:
+    0 4px 16px
+    rgba(0, 0, 0, 0.15);
+  z-index: 100000;
+}
+
+.contextual-toolbar button {
+  min-width: 38px;
+  height: 38px;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.contextual-toolbar button:hover {
+  background:
+    rgba(0, 0, 0, 0.06);
+}
+
+.contextual-toolbar button:focus-visible {
+  outline:
+    2px solid #8b3dff;
+  outline-offset: 1px;
+}
+
+
+======================================================================
+32. RENDER TOOLBAR TỪ CẤU HÌNH
+======================================================================
+
+function createToolbarButton(item) {
+  const button =
+    document.createElement("button");
+
+  button.type = "button";
+  button.dataset.actionId = item.id;
+  button.setAttribute(
+    "aria-label",
+    item.label
+  );
+
+  button.innerHTML =
+    renderIcon(item.icon);
+
+  button.addEventListener(
+    "pointerdown",
+    event => {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  );
+
+  button.addEventListener(
+    "click",
+    event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      item.action(
+        editorState.primaryLayerId
+      );
+    }
+  );
+
+  return button;
+}
+
+function buildContextualToolbar(
+  menuItems
+) {
+  const toolbar =
+    document.createElement("div");
+
+  toolbar.className =
+    "contextual-toolbar";
+
+  toolbar.setAttribute(
+    "role",
+    "toolbar"
+  );
+
+  menuItems.forEach(item => {
+    toolbar.appendChild(
+      createToolbarButton(item)
+    );
+  });
+
+  return toolbar;
+}
+
+
+======================================================================
+33. KIẾN TRÚC MODULE ĐỀ XUẤT
+======================================================================
+
+EditorStore
+├── documentStore
+├── selectionStore
+├── historyStore
+├── viewportStore
+├── toolbarStore
+├── contextualToolbarStore
+├── textEditorStore
+└── imageEditorStore
+
+LayerRenderer
+├── TextLayerRenderer
+├── ImageLayerRenderer
+└── SelectionOverlayRenderer
+
+ToolbarRenderer
+├── DefaultTopToolbar
+├── TextTopToolbar
+├── ImageTopToolbar
+├── TextFloatingToolbar
+└── ImageFloatingToolbar
+
+Controllers
+├── SelectionController
+├── DragController
+├── ResizeController
+├── RotateController
+├── TextEditController
+├── CropController
+└── ContextMenuController
+
+
+======================================================================
+34. ACCESSIBILITY
+======================================================================
+
+Canvas layer:
+
+<div
+  role="button"
+  tabindex="0"
+  aria-label="Text layer: Your paragraph text"
+  aria-selected="true"
+>
+
+Image layer:
+
+<div
+  role="button"
+  tabindex="0"
+  aria-label="Image layer"
+  aria-selected="true"
+>
+
+Floating toolbar:
+
+<div
+  role="toolbar"
+  aria-label="Layer actions"
+>
+
+Các phím cần hỗ trợ:
+
+- Enter: chọn layer.
+- Space: chọn layer.
+- Delete: xóa layer.
+- Ctrl + D: duplicate.
+- Ctrl + C: copy.
+- Ctrl + V: paste.
+- Arrow keys: di chuyển layer.
+- Escape: thoát edit mode hoặc bỏ chọn.
+- Tab: chuyển focus giữa các toolbar controls.
+
+
+======================================================================
+35. UNDO VÀ REDO
+======================================================================
+
+Các action phải ghi history:
+
+- Di chuyển layer.
+- Resize layer.
+- Rotate layer.
+- Sửa nội dung text.
+- Thay font.
+- Thay font size.
+- Đổi màu.
+- Crop ảnh.
+- Flip ảnh.
+- Xóa nền.
+- Thay opacity.
+- Duplicate.
+- Delete.
+- Lock hoặc unlock.
+- Thay đổi position.
+- Thay đổi animation.
+
+Không cần ghi history:
+
+- Click chọn layer.
+- Mở toolbar.
+- Đóng toolbar.
+- Hover button.
+- Mở More menu nhưng chưa chạy action.
+
+
+======================================================================
+36. PSEUDOCODE TỔNG HỢP
+======================================================================
+
+function handleCanvasPointerDown(event) {
+  if (
+    event.button !== 0
+  ) {
+    return;
+  }
+
+  if (
+    event.target.closest(
+      ".contextual-toolbar"
+    )
+  ) {
+    return;
+  }
+
+  if (
+    event.target.closest(
+      ".selection-overlay"
+    )
+  ) {
+    return;
+  }
+
+  const layerElement =
+    event.target.closest(
+      "[data-layer-id]"
+    );
+
+  if (!layerElement) {
+    clearSelection();
+    return;
+  }
+
+  const layerId =
+    layerElement.dataset.layerId;
+
+  const layerType =
+    layerElement.dataset.layerType;
+
+  const layer =
+    documentStore.getLayer(
+      layerId
+    );
+
+  if (!layer) {
+    clearSelection();
+    return;
+  }
+
+  selectionStore.selectOnly(
+    layerId
+  );
+
+  renderSelectionOverlay({
+    layerId,
+    layerType,
+    bounds:
+      calculateLayerScreenBounds(
+        layerElement
+      )
+  });
+
+  renderTopToolbar({
+    layerId,
+    layerType
+  });
+
+  renderContextualToolbar({
+    layerId,
+    layerType,
+    bounds:
+      calculateLayerScreenBounds(
+        layerElement
+      )
+  });
+}
+
+
+function renderContextualToolbar({
+  layerId,
+  layerType,
+  bounds
+}) {
+  const menuItems =
+    getFloatingMenuByLayerType(
+      layerType
+    );
+
+  const toolbar =
+    buildContextualToolbar(
+      menuItems
+    );
+
+  document.body.appendChild(
+    toolbar
+  );
+
+  const toolbarRect =
+    toolbar.getBoundingClientRect();
+
+  const position =
+    calculateToolbarPosition({
+      bounds,
+      toolbarWidth:
+        toolbarRect.width,
+      toolbarHeight:
+        toolbarRect.height
+    });
+
+  toolbar.style.left =
+    `${position.left}px`;
+
+  toolbar.style.top =
+    `${position.top}px`;
+
+  toolbar.dataset.targetLayerId =
+    layerId;
+
+  toolbar.dataset.layerType =
+    layerType;
+}
+
+
+======================================================================
+37. LUỒNG TỔNG QUÁT
+======================================================================
+
+CLICK TEXT LAYER
+
+pointerdown
+    ↓
+Hit-test text layer
+    ↓
+selectedLayerType = "text"
+    ↓
+Bỏ selection cũ
+    ↓
+Render text bounding box
+    ↓
+Render text resize handles
+    ↓
+Render rotation và move controls
+    ↓
+Render text floating toolbar
+    ↓
+Render top text toolbar
+    ↓
+Đồng bộ font và text style
+    ↓
+Chờ người dùng move, resize, edit hoặc chạy action
+
+
+CLICK IMAGE LAYER
+
+pointerdown
+    ↓
+Hit-test image layer
+    ↓
+selectedLayerType = "image"
+    ↓
+Đóng text edit mode nếu đang mở
+    ↓
+Bỏ selection cũ
+    ↓
+Render image bounding box
+    ↓
+Render tám resize handles
+    ↓
+Render rotation handle
+    ↓
+Render image floating toolbar
+    ↓
+Render top image toolbar
+    ↓
+Đồng bộ crop, filter, opacity và flip
+    ↓
+Chờ người dùng move, resize, crop hoặc chạy action
+
+
+======================================================================
+38. KẾT QUẢ MONG ĐỢI
+======================================================================
+
+Sau khi hoàn thành prototype:
+
+- Click text layer hiển thị đúng text selection overlay.
+- Click text layer hiển thị floating toolbar dành cho text.
+- Click text layer đổi top toolbar sang công cụ định dạng text.
+- Double-click text layer chuyển sang text edit mode.
+- Click image layer hiển thị tám resize handles.
+- Click image layer hiển thị floating toolbar dành cho image.
+- Click image layer đổi top toolbar sang công cụ chỉnh ảnh.
+- Double-click image layer chuyển sang crop mode.
+- Chuyển qua lại giữa text và image không bị trùng toolbar.
+- Toolbar luôn nằm gần layer và không vượt viewport.
+- Toolbar không bị ảnh hưởng bởi zoom hoặc pan canvas.
+- Click toolbar không làm layer bị bỏ chọn.
+- Click vùng trống đóng toàn bộ contextual toolbar.
+- Mọi thao tác thay đổi layer đều hỗ trợ Undo và Redo.

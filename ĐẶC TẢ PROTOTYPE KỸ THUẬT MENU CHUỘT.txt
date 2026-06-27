@@ -1,0 +1,2071 @@
+ĐẶC TẢ PROTOTYPE KỸ THUẬT MENU CHUỘT PHẢI TRÊN LAYER CỦA TRÌNH THIẾT KẾ WEB
+
+Thêm vào dưới phần Chế độ xử lý là phần cắt xén
+Widt height
+tỷ lệ
+scale
+
+Biến khung chứa ảnh sau khi upload thành canva chỉnh sửa đa năng như canva.com
+side-panel biến thành sidebar tab với 5 tab con (dùng fas minh họa )
+- Tùy chỉnh (là side-panel hiện tại)
+- Layer
+- Tài nguyên (chứa các ảnh tải lên dùng làm elements hoặc các khối html , svg để tạo frame, shape,.. đặt vào cavas chính.)
+- Tải lên (chứa các ảnh tải lên)
+- Đã sửa (chứa các ảnh đã xuất)
+- Mẫu (chứa các template đã thực hiện, thêm nút xuất mẫu dưới nút xuất ảnh để tạo ảnh mẫu lưu vào kho, khi bấm vào một ảnh mẫu thì xuất mẫu đó ra canvas và cho phép click thay các thành phần trong mẫu.)
+
+
+Cho phép chọn nhiều ảnh đặt vào cavas
+
+
+
+======================================================================
+1. MỤC TIÊU
+======================================================================
+
+Xây dựng một context-sensitive layer action menu tương tự menu chuột phải của Canva.
+
+Menu được hiển thị khi người dùng nhấn chuột phải vào một layer trong vùng thiết kế và cung cấp các chức năng:
+
+1. Copy
+2. Copy style
+3. Paste
+4. Duplicate
+5. Delete
+6. Layer
+7. Align to page
+8. Ungroup
+9. Create component
+10. Comment
+11. Lock
+12. Show element timings
+13. Download selection
+
+Nội dung menu, trạng thái disabled, submenu và phím tắt phải được tạo động dựa trên:
+
+- Loại layer.
+- Số lượng layer đang chọn.
+- Trạng thái khóa.
+- Loại tài liệu.
+- Quyền chỉnh sửa của người dùng.
+- Dữ liệu clipboard.
+- Trạng thái timeline.
+- Cấu trúc group hoặc component.
+- Vị trí của layer trong z-order.
+
+
+======================================================================
+2. BẮT SỰ KIỆN CHUỘT PHẢI TRÊN LAYER
+======================================================================
+
+Mỗi layer cần đăng ký sự kiện contextmenu.
+
+Ví dụ:
+
+layerElement.addEventListener("contextmenu", handleLayerContextMenu);
+
+Khi người dùng nhấn chuột phải vào layer:
+
+function handleLayerContextMenu(event, layerId) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  selectLayer(layerId);
+
+  openContextMenu({
+    targetType: "layer",
+    targetId: layerId,
+    x: event.clientX,
+    y: event.clientY
+  });
+}
+
+Hệ thống thực hiện theo thứ tự:
+
+1. Gọi event.preventDefault() để chặn menu chuột phải mặc định của trình duyệt.
+2. Gọi event.stopPropagation() để ngăn sự kiện truyền lên page wrapper hoặc canvas container.
+3. Thực hiện hit-test để xác định chính xác layer nằm dưới con trỏ.
+4. Kiểm tra quyền tương tác với layer.
+5. Cập nhật selection state.
+6. Hiển thị bounding box của layer.
+7. Hiển thị resize handles.
+8. Hiển thị rotation handle nếu layer cho phép xoay.
+9. Hiển thị floating contextual toolbar phía trên layer.
+10. Ghi nhận tọa độ con trỏ bằng clientX và clientY.
+11. Cập nhật context menu state.
+12. Mount context menu bằng Portal vào document.body.
+13. Chạy thuật toán collision detection.
+14. Điều chỉnh vị trí menu nếu menu vượt ra ngoài viewport.
+
+Nếu layer chưa được chọn, thao tác chuột phải phải chọn layer trước khi mở menu.
+
+Nếu chuột phải vào một layer khác trong khi menu đang mở:
+
+1. Đóng menu hiện tại.
+2. Bỏ chọn layer cũ.
+3. Chọn layer mới.
+4. Tính lại bounding box.
+5. Mở menu mới tại vị trí con trỏ.
+6. Tạo lại danh sách action dựa trên layer mới.
+
+
+======================================================================
+3. HIT-TEST VÀ XÁC ĐỊNH TARGET
+======================================================================
+
+Nếu trình chỉnh sửa sử dụng HTML DOM, target có thể được xác định qua dataset:
+
+const layerElement = event.target.closest("[data-layer-id]");
+const layerId = layerElement?.dataset.layerId;
+
+Nếu sử dụng Canvas 2D hoặc WebGL, cần thực hiện hit-test theo tọa độ canvas:
+
+const canvasPoint = screenToCanvas({
+  x: event.clientX,
+  y: event.clientY
+});
+
+const targetLayer = hitTestLayerTree(canvasPoint);
+
+Quy trình hit-test nên xét:
+
+- Vị trí.
+- Kích thước.
+- Rotation.
+- Transformation matrix.
+- Mask.
+- Clip path.
+- Opacity.
+- Z-order.
+- Layer visibility.
+- Pointer events.
+- Group hierarchy.
+
+Khi nhiều layer chồng lên nhau, hệ thống chọn layer có z-index cao nhất nằm tại vị trí con trỏ.
+
+Có thể hỗ trợ cơ chế chọn layer nằm phía dưới bằng Alt + chuột phải hoặc menu Select layer.
+
+
+======================================================================
+4. STATE CỦA SELECTION
+======================================================================
+
+Ví dụ:
+
+const selectionState = {
+  selectedIds: ["layer-123"],
+  primaryId: "layer-123",
+  selectionType: "group",
+  bounds: {
+    x: 120,
+    y: 80,
+    width: 420,
+    height: 580
+  }
+};
+
+Các loại selection có thể gồm:
+
+- none
+- single
+- multi
+- group
+- component
+- component-instance
+- text
+- image
+- video
+- shape
+- audio
+- frame
+- locked-layer
+
+Khi người dùng chuột phải vào layer đang nằm trong multi-selection:
+
+- Nếu layer thuộc vùng chọn hiện tại thì giữ nguyên toàn bộ selection.
+- Nếu layer không thuộc vùng chọn hiện tại thì bỏ selection cũ và chọn layer mới.
+
+
+======================================================================
+5. STATE CỦA CONTEXT MENU
+======================================================================
+
+Ví dụ:
+
+const contextMenuState = {
+  isOpen: true,
+  targetType: "layer",
+  targetId: "layer-123",
+  anchorX: 420,
+  anchorY: 260,
+  menuX: 420,
+  menuY: 260,
+  activeSubmenu: null,
+  focusedItemId: "copy"
+};
+
+Các thuộc tính chính:
+
+- isOpen: trạng thái mở hoặc đóng.
+- targetType: loại đối tượng được mở menu.
+- targetId: ID của layer hoặc group.
+- anchorX: tọa độ X của con trỏ.
+- anchorY: tọa độ Y của con trỏ.
+- menuX: vị trí X sau collision detection.
+- menuY: vị trí Y sau collision detection.
+- activeSubmenu: submenu đang mở.
+- focusedItemId: item đang nhận keyboard focus.
+
+
+======================================================================
+6. RENDER CONTEXT MENU BẰNG PORTAL
+======================================================================
+
+Context menu nên được mount ngoài vùng canvas bằng Portal để tránh:
+
+- overflow: hidden.
+- CSS clipping.
+- stacking context.
+- transform của canvas.
+- scale của canvas.
+- z-index của layer.
+- scroll container.
+- filter hoặc perspective của ancestor.
+
+Ví dụ React:
+
+createPortal(
+  <LayerContextMenu />,
+  document.body
+);
+
+CSS cơ bản:
+
+.context-menu {
+  position: fixed;
+  z-index: 99999;
+  min-width: 372px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16);
+}
+
+Mỗi hàng trong menu gồm:
+
+- Icon bên trái.
+- Label ở giữa.
+- Shortcut badge hoặc submenu arrow bên phải.
+- Hover state.
+- Focus state.
+- Disabled state.
+- Checked state.
+- Dangerous state.
+
+
+======================================================================
+7. COLLISION DETECTION
+======================================================================
+
+Menu không được vượt ra ngoài viewport.
+
+Ví dụ:
+
+const safeMargin = 8;
+
+const menuX = Math.min(
+  pointerX,
+  window.innerWidth - menuWidth - safeMargin
+);
+
+const menuY = Math.min(
+  pointerY,
+  window.innerHeight - menuHeight - safeMargin
+);
+
+Nếu pointerX hoặc pointerY nhỏ hơn safeMargin:
+
+menuX = Math.max(menuX, safeMargin);
+menuY = Math.max(menuY, safeMargin);
+
+Nếu submenu không đủ khoảng trống bên phải:
+
+const openDirection =
+  menuRight + submenuWidth > viewportWidth
+    ? "left"
+    : "right";
+
+Nếu menu quá cao:
+
+- Giới hạn max-height.
+- Bật overflow-y: auto.
+- Không làm thay đổi kích thước canvas.
+- Có thể ẩn scrollbar nhưng vẫn cho phép cuộn.
+
+
+======================================================================
+8. CẤU TRÚC DỮ LIỆU MENU
+======================================================================
+
+Menu nên được khai báo bằng cấu hình thay vì hard-code trực tiếp trong DOM.
+
+Ví dụ:
+
+const menuItems = [
+  {
+    id: "copy",
+    label: "Copy",
+    shortcut: "Ctrl+C",
+    icon: "copy",
+    action: copySelection
+  },
+  {
+    id: "copy-style",
+    label: "Copy style",
+    shortcut: "Ctrl+Alt+C",
+    icon: "paint-roller",
+    action: copySelectionStyle
+  },
+  {
+    id: "paste",
+    label: "Paste",
+    shortcut: "Ctrl+V",
+    icon: "clipboard",
+    disabled: !clipboardState.hasSupportedContent,
+    action: pasteClipboard
+  },
+  {
+    id: "duplicate",
+    label: "Duplicate",
+    shortcut: "Ctrl+D",
+    icon: "duplicate",
+    action: duplicateSelection
+  },
+  {
+    id: "delete",
+    label: "Delete",
+    shortcut: "Delete",
+    icon: "trash",
+    dangerous: true,
+    action: deleteSelection
+  },
+  {
+    type: "separator"
+  },
+  {
+    id: "layer",
+    label: "Layer",
+    icon: "layers",
+    submenu: layerMenuItems
+  },
+  {
+    id: "align-to-page",
+    label: "Align to page",
+    icon: "align",
+    submenu: alignToPageItems
+  }
+];
+
+Interface đề xuất:
+
+interface ContextMenuItem {
+  id?: string;
+  type?: "item" | "separator";
+  label?: string;
+  icon?: string;
+  shortcut?: string;
+  visible?: boolean;
+  disabled?: boolean;
+  dangerous?: boolean;
+  checked?: boolean;
+  action?: () => void;
+  submenu?: ContextMenuItem[];
+}
+
+
+======================================================================
+9. THỨ TỰ MENU
+======================================================================
+
+Copy
+Copy style
+Paste
+Duplicate
+Delete
+
+Layer >
+Align to page >
+
+Ungroup
+Create component
+Comment
+
+Lock >
+Show element timings
+
+Download selection
+
+
+======================================================================
+10. COPY
+======================================================================
+
+Khi người dùng click Copy hoặc nhấn Ctrl + C:
+
+dispatch({
+  type: "COPY_SELECTION",
+  payload: {
+    layerIds: selectionState.selectedIds
+  }
+});
+
+Hệ thống serialize toàn bộ layer đang chọn:
+
+const clipboardPayload = {
+  type: "design-layer",
+  version: 1,
+  sourceDocumentId: currentDocumentId,
+  sourcePageId: currentPageId,
+  layers: selectedLayers.map(serializeLayer),
+  boundingBox: calculateSelectionBounds(selectedLayers)
+};
+
+Dữ liệu cần giữ:
+
+- Layer type.
+- Nội dung text.
+- Image source.
+- Video source.
+- Audio source.
+- Tọa độ.
+- Width.
+- Height.
+- Rotation.
+- Transform matrix.
+- Opacity.
+- Fill.
+- Stroke.
+- Effects.
+- Filters.
+- Crop.
+- Mask.
+- Animation.
+- Timing.
+- Group hierarchy.
+- Component references.
+- Z-order tương đối.
+- Lock state nếu phù hợp.
+
+Clipboard có thể lưu tại:
+
+- Internal application store.
+- navigator.clipboard.
+- IndexedDB.
+- In-memory cache.
+
+Sau khi copy:
+
+- Không thay đổi document model.
+- Không tạo history entry.
+- Đóng context menu.
+- Giữ nguyên selection.
+- Có thể hiển thị toast “Đã sao chép”.
+
+
+======================================================================
+11. COPY STYLE
+======================================================================
+
+Copy style chỉ sao chép presentation properties, không sao chép nội dung và geometry.
+
+Ví dụ:
+
+const copiedStyle = extractLayerStyle(selectedLayer);
+
+Dữ liệu style có thể gồm:
+
+{
+  fill,
+  stroke,
+  strokeWidth,
+  strokeStyle,
+  fontFamily,
+  fontSize,
+  fontWeight,
+  fontStyle,
+  textDecoration,
+  lineHeight,
+  letterSpacing,
+  textAlign,
+  textTransform,
+  opacity,
+  borderRadius,
+  shadow,
+  filters,
+  blendMode,
+  effects
+}
+
+Không sao chép:
+
+- id.
+- Nội dung text.
+- URL ảnh.
+- URL video.
+- Tọa độ.
+- Width.
+- Height.
+- Group parent.
+- Component ID.
+- Timing.
+
+Sau khi chọn Copy style:
+
+editorMode = "paste-style";
+
+Con trỏ có thể chuyển thành paint roller.
+
+Khi người dùng click một layer khác:
+
+applyStyle(targetLayerId, copiedStyle);
+
+Thao tác apply style phải:
+
+1. Kiểm tra style có tương thích với target hay không.
+2. Chỉ áp dụng các thuộc tính được hỗ trợ.
+3. Cập nhật document model.
+4. Re-render layer.
+5. Ghi một transaction vào undo history.
+6. Thoát chế độ paste-style hoặc tiếp tục tùy thiết kế UX.
+
+
+======================================================================
+12. PASTE
+======================================================================
+
+Khi click Paste hoặc nhấn Ctrl + V:
+
+1. Đọc clipboard nội bộ.
+2. Đọc system clipboard nếu được cấp quyền.
+3. Xác định MIME type.
+4. Validate dữ liệu.
+5. Clone dữ liệu.
+6. Sinh ID mới.
+7. Resolve reference.
+8. Offset vị trí.
+9. Insert vào document tree.
+10. Cập nhật selection.
+11. Push transaction vào history.
+12. Re-render canvas.
+
+Ví dụ:
+
+dispatch({
+  type: "PASTE_LAYERS",
+  payload: {
+    clipboardData,
+    offset: {
+      x: 16,
+      y: 16
+    }
+  }
+});
+
+Hệ thống có thể hỗ trợ paste:
+
+- Layer nội bộ.
+- Text thuần.
+- Rich text.
+- HTML.
+- SVG.
+- PNG.
+- JPEG.
+- GIF.
+- File.
+- Image blob.
+- URL.
+
+Nếu clipboard không có dữ liệu phù hợp:
+
+disabled: !clipboardState.hasSupportedContent;
+
+Khi paste layer:
+
+- Toàn bộ ID phải được tạo mới.
+- Parent-child references phải được cập nhật.
+- Component references phải được resolve.
+- Bản sao được đặt phía trên layer hiện tại.
+- Layer mới trở thành selection hiện tại.
+
+
+======================================================================
+13. DUPLICATE
+======================================================================
+
+Duplicate tạo bản sao trực tiếp mà không phụ thuộc system clipboard.
+
+const duplicatedLayers = cloneLayers(selectedLayers, {
+  regenerateIds: true,
+  offsetX: 16,
+  offsetY: 16
+});
+
+insertLayersAfterSelection(duplicatedLayers);
+
+selectLayers(
+  duplicatedLayers.map(layer => layer.id)
+);
+
+Yêu cầu:
+
+- Sinh ID mới.
+- Giữ nguyên group hierarchy.
+- Giữ nguyên component relationship nếu phù hợp.
+- Giữ nguyên thứ tự tương đối giữa các layer.
+- Đặt bản sao lệch nhẹ sang phải và xuống dưới.
+- Đặt bản sao ngay phía trên layer gốc trong layer tree.
+- Bản sao trở thành selection mới.
+- Toàn bộ thao tác là một history transaction duy nhất.
+
+Ví dụ:
+
+history.push({
+  type: "DUPLICATE_LAYERS",
+  before,
+  after
+});
+
+
+======================================================================
+14. DELETE
+======================================================================
+
+Khi chọn Delete:
+
+dispatch({
+  type: "DELETE_LAYERS",
+  payload: {
+    layerIds: selectionState.selectedIds
+  }
+});
+
+Quy trình:
+
+1. Kiểm tra quyền edit.
+2. Kiểm tra lock state.
+3. Kiểm tra dependency.
+4. Xóa layer khỏi document tree.
+5. Xóa hoặc cập nhật reference liên quan.
+6. Xóa timeline track nếu cần.
+7. Cập nhật component instance nếu cần.
+8. Recalculate selection.
+9. Re-render canvas.
+10. Ghi undo history.
+11. Đóng context menu.
+
+Với layer khóa hoàn toàn:
+
+disabled: selectedLayers.some(
+  layer => layer.lockMode === "full"
+);
+
+Sau khi xóa:
+
+- Có thể chọn layer liền kề.
+- Hoặc bỏ chọn toàn bộ.
+- Có thể hoàn tác bằng Ctrl + Z.
+
+Delete có thể dùng dangerous state:
+
+.context-menu-item[data-dangerous="true"]:hover {
+  color: #d93025;
+  background: rgba(217, 48, 37, 0.08);
+}
+
+
+======================================================================
+15. SUBMENU LAYER
+======================================================================
+
+Mục Layer mở submenu:
+
+- Bring forward.
+- Bring to front.
+- Send backward.
+- Send to back.
+
+Cấu hình:
+
+{
+  id: "layer",
+  label: "Layer",
+  submenu: [
+    {
+      id: "bring-forward",
+      label: "Bring forward"
+    },
+    {
+      id: "bring-to-front",
+      label: "Bring to front"
+    },
+    {
+      id: "send-backward",
+      label: "Send backward"
+    },
+    {
+      id: "send-to-back",
+      label: "Send to back"
+    }
+  ]
+}
+
+Submenu có thể mở bằng:
+
+- pointerenter.
+- click.
+- ArrowRight.
+- Enter.
+
+Có thể thêm delay:
+
+setTimeout(() => {
+  setActiveSubmenu("layer");
+}, 120);
+
+Khi con trỏ di chuyển từ menu cha sang submenu, submenu không được đóng ngay.
+
+Cần sử dụng safe polygon hoặc hover intent để tránh submenu đóng ngoài ý muốn.
+
+
+======================================================================
+16. BRING FORWARD
+======================================================================
+
+Đưa layer lên một cấp trong children array của cùng parent.
+
+moveLayerInStack(
+  layerId,
+  currentIndex + 1
+);
+
+Yêu cầu:
+
+- Không di chuyển layer ra khỏi group hiện tại.
+- Không thay đổi parent.
+- Cập nhật z-order.
+- Giữ nguyên selection.
+- Push history transaction.
+- Disabled nếu layer đã nằm trên cùng.
+
+
+======================================================================
+17. BRING TO FRONT
+======================================================================
+
+Đưa layer lên trên cùng trong cùng parent container.
+
+moveLayerToIndex(
+  layerId,
+  parent.children.length - 1
+);
+
+Nếu chọn nhiều layer:
+
+- Giữ nguyên thứ tự tương đối của các layer.
+- Đưa toàn bộ vùng chọn lên trên cùng.
+
+Disabled nếu toàn bộ vùng chọn đã ở vị trí cao nhất.
+
+
+======================================================================
+18. SEND BACKWARD
+======================================================================
+
+Đưa layer xuống một cấp.
+
+moveLayerInStack(
+  layerId,
+  currentIndex - 1
+);
+
+Disabled nếu layer đã ở index 0.
+
+
+======================================================================
+19. SEND TO BACK
+======================================================================
+
+Đưa layer xuống dưới cùng trong cùng parent container.
+
+moveLayerToIndex(layerId, 0);
+
+Nếu multi-selection:
+
+- Giữ nguyên thứ tự tương đối.
+- Đưa toàn bộ selection xuống dưới cùng.
+
+
+======================================================================
+20. SUBMENU ALIGN TO PAGE
+======================================================================
+
+Các lựa chọn:
+
+- Align left.
+- Align horizontal center.
+- Align right.
+- Align top.
+- Align vertical center.
+- Align bottom.
+
+Page bounds:
+
+const pageRect = {
+  x: 0,
+  y: 0,
+  width: page.width,
+  height: page.height
+};
+
+Layer bounds phải là transformed bounding box:
+
+const layerBounds = getTransformedBoundingBox(layer);
+
+Không nên dùng trực tiếp width và height gốc nếu layer có:
+
+- Rotation.
+- Scale.
+- Skew.
+- Mask.
+- Nested transform.
+
+
+======================================================================
+21. ALIGN LEFT
+======================================================================
+
+newX = pageRect.x;
+
+Nếu layer có rotation, tính delta dựa trên transformed bounding box:
+
+const deltaX = pageRect.x - layerBounds.left;
+
+applyTranslation(layerId, {
+  x: deltaX,
+  y: 0
+});
+
+
+======================================================================
+22. ALIGN HORIZONTAL CENTER
+======================================================================
+
+const targetCenterX =
+  pageRect.x + pageRect.width / 2;
+
+const currentCenterX =
+  layerBounds.left + layerBounds.width / 2;
+
+const deltaX =
+  targetCenterX - currentCenterX;
+
+applyTranslation(layerId, {
+  x: deltaX,
+  y: 0
+});
+
+
+======================================================================
+23. ALIGN RIGHT
+======================================================================
+
+const targetRight =
+  pageRect.x + pageRect.width;
+
+const deltaX =
+  targetRight - layerBounds.right;
+
+applyTranslation(layerId, {
+  x: deltaX,
+  y: 0
+});
+
+
+======================================================================
+24. ALIGN TOP
+======================================================================
+
+const deltaY =
+  pageRect.y - layerBounds.top;
+
+applyTranslation(layerId, {
+  x: 0,
+  y: deltaY
+});
+
+
+======================================================================
+25. ALIGN VERTICAL CENTER
+======================================================================
+
+const targetCenterY =
+  pageRect.y + pageRect.height / 2;
+
+const currentCenterY =
+  layerBounds.top + layerBounds.height / 2;
+
+const deltaY =
+  targetCenterY - currentCenterY;
+
+applyTranslation(layerId, {
+  x: 0,
+  y: deltaY
+});
+
+
+======================================================================
+26. ALIGN BOTTOM
+======================================================================
+
+const targetBottom =
+  pageRect.y + pageRect.height;
+
+const deltaY =
+  targetBottom - layerBounds.bottom;
+
+applyTranslation(layerId, {
+  x: 0,
+  y: deltaY
+});
+
+
+======================================================================
+27. ALIGN KHI MULTI-SELECTION
+======================================================================
+
+Khi chọn nhiều layer, mặc định căn selection bounding box theo page, không căn từng layer riêng lẻ.
+
+const selectionBounds =
+  calculateSelectionBounds(selectedLayers);
+
+Sau khi tính delta:
+
+selectedLayers.forEach(layer => {
+  layer.x += deltaX;
+  layer.y += deltaY;
+});
+
+Yêu cầu:
+
+- Giữ nguyên khoảng cách tương đối giữa các layer.
+- Giữ nguyên group hierarchy.
+- Tạo một history transaction duy nhất.
+- Giữ nguyên selection sau khi căn chỉnh.
+
+
+======================================================================
+28. UNGROUP
+======================================================================
+
+Ungroup chỉ hiển thị nếu target là group.
+
+visible:
+  selectedLayer.type === "group";
+
+Khi nhấn Ungroup:
+
+1. Lấy group.children.
+2. Lấy parent của group.
+3. Tính world transform của group.
+4. Chuyển local transform của từng child thành transform trong hệ tọa độ của parent.
+5. Di chuyển children ra parent.
+6. Giữ nguyên z-order.
+7. Xóa group container.
+8. Chọn tất cả layer vừa tách.
+9. Push history transaction.
+10. Re-render canvas.
+
+Ví dụ:
+
+const worldMatrix = multiplyMatrices(
+  parentWorldMatrix,
+  group.transform
+);
+
+children.forEach(child => {
+  child.transform = multiplyMatrices(
+    worldMatrix,
+    child.transform
+  );
+});
+
+Nếu không xử lý transformation matrix, layer con có thể bị:
+
+- Lệch vị trí.
+- Sai rotation.
+- Sai scale.
+- Sai kích thước.
+- Sai crop.
+- Sai bounding box.
+
+Phím tắt:
+
+Ctrl + Shift + G
+
+Sau khi ungroup:
+
+- Tất cả children vẫn được chọn.
+- Floating toolbar chuyển sang trạng thái multi-selection.
+- Có thể hoàn tác bằng Ctrl + Z.
+
+
+======================================================================
+29. GROUP
+======================================================================
+
+Nếu đang chọn nhiều layer rời, menu có thể hiển thị Group thay cho Ungroup.
+
+Quy trình:
+
+1. Tính selection bounds.
+2. Tạo group container.
+3. Đưa các layer đã chọn vào children của group.
+4. Chuyển tọa độ absolute thành local coordinates.
+5. Giữ nguyên visual position.
+6. Giữ nguyên z-order tương đối.
+7. Chèn group vào parent phù hợp.
+8. Chọn group mới.
+9. Push history transaction.
+
+
+======================================================================
+30. CREATE COMPONENT
+======================================================================
+
+Create component chuyển layer hoặc group thành reusable component.
+
+Component definition:
+
+const componentDefinition = {
+  id: generateId(),
+  name: "Component 1",
+  rootLayerId: selectedLayer.id,
+  properties: {},
+  createdAt: Date.now(),
+  updatedAt: Date.now()
+};
+
+Component instance:
+
+const componentInstance = {
+  id: generateId(),
+  type: "component-instance",
+  componentId: componentDefinition.id,
+  overrides: {}
+};
+
+Quy trình:
+
+1. Validate selection.
+2. Serialize layer hoặc group.
+3. Tạo component definition.
+4. Lưu component vào component registry.
+5. Thay layer hiện tại bằng component instance hoặc đánh dấu layer là master component.
+6. Cập nhật component panel.
+7. Cập nhật toolbar.
+8. Push history transaction.
+9. Hiển thị toast “Đã tạo component”.
+
+Component instance nên tham chiếu componentId:
+
+instance.componentId === masterComponent.id;
+
+Không nên duplicate toàn bộ component tree cho từng instance nếu muốn đồng bộ master-instance.
+
+Khi master component thay đổi:
+
+invalidateAllComponentInstances(componentId);
+
+Instance có thể chứa override:
+
+{
+  textOverrides,
+  imageOverrides,
+  visibilityOverrides,
+  styleOverrides
+}
+
+
+======================================================================
+31. COMMENT
+======================================================================
+
+Khi click Comment:
+
+dispatch({
+  type: "ENTER_COMMENT_MODE",
+  payload: {
+    targetId: selectedLayer.id
+  }
+});
+
+Tạo comment anchor:
+
+const commentAnchor = {
+  id: generateId(),
+  pageId: currentPageId,
+  targetId: selectedLayer.id,
+  normalizedPosition: {
+    x: 0.5,
+    y: 0.5
+  }
+};
+
+Hiển thị comment popover:
+
+const commentPopoverState = {
+  isOpen: true,
+  anchorId: commentAnchor.id,
+  draftText: ""
+};
+
+Dữ liệu comment:
+
+{
+  id,
+  documentId,
+  pageId,
+  targetId,
+  authorId,
+  content,
+  createdAt,
+  updatedAt,
+  resolved,
+  replies
+}
+
+Khi submit:
+
+POST /api/documents/:documentId/comments
+
+Cần hỗ trợ:
+
+- Optimistic update.
+- Loading state.
+- Error state.
+- Permission.
+- Mention user.
+- Reply thread.
+- Resolve comment.
+- Reopen comment.
+- Delete comment.
+- Edit comment.
+
+Phím tắt:
+
+Ctrl + Alt + N
+
+Nhấn Escape để đóng popover nếu chưa gửi.
+
+Nếu đã nhập nội dung, có thể hiển thị confirm trước khi bỏ draft.
+
+
+======================================================================
+32. SUBMENU LOCK
+======================================================================
+
+Lock có thể mở submenu:
+
+- Lock position.
+- Lock completely.
+- Unlock.
+
+Hoặc hiển thị dấu check ở chế độ hiện tại.
+
+
+======================================================================
+33. LOCK POSITION
+======================================================================
+
+Khi khóa vị trí:
+
+layer.lockMode = "position";
+
+Chặn:
+
+- Drag.
+- Nudge bằng phím mũi tên.
+- Align.
+- Distribute.
+- Thay đổi x.
+- Thay đổi y.
+
+Có thể vẫn cho phép:
+
+- Sửa text.
+- Đổi màu.
+- Đổi style.
+- Crop.
+- Resize.
+- Rotate.
+
+Tùy đặc tả sản phẩm.
+
+Trong pointer handler:
+
+if (layer.lockMode === "position") {
+  return;
+}
+
+Trong align command:
+
+if (layer.lockMode === "position") {
+  throw new EditorCommandError(
+    "LAYER_POSITION_LOCKED"
+  );
+}
+
+
+======================================================================
+34. LOCK COMPLETELY
+======================================================================
+
+Khi khóa hoàn toàn:
+
+layer.lockMode = "full";
+
+Chặn:
+
+- Move.
+- Resize.
+- Rotate.
+- Edit content.
+- Delete.
+- Crop.
+- Style mutation.
+- Regroup.
+- Ungroup.
+- Replace asset.
+- Change timing.
+- Reorder z-index.
+
+Khi full lock:
+
+showResizeHandles =
+  layer.lockMode !== "full";
+
+showRotationHandle =
+  layer.lockMode !== "full";
+
+Layer vẫn có thể được chọn để xem thuộc tính nhưng không được chỉnh sửa.
+
+UI nên hiển thị biểu tượng ổ khóa trên layer hoặc toolbar.
+
+
+======================================================================
+35. UNLOCK
+======================================================================
+
+Khi mở khóa:
+
+layer.lockMode = "none";
+
+Sau khi unlock:
+
+- Hiển thị lại resize handles.
+- Cho phép drag.
+- Cho phép chỉnh sửa.
+- Cập nhật toolbar.
+- Push history transaction.
+
+
+======================================================================
+36. SHOW ELEMENT TIMINGS
+======================================================================
+
+Chức năng này dùng cho:
+
+- Video document.
+- Presentation có timeline.
+- Animated design.
+- Page có thời lượng.
+
+Khi click:
+
+dispatch({
+  type: "OPEN_TIMELINE",
+  payload: {
+    focusLayerId: selectedLayer.id
+  }
+});
+
+UI thực hiện:
+
+1. Mở timeline panel.
+2. Tìm timeline track tương ứng với layer.
+3. Scroll timeline đến track.
+4. Highlight track.
+5. Hiển thị start handle.
+6. Hiển thị end handle.
+7. Hiển thị duration.
+8. Cho phép chỉnh thời điểm xuất hiện.
+9. Cho phép chỉnh thời điểm biến mất.
+
+Data model:
+
+const elementTiming = {
+  layerId: selectedLayer.id,
+  startTime: 0,
+  endTime: 5.2,
+  duration: 5.2
+};
+
+Khi kéo timeline handle:
+
+updateElementTiming(layerId, {
+  startTime: nextStart,
+  endTime: nextEnd
+});
+
+Ràng buộc:
+
+0 <= startTime;
+startTime < endTime;
+endTime <= pageDuration;
+
+Khi layer không hỗ trợ timing:
+
+disabled:
+  documentType !== "video" &&
+  documentType !== "presentation" &&
+  !documentCapabilities.hasTimeline;
+
+Khi chỉ mở timeline mà chưa thay đổi dữ liệu:
+
+- Không cần history entry.
+
+Khi thay đổi start hoặc end:
+
+- Ghi history transaction.
+- Cho phép Ctrl + Z và Ctrl + Y.
+
+
+======================================================================
+37. DOWNLOAD SELECTION
+======================================================================
+
+Khi click Download selection:
+
+1. Lấy danh sách layer đang chọn.
+2. Tính transformed selection bounds.
+3. Resolve asset.
+4. Render selection vào offscreen surface.
+5. Crop theo selection bounds.
+6. Mở export dialog.
+7. Chọn định dạng.
+8. Chọn chất lượng.
+9. Chọn scale.
+10. Chọn nền trong suốt.
+11. Encode output.
+12. Tạo Blob.
+13. Tạo Object URL.
+14. Trigger download.
+
+Ví dụ:
+
+const exportBounds =
+  calculateSelectionBounds(selectedLayers);
+
+Cấu hình:
+
+const exportOptions = {
+  format: "png",
+  scale: 2,
+  quality: 1,
+  transparentBackground: true,
+  selectionOnly: true
+};
+
+Pipeline:
+
+Document model
+→ Resolve assets
+→ Apply transforms
+→ Render offscreen
+→ Crop selection bounds
+→ Encode Blob
+→ Create object URL
+→ Trigger download
+
+Ví dụ:
+
+const blob = await exportSelection(
+  selectedLayers,
+  exportOptions
+);
+
+const url = URL.createObjectURL(blob);
+
+const link = document.createElement("a");
+
+link.href = url;
+link.download = "selection.png";
+link.click();
+
+URL.revokeObjectURL(url);
+
+Có thể render bằng:
+
+- Canvas 2D.
+- WebGL.
+- OffscreenCanvas.
+- SVG serializer.
+- Server-side renderer.
+
+Định dạng có thể hỗ trợ:
+
+- PNG.
+- JPG.
+- SVG.
+- PDF.
+- GIF.
+- WebM.
+- MP4.
+
+Với ảnh PNG:
+
+- Có thể hỗ trợ nền trong suốt.
+- Crop sát vùng chọn.
+- Cho phép scale 1x, 2x, 3x.
+
+Với animation:
+
+- Render theo timeline.
+- Export frame sequence.
+- Encode thành GIF, WebM hoặc MP4.
+
+
+======================================================================
+38. FLOATING CONTEXTUAL TOOLBAR
+======================================================================
+
+Khi layer được chọn, hiển thị contextual toolbar phía trên bounding box.
+
+Các nút có thể gồm:
+
+- Ungroup.
+- Comment.
+- Lock.
+- Duplicate.
+- Delete.
+- More actions.
+
+Vị trí toolbar:
+
+const toolbarPosition = {
+  left: layerBounds.left,
+  top: layerBounds.top - toolbarHeight - 8
+};
+
+Phải chuyển từ canvas coordinates sang screen coordinates:
+
+const screenPoint = canvasToScreen({
+  x: layerBounds.x,
+  y: layerBounds.y
+});
+
+Cần tính đến:
+
+- Canvas zoom.
+- Canvas pan.
+- Page offset.
+- Scroll offset.
+- CSS transform.
+- Device pixel ratio.
+- Rotation.
+- Multi-selection bounds.
+
+Nếu không đủ khoảng trống phía trên:
+
+- Chuyển toolbar xuống dưới layer.
+
+Nếu toolbar vượt cạnh phải:
+
+- Dịch toolbar sang trái.
+
+Nếu layer quá nhỏ:
+
+- Toolbar vẫn phải hiển thị đầy đủ và không bị clip.
+
+
+======================================================================
+39. TRẠNG THÁI GIAO DIỆN CỦA MENU ITEM
+======================================================================
+
+Mỗi item hỗ trợ các trạng thái:
+
+- default.
+- hover.
+- focus.
+- active.
+- disabled.
+- checked.
+- dangerous.
+- submenu-open.
+
+Ví dụ:
+
+.context-menu-item {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+}
+
+.context-menu-item:hover,
+.context-menu-item:focus-visible {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.context-menu-item[aria-disabled="true"] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+Shortcut badge:
+
+.context-menu-shortcut {
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.05);
+  white-space: nowrap;
+}
+
+
+======================================================================
+40. KEYBOARD NAVIGATION
+======================================================================
+
+Menu phải hỗ trợ:
+
+- ArrowDown: focus item tiếp theo.
+- ArrowUp: focus item trước.
+- ArrowRight: mở submenu.
+- ArrowLeft: đóng submenu.
+- Enter: thực hiện action.
+- Space: thực hiện action.
+- Escape: đóng menu.
+- Home: focus item đầu tiên.
+- End: focus item cuối cùng.
+- Tab: có thể giữ focus trong menu hoặc đóng menu tùy UX.
+
+Menu container:
+
+<div
+  role="menu"
+  aria-label="Layer actions"
+>
+
+Menu item:
+
+<button
+  role="menuitem"
+  tabindex="-1"
+>
+  Copy
+</button>
+
+Item disabled:
+
+<button
+  role="menuitem"
+  aria-disabled="true"
+>
+  Paste
+</button>
+
+Item có submenu:
+
+<button
+  role="menuitem"
+  aria-haspopup="menu"
+  aria-expanded="true"
+>
+  Layer
+</button>
+
+Khi menu mở:
+
+- Focus item đầu tiên hoặc item phù hợp.
+- Không làm mất selection trên canvas.
+- Screen reader phải đọc được label và shortcut.
+
+
+======================================================================
+41. CƠ CHẾ ĐÓNG MENU
+======================================================================
+
+Context menu đóng khi:
+
+- Click bên ngoài.
+- Nhấn Escape.
+- Chọn action hoàn tất.
+- Bắt đầu drag layer.
+- Chuyển page.
+- Đóng document.
+- Canvas scroll.
+- Window resize.
+- Browser mất focus.
+- Mở một context menu mới.
+
+Ví dụ:
+
+document.addEventListener(
+  "pointerdown",
+  handleOutsidePointerDown
+);
+
+document.addEventListener(
+  "keydown",
+  handleEscape
+);
+
+window.addEventListener(
+  "blur",
+  closeContextMenu
+);
+
+window.addEventListener(
+  "resize",
+  closeContextMenu
+);
+
+Outside click handler:
+
+function handleOutsidePointerDown(event) {
+  if (
+    menuRef.current?.contains(event.target)
+  ) {
+    return;
+  }
+
+  closeContextMenu();
+}
+
+Click trong submenu không được tính là outside click của menu cha.
+
+
+======================================================================
+42. CHUỘT PHẢI VÀO VÙNG TRỐNG
+======================================================================
+
+Nếu người dùng chuột phải vào vùng trống:
+
+1. Bỏ chọn layer hiện tại.
+2. Không hiển thị menu dành riêng cho layer.
+3. Mở page context menu hoặc canvas context menu.
+
+Menu vùng trống có thể gồm:
+
+- Paste.
+- Select all.
+- Add page.
+- Page background.
+- Show rulers.
+- Show guides.
+- Zoom options.
+
+Các chức năng như Ungroup, Lock hoặc Download selection không được hiển thị.
+
+
+======================================================================
+43. GIỮ MENU MỞ
+======================================================================
+
+Menu vẫn mở khi:
+
+- Người dùng hover các item.
+- Di chuyển con trỏ sang submenu.
+- Focus bằng bàn phím.
+- Chưa chọn action.
+- Nhấn chuột phải lại trên cùng layer.
+
+Nếu chuột phải lại trên cùng layer:
+
+- Menu được di chuyển đến vị trí mới.
+- Không cần thay đổi selection.
+- Active submenu được reset.
+
+
+======================================================================
+44. UNDO VÀ REDO
+======================================================================
+
+Mọi action thay đổi document phải được đóng gói thành command hoặc transaction.
+
+Interface:
+
+interface EditorCommand {
+  execute(): void;
+  undo(): void;
+  redo(): void;
+}
+
+Ví dụ:
+
+history.execute(
+  new DeleteLayersCommand(
+    selectedLayerIds
+  )
+);
+
+Các action phải ghi history:
+
+- Paste.
+- Duplicate.
+- Delete.
+- Bring forward.
+- Bring to front.
+- Send backward.
+- Send to back.
+- Align to page.
+- Group.
+- Ungroup.
+- Create component.
+- Apply copied style.
+- Lock.
+- Unlock.
+- Thay đổi element timing.
+
+Các action không cần ghi history:
+
+- Copy.
+- Copy style nhưng chưa áp dụng.
+- Mở context menu.
+- Mở submenu.
+- Mở comment popover.
+- Focus timeline.
+- Hover.
+- Selection change nếu hệ thống không lưu selection trong document history.
+
+Một thao tác phức tạp phải được gộp thành một transaction.
+
+Ví dụ Ungroup không được tạo nhiều history entry cho từng child.
+
+
+======================================================================
+45. PERMISSION VÀ VALIDATION
+======================================================================
+
+Trước khi thực hiện action:
+
+function canExecuteAction(action, context) {
+  if (!context.userCanEdit) {
+    return false;
+  }
+
+  if (context.documentReadOnly) {
+    return false;
+  }
+
+  if (
+    context.selectedLayers.some(
+      layer => layer.lockMode === "full"
+    )
+  ) {
+    return isAllowedForLockedLayer(action);
+  }
+
+  return true;
+}
+
+Trạng thái action phụ thuộc:
+
+- User role.
+- Edit permission.
+- Comment permission.
+- Document read-only state.
+- Layer lock mode.
+- Component restrictions.
+- Clipboard capability.
+- Browser capability.
+- Document type.
+
+
+======================================================================
+46. ERROR HANDLING
+======================================================================
+
+Mỗi action cần xử lý lỗi.
+
+Ví dụ:
+
+try {
+  await executeCommand(command);
+} catch (error) {
+  rollbackTransaction();
+
+  showToast({
+    type: "error",
+    message: getEditorErrorMessage(error)
+  });
+}
+
+Các lỗi có thể gồm:
+
+- Clipboard permission denied.
+- Asset không tải được.
+- Layer đã bị xóa bởi cộng tác viên khác.
+- Document chuyển sang read-only.
+- Component reference không hợp lệ.
+- Export thất bại.
+- Browser không hỗ trợ định dạng.
+- Network error khi gửi comment.
+- Lock conflict.
+
+
+======================================================================
+47. REALTIME COLLABORATION
+======================================================================
+
+Nếu editor hỗ trợ cộng tác realtime, mỗi command thay đổi document cần tạo operation.
+
+Ví dụ:
+
+const operation = {
+  id: generateOperationId(),
+  userId: currentUser.id,
+  documentId: currentDocumentId,
+  type: "DELETE_LAYERS",
+  payload: {
+    layerIds
+  },
+  timestamp: Date.now()
+};
+
+Operation được:
+
+1. Áp dụng optimistic ở local.
+2. Gửi lên server.
+3. Đồng bộ cho các client khác.
+4. Resolve conflict.
+5. Rollback nếu server từ chối.
+
+Cần xử lý trường hợp:
+
+- Layer bị người khác xóa khi menu vẫn đang mở.
+- Layer bị khóa bởi người khác.
+- Z-order thay đổi đồng thời.
+- Group structure thay đổi đồng thời.
+
+
+======================================================================
+48. PERFORMANCE
+======================================================================
+
+Không nên render lại toàn bộ editor mỗi khi menu mở.
+
+Nên tách state:
+
+- Document state.
+- Selection state.
+- Context menu state.
+- Timeline state.
+- Comment state.
+- Clipboard state.
+
+Các action menu nên dùng memoization:
+
+const availableMenuItems = useMemo(
+  () => buildLayerContextMenu({
+    selectedLayers,
+    clipboardState,
+    documentType,
+    permissions
+  }),
+  [
+    selectedLayers,
+    clipboardState,
+    documentType,
+    permissions
+  ]
+);
+
+Đối với canvas lớn:
+
+- Chỉ re-render layer bị thay đổi.
+- Dùng dirty rectangle hoặc scene graph invalidation.
+- Không serialize toàn bộ document khi copy một layer.
+- Không tạo snapshot toàn bộ document cho mỗi command nếu có thể dùng operation-based history.
+
+
+======================================================================
+49. LUỒNG XỬ LÝ TỔNG THỂ
+======================================================================
+
+Người dùng nhấn chuột phải lên layer
+        ↓
+Browser phát sinh contextmenu event
+        ↓
+preventDefault()
+        ↓
+stopPropagation()
+        ↓
+Hit-test xác định target layer
+        ↓
+Kiểm tra quyền và trạng thái layer
+        ↓
+Cập nhật selection store
+        ↓
+Render bounding box
+        ↓
+Render resize handles
+        ↓
+Render contextual toolbar
+        ↓
+Lưu clientX và clientY
+        ↓
+Tạo danh sách context menu item
+        ↓
+Mount menu bằng Portal
+        ↓
+Đo kích thước menu
+        ↓
+Viewport collision detection
+        ↓
+Đặt vị trí menu
+        ↓
+Focus item đầu tiên
+        ↓
+Người dùng hover, click hoặc dùng bàn phím
+        ↓
+Nếu item có submenu
+        → Mở nested menu
+        → Tính hướng mở trái hoặc phải
+        → Giữ focus và hover state
+        ↓
+Nếu item là action
+        → Validate permission
+        → Validate lock state
+        → Tạo EditorCommand
+        → Bắt đầu transaction
+        → Execute command
+        → Update document model
+        → Update selection
+        → Push undo history
+        → Broadcast realtime operation nếu có
+        → Re-render canvas
+        → Commit transaction
+        → Đóng menu
+        ↓
+Giữ layer hoặc layer mới ở trạng thái selected
+
+
+======================================================================
+50. PSEUDOCODE TỔNG HỢP
+======================================================================
+
+function handleLayerContextMenu(event, layerId) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const layer = documentStore.getLayer(layerId);
+
+  if (!layer) {
+    return;
+  }
+
+  if (
+    !selectionStore.selectedIds.includes(layerId)
+  ) {
+    selectionStore.selectOnly(layerId);
+  }
+
+  const menuItems = buildLayerContextMenu({
+    selectedLayers:
+      selectionStore.getSelectedLayers(),
+
+    clipboardState:
+      clipboardStore.getState(),
+
+    permissions:
+      permissionStore.getState(),
+
+    documentType:
+      documentStore.documentType
+  });
+
+  contextMenuStore.open({
+    targetType: "layer",
+    targetId: layerId,
+    anchorX: event.clientX,
+    anchorY: event.clientY,
+    items: menuItems
+  });
+}
+
+
+function executeContextMenuAction(actionId) {
+  const context =
+    createEditorActionContext();
+
+  const action =
+    actionRegistry.get(actionId);
+
+  if (!action) {
+    return;
+  }
+
+  if (!action.canExecute(context)) {
+    showToast({
+      type: "warning",
+      message: "Không thể thực hiện thao tác này."
+    });
+
+    return;
+  }
+
+  try {
+    history.beginTransaction(actionId);
+
+    action.execute(context);
+
+    history.commitTransaction();
+
+    contextMenuStore.close();
+  } catch (error) {
+    history.rollbackTransaction();
+
+    showToast({
+      type: "error",
+      message: getEditorErrorMessage(error)
+    });
+  }
+}
+
+
+======================================================================
+51. KẾT QUẢ MONG ĐỢI
+======================================================================
+
+Sau khi triển khai, context menu phải đáp ứng:
+
+- Mở đúng tại vị trí chuột phải.
+- Chọn đúng layer.
+- Không hiển thị menu mặc định của trình duyệt.
+- Không bị clip bởi canvas.
+- Không vượt khỏi viewport.
+- Tự đổi hướng submenu.
+- Action thay đổi theo loại layer.
+- Hỗ trợ multi-selection.
+- Hỗ trợ lock state.
+- Hỗ trợ keyboard navigation.
+- Hỗ trợ accessibility.
+- Hỗ trợ Undo/Redo.
+- Hỗ trợ realtime collaboration.
+- Hỗ trợ export selection.
+- Hỗ trợ timeline.
+- Hỗ trợ component.
+- Hỗ trợ comment.
+- Giữ hiệu năng ổn định khi document có nhiều layer.
