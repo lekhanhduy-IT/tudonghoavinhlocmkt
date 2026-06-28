@@ -2788,19 +2788,18 @@ try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.o
 ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
 
 // =========================================================================
-// PROJECT MANAGEMENT & CROSS-DEVICE SYNC (FIREBASE + POST.HTML)
+// PROJECT MANAGEMENT FOR IFRAME ARCHITECTURE
 // =========================================================================
 const canvasChannel = new BroadcastChannel('canvas-studio-sync');
 let currentProjectId = null;
 let currentLaunchIntent = null;
 let firebaseProjectRef = null;
 
-// Khởi tạo Firebase
 const firebaseConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" };
 if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// Tự động tạo Panel "Tổng hợp" nếu HTML đang thiếu
+// Tiêm Tab "Tổng hợp" 
 (function ensureCollectionPanel() {
     if (!document.querySelector('.tab-panel[data-panel="collection"]')) {
         const sidebarContent = document.querySelector('.sidebar-content');
@@ -2816,11 +2815,9 @@ const db = firebase.database();
     }
 })();
 
-// Xây dựng tab "Tổng hợp" chuyên biệt cho 1 Bài viết (Project)
 function buildProjectCollection() {
     const projectImages = [];
     state.pages.forEach((p, idx) => {
-        // Tìm layer ảnh gốc đã bị khóa
         const bgLayer = p.layers.find(l => l.imageId && l.lockMode === 'full');
         if (bgLayer) {
             projectImages.push({
@@ -2832,65 +2829,45 @@ function buildProjectCollection() {
     });
     const grid = document.getElementById('collectionGrid');
     if (grid) {
-        grid.innerHTML = projectImages.map(a => mediaCard(a, 'collection')).join('') || '<div class="blank-state">Bài viết này chưa có ảnh nào được thiết kế.</div>';
+        grid.innerHTML = projectImages.map(a => mediaCard(a, 'collection')).join('') || '<div class="blank-state">Chưa có ảnh nào.</div>';
     }
 }
 
-function initCanvasProject() {
-    const urlParams = new URLSearchParams(window.location.search);
-    currentProjectId = urlParams.get('project');
-    const targetImageId = urlParams.get('img');
-    
-    try {
-        const intentStr = localStorage.getItem('CANVAS_LAUNCH_INTENT');
-        if (intentStr) {
-            const intent = JSON.parse(intentStr);
-            if (intent.projectId === currentProjectId && intent.imageId === targetImageId) {
-                currentLaunchIntent = intent;
-            }
-        }
-    } catch(e) {}
-
-    if (!currentProjectId) {
-        toast("Đang mở chế độ tự do. Thay đổi sẽ không lưu vào bài viết.");
-        return;
+// Bắt tín hiệu từ post.html truyền sang (Vì Iframe tĩnh không đổi URL được)
+canvasChannel.onmessage = function(e) {
+    const data = e.data;
+    if (data.type === 'LAUNCH_CANVAS_INTENT') {
+        currentLaunchIntent = data.intent;
+        currentProjectId = data.intent.projectId;
+        loadProjectFromIntent();
     }
+};
 
-    firebaseProjectRef = db.ref(`canvas_projects/${currentProjectId}`);
+function loadProjectFromIntent() {
+    if (!currentProjectId) return;
     
-    // Tải toàn bộ Project (Tất cả ảnh của 1 bài)
+    firebaseProjectRef = db.ref(`canvas_projects/${currentProjectId}`);
     firebaseProjectRef.once('value').then(snapshot => {
         const projectData = snapshot.val();
+        
         if (projectData && projectData.pages && projectData.pages.length > 0) {
             const loadedPages = typeof projectData.pages === 'string' ? JSON.parse(projectData.pages) : projectData.pages;
+            restore({ pages: loadedPages, currentPageId: loadedPages[0].id });
             
-            restore({
-                pages: loadedPages,
-                currentPageId: loadedPages[0].id
-            });
-            toast(`Đã tải dự án bài viết: ${currentProjectId}`);
-            
-            if (currentLaunchIntent) {
-                // Kiểm tra xem ảnh này đã có page riêng trong project chưa
-                const existingPage = loadedPages.find(p => p.id === currentLaunchIntent.pageId);
-                if (existingPage) {
-                    switchPage(existingPage.id); // Tự động nhảy đến page của ảnh đó
-                } else {
-                    createNewPageForIntent(); // Mở ảnh mới thì tạo page mới vào project
-                }
+            // Tìm xem ảnh này đã có Page chưa
+            const existingPage = loadedPages.find(p => p.id === currentLaunchIntent.pageId);
+            if (existingPage) {
+                switchPage(existingPage.id);
+                toast(`Đã mở trang thiết kế của ảnh này`);
+            } else {
+                createNewPageForIntent(); // Mở ảnh mới trong bài cũ
             }
         } else {
-            // Lần đầu tiên thiết kế bài viết này -> Tạo project mới
+            // Project hoàn toàn mới
             state.pages = [];
-            if (currentLaunchIntent) {
-                createNewPageForIntent();
-            }
+            createNewPageForIntent();
         }
         buildProjectCollection();
-        
-        firebaseProjectRef.on('value', syncSnap => {
-            // Lắng nghe realtime từ thiết bị khác (có thể mở rộng sau)
-        });
     });
 }
 
@@ -2900,29 +2877,26 @@ function createNewPageForIntent() {
     const newPageId = uid('page');
     currentLaunchIntent.pageId = newPageId; 
     
-    // Khởi tạo trang với Width/Height chuẩn từ post.html
     const basePage = {
         width: currentLaunchIntent.width || 1080,
         height: currentLaunchIntent.height || 1080,
         background: '#ffffff'
     };
     
-    // Phải nạp ảnh vào state.uploads để Canvas hiển thị được
     const assetId = uid('asset');
     state.uploads.unshift({
         id: assetId,
-        name: `Ảnh ${state.pages.length + 1}`,
+        name: `Ảnh bài viết`,
         src: currentLaunchIntent.sourceUrl,
         width: basePage.width,
         height: basePage.height
     });
 
-    // Tạo Layer ảnh nền (Khóa cứng)
     const baseLayerObj = baseLayer('image', {
         name: 'Ảnh gốc bài viết',
         src: currentLaunchIntent.sourceUrl,
         assetId: assetId,
-        width: basePage.width,
+        width: basePage.width,  // Ép buộc kích thước ngay từ đầu
         height: basePage.height,
         x: 0, y: 0,
         lockMode: 'full' 
@@ -2937,9 +2911,18 @@ function createNewPageForIntent() {
     });
     
     state.pages.push(newPage);
-    switchPage(newPageId); // Lệnh quan trọng để vẽ ra màn hình
+    switchPage(newPageId);
     syncProjectToFirebase();
     buildProjectCollection();
+    
+    // GỬI TÍN HIỆU NGƯỢC LẠI POST.HTML ĐỂ LƯU ID TRANG NÀY VÀO METADATA
+    // KHẮC PHỤC LỖI TẠO PAGE TRÙNG LẶP!
+    canvasChannel.postMessage({
+        type: 'CANVAS_PAGE_CREATED',
+        projectId: currentProjectId,
+        imageId: currentLaunchIntent.imageId,
+        pageId: newPageId
+    });
 }
 
 function syncProjectToFirebase() {
@@ -2951,7 +2934,6 @@ function syncProjectToFirebase() {
     });
 }
 
-// Bắt sự kiện commit để lưu realtime vào Firebase
 const originalCommit = commit;
 commit = function(before, label) {
     originalCommit(before, label);
@@ -2959,8 +2941,18 @@ commit = function(before, label) {
 };
 
 document.getElementById('sendToPostBtn').onclick = async () => {
-    if (!currentLaunchIntent || !currentProjectId) {
-        toast("Bạn phải mở từ Bài viết để dùng tính năng này!");
+    if (!currentProjectId) {
+        toast("Vui lòng mở ảnh từ bài viết để sử dụng chức năng này.");
+        return;
+    }
+    
+    // Nhận diện Image ID từ lớp nền của trang Canvas hiện tại
+    const doc = currentPageDoc();
+    const bgLayer = doc.layers.find(l => l.imageId);
+    const targetImageId = bgLayer ? bgLayer.imageId : (currentLaunchIntent ? currentLaunchIntent.imageId : null);
+    
+    if (!targetImageId) {
+        toast("Trang này không được liên kết với ảnh bài viết nào.");
         return;
     }
     
@@ -2969,21 +2961,18 @@ document.getElementById('sendToPostBtn').onclick = async () => {
         syncCurrentPageDoc();
         syncProjectToFirebase();
         
-        const doc = currentPageDoc();
-        // Xuất tỷ lệ 1:1 chuẩn
         const canvas = await exportPageDoc(doc, 1); 
         const previewBase64 = canvas.toDataURL('image/jpeg', 0.95);
         
-        // Bắn tín hiệu sang post.html
         canvasChannel.postMessage({
             type: 'CANVAS_IMAGE_UPDATED',
             projectId: currentProjectId,
-            imageId: currentLaunchIntent.imageId,
+            imageId: targetImageId,
             pageId: state.currentPageId,
             previewBase64: previewBase64
         });
         
-        toast("Đã áp dụng thiết kế vào bài viết!");
+        toast("Đã gửi ảnh thành công vào bài viết!");
     } catch(e) {
         toast("Lỗi kết xuất ảnh: " + e.message);
     } finally {
@@ -3006,14 +2995,11 @@ window.confirmDeletePage = function() {
     
     const docToDelete = state.pages.find(p => p.id === pageToDeleteId);
     let associatedImageId = null;
-    
-    // Tìm imageId để báo cho post.html biết ảnh nào bị xóa thiết kế
     if (docToDelete && docToDelete.layers) {
         const bgLayer = docToDelete.layers.find(l => l.imageId);
         if (bgLayer) associatedImageId = bgLayer.imageId;
     }
     
-    // Xóa trang
     state.pages = state.pages.filter(p => p.id !== pageToDeleteId);
     
     if (state.pages.length === 0) {
@@ -3030,7 +3016,6 @@ window.confirmDeletePage = function() {
     syncProjectToFirebase();
     buildProjectCollection();
     
-    // Bắn tín hiệu về post.html để gỡ CanvasID và hiện lại ảnh url
     if (associatedImageId && currentProjectId) {
         canvasChannel.postMessage({
             type: 'CANVAS_PAGE_DELETED',
@@ -3041,10 +3026,9 @@ window.confirmDeletePage = function() {
     }
     
     document.getElementById('canvasDeleteModal').style.display = 'none';
-    toast("Đã xóa trang và khôi phục ảnh bên bài viết.");
+    toast("Đã xóa trang và phục hồi ảnh gốc trong bài.");
 };
 
-// Lắng nghe sự kiện click cho tab "Tổng hợp"
 document.addEventListener('click', e => {
     const card = e.target.closest('.media-card[data-kind="collection"]');
     if (card) {
@@ -3053,7 +3037,21 @@ document.addEventListener('click', e => {
     }
 });
 
-setTimeout(initCanvasProject, 500);
+// Chạy khởi tạo nhẹ để dọn dẹp nếu người dùng f5 thẳng iframe
+setTimeout(() => {
+    if (!currentProjectId) {
+        // Kiểm tra xem LocalStorage có tồn tại Intent không
+        try {
+            const intentStr = localStorage.getItem('CANVAS_LAUNCH_INTENT');
+            if (intentStr) {
+                const intent = JSON.parse(intentStr);
+                // Giả lập nhận Event
+                canvasChannel.postMessage({ type: 'LAUNCH_CANVAS_INTENT', intent: intent });
+            }
+        } catch(e) {}
+    }
+}, 500);
+
 })();
 </script>
 

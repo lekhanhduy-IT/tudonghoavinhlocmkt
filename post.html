@@ -6324,7 +6324,7 @@ function renderImageLibraries() {
     }
 }
 // =========================================================================
-// TÍCH HỢP CANVAS STUDIO (IMAGE.HTML) VÀ ĐỒNG BỘ 1 CHIỀU
+// TÍCH HỢP CANVAS STUDIO TRONG MÔI TRƯỜNG IFRAME
 // =========================================================================
 
 const canvasChannel = new BroadcastChannel('canvas-studio-sync');
@@ -6337,7 +6337,7 @@ function openImageInCanvasStudio() {
     const scalePct = parseFloat(document.getElementById("vbScalePercent").value) || 100;
     const meta = readImageMetadata(vbActiveImage);
     
-    // YÊU CẦU: Bê nguyên khung chứa ảnh sang (Giữ đúng Width/Height/Scale)
+    // Bê nguyên khung chứa ảnh sang (Giữ đúng Width/Height/Scale)
     const cw = parseFloat(document.getElementById("vbImgWidth").value) || state.targetWidth;
     const ch = parseFloat(document.getElementById("vbImgHeight").value) || state.targetHeight;
     const scaleMultiplier = scalePct / 100;
@@ -6351,7 +6351,6 @@ function openImageInCanvasStudio() {
     // Phải truyền ảnh GỐC (chưa bị Canvas làm hỏng base64) sang làm nền
     const sourceUrl = vbActiveImage.dataset.originalSource || vbActiveImage.dataset.driveUrl || vbActiveImage.src;
     
-    // Lưu originalSource lại để phòng trường hợp xóa trang bên canvas thì có cái khôi phục
     if (!vbActiveImage.dataset.originalSource) {
         vbActiveImage.dataset.originalSource = sourceUrl;
     }
@@ -6365,33 +6364,59 @@ function openImageInCanvasStudio() {
         sourceUrl: sourceUrl
     };
     
+    // Lưu tạm vào LocalStorage dự phòng
     localStorage.setItem('CANVAS_LAUNCH_INTENT', JSON.stringify(launchData));
     
-    // Mở image.html (Cùng 1 ID bài viết sẽ mở chung 1 Project)
-    window.open(`image.html?project=${encodeURIComponent(projectId)}&img=${encodeURIComponent(imageId)}`, `Canvas_${projectId}`);
+    // 1. Phóng tín hiệu cho iframe image.html thức dậy và nạp dữ liệu
+    canvasChannel.postMessage({
+        type: 'LAUNCH_CANVAS_INTENT',
+        intent: launchData
+    });
+    
+    // 2. Ra lệnh cho admin.html (cửa sổ cha) chuyển tab sang image.html
+    if (window.parent && typeof window.parent.loadModule === 'function') {
+        const imageMenuBtn = window.parent.document.querySelector('.menu-item-side[data-target="image"]');
+        if (imageMenuBtn) {
+            window.parent.loadModule('image.html', imageMenuBtn);
+        }
+    }
 }
 
 canvasChannel.onmessage = function(e) {
     const data = e.data;
     
-    // 1. KHI ÁP DỤNG ẢNH TỪ CANVAS VỀ BÀI VIẾT
-    if (data.type === 'CANVAS_IMAGE_UPDATED' && data.projectId === currentPostId) {
+    // 1. KHI CANVAS TẠO TRANG MỚI CHO ẢNH NÀY -> PHẢI LƯU LẠI ID PAGE NGAY
+    // Để lần sau bấm nút nó sẽ chuyển sang page cũ chứ không tạo page mới
+    if (data.type === 'CANVAS_PAGE_CREATED' && data.projectId === currentPostId) {
         const targetImg = document.querySelector(`img[data-image-id="${data.imageId}"]`);
         if (targetImg) {
             let meta = readImageMetadata(targetImg);
-            meta.canvasPageId = data.pageId; // Lưu page id của Canvas
+            meta.canvasPageId = data.pageId;
+            writeImageMetadata(targetImg, meta);
+            markImageDirty(true);
+        }
+    }
+
+    // 2. KHI ÁP DỤNG ẢNH TỪ CANVAS VỀ BÀI VIẾT
+    else if (data.type === 'CANVAS_IMAGE_UPDATED' && data.projectId === currentPostId) {
+        const targetImg = document.querySelector(`img[data-image-id="${data.imageId}"]`);
+        if (targetImg) {
+            let meta = readImageMetadata(targetImg);
+            meta.canvasPageId = data.pageId; 
             writeImageMetadata(targetImg, meta);
             
-            // Xóa url drive cũ, bật cờ local để hệ thống tự động upload bản design mới này lên Drive
+            if (!targetImg.dataset.originalSource) {
+                targetImg.dataset.originalSource = targetImg.dataset.driveUrl || targetImg.src;
+            }
+            
             delete targetImg.dataset.driveFileId;
             delete targetImg.dataset.driveUrl;
             delete targetImg.dataset.archivedDrive;
             targetImg.dataset.isLocalUpload = "true";
             
-            targetImg.src = data.previewBase64; // Hiển thị ảnh Design
+            targetImg.src = data.previewBase64; 
             markImageDirty(true);
             
-            // Cập nhật popup nếu đang mở đúng ảnh này
             if (vbActiveImage && vbActiveImage.dataset.imageId === data.imageId) {
                 document.getElementById('vbPreviewImg').src = data.previewBase64;
             }
@@ -6399,16 +6424,16 @@ canvasChannel.onmessage = function(e) {
         }
     } 
     
-    // 2. KHI XÓA TRANG TRONG CANVAS
+    // 3. KHI XÓA TRANG TRONG CANVAS
     else if (data.type === 'CANVAS_PAGE_DELETED' && data.projectId === currentPostId) {
         const targetImg = document.querySelector(`img[data-image-id="${data.imageId}"]`);
         if (targetImg) {
             let meta = readImageMetadata(targetImg);
             if (meta.canvasPageId === data.pageId) {
-                meta.canvasPageId = ""; // Gỡ page id
+                meta.canvasPageId = ""; // Lột bỏ page id
                 writeImageMetadata(targetImg, meta);
                 
-                // Khôi phục lại ảnh gốc ban đầu
+                // Trả về ảnh gốc
                 if (targetImg.dataset.originalSource) {
                     targetImg.src = targetImg.dataset.originalSource;
                 } else if (targetImg.dataset.driveUrl) {
@@ -6420,7 +6445,7 @@ canvasChannel.onmessage = function(e) {
                 if (vbActiveImage && vbActiveImage.dataset.imageId === data.imageId) {
                     document.getElementById('vbPreviewImg').src = targetImg.src;
                 }
-                vbShowAlert("Trang thiết kế đã bị xóa. Ảnh đã được khôi phục về trạng thái gốc ban đầu.");
+                vbShowAlert("Trang thiết kế đã bị xóa. Ảnh đã được khôi phục về nguyên bản.");
             }
         }
     }
