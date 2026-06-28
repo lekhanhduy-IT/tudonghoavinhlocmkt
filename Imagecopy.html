@@ -215,13 +215,7 @@
     </nav>
     <div class="sidebar-content">
       <section class="tab-panel active" data-panel="customize">
-          <div class="panel-title-row">
-          <h2>Chẩn đoán ảnh</h2>
-          <!-- NÚT TRẢ ẢNH VỀ BÀI VIẾT -->
-          <button type="button" class="mini-btn primary" style="background:#27ae60; border-color:#27ae60; color:#fff;" onclick="pushEditedCanvasBackToPost()">
-            <i class="fas fa-check"></i> Thêm vào bài
-          </button>
-        </div>
+        <div class="panel-title-row"><h2>Chẩn đoán ảnh</h2><span class="small-pill">Smart Scan</span></div>
         <div class="score-card"><div class="score-ring" id="scoreRing"><strong id="scoreValue">—</strong></div><div class="score-copy"><strong id="scoreTitle">Chưa chọn ảnh</strong><span id="scoreSubtitle">Chọn một layer ảnh để phân tích</span></div></div>
         <div class="diagnosis-list" id="diagnosisList"><div class="blank-state">Chưa có dữ liệu chẩn đoán.</div></div>
 
@@ -289,23 +283,6 @@
         <div class="section-title"><span>Ảnh dùng làm element</span></div><div class="media-grid" id="assetMediaGrid"></div>
       </section>
       <section class="tab-panel" data-panel="uploads"><div class="panel-title-row"><h2>Tải lên</h2><button class="mini-btn primary" id="uploadSidebarBtn"><i class="fa-solid fa-plus"></i> Chọn nhiều ảnh</button></div><div class="media-grid" id="uploadGrid"></div></section>
-      <!-- ==================== PANEL TỔNG HỢP (MỚI THÊM) ==================== -->
-      <section class="tab-panel" data-panel="collection">
-        <div class="panel-title-row"><h2>Tổng hợp ảnh</h2></div>
-        
-        <!-- 3 Tab con -->
-        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:8px;">
-          <button type="button" class="mini-btn sub-col-btn active primary" style="font-size:11px; padding:0;" onclick="switchSubColTab('post', this)">Bài viết</button>
-          <button type="button" class="mini-btn sub-col-btn" style="font-size:11px; padding:0;" onclick="switchSubColTab('drive', this)">Drive</button>
-          <button type="button" class="mini-btn sub-col-btn" style="font-size:11px; padding:0;" onclick="switchSubColTab('edited', this)">Đã sửa</button>
-        </div>
-
-        <!-- Khung chứa DOM của 3 tab -->
-        <div id="subPanel_post" class="sub-col-panel" style="display:block;"><div class="media-grid" id="gridCol_post"></div></div>
-        <div id="subPanel_drive" class="sub-col-panel" style="display:none;"><div class="media-grid" id="gridCol_drive"><div class="blank-state">Ảnh Drive theo bài viết sẽ tổng hợp tại đây</div></div></div>
-        <div id="subPanel_edited" class="sub-col-panel" style="display:none;"><div class="media-grid" id="gridCol_edited"></div></div>
-      </section>
-      <!-- =================================================================== -->
       <section class="tab-panel" data-panel="edited"><div class="panel-title-row"><h2>Đã sửa</h2><span id="editedCount" class="small-pill">0</span></div><div class="media-grid" id="editedGrid"></div></section>
       <section class="tab-panel" data-panel="templates"><div class="panel-title-row"><h2>Mẫu</h2><button class="mini-btn primary" id="saveTemplateSidebarBtn"><i class="fa-solid fa-plus"></i> Lưu mẫu</button></div><div class="media-grid" id="templateGrid"></div></section>
     </div>
@@ -2786,141 +2763,6 @@ function bind(){
 })();
 
 try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.onmessage=e=>{const m=e.data;if(!m||m.clientId===state.clientId||m.type!=='doc-operation')return;state.applyingRemote=true;restore(m.after);state.applyingRemote=false;toast(`Đã đồng bộ: ${m.label||'thay đổi'}`)}}catch(e){}
-// ==========================================================================
-  // HỆ THỐNG CẦU NỐI MKT (POST <--> IMAGE) & DOM CACHING
-  // ==========================================================================
-
-  // 1. Nhận lệnh từ post.html -> Tạo Page mới có kích thước 1:1 với ảnh gốc
-  window.receiveImageFromPostBridge = function() {
-      const raw = localStorage.getItem('MKT_CANVA_BRIDGE_PAYLOAD');
-      if (!raw) return;
-      const payload = JSON.parse(raw);
-
-      const w = Number(payload.width) || 1080;
-      const h = Number(payload.height) || 1080;
-      const newPageId = uid('page');
-
-      const newPage = {
-          id: newPageId,
-          name: `Sửa ảnh blog`,
-          page: { width: w, height: h, background: '#ffffff' },
-          layers: [
-              {
-                  id: uid('layer'),
-                  type: 'image',
-                  name: 'Ảnh gốc bài viết',
-                  src: payload.src,
-                  x: 0, y: 0, width: w, height: h,
-                  rotation: 0, scale: 1, opacity: 1, visible: true, lockMode: 'none',
-                  filters: defaultFilters()
-              }
-          ],
-          groups: {}, comments: [], pageDuration: 8, preview: ''
-      };
-
-      state.pages.push(newPage);
-      state.currentPageId = newPageId;
-      applyPageDocument(newPage); // Nạp thẳng vào Viewport lõi
-      
-      renderAll();
-      setTimeout(fitCanvas, 20);
-      toast('Đã nạp ảnh vào Canvas tỉ lệ chuẩn 1:1');
-  };
-
-  // 2. Xuất ngược Canvas trả về cho post.html
-  window.pushEditedCanvasBackToPost = async function() {
-      const rawBridge = localStorage.getItem('MKT_CANVA_BRIDGE_PAYLOAD');
-      if (!rawBridge) return toast('Không tìm thấy dữ liệu gốc của bài viết!');
-      
-      const originMeta = JSON.parse(rawBridge);
-      toast('Đang kết xuất ảnh chất lượng cao...');
-
-      const currentDoc = currentPageDoc();
-      // Xuất tỉ lệ scale=1 để giữ độ phân giải thực tuyệt đối
-      const exportedCanvas = await exportPageDoc(currentDoc, 1); 
-      const dataUrl = exportedCanvas.toDataURL('image/jpeg', 0.95);
-
-      const returnPayload = {
-          targetImageId: originMeta.imageId,
-          newBase64: dataUrl,
-          canvasWidth: state.page.width,
-          canvasHeight: state.page.height
-      };
-      localStorage.setItem('MKT_CANVA_RETURN_PAYLOAD', JSON.stringify(returnPayload));
-
-      // Ép Admin chuyển iframe ngược lại post.html
-      if (window.parent && typeof window.parent.loadModule === 'function') {
-          const postItem = window.parent.document.querySelector('.menu-item-side[data-target="post"]');
-          if (postItem) window.parent.loadModule('post.html', postItem);
-       }
-
-      setTimeout(() => {
-          const postFrame = window.parent.document.getElementById('frame-post');
-          if (postFrame && postFrame.contentWindow && typeof postFrame.contentWindow.replaceEditedImageFromStudio === 'function') {
-              postFrame.contentWindow.replaceEditedImageFromStudio();
-          }
-      }, 150);
-  };
-
-  // 3. Cơ chế chuyển tab con Tổng hợp & Quét DOM Caching
-  window.switchSubColTab = function(tabName, btnEl) {
-      document.querySelectorAll('.sub-col-btn').forEach(b => b.classList.remove('active', 'primary'));
-      document.querySelectorAll('.sub-col-panel').forEach(p => p.style.display = 'none');
-
-      btnEl.classList.add('active', 'primary');
-      const targetPanel = document.getElementById('subPanel_' + tabName);
-      if (targetPanel) targetPanel.style.display = 'block';
-
-      if (tabName === 'post') domCache_scanPost();
-      if (tabName === 'edited') domCache_scanEdited();
-  };
-
-  function quickAddDomImageToLayer(src) {
-      const layer = baseLayer('image', {
-          name: 'Ảnh chèn nhanh', src: src,
-          width: 400, height: 400, x: 200, y: 200,
-          filters: defaultFilters()
-      });
-      state.layers.push(layer);
-      state.selectedIds = [layer.id];
-      state.primaryId = layer.id;
-      renderAll();
-      toast('Đã nạp ảnh vào layer!');
-  }
-
-  function domCache_scanPost() {
-      const grid = document.getElementById('gridCol_post');
-      const postFrame = window.parent?.document.getElementById('frame-post');
-      if (!grid || !postFrame?.contentDocument) return;
-
-      const imgs = Array.from(postFrame.contentDocument.querySelectorAll('#editorContainer img'));
-      if (!imgs.length) { grid.innerHTML = '<div class="blank-state">Bài viết chưa có ảnh</div>'; return; }
-
-      imgs.forEach(img => {
-          const id = img.dataset.imageId || img.src;
-          if (grid.querySelector(`[data-cache-id="${id}"]`)) return; // Có rồi thì thôi
-
-          const card = document.createElement('div');
-          card.className = 'media-card';
-          card.setAttribute('data-cache-id', id);
-          card.innerHTML = `<img src="${img.src}" onclick="quickAddDomImageToLayer('${img.src}')"><div class="media-name">${img.dataset.imageRole || 'Ảnh bài'}</div>`;
-          grid.appendChild(card);
-      });
-  }
-
-  function domCache_scanEdited() {
-      const grid = document.getElementById('gridCol_edited');
-      if (!grid) return;
-      state.edited.forEach(item => {
-          if (grid.querySelector(`[data-cache-id="${item.id}"]`)) return;
-          const card = document.createElement('div');
-          card.className = 'media-card';
-          card.setAttribute('data-cache-id', item.id);
-          card.innerHTML = `<img src="${item.src}" onclick="quickAddDomImageToLayer('${item.src}')"><div class="media-name">${escapeHtml(item.name)}</div>`;
-          grid.appendChild(card);
-      });
-  }
-  // ==========================================================================
 ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
 })();
 </script>

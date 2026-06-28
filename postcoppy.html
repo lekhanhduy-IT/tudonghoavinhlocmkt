@@ -4086,23 +4086,114 @@ function fileToDataUrl(file) {
 }
 
 async function insertImageFiles(files, mode = vbImageTargetMode, specificRange = null) {
-    // Mở rộng bộ lọc: Windows đôi khi không trả về file.type, cần check thêm đuôi file
     const imageFiles = Array.from(files || []).filter(file => {
         if (!file) return false;
         if (/^image\//i.test(file.type)) return true;
         return /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(file.name);
     });
-    
+
     for (const file of imageFiles) {
-        const dataUrl = await fileToDataUrl(file);
+        // 1. Tạo Link Ảo (Blob URL) để hiện ảnh lên màn hình ngay lập tức (0ms)
+        const localBlobUrl = URL.createObjectURL(file);
         const metadata = { ...VB_DEFAULT_IMAGE_META, fileName: file.name || "" };
         
-        // SINH THẺ <img> GẮN MÃ BASE64
-        const img = createManagedImage(dataUrl, mode, metadata);
+        // 2. Sinh thẻ <img> và gắn mác "Đang tải ngầm"
+        const img = createManagedImage(localBlobUrl, mode, metadata);
+        img.dataset.isLocalUpload = "true"; 
         
-        // DÁN THẺ <img> VÀO ĐÚNG VỊ TRÍ CON TRỎ (specificRange)
+        // 3. Ép đợi đo kích thước thật để khung viền bọc vừa khít ảnh
+        await new Promise((resolve) => {
+            if (img.complete && img.naturalWidth > 0) resolve();
+            else { img.onload = resolve; img.onerror = resolve; }
+        });
+        
+        // 4. Dán ảnh vào bài viết
         insertManagedImage(img, mode, specificRange);
+
+        // 5. KÍCH HOẠT TẢI NGẦM LÊN GOOGLE DRIVE
+        let targetPostId = typeof currentPostId !== "undefined" && currentPostId ? currentPostId : "POST_TEMP";
+        backgroundUploadToDrive(img.dataset.imageId, file, targetPostId);
+
         if (mode === "cover") break;
+    }
+}
+
+// HÀM TẢI NGẦM VÀ TRÁO LINK
+// HÀM TẢI NGẦM VÀ TRÁO LINK
+async function backgroundUploadToDrive(clientId, file, postId) {
+    try {
+        // [VÁ LỖI ẢNH 4000px]: Bỏ FileReader, dùng Link ảo ném thẳng vào Canvas để chống treo máy
+        const base64Data = await new Promise((resolve, reject) => {
+            const imgObj = new Image();
+            const objectUrl = URL.createObjectURL(file); // Mở cổng link ảo siêu tốc
+            
+            imgObj.onload = () => {
+                URL.revokeObjectURL(objectUrl); // Xóa link ảo ngay lập tức để giải phóng RAM
+                const MAX_WIDTH = 1600, MAX_HEIGHT = 1600;
+                let w = imgObj.width, h = imgObj.height;
+                
+                // Thuật toán bóp ảnh
+                if (w > MAX_WIDTH || h > MAX_HEIGHT) {
+                    if (w > h) { h = Math.round((h *= MAX_WIDTH / w)); w = MAX_WIDTH; } 
+                    else { w = Math.round((w *= MAX_HEIGHT / h)); h = MAX_HEIGHT; }
+                }
+                
+                const canvas = document.createElement("canvas");
+                canvas.width = w; canvas.height = h;
+                const ctx = canvas.getContext("2d");
+                ctx.fillStyle = "#ffffff"; 
+                ctx.fillRect(0, 0, w, h);
+                ctx.drawImage(imgObj, 0, 0, w, h);
+                
+                resolve(canvas.toDataURL("image/jpeg", 0.8)); // Xuất Base64 gửi Drive
+            };
+            
+            imgObj.onerror = () => {
+                URL.revokeObjectURL(objectUrl);
+                reject(new Error("Lỗi nén ảnh."));
+            };
+            
+            imgObj.src = objectUrl; // Bơm link ảo vào Image
+        });
+
+        // B. Kiểm tra xem ảnh có bị người dùng XÓA chưa? Nếu xóa rồi thì ngưng lưu
+        if (!document.querySelector(`img[data-image-id="${clientId}"]`)) return;
+
+        // Báo hiệu nhỏ trên góc màn hình
+        const statusBox = document.getElementById("syncStatusVB");
+        if(statusBox) { statusBox.innerText = "⏳ Đang tải ảnh nền lên Drive..."; statusBox.style.color = "#01adee"; }
+
+        // C. Gửi lên Google Drive
+        const mimeMatch = base64Data.match(/^data:([^;,]+)/i);
+        const payload = {
+            clientId: clientId,
+            role: "content", 
+            source: base64Data,
+            mimeType: mimeMatch ? mimeMatch[1] : "image/jpeg",
+            fileName: sanitizeUploadFileName(file.name, `${postId}-upload.jpg`),
+            metadata: {}
+        };
+        const files = await uploadImageBatch(postId, [payload]);
+        const result = files[0];
+
+        // D. KHI LƯU XONG: Tìm lại ảnh và tráo link tĩnh
+        const imgNode = document.querySelector(`img[data-image-id="${clientId}"]`);
+        if (result && result.success && imgNode) {
+            imgNode.dataset.driveFileId = result.fileId;
+            imgNode.dataset.driveUrl = result.driveUrl;
+            imgNode.dataset.originalSource = "";
+            imgNode.dataset.archivedDrive = "1";
+            delete imgNode.dataset.isLocalUpload; // Gỡ cờ tải ngầm
+            
+            imgNode.src = runtimeImageUrl(result.driveUrl); // TRÁO LINK
+            markImageDirty(true);
+            
+            if(statusBox) { statusBox.innerText = "✅ Đã tráo link Drive"; statusBox.style.color = "#27ae60"; }
+        }
+    } catch (e) {
+        console.error("Lỗi tải ảnh ngầm:", e);
+        const statusBox = document.getElementById("syncStatusVB");
+        if(statusBox) { statusBox.innerText = "⚠️ Lỗi tải ảnh"; statusBox.style.color = "var(--red)"; }
     }
 }
 
@@ -4450,6 +4541,12 @@ function applyPixelCropRealtime() {
     });
     updateImageModeStatus("crop");
     markImageDirty(true);
+    
+    // [BẢN VÁ QUAN TRỌNG]: Tự động đồng bộ ngay khi gõ phím
+    if (document.getElementById('vbSyncAllCheckbox')?.checked) {
+        syncStateToAllImages();
+    }
+    if (typeof updatePreviewUI === 'function') updatePreviewUI();
 }
 
 function applyRatioScaleRealtime() {
@@ -4473,6 +4570,12 @@ function applyRatioScaleRealtime() {
     });
     updateImageModeStatus("scale");
     markImageDirty(true);
+
+    // [BẢN VÁ QUAN TRỌNG]: Tự động đồng bộ ngay khi gõ phím
+    if (document.getElementById('vbSyncAllCheckbox')?.checked) {
+        syncStateToAllImages();
+    }
+    if (typeof updatePreviewUI === 'function') updatePreviewUI();
 }
 
 function initImagePropertyRealtimeControls() {
@@ -5071,6 +5174,10 @@ async function uploadAllPendingPostImages(postId) {
     if (remotePending) {
         throw new Error("Có ảnh từ thiết bị khác vẫn đang chờ được lưu vào Drive. Hãy chờ máy đang chỉnh sửa hoàn tất lưu bài rồi thử lại.");
     }
+    const localPending = allImages.find(img => img.dataset.isLocalUpload === "true");
+    if (localPending) {
+        throw new Error("Ảnh của bạn đang được tải ngầm lên Drive. Vui lòng chờ vài giây để hệ thống xử lý xong rồi bấm Lưu lại nhé!");
+    }
 
     const pending = [];
 allImages.forEach((img, index) => {
@@ -5156,14 +5263,22 @@ function serializeRealtimeSafeHtml(element) {
     if (!element) return "";
     const clone = element.cloneNode(true);
     clone.querySelectorAll(".vb-image-frame").forEach(frame => frame.classList.remove("vb-image-active", "vb-crop-dragging"));
- clone.querySelectorAll(".vb-selected-cell").forEach(cell => cell.classList.remove("vb-selected-cell"));
+    clone.querySelectorAll(".vb-selected-cell").forEach(cell => cell.classList.remove("vb-selected-cell"));
+
+    // [BẢN VÁ]: Lấy chính xác Tên hoặc Gmail của người dùng hiện tại từ bộ nhớ hệ thống
+    let rawEmail = localStorage.getItem('admin_email');
+    let uEmail = (rawEmail && rawEmail !== "undefined" && rawEmail !== "null") ? rawEmail : "Ẩn danh";
+    let rawName = localStorage.getItem('admin_name');
+    let uName = (rawName && rawName !== "undefined" && rawName !== "null") ? rawName : uEmail.split('@')[0];
+    let placeholderText = `${uName} đang chèn ảnh`;
+
     clone.querySelectorAll("img").forEach(img => {
         const driveUrl = img.dataset.driveUrl || "";
         if (driveUrl) {
             img.setAttribute("src", runtimeImageUrl(driveUrl));
-        } else if (/^data:image\//i.test(img.getAttribute("src") || "")) {
+        } else if (img.dataset.isLocalUpload === "true" || /^data:image\//i.test(img.getAttribute("src") || "") || /^blob:/i.test(img.getAttribute("src") || "")) {
             img.setAttribute("src", "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(
-                '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540"><rect width="100%" height="100%" fill="#f4f6f8"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#888" font-family="Arial" font-size="24">Ảnh đang chờ lưu vào Drive</text></svg>'
+                `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540"><rect width="100%" height="100%" fill="#f4f6f8"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#888" font-family="Arial" font-size="24">${placeholderText}</text></svg>`
             ));
             img.dataset.pendingRemoteImage = "1";
         }
@@ -5689,15 +5804,15 @@ async function downloadActiveImageWithMetadata() {
             // [BẢN VÁ: GIẢI QUYẾT LỖI MẤT ẢNH BASE64 COLLAB]
             // Cất giữ lại src của các ảnh base64 do chính máy này vừa chèn.
             // Tránh việc bị "Khung chờ lưu" (placeholder) từ máy khác dội ngược về ghi đè.
+// [BẢN VÁ: GIẢI QUYẾT LỖI MẤT ẢNH COLLAB VÀ BẢO TOÀN ẢNH TẢI NGẦM]
             const localPendingImages = {};
             el.querySelectorAll('img').forEach(img => {
                 const src = img.getAttribute('src') || "";
                 const imgId = img.getAttribute('data-image-id');
                 
-                // Nếu là ảnh thật chưa lưu (bắt đầu bằng data:image) 
-                // và KHÔNG mang nhãn 'data-pending-remote-image' (nhãn của Khung chờ từ máy khác)
-                if (imgId && src.startsWith('data:image/') && !img.hasAttribute('data-pending-remote-image')) {
-                    localPendingImages[imgId] = src;
+                // Nhận diện cờ isLocalUpload hoặc link blob/base64
+                if (imgId && (img.dataset.isLocalUpload === "true" || src.startsWith('blob:') || src.startsWith('data:image/')) && !img.hasAttribute('data-pending-remote-image')) {
+                    localPendingImages[imgId] = { src: src, isLocal: img.dataset.isLocalUpload };
                 }
             });
 
@@ -5709,15 +5824,16 @@ async function downloadActiveImageWithMetadata() {
                 el.innerHTML = incomingHtml;
             }
 
-            // [BẢN VÁ: PHỤC HỒI ẢNH GỐC]
-            // Sau khi DOM từ máy khác dán đè lên, ta bơm lại nội dung Base64 gốc
-            // vào đúng cái khung ảnh đó để chủ nhân không bị mất hình.
+            // [BẢN VÁ: PHỤC HỒI ẢNH GỐC CHO CHÍNH MÁY NÀY]
             if (Object.keys(localPendingImages).length > 0) {
                 el.querySelectorAll('img').forEach(img => {
                     const imgId = img.getAttribute('data-image-id');
                     if (imgId && localPendingImages[imgId]) {
-                        img.setAttribute('src', localPendingImages[imgId]);
-                        img.removeAttribute('data-pending-remote-image'); // Gỡ mác chờ lưu để ảnh hiển thị rực rỡ
+                        img.setAttribute('src', localPendingImages[imgId].src);
+                        if(localPendingImages[imgId].isLocal === "true") {
+                            img.dataset.isLocalUpload = "true";
+                        }
+                        img.removeAttribute('data-pending-remote-image'); // Gỡ mác chờ lưu để ảnh hiển thị nét căng
                     }
                 });
             }
@@ -5840,7 +5956,7 @@ let vbCurrentPopupIndex = 0;
 let vbPreviewDragState = null;
 
 // Hàm mở Popup ghi đè
-// Hàm mở Popup ghi đè
+// Hàm mở Popup thông tin ảnh
 function openImageProperties(img) {
     if (!img) return;
     document.querySelectorAll(".vb-image-active").forEach(el => el.classList.remove("vb-image-active"));
@@ -5851,14 +5967,9 @@ function openImageProperties(img) {
     let isCover = img.closest("#coverEditor") !== null;
     
     if (isCover) {
-        // Nếu là ảnh bìa, ẩn điều hướng
         document.querySelector('.vb-preview-nav').style.display = 'none';
-        
-        // ---- CODE THÊM MỚI: Bỏ tích checkbox đồng bộ khi là ảnh bìa ----
         let syncCheckbox = document.getElementById('vbSyncAllCheckbox');
         if (syncCheckbox) syncCheckbox.checked = false;
-        // ---------------------------------------------------------------
-        
     } else {
         document.querySelector('.vb-preview-nav').style.display = 'flex';
         vbCurrentPopupIndex = vbContentImagesList.indexOf(img);
@@ -5869,17 +5980,22 @@ function openImageProperties(img) {
     frame.classList.add("vb-image-active");
     rememberImageInsertionTarget(isCover ? "cover" : "content");
 
+    // Nạp thông số của ảnh ĐƯỢC CHỌN vào Form
     populateImagePropertiesForm(img, {resetHistory: true});
     document.getElementById("vbImagePopupOverlay").style.display = "flex";
     
     updatePreviewUI();
+
+    // [BẢN VÁ QUAN TRỌNG]: Nếu mở ảnh mà Nút Đồng Bộ ĐANG BẬT -> Lập tức ép tất cả ảnh khác khớp với Form
+    if (!isCover && document.getElementById('vbSyncAllCheckbox').checked) {
+        syncStateToAllImages();
+    }
 }
 
-// Logic Carousel qua lại ảnh
+// Hàm chuyển ảnh bằng nút < >
 function vbNavigatePopupImage(direction) {
     if(vbContentImagesList.length <= 1) return;
     
-    // Lưu metadata đang sửa dở cho ảnh hiện tại
     if(vbActiveImage) {
         writeImageMetadata(vbActiveImage, collectMetadataFromGrid());
         vbActiveImage.closest('.vb-image-frame').classList.remove("vb-image-active");
@@ -5891,15 +6007,19 @@ function vbNavigatePopupImage(direction) {
     
     vbActiveImage = vbContentImagesList[vbCurrentPopupIndex];
     
-    // Focus và cuộn bài viết đến ảnh mới
     const newFrame = ensureManagedImageFrame(vbActiveImage, "content");
     newFrame.classList.add("vb-image-active");
     newFrame.scrollIntoView({ behavior: "smooth", block: "center" });
 
+    // Cập nhật lại form lấy thông số ĐÚNG CỦA ẢNH MỚI
     populateImagePropertiesForm(vbActiveImage, {resetHistory: true});
     updatePreviewUI();
-}
 
+    // [BẢN VÁ QUAN TRỌNG]: NẾU nút Đồng Bộ ĐANG BẬT -> Lấy thông số của ảnh mới này áp đặt ngay cho toàn bài
+    if (document.getElementById('vbSyncAllCheckbox').checked) {
+        syncStateToAllImages();
+    }
+}
 // Cập nhật giao diện Preview bên trái
 function updatePreviewUI() {
     if(!vbActiveImage) return;
@@ -5965,11 +6085,16 @@ function applyScalePercentRealtime() {
     if(document.getElementById('vbSyncAllCheckbox').checked) syncStateToAllImages();
 }
 
-// Logic đồng bộ hàng loạt (Sync) - Ép buộc lấy thông số từ FORM
+// Hàm ép Đồng Bộ toàn bộ ảnh theo Form hiện tại
+// Hàm ép Đồng Bộ toàn bộ ảnh theo Form hiện tại
 function syncStateToAllImages() {
-    if (!vbActiveImage || document.getElementById('vbSyncAllCheckbox').checked === false) return;
+    const syncChk = document.getElementById('vbSyncAllCheckbox');
+    if (!vbActiveImage || !syncChk || !syncChk.checked) return;
     
-    // Đọc thông số trực tiếp từ ô nhập liệu hiện tại
+    // [VÁ LỖI]: Quét trực tiếp danh sách ảnh TƯƠI SỐNG từ DOM 
+    // (Đề phòng Firebase vừa ghi đè làm mảng cũ trở thành "bóng ma")
+    const liveImages = Array.from(document.querySelectorAll("#postContent img.vb-managed-image"));
+    
     const targetWidth = parseFloat(document.getElementById("vbImgWidth").value) || 1;
     const targetHeight = parseFloat(document.getElementById("vbImgHeight").value) || 1;
     const ratioW = parseFloat(document.getElementById("vbRatioWidth").value) || 1;
@@ -5978,9 +6103,11 @@ function syncStateToAllImages() {
     
     const masterState = readImageFrameState(vbActiveImage);
     
-    vbContentImagesList.forEach(img => {
-        if(img === vbActiveImage) return; // Bỏ qua chính nó
+    liveImages.forEach(img => {
+        // So sánh bằng ID thay vì Object để không bị lỗi nếu ảnh vừa bị Firebase tạo mới
+        if(img.dataset.imageId === vbActiveImage.dataset.imageId) return; 
         
+        // Đồng bộ Scale %
         img.dataset.scalePercent = masterScale;
         
         const currentState = readImageFrameState(img);
@@ -5990,13 +6117,17 @@ function syncStateToAllImages() {
             targetHeight: targetHeight,
             ratioWidth: ratioW,
             ratioHeight: ratioH,
-            // GIỮ NGUYÊN VÙNG CẮT CỦA TỪNG ẢNH ĐỂ KHÔNG BỊ TRƯỢT MẶT NGƯỜI
+            // Giữ nguyên vùng kéo (Pan) của từng ảnh độc lập
             objectPosX: currentState.objectPosX, 
             objectPosY: currentState.objectPosY
         };
         
         applyImageFrameState(img, newState);
     });
+    
+    // Cập nhật lại mảng điều hướng để nút qua lại < > lấy đúng ảnh thật
+    vbContentImagesList = liveImages; 
+    
     markImageDirty(true);
 }
 
@@ -6021,17 +6152,7 @@ initImagePropertyRealtimeControls = function() {
         });
     }
     
-    // Gắn trigger Sync cho các ô Kích thước & Tỷ lệ
-    ['vbImgWidth', 'vbImgHeight', 'vbRatioWidth', 'vbRatioHeight'].forEach(id => {
-        let el = document.getElementById(id);
-        if(el && !el.dataset.syncBound) {
-             el.dataset.syncBound = "1";
-             el.addEventListener('input', () => {
-                 if(syncChk.checked) syncStateToAllImages();
-                 updatePreviewUI();
-             });
-        }
-    });
+    // Đã xóa bỏ các dòng mã rác gán sự kiện input dư thừa ở đây
 };
 
 // ==========================================

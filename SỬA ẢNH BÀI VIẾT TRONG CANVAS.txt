@@ -1,0 +1,26 @@
+nâng cấp post.html
+
+
+
+trong popup thông tin ảnh khi click vào ảnh thêm fas 'Mở trong canva' bên phải chữ " Thông tin ảnh" để chuyển ảnh đó vào canvas trong  image.html theo dạng sao chép dán ảnh trực tiếp, trong image.html khi chuyển ảnh vào thì tạo Page mới để chứa ảnh (kích thước page bằng kích thước ảnh chuyển vào.
+
+
+
+trong image.html thêm tab fas tổng hợp (trong tab panel bên phải) để tổng hợp toàn bộ ảnh trong bài đó theo 3 tab con trong panel active là 
+
+- Drive (toàn bộ ảnh cũ, ảnh mới của bài đó trong drive)
+
+- Bài viết (các ảnh đang có trong bài bao gồm cả ảnh bìa)
+
+- Đã sửa ( các ảnh đã xuất từ image.html và cả trong folder con 'Đã sửa' trong folder Id theo bài viết đó trên drive.)
+
+
+
+Dùng cơ chế màn hình DOM để lưu hiển thị danh sách các ảnh lấy từ drive và chỉ cập nhật lại các ảnh mới để giảm thiểu đợi tải.)
+
+
+
+Trong tab tùy chỉnh của image.html thêm nút 'Thêm vào bài'
+
+để trả ảnh đã sửa trong canvas về đúng vị trí ảnh đã click trong bài viết, và thay thế các thông số width height, tỷ lệ như trong canvas đã chỉnh để thay thể ảnh trong bài đã chọn sửa thành ảnh đã sửa trong canvas.
+https://share.gemini.google/XYZlhpWPqCNI
