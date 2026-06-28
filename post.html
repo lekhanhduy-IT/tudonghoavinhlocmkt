@@ -3590,133 +3590,2990 @@ function toggleVietbaiMode() {
 }
 // BỔ SUNG HÀM NÀY VÀO CUỐI THẺ <script> CỦA FILE: post.html
 
-// =========================================================================
-// SỬA HÀM forceReloadDraft (CHỐNG XÓA TRẮNG BÀI VIẾT KHI NHẬN ẢNH CANVA)
-// =========================================================================
 window.forceReloadDraft = function() {
-    // [CHỐT CHẶN PHÒNG VỆ]: Nếu đang có bưu phẩm trả về từ Studio -> KHÔNG ĐƯỢC XÓA TRẮNG BÀI!
-    if (localStorage.getItem('MKT_CANVA_RETURN_PAYLOAD')) {
-        let pId = new URLSearchParams(window.location.search).get('id') || (draftData?.data?.[0]);
-        if (pId) loadPostIntoEditor(pId);
-        return;
-    }
-
     loadDraftData();
     let postIdToLoad = (draftData && draftData.data) ? draftData.data[0] : null;
+
+    // =========================================================================
+    // CHỐT CHẶN PHÂN LẬP PHÒNG: Kiểm tra xem ID bài gửi sang có khớp ID trên URL không?
+    // =========================================================================
     const urlParams = new URLSearchParams(window.location.search);
     let currentUrlId = urlParams.get('id');
 
     if (postIdToLoad && postIdToLoad !== currentUrlId) {
+        // Phát hiện user vừa bấm Viết bài cho một dòng khác bên Kế Hoạch!
+        // -> Ra lệnh tải lại toàn bộ trang Post sạch sẽ với URL mới để giết chết vĩnh viễn socket cũ
         window.location.replace('post.html?id=' + encodeURIComponent(postIdToLoad));
         return; 
     }
-    else if (!currentUrlId && !postIdToLoad) {
+    else {
+        // NẾU LÀ DÒNG KẾ HOẠCH MỚI TINH: Phải dọn sạch rác của bài gõ trước đó!
         currentPostId = null;
         document.getElementById("postTitle").innerHTML = "";
         document.getElementById("postSapo").innerHTML = "";
         document.getElementById("coverEditor").innerHTML = "";
         document.getElementById("postContent").innerHTML = "";
         isVBDirty = false;
-    } else if (currentUrlId) {
-        loadPostIntoEditor(currentUrlId);
+    }
+
+    // Chớp đèn tín hiệu cho user biết đã ăn dòng mới
+    let syncStatus = document.getElementById('syncStatusVB');
+    if (syncStatus) {
+        syncStatus.innerText = "⚡ Đã nạp Kế hoạch mới";
+        syncStatus.style.color = "#27ae60";
     }
 };
 
+/* ====================================================================
+   TRÌNH QUẢN LÝ ẢNH BÌA + ẢNH NỘI DUNG + METADATA
+   V2: SHEET SELECTION, LOCK LABELS, REALTIME CROP/SCALE, UNDO/REDO
+==================================================================== */
+let vbActiveImage = null;
+let vbImageClipboardHtml = "";
+let vbImageTargetMode = "content";
+let vbLastContentImageRange = null;
+let vbMetaDragSelecting = false;
+let vbSelectedMetaCells = [];
+let vbMetaAnchorCell = null;
+let vbMetaCurrentCell = null;
+let vbMetaLabelUnlocked = false;
+let vbImageHistory = [];
+let vbImageRedoStack = [];
+let vbImageHistoryTimer = null;
+let vbRestoringImageHistory = false;
+let vbSuppressImageClickUntil = 0;
+let vbCropPointerState = null;
+
+const VB_DEFAULT_IMAGE_LABELS = Object.freeze({
+    fileName: "File name",
+    altText: "Alt text",
+    caption: "Caption",
+    title: "Title (IPTC)",
+    description: "Description (IPTC)",
+    author: "Author",
+    copyright: "Copy right"
+});
+
+const VB_DEFAULT_IMAGE_META = Object.freeze({
+    fileName: "",
+    altText: "",
+    caption: "",
+    title: "",
+    description: "",
+    author: "Tu Dong Hoa Vinh Loc",
+    copyright: "tudonghoavinhloc.com",
+    _labels: VB_DEFAULT_IMAGE_LABELS
+});
+
+function escapeHtmlText(value) {
+    return String(value ?? "").replace(/[&<>"']/g, ch => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+    }[ch]));
+}
+
+function createImageClientId() {
+    return "img_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+}
+
+function extractDriveFileId(url) {
+    const text = String(url || "");
+    const patterns = [
+        /\/d\/([a-zA-Z0-9_-]{10,})/,
+        /[?&]id=([a-zA-Z0-9_-]{10,})/,
+        /\/thumbnail\?id=([a-zA-Z0-9_-]{10,})/
+    ];
+    for (const pattern of patterns) {
+        const m = text.match(pattern);
+        if (m) return m[1];
+    }
+    return "";
+}
+
+function canonicalDriveImageUrl(fileId) {
+    return fileId ? `https://drive.google.com/uc?export=view&id=${encodeURIComponent(fileId)}` : "";
+}
+
+function runtimeImageUrl(url) {
+    const fileId = extractDriveFileId(url);
+    return fileId ? DRIVE_IMAGE_PROXY_ENDPOINT + encodeURIComponent(fileId) : url;
+}
+
+function normalizeDriveUrlForSheet(url) {
+    const fileId = extractDriveFileId(url);
+    return fileId ? canonicalDriveImageUrl(fileId) : String(url || "");
+}
+
+function readImageMetadata(img) {
+    let stored = {};
+    try { stored = img?.dataset?.vbMeta ? JSON.parse(img.dataset.vbMeta) : {}; } catch(e) {}
+    return {
+        ...VB_DEFAULT_IMAGE_META,
+        ...stored,
+        fileName: stored.fileName || img?.dataset?.fileName || "",
+        altText: stored.altText || img?.getAttribute("alt") || "",
+        caption: stored.caption || img?.dataset?.caption || "",
+        title: stored.title || img?.getAttribute("title") || "",
+        description: stored.description || img?.dataset?.description || "",
+        author: stored.author || img?.dataset?.author || VB_DEFAULT_IMAGE_META.author,
+        copyright: stored.copyright || img?.dataset?.copyright || VB_DEFAULT_IMAGE_META.copyright,
+        _labels: { ...VB_DEFAULT_IMAGE_LABELS, ...(stored._labels || {}) }
+    };
+}
+
+function writeImageMetadata(img, metadata) {
+    if (!img) return;
+    const meta = {
+        ...VB_DEFAULT_IMAGE_META,
+        ...(metadata || {}),
+        _labels: { ...VB_DEFAULT_IMAGE_LABELS, ...((metadata || {})._labels || {}) }
+    };
+    img.dataset.vbMeta = JSON.stringify(meta);
+    img.dataset.fileName = meta.fileName || "";
+    img.dataset.caption = meta.caption || "";
+    img.dataset.description = meta.description || "";
+    img.dataset.author = meta.author || "";
+    img.dataset.copyright = meta.copyright || "";
+    img.alt = meta.altText || "";
+    img.title = meta.title || "";
+}
+
+function setManagedImageSource(img, source, options = {}) {
+    if (!img) return;
+    const cleanSource = String(source || "").trim();
+    const fileId = extractDriveFileId(cleanSource);
+
+    if (fileId) {
+        const driveUrl = canonicalDriveImageUrl(fileId);
+        img.dataset.driveFileId = fileId;
+        img.dataset.driveUrl = driveUrl;
+        img.dataset.originalSource = options.archived ? "" : driveUrl;
+        if (options.archived) img.dataset.archivedDrive = "1";
+        else delete img.dataset.archivedDrive;
+        img.src = runtimeImageUrl(driveUrl);
+        img.classList.remove("vb-image-pending");
+    } else {
+        if (!options.keepDrive) {
+            delete img.dataset.driveFileId;
+            delete img.dataset.driveUrl;
+            delete img.dataset.archivedDrive;
+        }
+        img.dataset.originalSource = cleanSource;
+        img.src = cleanSource;
+        if (/^data:image\//i.test(cleanSource)) img.classList.add("vb-image-pending");
+    }
+}
+
+function getManagedImageFrame(img) {
+    return img?.parentElement?.classList?.contains("vb-image-frame") ? img.parentElement : null;
+}
+
+function readImageFrameState(img) {
+    const frame = getManagedImageFrame(img);
+    const rect = frame?.getBoundingClientRect?.() || img?.getBoundingClientRect?.() || {width: 1, height: 1};
+    const naturalW = img?.naturalWidth || Math.max(1, Math.round(rect.width || 1));
+    const naturalH = img?.naturalHeight || Math.max(1, Math.round(rect.height || 1));
+    return {
+        mode: frame?.dataset.imageMode || "natural",
+        role: frame?.dataset.imageRole || img?.dataset.imageRole || "content",
+        targetWidth: parseFloat(frame?.dataset.targetWidth) || Math.max(1, Math.round(rect.width || naturalW)),
+        targetHeight: parseFloat(frame?.dataset.targetHeight) || Math.max(1, Math.round(rect.height || naturalH)),
+        ratioWidth: parseFloat(frame?.dataset.ratioWidth) || naturalW,
+        ratioHeight: parseFloat(frame?.dataset.ratioHeight) || naturalH,
+        objectPosX: Number.isFinite(parseFloat(frame?.dataset.objectPosX)) ? parseFloat(frame.dataset.objectPosX) : 50,
+        objectPosY: Number.isFinite(parseFloat(frame?.dataset.objectPosY)) ? parseFloat(frame.dataset.objectPosY) : 50
+    };
+}
+
+function applyImageFrameState(img, state = {}) {
+    if (!img) return null;
+    const frame = getManagedImageFrame(img) || ensureManagedImageFrame(img, state.role || img.dataset.imageRole || "content", false);
+    const role = state.role || frame.dataset.imageRole || img.dataset.imageRole || "content";
+    const mode = state.mode || "natural";
+    const width = Math.max(1, Math.round(parseFloat(state.targetWidth) || img.naturalWidth || img.getBoundingClientRect().width || 1));
+    const height = Math.max(1, Math.round(parseFloat(state.targetHeight) || img.naturalHeight || img.getBoundingClientRect().height || 1));
+    const rawPosX = parseFloat(state.objectPosX);
+    const rawPosY = parseFloat(state.objectPosY);
+    const posX = Math.min(100, Math.max(0, Number.isFinite(rawPosX) ? rawPosX : 50));
+    const posY = Math.min(100, Math.max(0, Number.isFinite(rawPosY) ? rawPosY : 50));
+
+    frame.dataset.imageMode = mode;
+    frame.dataset.imageRole = role;
+    frame.dataset.targetWidth = String(width);
+    frame.dataset.targetHeight = String(height);
+    frame.dataset.ratioWidth = String(parseFloat(state.ratioWidth) || width);
+    frame.dataset.ratioHeight = String(parseFloat(state.ratioHeight) || height);
+    frame.dataset.objectPosX = String(posX);
+    frame.dataset.objectPosY = String(posY);
+    frame.dataset.imageId = img.dataset.imageId || "";
+    img.dataset.imageRole = role;
+
+    frame.style.maxWidth = "100%";
+    img.style.objectPosition = `${posX}% ${posY}%`;
+
+    if (mode === "crop" || mode === "scale") {
+        frame.style.width = width + "px";
+        frame.style.height = "auto";
+        frame.style.aspectRatio = `${width} / ${height}`;
+        frame.style.overflow = "hidden";
+        img.style.width = "100%";
+        img.style.height = "100%";
+        img.style.maxWidth = "none";
+        img.style.objectFit = mode === "crop" ? "cover" : "fill";
+        img.style.position = mode === "crop" ? "absolute" : "relative";
+        img.style.inset = mode === "crop" ? "0" : "auto";
+    } else {
+        frame.style.width = role === "cover" ? "100%" : "fit-content";
+        frame.style.height = "auto";
+        frame.style.aspectRatio = "auto";
+        frame.style.overflow = "visible";
+        img.style.position = "relative";
+        img.style.inset = "auto";
+        img.style.width = role === "cover" ? "100%" : "auto";
+        img.style.height = "auto";
+        img.style.maxWidth = "100%";
+        img.style.objectFit = "contain";
+        img.style.objectPosition = "50% 50%";
+    }
+    return frame;
+}
+
+function ensureManagedImageFrame(img, role = "content", applyState = true) {
+    if (!img) return null;
+    let frame = getManagedImageFrame(img);
+    if (!frame) {
+        frame = document.createElement("div");
+        frame.className = "vb-image-frame";
+        frame.setAttribute("contenteditable", "false");
+        frame.dataset.imageRole = role;
+        frame.dataset.imageMode = "natural";
+        frame.dataset.objectPosX = "50";
+        frame.dataset.objectPosY = "50";
+        if (img.parentNode) img.parentNode.insertBefore(frame, img);
+        frame.appendChild(img);
+    }
+    frame.dataset.imageRole = role || frame.dataset.imageRole || "content";
+    frame.dataset.imageId = img.dataset.imageId || "";
+    frame.setAttribute("contenteditable", "false");
+
+    let state = null;
+    if (img.dataset.vbFrameState) {
+        try { state = JSON.parse(img.dataset.vbFrameState); } catch(e) {}
+        delete img.dataset.vbFrameState;
+    }
+    if (applyState) applyImageFrameState(img, state || readImageFrameState(img));
+    bindManagedImage(img);
+    return frame;
+}
+
+function createManagedImage(source, role = "content", metadata = {}) {
+    const img = document.createElement("img");
+    img.className = "vb-managed-image";
+    img.dataset.imageId = createImageClientId();
+    img.dataset.imageRole = role;
+    img.setAttribute("contenteditable", "false");
+    img.setAttribute("draggable", "true");
+    img.style.maxWidth = "100%";
+    img.style.height = "auto";
+    img.style.display = "block";
+    img.style.margin = "0";
+    writeImageMetadata(img, metadata);
+    setManagedImageSource(img, source);
+    bindManagedImage(img);
+    return img;
+}
+
+function appendManagedCoverImage(container, img) {
+    if (!container || !img) return;
+    container.innerHTML = "";
+    img.dataset.imageRole = "cover";
+    const frame = ensureManagedImageFrame(img, "cover");
+    container.appendChild(frame);
+}
+
+function hydrateManagedImages(root, role = "content") {
+    if (!root) return;
+    Array.from(root.querySelectorAll("img")).forEach(img => {
+        if (!img.dataset.imageId) img.dataset.imageId = createImageClientId();
+        if (!img.dataset.imageRole) img.dataset.imageRole = role;
+        img.classList.add("vb-managed-image");
+        img.setAttribute("contenteditable", "false");
+        img.setAttribute("draggable", "true");
+        img.style.display = "block";
+        img.style.margin = "0";
+
+        const srcAttr = img.getAttribute("src") || "";
+        const fileId = img.dataset.driveFileId || extractDriveFileId(img.dataset.driveUrl || srcAttr);
+        if (fileId) {
+            img.dataset.driveFileId = fileId;
+            img.dataset.driveUrl = canonicalDriveImageUrl(fileId);
+            if (srcAttr !== runtimeImageUrl(img.dataset.driveUrl)) img.src = runtimeImageUrl(img.dataset.driveUrl);
+        }
+
+        writeImageMetadata(img, readImageMetadata(img));
+        ensureManagedImageFrame(img, img.dataset.imageRole || role);
+        bindManagedImage(img);
+    });
+}
+
+function beginCropDrag(e, img) {
+    const frame = getManagedImageFrame(img);
+    if (!frame || frame.dataset.imageMode !== "crop" || e.button !== 0) return false;
+    const state = readImageFrameState(img);
+    vbCropPointerState = {
+        img,
+        frame,
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        startPosX: state.objectPosX,
+        startPosY: state.objectPosY,
+        moved: false
+    };
+    frame.classList.add("vb-crop-dragging", "vb-image-active");
+    try { img.setPointerCapture(e.pointerId); } catch(err) {}
+    e.preventDefault();
+    e.stopPropagation();
+    return true;
+}
+
+function updateCropDrag(e) {
+    const drag = vbCropPointerState;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const rect = drag.frame.getBoundingClientRect();
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+    if (!drag.moved) return;
+
+    const x = Math.min(100, Math.max(0, drag.startPosX - (dx / Math.max(1, rect.width)) * 100));
+    const y = Math.min(100, Math.max(0, drag.startPosY - (dy / Math.max(1, rect.height)) * 100));
+    drag.frame.dataset.objectPosX = x.toFixed(2);
+    drag.frame.dataset.objectPosY = y.toFixed(2);
+    drag.img.style.objectPosition = `${x}% ${y}%`;
+    markImageDirty(false);
+    e.preventDefault();
+}
+
+function endCropDrag(e) {
+    const drag = vbCropPointerState;
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    try { drag.img.releasePointerCapture(e.pointerId); } catch(err) {}
+    drag.frame.classList.remove("vb-crop-dragging");
+    if (drag.moved) {
+        vbSuppressImageClickUntil = Date.now() + 300;
+        scheduleImageHistoryCommit();
+    }
+    vbCropPointerState = null;
+}
+
+function bindManagedImage(img) {
+    // DÙNG THUỘC TÍNH RAM (__vbLiveBound). Hễ trình duyệt serialize DOM thành text là thuộc tính này tự tiêu hủy!
+    if (!img || img.__vbLiveBound) return;
+    img.__vbLiveBound = true;
+    delete img.dataset.vbBound; // Tẩy sạch rác string cũ nếu có
+
+    img.addEventListener("click", e => {
+        if (Date.now() < vbSuppressImageClickUntil) return;
+        e.preventDefault();
+        e.stopPropagation();
+        openImageProperties(img);
+    });
+    img.addEventListener("contextmenu", e => {
+        e.preventDefault();
+        e.stopPropagation();
+        openImageProperties(img);
+    });
+    img.addEventListener("pointerdown", e => beginCropDrag(e, img));
+    img.addEventListener("pointermove", updateCropDrag);
+    img.addEventListener("pointerup", endCropDrag);
+    img.addEventListener("pointercancel", endCropDrag);
+    img.addEventListener("dragstart", e => {
+        const frame = getManagedImageFrame(img);
+        if (frame?.dataset.imageMode === "crop") {
+            e.preventDefault();
+            return;
+        }
+        vbImageClipboardHtml = (frame || img).outerHTML;
+        if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = "copyMove";
+            e.dataTransfer.setData("text/html", vbImageClipboardHtml);
+            e.dataTransfer.setData("text/plain", img.dataset.driveUrl || img.src);
+        }
+    });
+    img.addEventListener("error", () => {
+        const driveUrl = img.dataset.driveUrl;
+        if (driveUrl && img.src !== driveUrl) img.src = driveUrl;
+    });
+}
+
+function rememberImageInsertionTarget(mode) {
+    vbImageTargetMode = mode;
+    if (mode === "content") {
+        const sel = window.getSelection();
+        if (sel.rangeCount) {
+            const range = sel.getRangeAt(0);
+            const root = document.getElementById("postContent");
+            if (root.contains(range.commonAncestorContainer)) vbLastContentImageRange = range.cloneRange();
+        }
+    }
+}
+
+function insertManagedImage(img, mode = vbImageTargetMode, explicitRange = null) {
+    if (!img) return;
+    const coverEditor = document.getElementById("coverEditor");
+    const contentEditor = document.getElementById("postContent");
+    img.dataset.imageRole = mode;
+    const frame = ensureManagedImageFrame(img, mode);
+
+    if (mode === "cover") {
+        appendManagedCoverImage(coverEditor, img);
+    } else {
+        contentEditor.focus();
+        const sel = window.getSelection();
+
+        // THUẬT TOÁN BỌC THÉP TÌM LẠI ĐÚNG VỊ TRÍ CON TRỎ (Ưu tiên từ 1 -> 4)
+        // 1. Tọa độ do Ctrl+V hoặc Drop bốc thẳng vào két sắt truyền tới
+        // 2. Tọa độ gõ phím cuối cùng được editor ghi nhớ (savedRange)
+        // 3. Tọa độ mờ của bộ nhớ cover (vbLastContentImageRange)
+        // 4. Đường cùng: Nhét xuống đáy bài viết
+        let targetRange = explicitRange || savedRange || vbLastContentImageRange;
+
+        if (!targetRange || !contentEditor.contains(targetRange.commonAncestorContainer)) {
+            targetRange = document.createRange();
+            targetRange.selectNodeContents(contentEditor);
+            targetRange.collapse(false); // Ép về đáy
+        }
+
+        sel.removeAllRanges();
+        sel.addRange(targetRange);
+
+        // CẮM SỐNG VÀO ĐÚNG TỌA ĐỘ ĐÃ TRÓI
+        targetRange.insertNode(frame);
+
+        // GIẢI CỨU DOM NẾU BỊ CẮM VÀO GIỮA THẺ P
+        let parent = frame.parentElement;
+        if (parent && parent.id !== 'postContent' && ['P', 'SPAN', 'DIV', 'FONT', 'A'].includes(parent.tagName)) {
+            parent.after(frame);
+            if (parent.innerText.trim() === "" && !parent.querySelector('img')) parent.remove();
+        }
+
+        // TẠO ĐIỂM ĐÁP CHO CON TRỎ PHÍA DƯỚI
+        const spacer = document.createElement('p');
+        spacer.innerHTML = '<br>';
+        frame.after(spacer);
+
+        // TRƯỢT MÀN HÌNH & NHÉT CON TRỎ VÀO ĐIỂM ĐÁP
+        frame.scrollIntoView({ behavior: "smooth", block: "center" });
+
+        const newRange = document.createRange();
+        newRange.selectNodeContents(spacer);
+        newRange.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(newRange);
+
+        // Cập nhật lại két sắt
+        savedRange = newRange.cloneRange();
+        vbLastContentImageRange = newRange.cloneRange();
+    }
+
+    markImageDirty(true);
+}
+
+function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(reader.error || new Error("Không đọc được file ảnh."));
+        reader.readAsDataURL(file);
+    });
+}
+
+async function insertImageFiles(files, mode = vbImageTargetMode, specificRange = null) {
+    const imageFiles = Array.from(files || []).filter(file => {
+        if (!file) return false;
+        if (/^image\//i.test(file.type)) return true;
+        return /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(file.name);
+    });
+
+    for (const file of imageFiles) {
+        // 1. Tạo Link Ảo (Blob URL) để hiện ảnh lên màn hình ngay lập tức (0ms)
+        const localBlobUrl = URL.createObjectURL(file);
+        const metadata = { ...VB_DEFAULT_IMAGE_META, fileName: file.name || "" };
+        
+        // 2. Sinh thẻ <img> và gắn mác "Đang tải ngầm"
+        const img = createManagedImage(localBlobUrl, mode, metadata);
+        img.dataset.isLocalUpload = "true"; 
+        
+        // 3. Ép đợi đo kích thước thật để khung viền bọc vừa khít ảnh
+        await new Promise((resolve) => {
+            if (img.complete && img.naturalWidth > 0) resolve();
+            else { img.onload = resolve; img.onerror = resolve; }
+        });
+        
+        // 4. Dán ảnh vào bài viết
+        insertManagedImage(img, mode, specificRange);
+
+        // 5. KÍCH HOẠT TẢI NGẦM LÊN GOOGLE DRIVE
+        let targetPostId = typeof currentPostId !== "undefined" && currentPostId ? currentPostId : "POST_TEMP";
+        backgroundUploadToDrive(img.dataset.imageId, file, targetPostId);
+
+        if (mode === "cover") break;
+    }
+}
+
+// HÀM TẢI NGẦM VÀ TRÁO LINK
+// HÀM TẢI NGẦM VÀ TRÁO LINK
+async function backgroundUploadToDrive(clientId, file, postId) {
+    try {
+        // [VÁ LỖI ẢNH 4000px]: Bỏ FileReader, dùng Link ảo ném thẳng vào Canvas để chống treo máy
+        const base64Data = await new Promise((resolve, reject) => {
+            const imgObj = new Image();
+            const objectUrl = URL.createObjectURL(file); // Mở cổng link ảo siêu tốc
+            
+            imgObj.onload = () => {
+                URL.revokeObjectURL(objectUrl); // Xóa link ảo ngay lập tức để giải phóng RAM
+                const MAX_WIDTH = 1600, MAX_HEIGHT = 1600;
+                let w = imgObj.width, h = imgObj.height;
+                
+                // Thuật toán bóp ảnh
+                if (w > MAX_WIDTH || h > MAX_HEIGHT) {
+                    if (w > h) { h = Math.round((h *= MAX_WIDTH / w)); w = MAX_WIDTH; } 
+                    else { w = Math.round((w *= MAX_HEIGHT / h)); h = MAX_HEIGHT; }
+                }
+                
+                const canvas = document.createElement("canvas");
+                canvas.width = w; canvas.height = h;
+                const ctx = canvas.getContext("2d");
+                ctx.fillStyle = "#ffffff"; 
+                ctx.fillRect(0, 0, w, h);
+                ctx.drawImage(imgObj, 0, 0, w, h);
+                
+                resolve(canvas.toDataURL("image/jpeg", 0.8)); // Xuất Base64 gửi Drive
+            };
+            
+            imgObj.onerror = () => {
+                URL.revokeObjectURL(objectUrl);
+                reject(new Error("Lỗi nén ảnh."));
+            };
+            
+            imgObj.src = objectUrl; // Bơm link ảo vào Image
+        });
+
+        // B. Kiểm tra xem ảnh có bị người dùng XÓA chưa? Nếu xóa rồi thì ngưng lưu
+        if (!document.querySelector(`img[data-image-id="${clientId}"]`)) return;
+
+        // Báo hiệu nhỏ trên góc màn hình
+        const statusBox = document.getElementById("syncStatusVB");
+        if(statusBox) { statusBox.innerText = "⏳ Đang tải ảnh nền lên Drive..."; statusBox.style.color = "#01adee"; }
+
+        // C. Gửi lên Google Drive
+        const mimeMatch = base64Data.match(/^data:([^;,]+)/i);
+        const payload = {
+            clientId: clientId,
+            role: "content", 
+            source: base64Data,
+            mimeType: mimeMatch ? mimeMatch[1] : "image/jpeg",
+            fileName: sanitizeUploadFileName(file.name, `${postId}-upload.jpg`),
+            metadata: {}
+        };
+        const files = await uploadImageBatch(postId, [payload]);
+        const result = files[0];
+
+        // D. KHI LƯU XONG: Tìm lại ảnh và tráo link tĩnh
+        const imgNode = document.querySelector(`img[data-image-id="${clientId}"]`);
+        if (result && result.success && imgNode) {
+            imgNode.dataset.driveFileId = result.fileId;
+            imgNode.dataset.driveUrl = result.driveUrl;
+            imgNode.dataset.originalSource = "";
+            imgNode.dataset.archivedDrive = "1";
+            delete imgNode.dataset.isLocalUpload; // Gỡ cờ tải ngầm
+            
+            imgNode.src = runtimeImageUrl(result.driveUrl); // TRÁO LINK
+            markImageDirty(true);
+            
+            if(statusBox) { statusBox.innerText = "✅ Đã tráo link Drive"; statusBox.style.color = "#27ae60"; }
+        }
+    } catch (e) {
+        console.error("Lỗi tải ảnh ngầm:", e);
+        const statusBox = document.getElementById("syncStatusVB");
+        if(statusBox) { statusBox.innerText = "⚠️ Lỗi tải ảnh"; statusBox.style.color = "var(--red)"; }
+    }
+}
+
+function looksLikeSingleImageUrl(text) {
+    const clean = String(text || "").trim();
+    if (!/^https?:\/\//i.test(clean) || /\s/.test(clean)) return false;
+    return /\.(png|jpe?g|gif|webp|avif|svg)(?:[?#].*)?$/i.test(clean)
+        || /drive\.google\.com/i.test(clean)
+        || /googleusercontent\.com/i.test(clean)
+        || /postimg\.cc|i\.imgur\.com|cloudinary\.com|images\.unsplash\.com/i.test(clean);
+}
+
+async function handleManagedImagePaste(event, mode) {
+    // 1. TRÓI NGAY TỌA ĐỘ CARET TẠI MILI-GIÂY BẤM CTRL+V TRƯỚC KHI BỊ ASYNC THẢ TRÔI
+    saveSelection();
+    const pastedRange = savedRange ? savedRange.cloneRange() : (window.getSelection().rangeCount > 0 ? window.getSelection().getRangeAt(0).cloneRange() : null);
+
+    const clipboard = event.clipboardData;
+    if (!clipboard) return;
+
+    // ĐẢO TRẬT TỰ ƯU TIÊN 1: Nếu copy từ Web (có thẻ <img src="http...">), lấy link gốc dùng luôn, tức thì 0ms!
+    const html = clipboard.getData("text/html") || "";
+    if (html && /<img[\s>]/i.test(html)) {
+        event.preventDefault();
+        const temp = document.createElement("div");
+        temp.innerHTML = html;
+        const imgs = Array.from(temp.querySelectorAll("img"));
+        for (const sourceImg of imgs) {
+            const meta = readImageMetadata(sourceImg);
+            const img = createManagedImage(sourceImg.getAttribute("src") || "", mode, meta);
+            // Găm thẳng vào tọa độ vừa trói
+            insertManagedImage(img, mode, pastedRange);
+            if (mode === "cover") break;
+        }
+        return;
+    }
+
+    // ĐẢO TRẬT TỰ ƯU TIÊN 2: Nếu là ảnh chụp màn hình thuần túy (Snipping Tool/Excel), mới convert sang Base64
+    const files = Array.from(clipboard.files || []).filter(f => /^image\//i.test(f.type));
+    if (files.length) {
+        event.preventDefault();
+        // Nhét tọa độ vào hòm chuyền đi
+        await insertImageFiles(files, mode, pastedRange);
+        return;
+    }
+
+    const plain = clipboard.getData("text/plain") || "";
+    if (mode === "cover") {
+        event.preventDefault();
+        if (looksLikeSingleImageUrl(plain)) insertManagedImage(createManagedImage(plain.trim(), "cover", {}), "cover");
+        else if (plain.trim()) vbShowAlert("Ô ảnh bìa chỉ nhận file ảnh hoặc một URL ảnh hợp lệ.");
+    }
+}
+
+function initVbImageManager() {
+    const cover = document.getElementById("coverEditor");
+    const content = document.getElementById("postContent");
+    const fileInput = document.getElementById("vbImageFileInput");
+    const overlay = document.getElementById("vbImagePopupOverlay");
+    if (!cover || cover.dataset.vbImageReady === "1") return;
+    cover.dataset.vbImageReady = "1";
+
+    [cover, content].forEach((el, index) => {
+        const mode = index === 0 ? "cover" : "content";
+        ["focusin", "mouseup", "keyup"].forEach(evt => el.addEventListener(evt, () => rememberImageInsertionTarget(mode)));
+        el.addEventListener("paste", e => handleManagedImagePaste(e, mode));
+        el.addEventListener("dragover", e => {
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+        });
+        el.addEventListener("drop", async e => {
+            const files = Array.from(e.dataTransfer?.files || []).filter(f => /^image\//i.test(f.type));
+            const droppedText = e.dataTransfer?.getData("text/plain") || "";
+            if (files.length) {
+                e.preventDefault();
+                rememberImageInsertionTarget(mode);
+                await insertImageFiles(files, mode);
+                return;
+            }
+            if (mode === "cover" && looksLikeSingleImageUrl(droppedText)) {
+                e.preventDefault();
+                insertManagedImage(createManagedImage(droppedText.trim(), "cover", {}), "cover");
+            }
+        });
+    });
+
+    cover.addEventListener("keydown", e => {
+        const allowedControl = e.ctrlKey || e.metaKey || e.altKey;
+        const allowedKeys = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab", "Escape"];
+        if (!allowedControl && !allowedKeys.includes(e.key)) e.preventDefault();
+    });
+    cover.addEventListener("input", () => {
+        Array.from(cover.childNodes).forEach(node => {
+            if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) node.remove();
+            if (node.nodeType === Node.ELEMENT_NODE && node.tagName !== "IMG" && !node.classList.contains("vb-image-frame")) {
+                const nestedImg = node.querySelector?.("img");
+                if (nestedImg) {
+                    const frame = ensureManagedImageFrame(nestedImg, "cover");
+                    cover.replaceChild(frame, node);
+                } else node.remove();
+            }
+        });
+        const frames = Array.from(cover.querySelectorAll(":scope > .vb-image-frame"));
+        frames.slice(0, -1).forEach(frame => frame.remove());
+        hydrateManagedImages(cover, "cover");
+    });
+
+fileInput?.addEventListener("change", async () => {
+        try { 
+            // Truyền tọa độ con trỏ đã khóa vào hàm sinh thẻ img
+            await insertImageFiles(fileInput.files, vbImageTargetMode, window.pendingUploadRange); 
+        }
+        finally { 
+            fileInput.value = ""; 
+            window.pendingUploadRange = null; // Xóa bộ nhớ đệm
+        }
+    });
+    overlay?.addEventListener("mousedown", e => { if (e.target === overlay) closeImageProperties(); });
+
+    initMetadataGridClipboard();
+    initImagePropertyRealtimeControls();
+    hydrateManagedImages(cover, "cover");
+    hydrateManagedImages(content, "content");
+
+document.addEventListener("keydown", e => {
+        const isOpen = document.getElementById("vbImagePopupOverlay")?.style.display === "flex";
+        if (!isOpen || !vbActiveImage || !(e.ctrlKey || e.metaKey)) return;
+        const key = e.key.toLowerCase();
+        const editingMetaText = e.target?.closest?.(".vb-meta-cell[contenteditable='true']");
+        const editingUrl = e.target?.id === "vbImgUrl";
+        
+        // [CẬP NHẬT] Kiểm tra xem bảng Metadata có đang được bôi đen không
+        const isMetaGridFocused = document.activeElement?.id === "vbMetadataTable" && vbSelectedMetaCells.length > 0;
+
+        if (key === "z" && !editingMetaText && !editingUrl) {
+            e.preventDefault();
+            if (e.shiftKey) imageHistoryRedo(); else imageHistoryUndo();
+        } else if (key === "y" && !editingMetaText && !editingUrl) {
+            e.preventDefault();
+            imageHistoryRedo();
+        } else if (key === "c" && !editingMetaText && !editingUrl) {
+            e.preventDefault(); copyActiveImage(false);
+        } else if (key === "x" && !editingMetaText && !editingUrl) {
+            e.preventDefault(); copyActiveImage(true);
+        } else if (key === "v" && !editingMetaText && !editingUrl) {
+            // [CẬP NHẬT] Nhường quyền cho bảng Metadata xử lý việc Paste
+            if (isMetaGridFocused) {
+                return; // Trả quyền về cho trình duyệt kích hoạt event "paste" của bảng
+            }
+            e.preventDefault(); pasteImageFromClipboard();
+        }
+    });
+}
+
+function openImageToolPopup(btn) {
+    const active = document.activeElement;
+    if (active?.id === "coverEditor" || active?.closest?.("#coverEditor")) {
+        vbImageTargetMode = "cover";
+    } else {
+        vbImageTargetMode = "content";
+    }
+    
+    const wrapper = btn.closest('.tool-dropdown-wrapper');
+    const popup = document.getElementById("popupMiniImage");
+    
+    if (!btn || !popup) return;
+    
+    let isVisible = popup.style.display === 'block';
+    closeAllToolPopups();
+    
+    if (!isVisible) {
+        // === THUẬT TOÁN TỐI THƯỢNG: ĐƯA RA KHỎI PANEL ===
+        // Bứng Popup ra và gắn thẳng vào <body> để thoát khỏi z-index:10 của Panel
+        document.body.appendChild(popup);
+        
+        popup.style.position = 'fixed';
+        popup.style.zIndex = '999999'; 
+        popup.style.margin = '0';
+        popup.style.display = 'block'; 
+        
+        const btnRect = btn.getBoundingClientRect();
+        const popupRect = popup.getBoundingClientRect();
+        
+        // Căn tọa độ Dọc (Y)
+        if (wrapper && wrapper.closest('.word-mini-toolbar')) {
+            // Nếu bấm từ Mini Toolbar
+            popup.style.top = (btnRect.top - popupRect.height - 5) + 'px';
+            popup.style.bottom = 'auto';
+        } else {
+            // Nếu bấm từ Panel công cụ
+            popup.style.top = (btnRect.bottom + 2) + 'px';
+            popup.style.bottom = 'auto';
+        }
+        
+        // Căn tọa độ Ngang (X)
+        let leftPos = btnRect.left;
+        
+        // Radar chống tràn màn hình (hất sang trái nếu lố mép phải)
+        if (leftPos + popupRect.width > window.innerWidth) {
+            leftPos = window.innerWidth - popupRect.width - 15;
+        }
+        
+        popup.style.left = leftPos + 'px';
+        popup.style.right = 'auto';
+        
+        saveSelection();
+    }
+}
+
+function chooseImageSource(type) {
+    closeAllToolPopups();
+    if (typeof TableEditor !== 'undefined') TableEditor.hideMenus();
+
+if (type === "upload") {
+        // LƯU LẠI TỌA ĐỘ CON TRỎ CHÍNH XÁC TRƯỚC KHI MỞ HỘP THOẠI CHỌN FILE
+        window.pendingUploadRange = savedRange ? savedRange.cloneRange() : null;
+        document.getElementById("vbImageFileInput")?.click();
+        return;
+    }
+    if (type === "drive") {
+        // CẬP NHẬT: Đặt tên cửa sổ là 'googleDriveWindow' để trình duyệt tự tái sử dụng tab đã mở
+        window.open("https://drive.google.com/drive/u/0/my-drive", "googleDriveWindow");
+        
+        setTimeout(() => {
+            window.focus();
+        }, 10);
+
+        vbShowPrompt("Google Drive đã được mở.<br>Hãy chọn ảnh, sao chép liên kết chia sẻ rồi dán vào đây:", url => {
+            if (url) insertManagedImage(createManagedImage(url.trim(), vbImageTargetMode, {}), vbImageTargetMode);
+        });
+        return;
+    }
+    vbShowPrompt("Dán URL ảnh (https:// hoặc data:image/...):", url => {
+        if (url) insertManagedImage(createManagedImage(url.trim(), vbImageTargetMode, {}), vbImageTargetMode);
+    });
+}
+
+function greatestCommonDivisor(a, b) {
+    a = Math.max(1, Math.round(Math.abs(a || 1)));
+    b = Math.max(1, Math.round(Math.abs(b || 1)));
+    while (b) [a, b] = [b, a % b];
+    return a || 1;
+}
+
+function updateImageModeStatus(mode) {
+    const box = document.getElementById("vbImageEditModeStatus");
+    if (!box) return;
+    if (mode === "crop") box.innerHTML = '<i class="fas fa-crop-alt"></i> Chế độ cắt theo px: khung giữ đúng Width × Height. Kéo ảnh trong khung để chọn vùng hiển thị.';
+    else if (mode === "scale") box.innerHTML = '<i class="fas fa-expand-arrows-alt"></i> Chế độ scale theo tỷ lệ: ảnh được co giãn toàn bộ theo tỷ lệ, không bị cắt.';
+    else box.innerHTML = '<i class="fas fa-image"></i> Chế độ tự nhiên: ảnh chưa bị cắt hoặc scale cưỡng bức.';
+}
+
+function populateImagePropertiesForm(img, options = {}) {
+    if (!img) return;
+    const frame = ensureManagedImageFrame(img, img.closest("#coverEditor") ? "cover" : "content");
+    const state = readImageFrameState(img);
+    const rect = frame.getBoundingClientRect();
+    const width = Math.max(1, Math.round(state.mode === "natural" ? (rect.width || img.naturalWidth || 1) : state.targetWidth));
+    const height = Math.max(1, Math.round(state.mode === "natural" ? (rect.height || img.naturalHeight || 1) : state.targetHeight));
+    const naturalW = img.naturalWidth || width;
+    const naturalH = img.naturalHeight || height;
+    const gcd = greatestCommonDivisor(state.mode === "scale" ? state.ratioWidth : naturalW, state.mode === "scale" ? state.ratioHeight : naturalH);
+
+    document.getElementById("vbImgWidth").value = width;
+    document.getElementById("vbImgHeight").value = height;
+    document.getElementById("vbRatioWidth").value = state.mode === "scale" ? state.ratioWidth : Math.max(1, Math.round(naturalW / gcd));
+    document.getElementById("vbRatioHeight").value = state.mode === "scale" ? state.ratioHeight : Math.max(1, Math.round(naturalH / gcd));
+    document.getElementById("vbImgUrl").value = img.dataset.driveUrl || img.dataset.originalSource || img.getAttribute("src") || "";
+    updateImageModeStatus(state.mode);
+
+    const meta = readImageMetadata(img);
+    document.querySelectorAll("#vbMetadataTable .vb-meta-value[data-meta-key]").forEach(cell => {
+        cell.textContent = meta[cell.dataset.metaKey] || "";
+    });
+    document.querySelectorAll("#vbMetadataTable .vb-meta-label[data-meta-label-key]").forEach(cell => {
+        cell.textContent = meta._labels?.[cell.dataset.metaLabelKey] || VB_DEFAULT_IMAGE_LABELS[cell.dataset.metaLabelKey] || "";
+    });
+    setMetadataLabelLock(false);
+    clearMetadataSelection();
+    document.getElementById("vbImageUploadStatus").style.display = "none";
+    if (options.resetHistory !== false) resetImageHistory();
+}
+
+function openImageProperties(img) {
+    if (!img) return;
+    document.querySelectorAll(".vb-image-active").forEach(el => el.classList.remove("vb-image-active"));
+    vbActiveImage = img;
+    const frame = ensureManagedImageFrame(img, img.closest("#coverEditor") ? "cover" : "content");
+    frame.classList.add("vb-image-active");
+    const imageMode = img.closest("#coverEditor") ? "cover" : "content";
+    rememberImageInsertionTarget(imageMode);
+    if (imageMode === "content") {
+        const afterImage = document.createRange();
+        afterImage.setStartAfter(frame);
+        afterImage.collapse(true);
+        vbLastContentImageRange = afterImage;
+    }
+    populateImagePropertiesForm(img, {resetHistory: true});
+    document.getElementById("vbImagePopupOverlay").style.display = "flex";
+}
+
+function closeImageProperties() {
+    document.getElementById("vbImagePopupOverlay").style.display = "none";
+    document.querySelectorAll(".vb-image-active").forEach(el => el.classList.remove("vb-image-active"));
+    vbActiveImage = null;
+    clearMetadataSelection();
+    clearTimeout(vbImageHistoryTimer);
+}
+
+function collectMetadataFromGrid() {
+    const meta = { ...VB_DEFAULT_IMAGE_META, _labels: {...VB_DEFAULT_IMAGE_LABELS} };
+    document.querySelectorAll("#vbMetadataTable .vb-meta-value[data-meta-key]").forEach(cell => {
+        meta[cell.dataset.metaKey] = cell.innerText.replace(/\u00a0/g, " ").trim();
+    });
+    document.querySelectorAll("#vbMetadataTable .vb-meta-label[data-meta-label-key]").forEach(cell => {
+        meta._labels[cell.dataset.metaLabelKey] = cell.innerText.replace(/\u00a0/g, " ").trim();
+    });
+    return meta;
+}
+
+function markImageDirty(commitHistory = true) {
+    isVBDirty = true;
+    const status = document.getElementById("syncStatusVB");
+    if (status) {
+        status.innerText = "⚠️ Chưa lưu";
+        status.style.color = "var(--red)";
+    }
+    if (commitHistory) scheduleImageHistoryCommit();
+}
+
+function applyPixelCropRealtime() {
+    if (!vbActiveImage || vbRestoringImageHistory) return;
+    const width = parseFloat(document.getElementById("vbImgWidth").value);
+    const height = parseFloat(document.getElementById("vbImgHeight").value);
+    if (!(width > 0 && height > 0)) return;
+    const state = readImageFrameState(vbActiveImage);
+    const gcd = greatestCommonDivisor(width, height);
+    applyImageFrameState(vbActiveImage, {
+        ...state,
+        mode: "crop",
+        targetWidth: width,
+        targetHeight: height,
+        ratioWidth: width / gcd,
+        ratioHeight: height / gcd
+    });
+    updateImageModeStatus("crop");
+    markImageDirty(true);
+    
+    // [BẢN VÁ QUAN TRỌNG]: Tự động đồng bộ ngay khi gõ phím
+    if (document.getElementById('vbSyncAllCheckbox')?.checked) {
+        syncStateToAllImages();
+    }
+    if (typeof updatePreviewUI === 'function') updatePreviewUI();
+}
+
+function applyRatioScaleRealtime() {
+    if (!vbActiveImage || vbRestoringImageHistory) return;
+    const ratioW = parseFloat(document.getElementById("vbRatioWidth").value);
+    const ratioH = parseFloat(document.getElementById("vbRatioHeight").value);
+    const baseWidth = parseFloat(document.getElementById("vbImgWidth").value);
+    if (!(ratioW > 0 && ratioH > 0 && baseWidth > 0)) return;
+    const scaledHeight = Math.max(1, Math.round(baseWidth * ratioH / ratioW));
+    document.getElementById("vbImgHeight").value = scaledHeight;
+    const state = readImageFrameState(vbActiveImage);
+    applyImageFrameState(vbActiveImage, {
+        ...state,
+        mode: "scale",
+        targetWidth: baseWidth,
+        targetHeight: scaledHeight,
+        ratioWidth: ratioW,
+        ratioHeight: ratioH,
+        objectPosX: 50,
+        objectPosY: 50
+    });
+    updateImageModeStatus("scale");
+    markImageDirty(true);
+
+    // [BẢN VÁ QUAN TRỌNG]: Tự động đồng bộ ngay khi gõ phím
+    if (document.getElementById('vbSyncAllCheckbox')?.checked) {
+        syncStateToAllImages();
+    }
+    if (typeof updatePreviewUI === 'function') updatePreviewUI();
+}
+
+function initImagePropertyRealtimeControls() {
+    const width = document.getElementById("vbImgWidth");
+    const height = document.getElementById("vbImgHeight");
+    const ratioW = document.getElementById("vbRatioWidth");
+    const ratioH = document.getElementById("vbRatioHeight");
+    const url = document.getElementById("vbImgUrl");
+    if (width?.dataset.realtimeReady === "1") return;
+    [width, height].forEach(input => {
+        input.dataset.realtimeReady = "1";
+        input.addEventListener("input", applyPixelCropRealtime);
+    });
+    [ratioW, ratioH].forEach(input => {
+        input.dataset.realtimeReady = "1";
+        input.addEventListener("input", applyRatioScaleRealtime);
+    });
+    url?.addEventListener("change", () => {
+        if (!vbActiveImage) return;
+        const newUrl = url.value.trim();
+        const oldUrl = vbActiveImage.dataset.driveUrl || vbActiveImage.dataset.originalSource || vbActiveImage.getAttribute("src") || "";
+        if (newUrl && newUrl !== oldUrl) {
+            setManagedImageSource(vbActiveImage, newUrl);
+            markImageDirty(true);
+        }
+    });
+}
+
+function applyImageProperties() {
+    if (!vbActiveImage) return;
+    const newUrl = document.getElementById("vbImgUrl").value.trim();
+    const oldUrl = vbActiveImage.dataset.driveUrl || vbActiveImage.dataset.originalSource || vbActiveImage.getAttribute("src") || "";
+    if (newUrl && newUrl !== oldUrl) setManagedImageSource(vbActiveImage, newUrl);
+    writeImageMetadata(vbActiveImage, collectMetadataFromGrid());
+    commitImageHistoryNow();
+    markImageDirty(false);
+    closeImageProperties();
+}
+
+function captureActiveImageSnapshot() {
+    if (!vbActiveImage) return "";
+    const node = getManagedImageFrame(vbActiveImage) || vbActiveImage;
+    const clone = node.cloneNode(true);
+    clone.classList.remove("vb-image-active", "vb-crop-dragging");
+    clone.querySelectorAll?.(".vb-image-active, .vb-crop-dragging").forEach(el => el.classList.remove("vb-image-active", "vb-crop-dragging"));
+    clone.querySelectorAll?.("img").forEach(img => img.removeAttribute("data-vb-bound"));
+    if (clone.matches?.("img")) clone.removeAttribute("data-vb-bound");
+    return clone.outerHTML;
+}
+
+function updateImageHistoryButtons() {
+    const undo = document.getElementById("vbImageUndoBtn");
+    const redo = document.getElementById("vbImageRedoBtn");
+    if (undo) undo.disabled = vbImageHistory.length <= 1;
+    if (redo) redo.disabled = vbImageRedoStack.length === 0;
+}
+
+function resetImageHistory() {
+    clearTimeout(vbImageHistoryTimer);
+    vbImageHistory = [];
+    vbImageRedoStack = [];
+    const snapshot = captureActiveImageSnapshot();
+    if (snapshot) vbImageHistory.push(snapshot);
+    updateImageHistoryButtons();
+}
+
+function commitImageHistoryNow() {
+    if (!vbActiveImage || vbRestoringImageHistory) return;
+    clearTimeout(vbImageHistoryTimer);
+    const snapshot = captureActiveImageSnapshot();
+    if (!snapshot || vbImageHistory[vbImageHistory.length - 1] === snapshot) return;
+    vbImageHistory.push(snapshot);
+    if (vbImageHistory.length > 60) vbImageHistory.shift();
+    vbImageRedoStack = [];
+    updateImageHistoryButtons();
+}
+
+function scheduleImageHistoryCommit() {
+    if (!vbActiveImage || vbRestoringImageHistory) return;
+    clearTimeout(vbImageHistoryTimer);
+    vbImageHistoryTimer = setTimeout(commitImageHistoryNow, 280);
+}
+
+function restoreActiveImageSnapshot(html) {
+    if (!vbActiveImage || !html) return;
+    const currentNode = getManagedImageFrame(vbActiveImage) || vbActiveImage;
+    const parent = currentNode.parentNode;
+    if (!parent) return;
+    const imageId = vbActiveImage.dataset.imageId;
+    const role = vbActiveImage.closest("#coverEditor") ? "cover" : "content";
+    const temp = document.createElement("div");
+    temp.innerHTML = html;
+    const replacement = temp.firstElementChild;
+    if (!replacement) return;
+
+    vbRestoringImageHistory = true;
+    currentNode.replaceWith(replacement);
+    hydrateManagedImages(parent, role);
+    vbActiveImage = Array.from(parent.querySelectorAll("img.vb-managed-image")).find(img => img.dataset.imageId === imageId)
+        || replacement.querySelector?.("img.vb-managed-image")
+        || (replacement.matches?.("img.vb-managed-image") ? replacement : null);
+    if (vbActiveImage) {
+        const frame = ensureManagedImageFrame(vbActiveImage, role);
+        frame.classList.add("vb-image-active");
+        populateImagePropertiesForm(vbActiveImage, {resetHistory: false});
+    }
+    vbRestoringImageHistory = false;
+    markImageDirty(false);
+    updateImageHistoryButtons();
+}
+
+function imageHistoryUndo() {
+    clearTimeout(vbImageHistoryTimer);
+    commitImageHistoryNow();
+    if (vbImageHistory.length <= 1) return;
+    const current = vbImageHistory.pop();
+    vbImageRedoStack.push(current);
+    restoreActiveImageSnapshot(vbImageHistory[vbImageHistory.length - 1]);
+}
+
+function imageHistoryRedo() {
+    clearTimeout(vbImageHistoryTimer);
+    if (!vbImageRedoStack.length) return;
+    const next = vbImageRedoStack.pop();
+    vbImageHistory.push(next);
+    restoreActiveImageSnapshot(next);
+}
+
+async function copyActiveImage(isCut) {
+    if (!vbActiveImage) return;
+    const sourceNode = getManagedImageFrame(vbActiveImage) || vbActiveImage;
+    const cleanCopy = sourceNode.cloneNode(true);
+    cleanCopy.classList.remove("vb-image-active", "vb-crop-dragging");
+    cleanCopy.querySelectorAll?.("img").forEach(img => img.removeAttribute("data-vb-bound"));
+    vbImageClipboardHtml = cleanCopy.outerHTML;
+    const plainUrl = vbActiveImage.dataset.driveUrl || vbActiveImage.src;
+
+    try {
+        await navigator.clipboard.write([
+            new ClipboardItem({
+                "text/html": new Blob([vbImageClipboardHtml], {type: "text/html"}),
+                "text/plain": new Blob([plainUrl], {type: "text/plain"})
+            })
+        ]);
+    } catch(e) {
+        const holder = document.createElement("div");
+        holder.contentEditable = "true";
+        holder.style.position = "fixed";
+        holder.style.left = "-9999px";
+        holder.innerHTML = vbImageClipboardHtml;
+        document.body.appendChild(holder);
+        const range = document.createRange();
+        range.selectNodeContents(holder);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        document.execCommand("copy");
+        holder.remove();
+        sel.removeAllRanges();
+    }
+
+    const toRemove = isCut ? sourceNode : null;
+    closeImageProperties();
+    if (toRemove) {
+        toRemove.remove();
+        markImageDirty(false);
+    }
+}
+
+function cloneManagedImageFromHtml(html) {
+    const temp = document.createElement("div");
+    temp.innerHTML = html || "";
+    const source = temp.querySelector("img");
+    if (!source) return null;
+    const sourceFrame = source.closest(".vb-image-frame");
+    const clone = source.cloneNode(true);
+    clone.dataset.imageId = createImageClientId();
+    clone.dataset.vbBound = "0";
+    clone.classList.add("vb-managed-image");
+    if (sourceFrame) {
+        clone.dataset.vbFrameState = JSON.stringify({
+            mode: sourceFrame.dataset.imageMode || "natural",
+            role: vbImageTargetMode,
+            targetWidth: sourceFrame.dataset.targetWidth,
+            targetHeight: sourceFrame.dataset.targetHeight,
+            ratioWidth: sourceFrame.dataset.ratioWidth,
+            ratioHeight: sourceFrame.dataset.ratioHeight,
+            objectPosX: sourceFrame.dataset.objectPosX,
+            objectPosY: sourceFrame.dataset.objectPosY
+        });
+    }
+    writeImageMetadata(clone, readImageMetadata(source));
+    bindManagedImage(clone);
+    return clone;
+}
+
+async function pasteImageFromClipboard() {
+    let html = "";
+    try {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+            const imageType = item.types.find(t => /^image\//i.test(t));
+            if (imageType) {
+                const blob = await item.getType(imageType);
+                const file = new File([blob], "clipboard-image." + (imageType.split("/")[1] || "png"), {type: imageType});
+                await insertImageFiles([file], vbImageTargetMode);
+                closeImageProperties();
+                return;
+            }
+            if (item.types.includes("text/html")) html = await (await item.getType("text/html")).text();
+        }
+    } catch(e) {}
+    html = html || vbImageClipboardHtml;
+    const clone = cloneManagedImageFromHtml(html);
+    if (!clone) {
+        vbShowAlert("Clipboard chưa có ảnh phù hợp để dán.");
+        return;
+    }
+    insertManagedImage(clone, vbImageTargetMode);
+    closeImageProperties();
+}
+
+function deleteActiveImage() {
+    if (!vbActiveImage) return;
+    const node = getManagedImageFrame(vbActiveImage) || vbActiveImage;
+    closeImageProperties();
+    node.remove();
+    markImageDirty(false);
+}
+
+function metadataCells() {
+    return Array.from(document.querySelectorAll("#vbMetadataTable tbody .vb-meta-cell"));
+}
+
+function metadataCellEditable(cell) {
+    if (!cell) return false;
+    const col = Number(cell.dataset.metaCol);
+    return col === 1 || vbMetaLabelUnlocked;
+}
+
+function setMetadataLabelLock(unlocked) {
+    vbMetaLabelUnlocked = !!unlocked;
+    const button = document.getElementById("vbMetaLabelLockBtn");
+    document.querySelectorAll("#vbMetadataTable .vb-meta-label").forEach(cell => {
+        cell.contentEditable = vbMetaLabelUnlocked ? "true" : "false";
+        cell.classList.toggle("vb-meta-locked", !vbMetaLabelUnlocked);
+    });
+    if (button) {
+        button.classList.toggle("unlocked", vbMetaLabelUnlocked);
+        button.title = vbMetaLabelUnlocked ? "Khóa cột tiêu đề" : "Mở khóa cột tiêu đề";
+        button.innerHTML = vbMetaLabelUnlocked ? '<i class="fas fa-lock-open"></i>' : '<i class="fas fa-lock"></i>';
+    }
+}
+
+function toggleMetadataLabelLock() {
+    setMetadataLabelLock(!vbMetaLabelUnlocked);
+}
+
+function clearMetadataSelection() {
+    metadataCells().forEach(cell => cell.classList.remove("vb-meta-selected", "vb-meta-selection-anchor"));
+    vbSelectedMetaCells = [];
+    vbMetaAnchorCell = null;
+    vbMetaCurrentCell = null;
+}
+
+function selectMetadataRectangle(anchor, current) {
+    if (!anchor || !current) return;
+    const minRow = Math.min(Number(anchor.dataset.metaRow), Number(current.dataset.metaRow));
+    const maxRow = Math.max(Number(anchor.dataset.metaRow), Number(current.dataset.metaRow));
+    const minCol = Math.min(Number(anchor.dataset.metaCol), Number(current.dataset.metaCol));
+    const maxCol = Math.max(Number(anchor.dataset.metaCol), Number(current.dataset.metaCol));
+    const all = metadataCells();
+    all.forEach(cell => cell.classList.remove("vb-meta-selected", "vb-meta-selection-anchor"));
+    vbSelectedMetaCells = all.filter(cell => {
+        const row = Number(cell.dataset.metaRow);
+        const col = Number(cell.dataset.metaCol);
+        return row >= minRow && row <= maxRow && col >= minCol && col <= maxCol;
+    });
+    vbSelectedMetaCells.forEach(cell => cell.classList.add("vb-meta-selected"));
+    anchor.classList.add("vb-meta-selection-anchor");
+    vbMetaCurrentCell = current;
+}
+
+function selectMetadataColumn(col) {
+    clearMetadataSelection();
+    vbSelectedMetaCells = metadataCells().filter(cell => Number(cell.dataset.metaCol) === Number(col));
+    vbSelectedMetaCells.forEach(cell => cell.classList.add("vb-meta-selected"));
+    vbMetaAnchorCell = vbSelectedMetaCells[0] || null;
+    vbMetaCurrentCell = vbSelectedMetaCells[vbSelectedMetaCells.length - 1] || null;
+    vbMetaAnchorCell?.classList.add("vb-meta-selection-anchor");
+    document.getElementById("vbMetadataTable")?.focus();
+}
+
+function focusMetadataCellForEdit(cell, selectAll = false) {
+    if (!metadataCellEditable(cell)) {
+        cell.focus();
+        return;
+    }
+    // Nếu ô đã được focus rồi và không phải lệnh double-click chọn tất cả,
+    // hãy để trình duyệt tự động đặt con trỏ tại vị trí click tự nhiên của người dùng
+    if (document.activeElement === cell && !selectAll) return;
+
+    cell.focus();
+    const range = document.createRange();
+    range.selectNodeContents(cell);
+    if (!selectAll) {
+        range.collapse(true); // Đổi false thành true để đưa con trỏ về đầu dòng làm mặc định khi kích hoạt focus mới
+    }
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+}
+
+function metadataSelectionBounds() {
+    const selected = vbSelectedMetaCells.length ? vbSelectedMetaCells : (vbMetaCurrentCell ? [vbMetaCurrentCell] : []);
+    if (!selected.length) return null;
+    const rows = selected.map(c => Number(c.dataset.metaRow));
+    const cols = selected.map(c => Number(c.dataset.metaCol));
+    return {minRow: Math.min(...rows), maxRow: Math.max(...rows), minCol: Math.min(...cols), maxCol: Math.max(...cols)};
+}
+
+function stripMetadataBullet(value) {
+    return String(value || "").replace(/^\s*(?:[-*+•▪◦●‣⁃]|\d+[.)]|[a-zA-Z][.)])\s*/, "").trim();
+}
+
+function clipboardMetadataMatrix(clipboardData) {
+    const html = clipboardData?.getData("text/html") || "";
+    const plain = clipboardData?.getData("text/plain") || "";
+    if (html) {
+        const temp = document.createElement("div");
+        temp.innerHTML = html;
+        const sourceTable = temp.querySelector("table");
+        if (sourceTable) {
+            const matrix = Array.from(sourceTable.rows).map(row => Array.from(row.cells).map(cell => stripMetadataBullet(cell.innerText)));
+            if (matrix.length) return matrix;
+        }
+        const listItems = Array.from(temp.querySelectorAll("li")).map(li => [stripMetadataBullet(li.innerText)]);
+        if (listItems.length) return listItems;
+    }
+    const rows = plain.replace(/\r/g, "").split("\n").filter(line => line.trim() !== "");
+    return rows.map(line => line.split("\t").map(stripMetadataBullet));
+}
+
+function normalizeMetadataPasteMatrix(matrix, bounds) {
+    if (!matrix.length) return matrix;
+    const selectedCols = bounds ? bounds.maxCol - bounds.minCol + 1 : 1;
+    if (selectedCols >= 2 && matrix.every(row => row.length === 1)) {
+        const colonRows = matrix.map(row => {
+            const value = row[0];
+            const match = value.match(/^([^:：]+)[:：]\s*(.*)$/);
+            return match ? [match[1].trim(), match[2].trim()] : row;
+        });
+        if (colonRows.some(row => row.length === 2)) return colonRows;
+    }
+    return matrix;
+}
+
+function pasteMetadataMatrix(matrix) {
+    if (!matrix.length) return;
+    let bounds = metadataSelectionBounds();
+    if (!bounds) {
+        const first = metadataCells().find(metadataCellEditable);
+        if (!first) return;
+        bounds = {minRow: Number(first.dataset.metaRow), maxRow: Number(first.dataset.metaRow), minCol: Number(first.dataset.metaCol), maxCol: Number(first.dataset.metaCol)};
+    }
+    matrix = normalizeMetadataPasteMatrix(matrix, bounds);
+    const all = metadataCells();
+
+    if (matrix.length === 1 && matrix[0].length === 1 && vbSelectedMetaCells.length > 1) {
+        vbSelectedMetaCells.forEach(cell => { if (metadataCellEditable(cell)) cell.textContent = matrix[0][0]; });
+    } else {
+        matrix.forEach((rowValues, rowOffset) => {
+            rowValues.forEach((value, colOffset) => {
+                const row = bounds.minRow + rowOffset;
+                const col = bounds.minCol + colOffset;
+                const target = all.find(cell => Number(cell.dataset.metaRow) === row && Number(cell.dataset.metaCol) === col);
+                if (target && metadataCellEditable(target)) target.textContent = value;
+            });
+        });
+    }
+    if (vbActiveImage) writeImageMetadata(vbActiveImage, collectMetadataFromGrid());
+    markImageDirty(true);
+}
+
+function metadataSelectionAsMatrix() {
+    const bounds = metadataSelectionBounds();
+    if (!bounds) return [];
+    const all = metadataCells();
+    const rows = [];
+    for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
+        const row = [];
+        for (let c = bounds.minCol; c <= bounds.maxCol; c++) {
+            const cell = all.find(item => Number(item.dataset.metaRow) === r && Number(item.dataset.metaCol) === c);
+            row.push(cell?.innerText?.trim() || "");
+        }
+        rows.push(row);
+    }
+    return rows;
+}
+
+function initMetadataGridClipboard() {
+    const table = document.getElementById("vbMetadataTable");
+    if (!table || table.dataset.ready === "1") return;
+    table.dataset.ready = "1";
+    const cells = metadataCells();
+    
+cells.forEach((cell, index) => {
+        cell.dataset.metaRow = String(Math.floor(index / 2));
+        cell.dataset.metaCol = String(index % 2);
+        
+        cell.addEventListener("mousedown", e => {
+            if (e.button !== 0) return;
+
+            if (e.shiftKey && vbMetaAnchorCell) {
+                e.preventDefault();
+                selectMetadataRectangle(vbMetaAnchorCell, cell);
+                document.getElementById("vbMetadataTable").focus();
+                return;
+            }
+
+            // [SỬA LỖI]: Bỏ lệnh return khi ô đang focus.
+            // Luôn ghi nhận trạng thái bắt đầu quét mảng.
+            vbMetaDragSelecting = true;
+            vbMetaAnchorCell = cell;
+            selectMetadataRectangle(cell, cell);
+            
+            // Nếu ô CHƯA được focus, ta chặn text selection và ép focus vào bảng
+            // Nếu ô ĐANG được focus (đang gõ), ta KHÔNG chặn (để user có thể click chọn vị trí text)
+            if (document.activeElement !== cell) {
+                document.getElementById("vbMetadataTable").focus();
+                e.preventDefault(); 
+            }
+        });
+        
+        cell.addEventListener("mouseenter", () => {
+            // [SỬA LỖI]: Bỏ điều kiện cấm quét khi ô đang active
+            if (vbMetaDragSelecting && vbMetaAnchorCell) {
+                // Nếu rê chuột sang ô khác, lập tức giấu con trỏ văn bản đi để ưu tiên giao diện quét mảng
+                if (document.activeElement && document.activeElement.classList.contains('vb-meta-cell')) {
+                    document.activeElement.blur();
+                    document.getElementById("vbMetadataTable").focus();
+                }
+                selectMetadataRectangle(vbMetaAnchorCell, cell);
+            }
+        });
+        
+        cell.addEventListener("dblclick", e => {
+            e.preventDefault();
+            focusMetadataCellForEdit(cell, true);
+        });
+        
+        cell.addEventListener("keydown", e => {
+            if ((e.key === "Enter" || e.key === "F2") && metadataCellEditable(cell)) {
+                e.preventDefault();
+                focusMetadataCellForEdit(cell, false);
+            }
+        });
+        
+        cell.addEventListener("input", () => {
+            if (vbActiveImage) writeImageMetadata(vbActiveImage, collectMetadataFromGrid());
+            markImageDirty(true);
+        });
+    });
+
+    table.querySelectorAll(".vb-meta-column-head[data-meta-col-select]").forEach(head => {
+        head.addEventListener("mousedown", e => {
+            if (e.target.closest("#vbMetaLabelLockBtn")) return;
+            e.preventDefault();
+
+            const targetCol = Number(head.dataset.metaColSelect);
+
+            // [CẬP NHẬT] Hỗ trợ Shift + Click chọn liên kết đa cột (chọn 2 cột)
+            if (e.shiftKey && vbMetaAnchorCell) {
+                const startCol = Number(vbMetaAnchorCell.dataset.metaCol);
+                const allCells = metadataCells();
+                
+                const minCol = Math.min(startCol, targetCol);
+                const maxCol = Math.max(startCol, targetCol);
+                
+                const topAnchor = allCells.find(c => Number(c.dataset.metaRow) === 0 && Number(c.dataset.metaCol) === minCol);
+                const maxColCells = allCells.filter(c => Number(c.dataset.metaCol) === maxCol);
+                const bottomTarget = maxColCells[maxColCells.length - 1];
+
+                if (topAnchor && bottomTarget) {
+                    selectMetadataRectangle(topAnchor, bottomTarget);
+                    document.getElementById("vbMetadataTable").focus();
+                }
+            } else {
+                selectMetadataColumn(targetCol);
+            }
+        });
+    });
+
+    // [CẬP NHẬT] Xóa logic tự động ép trỏ chuột vào ô khi nhả chuột
+    document.addEventListener("mouseup", () => {
+        if (!vbMetaDragSelecting) return;
+        vbMetaDragSelecting = false;
+        // Bỏ dòng focusMetadataCellForEdit ở đây để click 1 lần không bị nháy con trỏ
+    });
+
+    table.addEventListener("paste", e => {
+        if (document.activeElement && document.activeElement.classList.contains('vb-meta-cell') && vbSelectedMetaCells.length <= 1) {
+            return; 
+        }
+        const matrix = clipboardMetadataMatrix(e.clipboardData);
+        if (!matrix.length) return;
+        e.preventDefault();
+        pasteMetadataMatrix(matrix); // Hàm này đã có sẵn logic rải dữ liệu theo chiều dọc/ngang rất tốt
+    });
+
+    table.addEventListener("copy", e => {
+        if (document.activeElement && document.activeElement.classList.contains('vb-meta-cell') && vbSelectedMetaCells.length <= 1) {
+            const sel = window.getSelection();
+            if (!sel.isCollapsed) return; 
+        }
+        const matrix = metadataSelectionAsMatrix();
+        if (!matrix.length) return;
+        e.preventDefault();
+        const text = matrix.map(row => row.join("\t")).join("\n");
+        const html = '<table>' + matrix.map(row => '<tr>' + row.map(value => `<td>${escapeHtmlText(value)}</td>`).join('') + '</tr>').join('') + '</table>';
+        e.clipboardData.setData("text/plain", text);
+        e.clipboardData.setData("text/html", html);
+    });
+
+    table.addEventListener("cut", e => {
+        if (document.activeElement && document.activeElement.classList.contains('vb-meta-cell') && vbSelectedMetaCells.length <= 1) {
+            const sel = window.getSelection();
+            if (!sel.isCollapsed) return;
+        }
+        const matrix = metadataSelectionAsMatrix();
+        if (!matrix.length) return;
+        e.preventDefault();
+        e.clipboardData.setData("text/plain", matrix.map(row => row.join("\t")).join("\n"));
+        vbSelectedMetaCells.forEach(cell => { if (metadataCellEditable(cell)) cell.textContent = ""; });
+        if (vbActiveImage) writeImageMetadata(vbActiveImage, collectMetadataFromGrid());
+        markImageDirty(true);
+    });
+
+    setMetadataLabelLock(false);
+}
+
+function sanitizeUploadFileName(name, fallback) {
+    const clean = String(name || fallback || "image")
+        .replace(/[\\/:*?"<>|#%{}\[\]~]/g, "-")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^\.+/, "")
+        .slice(0, 180);
+    return clean || "image";
+}
+
+function inferExtensionFromSource(source, mime) {
+    const mimeMap = {
+        "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+        "image/gif": "gif", "image/svg+xml": "svg", "image/avif": "avif"
+    };
+    if (mimeMap[mime]) return mimeMap[mime];
+    const match = String(source || "").match(/\.([a-zA-Z0-9]{2,5})(?:[?#]|$)/);
+    return match ? match[1].toLowerCase() : "jpg";
+}
+
+function getUploadSourceForImage(img) {
+    if (img.dataset.archivedDrive === "1" && img.dataset.driveUrl && img.dataset.driveFileId) return "";
+    const original = img.dataset.originalSource || img.dataset.driveUrl || img.getAttribute("src") || "";
+    if (original.startsWith(location.origin + DRIVE_IMAGE_PROXY_ENDPOINT)) return img.dataset.driveUrl || "";
+    return original;
+}
+
+async function uploadImageBatch(postId, images) {
+    const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {"Content-Type": "text/plain;charset=utf-8"},
+        body: JSON.stringify({
+            action: "UPLOAD_POST_IMAGES",
+            postId,
+            folderId: POST_IMAGE_SHARED_DRIVE_FOLDER_ID,
+            images
+        })
+    });
+    const json = await response.json();
+    if (!json || !Array.isArray(json.files)) {
+        throw new Error(json?.error || "Phản hồi lưu ảnh từ Apps Script không hợp lệ.");
+    }
+    return json.files;
+}
+
+async function uploadAllPendingPostImages(postId) {
+    const coverImages = Array.from(document.querySelectorAll("#coverEditor img"));
+    const contentImages = Array.from(document.querySelectorAll("#postContent img.vb-managed-image, #postContent img"));
+    const allImages = [...coverImages, ...contentImages];
+
+    hydrateManagedImages(document.getElementById("coverEditor"), "cover");
+    hydrateManagedImages(document.getElementById("postContent"), "content");
+
+    const remotePending = allImages.find(img => img.dataset.pendingRemoteImage === "1");
+    if (remotePending) {
+        throw new Error("Có ảnh từ thiết bị khác vẫn đang chờ được lưu vào Drive. Hãy chờ máy đang chỉnh sửa hoàn tất lưu bài rồi thử lại.");
+    }
+    const localPending = allImages.find(img => img.dataset.isLocalUpload === "true");
+    if (localPending) {
+        throw new Error("Ảnh của bạn đang được tải ngầm lên Drive. Vui lòng chờ vài giây để hệ thống xử lý xong rồi bấm Lưu lại nhé!");
+    }
+
+    const pending = [];
+allImages.forEach((img, index) => {
+    const source = getUploadSourceForImage(img);
+    
+    // 1. CHẶN CÁC ẢNH RÁC, ẢNH BÓNG MA
+    if (!source) return; // Bỏ qua ảnh không có nguồn
+    if (source.trim() === "" || source.startsWith("file://")) return; // Bỏ qua ảnh rỗng hoặc ảnh copy từ ổ cứng máy tính chưa qua xử lý
+    
+    // 2. CHẶN ẢNH TRACKING PIXEL (Kích thước <= 5px thường là rác copy từ web khác)
+    const rect = img.getBoundingClientRect();
+    if (rect.width > 0 && rect.width <= 5 && rect.height > 0 && rect.height <= 5) {
+        return; 
+    }
+
+    // ... giữ nguyên phần code xử lý meta bên dưới ...
+
+        const metadata = readImageMetadata(img);
+        const mimeMatch = source.match(/^data:([^;,]+)/i);
+        const mimeType = mimeMatch ? mimeMatch[1] : "";
+        let fileName = metadata.fileName;
+        if (!/\.[a-zA-Z0-9]{2,5}$/.test(fileName || "")) {
+            const role = img.closest("#coverEditor") ? "cover" : "content";
+            fileName = `${postId}-${role}-${index + 1}.${inferExtensionFromSource(source, mimeType)}`;
+        }
+
+        pending.push({
+            clientId: img.dataset.imageId || (img.dataset.imageId = createImageClientId()),
+            role: img.closest("#coverEditor") ? "cover" : "content",
+            source,
+            mimeType,
+            fileName: sanitizeUploadFileName(fileName, `${postId}-image-${index + 1}.jpg`),
+            metadata
+        });
+    });
+
+    if (!pending.length) return;
+
+    const byClientId = new Map(allImages.map(img => [img.dataset.imageId, img]));
+    const statusBox = document.getElementById("vbImageUploadStatus");
+
+    // Gửi từng ảnh để tránh giới hạn payload khi bài có nhiều base64 lớn.
+    for (let i = 0; i < pending.length; i++) {
+        if (statusBox) {
+            statusBox.style.display = "block";
+            statusBox.textContent = `Đang lưu ảnh ${i + 1}/${pending.length} vào Shared Drive...`;
+        }
+
+        const files = await uploadImageBatch(postId, [pending[i]]);
+        const result = files[0];
+        if (!result?.success) throw new Error(result?.error || `Không lưu được ảnh ${i + 1}.`);
+
+        const img = byClientId.get(result.clientId);
+        if (!img) continue;
+        img.dataset.driveFileId = result.fileId;
+        img.dataset.driveUrl = result.driveUrl;
+        img.dataset.originalSource = "";
+        img.dataset.archivedDrive = "1";
+        img.classList.remove("vb-image-pending");
+        img.src = runtimeImageUrl(result.driveUrl);
+    }
+
+    if (statusBox) {
+        statusBox.textContent = "Đã lưu toàn bộ ảnh vào Shared Drive.";
+        setTimeout(() => statusBox.style.display = "none", 1500);
+    }
+}
+
+function serializeEditorContentForSheet() {
+    const clone = document.getElementById("postContent").cloneNode(true);
+    clone.querySelectorAll(".vb-image-frame").forEach(frame => frame.classList.remove("vb-image-active", "vb-crop-dragging"));
+ clone.querySelectorAll(".vb-selected-cell").forEach(cell => cell.classList.remove("vb-selected-cell"));
+    clone.querySelectorAll("img").forEach(img => {
+        const driveUrl = img.dataset.driveUrl || normalizeDriveUrlForSheet(img.getAttribute("src") || "");
+        img.setAttribute("src", driveUrl);
+        img.removeAttribute("data-vb-bound");
+        img.classList.remove("vb-image-active", "vb-image-pending");
+    });
+    return clone.innerHTML;
+}
+
+function serializeRealtimeSafeHtml(element) {
+    if (!element) return "";
+    const clone = element.cloneNode(true);
+    clone.querySelectorAll(".vb-image-frame").forEach(frame => frame.classList.remove("vb-image-active", "vb-crop-dragging"));
+    clone.querySelectorAll(".vb-selected-cell").forEach(cell => cell.classList.remove("vb-selected-cell"));
+
+    // [BẢN VÁ]: Lấy chính xác Tên hoặc Gmail của người dùng hiện tại từ bộ nhớ hệ thống
+    let rawEmail = localStorage.getItem('admin_email');
+    let uEmail = (rawEmail && rawEmail !== "undefined" && rawEmail !== "null") ? rawEmail : "Ẩn danh";
+    let rawName = localStorage.getItem('admin_name');
+    let uName = (rawName && rawName !== "undefined" && rawName !== "null") ? rawName : uEmail.split('@')[0];
+    let placeholderText = `${uName} đang chèn ảnh`;
+
+    clone.querySelectorAll("img").forEach(img => {
+        const driveUrl = img.dataset.driveUrl || "";
+        if (driveUrl) {
+            img.setAttribute("src", runtimeImageUrl(driveUrl));
+        } else if (img.dataset.isLocalUpload === "true" || /^data:image\//i.test(img.getAttribute("src") || "") || /^blob:/i.test(img.getAttribute("src") || "")) {
+            img.setAttribute("src", "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(
+                `<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540"><rect width="100%" height="100%" fill="#f4f6f8"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#888" font-family="Arial" font-size="24">${placeholderText}</text></svg>`
+            ));
+            img.dataset.pendingRemoteImage = "1";
+        }
+        img.removeAttribute("data-vb-bound");
+        img.classList.remove("vb-image-active");
+    });
+    return clone.innerHTML;
+}
+
+function prewarmPostImagesFromBrain(data) {
+    const sheet = data?.sheets?.["Bài viết_hidden"];
+    if (!sheet || !Array.isArray(sheet)) return;
+
+    const urls = new Set();
+    for (let r = 1; r < sheet.length; r++) {
+        if (sheet[r][3]) urls.add(sheet[r][3]);
+        if (sheet[r][4]) {
+            const temp = document.createElement("div");
+            temp.innerHTML = sheet[r][4];
+            temp.querySelectorAll("img[src]").forEach(img => urls.add(img.getAttribute("src")));
+        }
+    }
+
+    const list = Array.from(urls).filter(Boolean).slice(0, 120);
+    const warm = () => {
+        list.forEach((url, index) => {
+            setTimeout(() => {
+                const img = new Image();
+                img.decoding = "async";
+                img.loading = "eager";
+                img.src = runtimeImageUrl(url);
+            }, index * 35);
+        });
+    };
+
+    if ("requestIdleCallback" in window) requestIdleCallback(warm, {timeout: 1500});
+    else setTimeout(warm, 200);
+}
+
+// ---------- TẢI ẢNH KÈM METADATA XMP / PNG iTXt ----------
+function xmlEscape(value) {
+    return String(value ?? "").replace(/[<>&'"]/g, ch => ({
+        "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;"
+    }[ch]));
+}
+
+function buildXmpPacket(meta) {
+    return `<?xpacket begin="\uFEFF" id="W5M0MpCehiHzreSzNTczkc9d"?>` +
+`<x:xmpmeta xmlns:x="adobe:ns:meta/">` +
+`<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">` +
+`<rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/" xmlns:Iptc4xmpCore="http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/" xmlns:xmpRights="http://ns.adobe.com/xap/1.0/rights/">` +
+`<dc:title><rdf:Alt><rdf:li xml:lang="x-default">${xmlEscape(meta.title)}</rdf:li></rdf:Alt></dc:title>` +
+`<dc:description><rdf:Alt><rdf:li xml:lang="x-default">${xmlEscape(meta.description)}</rdf:li></rdf:Alt></dc:description>` +
+`<dc:creator><rdf:Seq><rdf:li>${xmlEscape(meta.author)}</rdf:li></rdf:Seq></dc:creator>` +
+`<dc:rights><rdf:Alt><rdf:li xml:lang="x-default">${xmlEscape(meta.copyright)}</rdf:li></rdf:Alt></dc:rights>` +
+`<photoshop:Headline>${xmlEscape(meta.caption)}</photoshop:Headline>` +
+`<Iptc4xmpCore:AltTextAccessibility><rdf:Alt><rdf:li xml:lang="x-default">${xmlEscape(meta.altText)}</rdf:li></rdf:Alt></Iptc4xmpCore:AltTextAccessibility>` +
+`<Iptc4xmpCore:Scene><rdf:Bag><rdf:li>${xmlEscape(meta.fileName)}</rdf:li></rdf:Bag></Iptc4xmpCore:Scene>` +
+`<xmpRights:Marked>True</xmpRights:Marked>` +
+`</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>`;
+}
+
+function concatUint8Arrays(parts) {
+    const total = parts.reduce((sum, part) => sum + part.length, 0);
+    const out = new Uint8Array(total);
+    let offset = 0;
+    parts.forEach(part => { out.set(part, offset); offset += part.length; });
+    return out;
+}
+
+function embedXmpIntoJpeg(bytes, meta) {
+    const prefix = new TextEncoder().encode("http://ns.adobe.com/xap/1.0/\0");
+    const xmp = new TextEncoder().encode(buildXmpPacket(meta));
+    const payload = concatUint8Arrays([prefix, xmp]);
+    if (payload.length + 2 > 65535) throw new Error("Metadata quá dài để nhúng vào JPEG.");
+
+    const segment = new Uint8Array(payload.length + 4);
+    segment[0] = 0xFF; segment[1] = 0xE1;
+    const length = payload.length + 2;
+    segment[2] = (length >> 8) & 0xFF;
+    segment[3] = length & 0xFF;
+    segment.set(payload, 4);
+
+    if (bytes[0] !== 0xFF || bytes[1] !== 0xD8) throw new Error("File không phải JPEG hợp lệ.");
+    return concatUint8Arrays([bytes.slice(0, 2), segment, bytes.slice(2)]);
+}
+
+function crc32(bytes) {
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) {
+        crc ^= bytes[i];
+        for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (0xEDB88320 & -(crc & 1));
+    }
+    return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+function makePngChunk(type, data) {
+    const typeBytes = new TextEncoder().encode(type);
+    const length = data.length;
+    const chunk = new Uint8Array(12 + length);
+    const view = new DataView(chunk.buffer);
+    view.setUint32(0, length);
+    chunk.set(typeBytes, 4);
+    chunk.set(data, 8);
+    view.setUint32(8 + length, crc32(concatUint8Arrays([typeBytes, data])));
+    return chunk;
+}
+
+function makePngITXtChunk(keyword, text) {
+    const enc = new TextEncoder();
+    const key = enc.encode(keyword.slice(0, 79));
+    const value = enc.encode(String(text || ""));
+    const data = concatUint8Arrays([
+        key, new Uint8Array([0, 0, 0, 0, 0]), value
+    ]);
+    return makePngChunk("iTXt", data);
+}
+
+function embedMetadataIntoPng(bytes, meta) {
+    const signature = bytes.slice(0, 8);
+    const chunks = [];
+    let offset = 8;
+    let inserted = false;
+
+    while (offset + 12 <= bytes.length) {
+        const view = new DataView(bytes.buffer, bytes.byteOffset + offset);
+        const length = view.getUint32(0);
+        const total = 12 + length;
+        const type = new TextDecoder().decode(bytes.slice(offset + 4, offset + 8));
+
+        if (type === "IEND" && !inserted) {
+            const entries = {
+                "FileName": meta.fileName,
+                "AltText": meta.altText,
+                "Caption": meta.caption,
+                "Title": meta.title,
+                "Description": meta.description,
+                "Author": meta.author,
+                "Copyright": meta.copyright
+            };
+            Object.entries(entries).forEach(([key, value]) => chunks.push(makePngITXtChunk(key, value)));
+            inserted = true;
+        }
+        chunks.push(bytes.slice(offset, offset + total));
+        offset += total;
+    }
+
+    return concatUint8Arrays([signature, ...chunks]);
+}
+
+async function convertBlobToPng(blob) {
+    const bitmap = await createImageBitmap(blob);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close?.();
+    const pngBlob = await new Promise((resolve, reject) => {
+        canvas.toBlob(result => result ? resolve(result) : reject(new Error("Không chuyển được ảnh sang PNG.")), "image/png");
+    });
+    return pngBlob;
+}
+
+async function downloadActiveImageWithMetadata() {
+    if (!vbActiveImage) return;
+    const img = vbActiveImage;
+    const meta = collectMetadataFromGrid();
+    writeImageMetadata(img, meta);
+
+    const status = document.getElementById("vbImageUploadStatus");
+    status.style.display = "block";
+    status.textContent = "Đang kết xuất ảnh theo khung cắt & scale...";
+
+    try {
+        const state = readImageFrameState(img);
+        const source = img.dataset.driveUrl ? runtimeImageUrl(img.dataset.driveUrl) : img.src;
+        
+        // 1. Tải ảnh gốc vào bộ nhớ với quyền CORS để Canvas có thể trích xuất pixel
+        const renderImg = new Image();
+        renderImg.crossOrigin = "Anonymous";
+        
+        await new Promise((resolve, reject) => {
+            renderImg.onload = resolve;
+            renderImg.onerror = () => reject(new Error("Lỗi tải ảnh (CORS). Nếu là link bên ngoài, server ảnh chặn quyền vẽ lại. Vui lòng dùng ảnh tải lên hoặc Google Drive."));
+            renderImg.src = source;
+        });
+
+        // 2. Lấy Kích thước & Áp dụng ép Scale % để ra số Pixel cuối cùng
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        
+        let cw = state.targetWidth || renderImg.naturalWidth;
+        let ch = state.targetHeight || renderImg.naturalHeight;
+        let scalePct = parseFloat(img.dataset.scalePercent);
+        if (isNaN(scalePct) || scalePct <= 0) scalePct = 100;
+
+        // Nếu ảnh đang ở chế độ Tự nhiên, trả về đúng pixel gốc
+        if (state.mode === "natural") {
+            cw = renderImg.naturalWidth;
+            ch = renderImg.naturalHeight;
+            scalePct = 100; 
+        }
+        
+        // Tính toán kích thước Pixel thật của file sẽ tải về
+        const scaleMultiplier = scalePct / 100;
+        canvas.width = Math.max(1, Math.round(cw * scaleMultiplier));
+        canvas.height = Math.max(1, Math.round(ch * scaleMultiplier));
+
+        // 3. Vẽ ảnh lên Canvas (Giả lập thuật toán CSS object-fit & object-position)
+        ctx.scale(scaleMultiplier, scaleMultiplier);
+
+        if (state.mode === "natural" || state.mode === "scale") {
+            ctx.drawImage(renderImg, 0, 0, cw, ch);
+        } else if (state.mode === "crop") {
+            // Thuật toán giả lập object-fit: cover
+            const coverScale = Math.max(cw / renderImg.naturalWidth, ch / renderImg.naturalHeight);
+            const sw = renderImg.naturalWidth * coverScale;
+            const sh = renderImg.naturalHeight * coverScale;
+            
+            const dx = sw - cw;
+            const dy = sh - ch;
+            
+            // Xê dịch ảnh dựa theo tỷ lệ kéo Pan của người dùng
+            const offsetX = (state.objectPosX / 100) * dx;
+            const offsetY = (state.objectPosY / 100) * dy;
+            
+            ctx.drawImage(renderImg, -offsetX, -offsetY, sw, sh);
+        }
+
+        // 4. Nhận diện định dạng & Xuất ảnh ra Blob
+        const extGuess = inferExtensionFromSource(source, ""); 
+        let mimeType = (extGuess === "png" || extGuess === "svg") ? "image/png" : "image/jpeg";
+        let extension = mimeType === "image/png" ? "png" : "jpg";
+
+        // MẸO: Nếu xuất JPEG, vẽ lót nền trắng phòng khi ảnh gốc PNG có vùng trong suốt
+        if (mimeType === "image/jpeg") {
+            ctx.globalCompositeOperation = "destination-over";
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, cw, ch);
+        }
+
+        const blob = await new Promise((resolve, reject) => {
+            // Đặt chất lượng nén JPG là 95% để nét nhất
+            canvas.toBlob(b => {
+                if (b) resolve(b); else reject(new Error("Lỗi tạo file ảnh từ Canvas."));
+            }, mimeType, 0.95);
+        });
+
+        // 5. Gắn Metadata (IPTC / EXIF) trực tiếp vào mã byte của bức ảnh mới
+        let bytes = new Uint8Array(await blob.arrayBuffer());
+        status.textContent = "Đang nhúng Metadata vào ảnh...";
+        
+        if (mimeType === "image/jpeg") {
+            bytes = embedXmpIntoJpeg(bytes, meta);
+        } else {
+            bytes = embedMetadataIntoPng(bytes, meta);
+        }
+
+        // 6. Xử lý tên file & Tải xuống
+        let fileName = sanitizeUploadFileName(meta.fileName || `image-${Date.now()}.${extension}`);
+        const currentExtMatch = fileName.match(/\.([a-zA-Z0-9]{2,5})$/);
+        const currentExt = currentExtMatch ? currentExtMatch[1].toLowerCase() : "";
+        const compatibleJpegExt = extension === "jpg" && (currentExt === "jpg" || currentExt === "jpeg");
+        if (!currentExt || (!compatibleJpegExt && currentExt !== extension)) {
+            fileName = fileName.replace(/\.[a-zA-Z0-9]{2,5}$/, "") + "." + extension;
+        }
+
+        const downloadBlob = new Blob([bytes], {type: mimeType});
+        const url = URL.createObjectURL(downloadBlob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+        status.textContent = "Đã tải xuống thành công!";
+        setTimeout(() => status.style.display = "none", 1500);
+
+    } catch (err) {
+        status.style.display = "none";
+        vbShowAlert("Không thể tải ảnh kết xuất:<br><br>" + escapeHtmlText(err.message || String(err)));
+    }
+}
+
+
+/* ====================================================================
+   ĐỘNG CƠ CỘNG TÁC & ĐỒNG BỘ SIÊU TỐC (V4.0 - MASTER CANVAS)
+==================================================================== */
+
+(function initRealtimeEngine() {
+    // 1. KHAI BÁO BIẾN CÁ NHÂN (1 TÀI KHOẢN = 1 ĐỊNH DANH DUY NHẤT)
+    let rawEmail = localStorage.getItem('admin_email');
+    const myEmail = (rawEmail && rawEmail !== "undefined") ? rawEmail : ('anon_' + Math.floor(Math.random()*1000) + '@gmail.com');
+    
+    let rawName = localStorage.getItem('admin_name');
+    const myName = (rawName && rawName !== "undefined" && rawName !== "null") ? rawName : myEmail.split('@')[0];
+    
+    const myAvatar = localStorage.getItem('admin_avatar') || 'https://i.postimg.cc/xCjmFrb4/Untitled-design.png';
+
+    // 2. BẮT ROOM ID
+    const urlParams = new URLSearchParams(window.location.search);
+    let roomId = urlParams.get('id');
+    if (!roomId) {
+        try {
+            let draft = JSON.parse(localStorage.getItem('DRAFT_POST_DATA'));
+            if (draft && draft.data && draft.data[0]) {
+                roomId = draft.data[0];
+                window.history.replaceState(null, '', '?id=' + encodeURIComponent(roomId));
+            }
+        } catch(e) {}
+    }
+    roomId = (roomId || 'DRAFT_ROOM_GENERAL').replace(/[\.\#\$\[\]]/g, '_');
+
+    // [GIẢI QUYẾT LỖI 1]: Khóa định danh thiết bị bằng email (Xóa random ID)
+    // Dù mở bao nhiêu tab hay thiết bị, 1 account chỉ tạo ra 1 Avatar & 1 Con trỏ
+    const safeUserKey = myEmail.replace(/[\.\#\$\[\]]/g, '_');
+
+    const PALETTE = ['#01adee', '#db1010', '#8e44ad', '#27ae60', '#d35400', '#f39c12', '#16a085', '#2980b9'];
+    let hash = 0; for(let i=0; i<myEmail.length; i++) hash = myEmail.charCodeAt(i) + ((hash << 5) - hash);
+    const myColor = PALETTE[Math.abs(hash) % PALETTE.length];
+
+    const firebaseConfig = {
+        databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/"
+    };
+
+    if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    
+    const roomRef = db.ref(`collab_rooms/${roomId}`);
+    const myPresenceRef = roomRef.child(`users/${safeUserKey}`);
+    const domSyncRef = roomRef.child(`dom_state`);
+    const imageMetaLiveRef = roomRef.child(`image_meta_subchannel`); 
+
+    // Báo danh vào phòng
+    myPresenceRef.set({
+        name: myName, email: myEmail, avatar: myAvatar, color: myColor,
+        x: -9999, y: -9999, updatedAt: firebase.database.ServerValue.TIMESTAMP
+    });
+    // Rời phòng khi đóng tab
+    myPresenceRef.onDisconnect().remove();
+
+    // --- [GIẢI QUYẾT LỖI 2]: CANVAS TỔNG THỂ ---
+    // Trước khi load data từ Sheet, kiểm tra xem Firebase đã có bản vẽ nào chưa
+    let isCanvasInitialized = false;
+    domSyncRef.once('value').then(snapshot => {
+        const domData = snapshot.val();
+        if (domData && domData.postContent) {
+            // Có dữ liệu tồn tại trên Firebase -> Kế thừa Canvas ngay lập tức
+            applyRemoteDOM(domData);
+            isCanvasInitialized = true;
+            console.log("📥 Đã kế thừa Canvas từ Firebase.");
+        } else {
+            // Chưa có dữ liệu trên Firebase -> Bắt đầu vẽ từ Local/Sheet
+            isCanvasInitialized = true;
+            if (typeof currentPostId !== "undefined" && currentPostId) {
+                loadPostIntoEditor(currentPostId); 
+            }
+            console.log("🆕 Tạo Canvas mới từ Sheet.");
+        }
+    });
+
+    // Vô hiệu hóa loadPostIntoEditor mặc định nếu Canvas Firebase đang được dùng
+    const origLoadPostIntoEditor = window.loadPostIntoEditor;
+    if (origLoadPostIntoEditor) {
+        window.loadPostIntoEditor = function(id) {
+            // Nếu Canvas Firebase đã có data, KHÔNG load đè từ sheet nữa
+            domSyncRef.once('value').then(snap => {
+                if (snap.exists() && snap.val().postContent) {
+                    console.log("🛡️ Bỏ qua load từ sheet vì Canvas Firebase đang giữ dữ liệu.");
+                    return;
+                }
+                origLoadPostIntoEditor.apply(this, arguments);
+            });
+        };
+    }
+
+    // --- HÀM BẢO TOÀN VỊ TRÍ CON TRỎ (Caret Preservation) ---
+    function getCaretCharacterOffsetWithin(el) {
+        let caretOffset = 0;
+        const sel = window.getSelection();
+        if (sel.rangeCount > 0) {
+            const range = sel.getRangeAt(0);
+            const preCaretRange = range.cloneRange();
+            preCaretRange.selectNodeContents(el);
+            preCaretRange.setEnd(range.endContainer, range.endOffset);
+            caretOffset = preCaretRange.toString().length;
+        }
+        return caretOffset;
+    }
+
+    function setCaretPositionWithin(el, offset) {
+        const sel = window.getSelection();
+        const range = document.createRange();
+        let charIndex = 0, found = false;
+
+        function walk(node) {
+            if (found) return;
+            if (node.nodeType === Node.TEXT_NODE) {
+                const next = charIndex + node.length;
+                if (offset <= next) {
+                    range.setStart(node, offset - charIndex);
+                    range.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                    found = true;
+                }
+                charIndex = next;
+            } else {
+                for (let i = 0; i < node.childNodes.length; i++) walk(node.childNodes[i]);
+            }
+        }
+        walk(el);
+    }
+
+    // --- TỌA ĐỘ CHUỘT TỶ LỆ PHẦN TRĂM (CHỐNG LỆCH ZOOM/RESIZE) ---
+    let lastMouseTime = 0;
+    const paperElem = document.getElementById('editorContainer');
+
+    function broadcastMouse(clientX, clientY) {
+        if (!paperElem || Date.now() - lastMouseTime < 35) return; 
+        lastMouseTime = Date.now();
+
+        const rect = paperElem.getBoundingClientRect();
+        
+        // Tính tọa độ theo %
+        const pctX = ((clientX - rect.left) / rect.width) * 100;
+        const pctY = ((clientY - rect.top) / rect.height) * 100;
+
+        myPresenceRef.update({ x: pctX, y: pctY, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+    }
+
+    window.addEventListener('mousemove', e => broadcastMouse(e.clientX, e.clientY));
+    window.addEventListener('touchmove', e => { if(e.touches[0]) broadcastMouse(e.touches[0].clientX, e.touches[0].clientY); });
+
+    function broadcastCaretPosition() {
+        if (!paperElem) return;
+        const activeEl = document.activeElement;
+        if (!activeEl) return;
+
+        const paperRect = paperElem.getBoundingClientRect();
+        let pctX = -9999; let pctY = -9999; let isValid = false;
+
+        if (activeEl.isContentEditable) {
+            const sel = window.getSelection();
+            if (sel.rangeCount > 0) {
+                const range = sel.getRangeAt(0);
+                const rect = range.getBoundingClientRect(); 
+                if (rect.left !== 0 && rect.top !== 0) {
+                    pctX = ((rect.left - paperRect.left) / paperRect.width) * 100;
+                    pctY = ((rect.bottom - paperRect.top) / paperRect.height) * 100;
+                    isValid = true;
+                }
+            }
+        } else if (['INPUT', 'TEXTAREA'].includes(activeEl.tagName)) {
+            const rect = activeEl.getBoundingClientRect();
+            pctX = ((rect.right - paperRect.left - 5) / paperRect.width) * 100; 
+            pctY = ((rect.bottom - paperRect.top) / paperRect.height) * 100;
+            isValid = true;
+        }
+
+        if (isValid) {
+            myPresenceRef.update({ x: pctX, y: pctY, updatedAt: firebase.database.ServerValue.TIMESTAMP });
+        }
+    }
+
+    ['keyup', 'input', 'mouseup', 'focusin'].forEach(evt => {
+        document.addEventListener(evt, () => { setTimeout(broadcastCaretPosition, 10); });
+    });
+
+    // --- BẮT REALTIME CHO BẢNG METADATA ẢNH ---
+    document.getElementById('vbMetadataTable')?.addEventListener('input', e => {
+        if (!vbActiveImage) return;
+        const metaCell = e.target.closest('.vb-meta-value');
+        if (!metaCell) return;
+
+        const payload = {
+            imageId: vbActiveImage.dataset.imageId,
+            metaKey: metaCell.dataset.metaKey,
+            text: metaCell.innerText.replace(/\u00a0/g, " ").trim(),
+            sender: safeUserKey
+        };
+        imageMetaLiveRef.set(payload);
+    });
+
+    // --- CAMERA GIÁM SÁT DOM ---
+    let isApplyingRemoteDOM = false;
+    let lastBroadcastedDOMHash = '';
+
+    const domCamera = new MutationObserver(() => {
+        if (isApplyingRemoteDOM || !isCanvasInitialized) return;
+
+        const payload = {
+            postTitle: document.getElementById('postTitle')?.innerHTML || '',
+            postSapo: document.getElementById('postSapo')?.innerHTML || '',
+            coverHtml: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('coverEditor')) : (document.getElementById('coverEditor')?.innerHTML || ''),
+            postContent: typeof serializeRealtimeSafeHtml === 'function' ? serializeRealtimeSafeHtml(document.getElementById('postContent')) : (document.getElementById('postContent')?.innerHTML || ''),
+            sender: safeUserKey,
+            timestamp: Date.now()
+        };
+
+        const currentHash = payload.postTitle + payload.postSapo + payload.coverHtml + payload.postContent;
+        if (currentHash !== lastBroadcastedDOMHash) {
+            lastBroadcastedDOMHash = currentHash;
+            domSyncRef.set(payload);
+        }
+    });
+
+    if (paperElem) {
+        domCamera.observe(paperElem, { childList: true, subtree: true, characterData: true, attributes: true });
+    }
+
+// --- LẮNG NGHE VÀ DÁN ĐÈ DOM TỪ LƯỚI REALTIME ---
+    function applyRemoteDOM(domData) {
+        isApplyingRemoteDOM = true;
+
+        function smartInject(elementId, incomingHtml) {
+            const el = document.getElementById(elementId);
+            if (!el || el.innerHTML === incomingHtml) return;
+
+            // [BẢN VÁ: GIẢI QUYẾT LỖI MẤT ẢNH BASE64 COLLAB]
+            // Cất giữ lại src của các ảnh base64 do chính máy này vừa chèn.
+            // Tránh việc bị "Khung chờ lưu" (placeholder) từ máy khác dội ngược về ghi đè.
+// [BẢN VÁ: GIẢI QUYẾT LỖI MẤT ẢNH COLLAB VÀ BẢO TOÀN ẢNH TẢI NGẦM]
+            const localPendingImages = {};
+            el.querySelectorAll('img').forEach(img => {
+                const src = img.getAttribute('src') || "";
+                const imgId = img.getAttribute('data-image-id');
+                
+                // Nhận diện cờ isLocalUpload hoặc link blob/base64
+                if (imgId && (img.dataset.isLocalUpload === "true" || src.startsWith('blob:') || src.startsWith('data:image/')) && !img.hasAttribute('data-pending-remote-image')) {
+                    localPendingImages[imgId] = { src: src, isLocal: img.dataset.isLocalUpload };
+                }
+            });
+
+            if (document.activeElement === el || el.contains(document.activeElement)) {
+                const caretPos = getCaretCharacterOffsetWithin(el);
+                el.innerHTML = incomingHtml;
+                setCaretPositionWithin(el, caretPos);
+            } else {
+                el.innerHTML = incomingHtml;
+            }
+
+            // [BẢN VÁ: PHỤC HỒI ẢNH GỐC CHO CHÍNH MÁY NÀY]
+            if (Object.keys(localPendingImages).length > 0) {
+                el.querySelectorAll('img').forEach(img => {
+                    const imgId = img.getAttribute('data-image-id');
+                    if (imgId && localPendingImages[imgId]) {
+                        img.setAttribute('src', localPendingImages[imgId].src);
+                        if(localPendingImages[imgId].isLocal === "true") {
+                            img.dataset.isLocalUpload = "true";
+                        }
+                        img.removeAttribute('data-pending-remote-image'); // Gỡ mác chờ lưu để ảnh hiển thị nét căng
+                    }
+                });
+            }
+        }
+
+        smartInject('postTitle', domData.postTitle);
+        smartInject('postSapo', domData.postSapo);
+        smartInject('coverEditor', domData.coverHtml !== undefined ? domData.coverHtml : (domData.coverUrl ? `<img src="${domData.coverUrl}" class="vb-managed-image" data-image-role="cover">` : ''));
+        
+        if (typeof TableEditor !== 'undefined' && typeof TableEditor.clearSelection === 'function') {
+            TableEditor.clearSelection();
+        }
+        
+        smartInject('postContent', domData.postContent);
+
+        if(typeof hydrateManagedImages === 'function') {
+            hydrateManagedImages(document.getElementById('coverEditor'), 'cover');
+            hydrateManagedImages(document.getElementById('postContent'), 'content');
+        }
+
+        if (vbActiveImage) {
+            let survivingId = vbActiveImage.dataset.imageId;
+            let revivedImgNode = document.querySelector(`img[data-image-id="${survivingId}"]`);
+            if (revivedImgNode) vbActiveImage = revivedImgNode;
+        }
+
+        setTimeout(() => { isApplyingRemoteDOM = false; }, 30);
+    }
+
+    domSyncRef.on('value', snapshot => {
+        const domData = snapshot.val();
+        if (!domData || domData.sender === safeUserKey) return;
+        applyRemoteDOM(domData);
+    });
+
+    // --- HIỂN THỊ AVATAR VÀ CON TRỎ CHUỘT ---
+    const usersListRef = roomRef.child(`users`);
+    const cursorsCanvas = document.getElementById('collab-cursors-layer');
+    const avtBar = document.getElementById('collabAvatarList');
+    let lastAvtHash = '';
+
+    usersListRef.on('value', snapshot => {
+        const users = snapshot.val() || {};
+
+        if(cursorsCanvas) {
+            Array.from(cursorsCanvas.children).forEach(c => {
+                if (!users[c.id.replace('cursor_', '')]) c.remove();
+            });
+        }
+
+        let activeEmails = Object.keys(users).sort().join('|');
+        if (activeEmails !== lastAvtHash && avtBar) {
+            lastAvtHash = activeEmails;
+            let avtHtml = ''; let c = 0;
+            for(let k in users) {
+                let p = users[k];
+                if(!p || !p.email || p.email === "undefined") continue; 
+                c++;
+                let safeName = (p.name && p.name !== "undefined") ? p.name : p.email.split('@')[0];
+                avtHtml += `<div class="collab-user-node" style="--peer-color: ${p.color}; z-index: ${c};"><img src="${p.avatar}" alt="${safeName}" referrerpolicy="no-referrer" onerror="this.src='https://i.postimg.cc/xCjmFrb4/Untitled-design.png'"><div class="collab-user-tooltip">${safeName}</div></div>`;
+            }
+            avtBar.innerHTML = avtHtml;
+        }
+
+        if(!cursorsCanvas || !paperElem) return;
+        const paperRect = paperElem.getBoundingClientRect();
+
+        for(let k in users) {
+            let peer = users[k];
+            if (!peer || !peer.email || peer.email === "undefined" || k === safeUserKey) continue;
+
+            let safePeerName = (peer.name && peer.name !== "undefined") ? peer.name : "Ẩn danh";
+
+            let cursorDom = document.getElementById(`cursor_${k}`);
+            if (!cursorDom) {
+                cursorDom = document.createElement('div');
+                cursorDom.id = `cursor_${k}`;
+                cursorDom.className = 'peer-cursor';
+                cursorDom.style.setProperty('--peer-color', peer.color);
+                cursorDom.innerHTML = `<svg class="peer-cursor-arrow" viewBox="0 0 32 32"><polygon points="0,0 32,16 16,20 12,32"/></svg><div class="peer-cursor-label">${safePeerName}</div>`;
+                cursorsCanvas.appendChild(cursorDom);
+            }
+
+            // Giải mã % tọa độ ra pixel dựa trên kích thước khung hiện tại
+            let actualX = (peer.x / 100) * paperRect.width;
+            let actualY = (peer.y / 100) * paperRect.height;
+
+            cursorDom.style.transform = `translate(${actualX}px, ${actualY}px)`;
+        }
+    });
+
+    // --- NHẬN META ẢNH ---
+    imageMetaLiveRef.on('value', snapshot => {
+        const data = snapshot.val();
+        if (!data || data.sender === safeUserKey) return;
+
+        if (vbActiveImage && vbActiveImage.dataset.imageId === data.imageId) {
+            const targetTd = document.querySelector(`#vbMetadataTable .vb-meta-value[data-meta-key="${data.metaKey}"]`);
+            if (targetTd && document.activeElement !== targetTd) {
+                targetTd.textContent = data.text;
+            }
+            let currentMeta = readImageMetadata(vbActiveImage);
+            currentMeta[data.metaKey] = data.text;
+            writeImageMetadata(vbActiveImage, currentMeta);
+        } else {
+            let targetImgDom = document.querySelector(`img[data-image-id="${data.imageId}"]`);
+            if (targetImgDom) {
+                let currentMeta = readImageMetadata(targetImgDom);
+                currentMeta[data.metaKey] = data.text;
+                writeImageMetadata(targetImgDom, currentMeta);
+            }
+        }
+    });
+})();
+/* ====================================================================
+   BẢN CẬP NHẬT STUDIO ẢNH: CAROUSEL, SCALE %, REALTIME SYNC
+==================================================================== */
+let vbContentImagesList = [];
+let vbCurrentPopupIndex = 0;
+let vbPreviewDragState = null;
+
+// Hàm mở Popup ghi đè
+// Hàm mở Popup thông tin ảnh
+function openImageProperties(img) {
+    if (!img) return;
+    document.querySelectorAll(".vb-image-active").forEach(el => el.classList.remove("vb-image-active"));
+    vbActiveImage = img;
+    
+    // Thu thập danh sách ảnh nội dung (bỏ qua ảnh bìa)
+    vbContentImagesList = Array.from(document.querySelectorAll("#postContent img.vb-managed-image"));
+    let isCover = img.closest("#coverEditor") !== null;
+    
+    if (isCover) {
+        document.querySelector('.vb-preview-nav').style.display = 'none';
+        let syncCheckbox = document.getElementById('vbSyncAllCheckbox');
+        if (syncCheckbox) syncCheckbox.checked = false;
+    } else {
+        document.querySelector('.vb-preview-nav').style.display = 'flex';
+        vbCurrentPopupIndex = vbContentImagesList.indexOf(img);
+        if(vbCurrentPopupIndex === -1) { vbContentImagesList.unshift(img); vbCurrentPopupIndex = 0; }
+    }
+    
+    const frame = ensureManagedImageFrame(img, isCover ? "cover" : "content");
+    frame.classList.add("vb-image-active");
+    rememberImageInsertionTarget(isCover ? "cover" : "content");
+
+    // Nạp thông số của ảnh ĐƯỢC CHỌN vào Form
+    populateImagePropertiesForm(img, {resetHistory: true});
+    document.getElementById("vbImagePopupOverlay").style.display = "flex";
+    
+    updatePreviewUI();
+
+    // [BẢN VÁ QUAN TRỌNG]: Nếu mở ảnh mà Nút Đồng Bộ ĐANG BẬT -> Lập tức ép tất cả ảnh khác khớp với Form
+    if (!isCover && document.getElementById('vbSyncAllCheckbox').checked) {
+        syncStateToAllImages();
+    }
+}
+
+// Hàm chuyển ảnh bằng nút < >
+function vbNavigatePopupImage(direction) {
+    if(vbContentImagesList.length <= 1) return;
+    
+    if(vbActiveImage) {
+        writeImageMetadata(vbActiveImage, collectMetadataFromGrid());
+        vbActiveImage.closest('.vb-image-frame').classList.remove("vb-image-active");
+    }
+
+    vbCurrentPopupIndex += direction;
+    if(vbCurrentPopupIndex < 0) vbCurrentPopupIndex = vbContentImagesList.length - 1;
+    if(vbCurrentPopupIndex >= vbContentImagesList.length) vbCurrentPopupIndex = 0;
+    
+    vbActiveImage = vbContentImagesList[vbCurrentPopupIndex];
+    
+    const newFrame = ensureManagedImageFrame(vbActiveImage, "content");
+    newFrame.classList.add("vb-image-active");
+    newFrame.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    // Cập nhật lại form lấy thông số ĐÚNG CỦA ẢNH MỚI
+    populateImagePropertiesForm(vbActiveImage, {resetHistory: true});
+    updatePreviewUI();
+
+    // [BẢN VÁ QUAN TRỌNG]: NẾU nút Đồng Bộ ĐANG BẬT -> Lấy thông số của ảnh mới này áp đặt ngay cho toàn bài
+    if (document.getElementById('vbSyncAllCheckbox').checked) {
+        syncStateToAllImages();
+    }
+}
+// Cập nhật giao diện Preview bên trái
+function updatePreviewUI() {
+    if(!vbActiveImage) return;
+    document.getElementById('vbPreviewCounter').innerText = `Ảnh ${vbCurrentPopupIndex + 1} / ${vbContentImagesList.length}`;
+    
+    const state = readImageFrameState(vbActiveImage);
+    const previewFrame = document.getElementById('vbPreviewFrame');
+    const previewImg = document.getElementById('vbPreviewImg');
+    
+    // Nạp nguồn ảnh
+    previewImg.src = vbActiveImage.src;
+    
+    // Đồng bộ thuộc tính CSS từ Editor sang Preview
+    let scalePct = vbActiveImage.dataset.scalePercent || "100";
+    document.getElementById('vbScalePercent').value = scalePct;
+    
+    // Áp dụng scale % cho width của frame (nằm trong ô trắng)
+    previewFrame.style.width = scalePct + "%";
+    
+    if (state.mode === "crop" || state.mode === "scale") {
+        previewFrame.style.aspectRatio = `${state.targetWidth} / ${state.targetHeight}`;
+        previewImg.style.objectFit = state.mode === "crop" ? "cover" : "fill";
+        previewImg.style.objectPosition = `${state.objectPosX}% ${state.objectPosY}%`;
+        previewFrame.className = `vb-preview-frame mode-${state.mode}`;
+    } else {
+        previewFrame.style.aspectRatio = "auto";
+        previewImg.style.objectFit = "contain";
+        previewImg.style.objectPosition = "center";
+        previewFrame.className = "vb-preview-frame";
+    }
+}
+
+// Ghi đè hàm applyFrameState để xử lý Scale %
+const originalApplyImageFrameState = applyImageFrameState;
+applyImageFrameState = function(img, state = {}) {
+    const frame = originalApplyImageFrameState(img, state);
+    if (!frame) return null;
+    
+    // Đọc và áp dụng thuộc tính scale %
+    let scalePct = parseFloat(img.dataset.scalePercent);
+    if(isNaN(scalePct) || scalePct <= 0) scalePct = 100;
+    
+    if (frame.dataset.imageRole !== "cover") {
+        frame.style.width = `${scalePct}%`; // Ghi đè pixel bằng % so với bài viết
+    }
+    return frame;
+};
+
+// Hàm mới: Đồng bộ áp dụng Scale % thời gian thực
+function applyScalePercentRealtime() {
+    if (!vbActiveImage || vbRestoringImageHistory) return;
+    let pct = parseFloat(document.getElementById("vbScalePercent").value);
+    if (isNaN(pct) || pct <= 0) pct = 100;
+    if (pct > 100) pct = 100; // Giới hạn 100%
+    
+    vbActiveImage.dataset.scalePercent = pct;
+    
+    // Gọi lại để áp CSS
+    applyImageFrameState(vbActiveImage, readImageFrameState(vbActiveImage));
+    updatePreviewUI();
+    markImageDirty(true);
+    
+    if(document.getElementById('vbSyncAllCheckbox').checked) syncStateToAllImages();
+}
+
+// Hàm ép Đồng Bộ toàn bộ ảnh theo Form hiện tại
+// Hàm ép Đồng Bộ toàn bộ ảnh theo Form hiện tại
+function syncStateToAllImages() {
+    const syncChk = document.getElementById('vbSyncAllCheckbox');
+    if (!vbActiveImage || !syncChk || !syncChk.checked) return;
+    
+    // [VÁ LỖI]: Quét trực tiếp danh sách ảnh TƯƠI SỐNG từ DOM 
+    // (Đề phòng Firebase vừa ghi đè làm mảng cũ trở thành "bóng ma")
+    const liveImages = Array.from(document.querySelectorAll("#postContent img.vb-managed-image"));
+    
+    const targetWidth = parseFloat(document.getElementById("vbImgWidth").value) || 1;
+    const targetHeight = parseFloat(document.getElementById("vbImgHeight").value) || 1;
+    const ratioW = parseFloat(document.getElementById("vbRatioWidth").value) || 1;
+    const ratioH = parseFloat(document.getElementById("vbRatioHeight").value) || 1;
+    const masterScale = parseFloat(document.getElementById("vbScalePercent").value) || 100;
+    
+    const masterState = readImageFrameState(vbActiveImage);
+    
+    liveImages.forEach(img => {
+        // So sánh bằng ID thay vì Object để không bị lỗi nếu ảnh vừa bị Firebase tạo mới
+        if(img.dataset.imageId === vbActiveImage.dataset.imageId) return; 
+        
+        // Đồng bộ Scale %
+        img.dataset.scalePercent = masterScale;
+        
+        const currentState = readImageFrameState(img);
+        const newState = {
+            ...masterState,
+            targetWidth: targetWidth,
+            targetHeight: targetHeight,
+            ratioWidth: ratioW,
+            ratioHeight: ratioH,
+            // Giữ nguyên vùng kéo (Pan) của từng ảnh độc lập
+            objectPosX: currentState.objectPosX, 
+            objectPosY: currentState.objectPosY
+        };
+        
+        applyImageFrameState(img, newState);
+    });
+    
+    // Cập nhật lại mảng điều hướng để nút qua lại < > lấy đúng ảnh thật
+    vbContentImagesList = liveImages; 
+    
+    markImageDirty(true);
+}
+
+// Khởi tạo Event Listener cho ô Scale và checkbox
+const originalInitRealtime = initImagePropertyRealtimeControls;
+initImagePropertyRealtimeControls = function() {
+    originalInitRealtime(); // Gọi lại hàm cũ
+    
+    const scaleInp = document.getElementById('vbScalePercent');
+    const syncChk = document.getElementById('vbSyncAllCheckbox');
+    
+    if(scaleInp && !scaleInp.dataset.bound) {
+        scaleInp.dataset.bound = "1";
+        scaleInp.addEventListener('input', applyScalePercentRealtime);
+    }
+    
+    // Khi tích vào nút "Đồng bộ", lập tức áp dụng thông số hiện tại cho TẤT CẢ
+    if(syncChk && !syncChk.dataset.bound) {
+        syncChk.dataset.bound = "1";
+        syncChk.addEventListener('change', function() {
+            if(this.checked) syncStateToAllImages();
+        });
+    }
+    
+    // Đã xóa bỏ các dòng mã rác gán sự kiện input dư thừa ở đây
+};
+
+// ==========================================
+// THUẬT TOÁN KÉOẢNH BÊN TRONG CANVAS PREVIEW (PAN REALTIME)
+// ==========================================
+document.getElementById('vbPreviewFrame').addEventListener('mousedown', function(e) {
+    const state = readImageFrameState(vbActiveImage);
+    if(state.mode !== "crop") return;
+    
+    vbPreviewDragState = {
+        startX: e.clientX,
+        startY: e.clientY,
+        startPosX: state.objectPosX,
+        startPosY: state.objectPosY,
+        rect: this.getBoundingClientRect()
+    };
+    this.classList.add('active-drag');
+    e.preventDefault();
+});
+
+document.addEventListener('mousemove', function(e) {
+    if(!vbPreviewDragState) return;
+    const drag = vbPreviewDragState;
+    
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    
+    // Quy đổi khoảng cách kéo pixel thành phần trăm (%) của khung
+    const x = Math.min(100, Math.max(0, drag.startPosX - (dx / Math.max(1, drag.rect.width)) * 100));
+    const y = Math.min(100, Math.max(0, drag.startPosY - (dy / Math.max(1, drag.rect.height)) * 100));
+    
+    // Cập nhật Live lên Preview
+    document.getElementById('vbPreviewImg').style.objectPosition = `${x}% ${y}%`;
+    
+    // Đồng bộ Live ngược lại bài viết Editor
+    const frameInEditor = getManagedImageFrame(vbActiveImage);
+    if(frameInEditor) {
+        frameInEditor.dataset.objectPosX = x.toFixed(2);
+        frameInEditor.dataset.objectPosY = y.toFixed(2);
+        vbActiveImage.style.objectPosition = `${x}% ${y}%`;
+    }
+});
+
+document.addEventListener('mouseup', function() {
+    if(vbPreviewDragState) {
+        document.getElementById('vbPreviewFrame').classList.remove('active-drag');
+        vbPreviewDragState = null;
+        markImageDirty(true);
+    }
+});
+// ==========================================
+// TÍNH NĂNG CHỈNH TỶ LỆ RỘNG (%) RIÊNG CHO NỘI DUNG BÀI VIẾT
+// ==========================================
+function applyContentWidth() {
+    let input = document.getElementById("contentWidthInput");
+    let num = parseInt(input.value);
+    
+    // Ràng buộc giới hạn từ 10% đến 100% để giao diện không bị lỗi
+    if (isNaN(num)) num = 100;
+    if (num < 10) num = 10;
+    if (num > 100) num = 100;
+    
+    // Cập nhật lại số chuẩn vào ô input (lỡ người dùng nhập sai)
+    input.value = num;
+
+    // Chỉ áp dụng thuật toán ép Width % và căn giữa (Margin 0 auto) cho #postContent
+    let el = document.getElementById('postContent');
+    if (el) {
+        el.style.width = num + "%";
+        el.style.margin = "0 auto";
+        el.style.transition = "width 0.3s ease";
+    }
+
+    // Đánh dấu bài viết đã bị thay đổi để cảnh báo lưu
+    isVBDirty = true;
+    let syncStatus = document.getElementById('syncStatusVB');
+    if (syncStatus) {
+        syncStatus.innerHTML = "⚠️ Chưa lưu";
+        syncStatus.style.color = "var(--red)";
+    }
+}
+
+function updateContentWidth(delta) {
+    let input = document.getElementById("contentWidthInput");
+    let current = parseInt(input.value);
+    if (isNaN(current)) current = 100;
+    
+    // Cộng trừ giá trị và áp dụng
+    input.value = current + delta;
+    applyContentWidth();
+}
+// ==========================================
+// HỆ THỐNG THƯ VIỆN ẢNH ĐỘNG
+// ==========================================
+
+function saveImageLibrary(e) {
+    e.stopPropagation(); // Tránh làm đóng Dropdown
+    const nameInput = document.getElementById('vbLibName');
+    const urlInput = document.getElementById('vbLibUrl');
+    const name = nameInput.value.trim();
+    const url = urlInput.value.trim();
+
+    if(!name || !url) {
+        alert("Vui lòng nhập đủ Tên và Liên kết thư viện!");
+        return;
+    }
+
+    // Khởi tạo Sheet nếu chưa có
+    if (!sysData.sheets["Thư viện_hidden"]) {
+        sysData.tabOrder.push("Thư viện_hidden");
+        sysData.sheets["Thư viện_hidden"] = [["Tên thư viện", "Liên kết"]];
+        pushQueue({type:'MANAGE_TAB', action:'create', tab: "Thư viện_hidden"});
+        pushQueue({type:'SYNC_CELL', row: 1, col: 1, val: "Tên thư viện", tab: "Thư viện_hidden"});
+        pushQueue({type:'SYNC_CELL', row: 1, col: 2, val: "Liên kết", tab: "Thư viện_hidden"});
+    }
+
+    const tab = sysData.sheets["Thư viện_hidden"];
+    const newRow = tab.length;
+    tab.push([name, url]); // Cập nhật local
+
+    // Đẩy lệnh lưu lên Google Sheets
+    pushQueue({type:'STRUCTURAL', action:'insertRow', index: newRow+1, count: 1, tab: "Thư viện_hidden"});
+    pushQueue({type:'SYNC_CELL', row: newRow+1, col: 1, val: name, tab: "Thư viện_hidden"});
+    pushQueue({type:'SYNC_CELL', row: newRow+1, col: 2, val: url, tab: "Thư viện_hidden"});
+
+    // Xóa trắng ô nhập liệu và render lại
+    nameInput.value = "";
+    urlInput.value = "";
+    renderImageLibraries(); 
+}
+
+function renderImageLibraries() {
+    const container = document.getElementById('vbLibraryListContainer');
+    if(!container) return;
+    container.innerHTML = "";
+
+    const tab = sysData.sheets && sysData.sheets["Thư viện_hidden"];
+    if(!tab || tab.length <= 1) return; // Bỏ qua dòng tiêu đề
+
+    for(let i = 1; i < tab.length; i++) {
+        const name = tab[i][0];
+        const url = tab[i][1];
+        if(!name || !url) continue;
+
+        // Tạo id định danh riêng cho tab trình duyệt của thư viện này (bỏ dấu cách)
+        const targetWindowName = "libWindow_" + name.replace(/[^a-zA-Z0-9]/g, '');
+
+        const item = document.createElement('div');
+        item.className = "popup-item";
+        item.innerHTML = `<i class="fas fa-folder-open" style="color:#f39c12; width: 18px; text-align: center; margin-right: 5px;"></i> ${escapeHtmlText(name)}`;
+        
+        item.onclick = function() {
+            closeAllToolPopups();
+            
+            // Dùng tên cửa sổ cố định để trình duyệt tái sử dụng Tab nếu đã mở
+            window.open(url, targetWindowName);
+            setTimeout(() => window.focus(), 10);
+            
+            vbShowPrompt(`Thư viện <b>${escapeHtmlText(name)}</b> đã được mở.<br>Hãy sao chép liên kết ảnh và dán vào đây:`, imgUrl => {
+                if (imgUrl) insertManagedImage(createManagedImage(imgUrl.trim(), vbImageTargetMode, {}), vbImageTargetMode);
+            });
+        };
+        
+        container.appendChild(item);
+    }
+}
 // =========================================================================
-// CẦU NỐI CANVA STUDIO - HỆ THỐNG PROJECT THEO BÀI VIẾT
+// CẦU NỐI CANVAS STUDIO THEO PROJECT BÀI VIẾT - V2
 // =========================================================================
 
-function mktGetSafeUrlKey(url) {
+function mktHashText(str) {
     let hash = 0;
-    const str = String(url || "");
-    for (let i = 0; i < str.length; i++) {
-        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    const text = String(str || "");
+    for (let i = 0; i < text.length; i++) {
+        hash = ((hash << 5) - hash) + text.charCodeAt(i);
         hash |= 0;
     }
-    return 'page_img_' + Math.abs(hash);
+    return Math.abs(hash).toString(36);
+}
+
+function mktCssEscape(value) {
+    if (window.CSS && typeof CSS.escape === 'function') return CSS.escape(String(value || ""));
+    return String(value || "").replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+}
+
+// Giữ tên hàm cũ để không vỡ các nút/đoạn code đang gọi.
+function mktGetSafeUrlKey(url) {
+    return 'drive_img_' + mktHashText(url);
+}
+
+function mktGetSafeImageKey(postId, imageId, src) {
+    return 'post_img_' + mktHashText([postId || '', imageId || '', src || ''].join('|'));
+}
+
+function mktNormalizeImageSrcForCompare(src) {
+    const text = String(src || '').trim();
+    const driveId = (typeof extractDriveFileId === 'function') ? extractDriveFileId(text) : '';
+    if (driveId) return 'drive:' + driveId;
+    return text.replace(location.origin, '').replace(/^https?:\/\/[^/]+/i, '').replace(/[?#].*$/, '');
+}
+
+function mktGetStableImageSource(img) {
+    if (!img) return '';
+    return img.dataset.driveUrl || img.dataset.originalSource || img.getAttribute('src') || img.src || '';
+}
+
+function mktCollectPostImagesForCanvas(activeImg) {
+    const nodes = Array.from(document.querySelectorAll('#coverEditor img, #postContent img'));
+    const seen = new Set();
+    const postId = (typeof currentPostId !== 'undefined' && currentPostId) ? currentPostId : (localStorage.getItem('MKT_RETURN_POST_ID') || 'BAI_VIET_NHAP');
+
+    return nodes.map((img, index) => {
+        if (!img.dataset.imageId) {
+            img.dataset.imageId = (typeof createImageClientId === 'function') ? createImageClientId() : ('img_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7));
+        }
+        const role = img.closest('#coverEditor') ? 'cover' : 'content';
+        const src = mktGetStableImageSource(img);
+        const safeKey = mktGetSafeImageKey(postId, img.dataset.imageId, src);
+        const frame = (typeof getManagedImageFrame === 'function') ? getManagedImageFrame(img) : img.closest('.vb-image-frame');
+        const meta = (typeof readImageMetadata === 'function') ? readImageMetadata(img) : {};
+        const item = {
+            imageId: img.dataset.imageId,
+            role,
+            safeKey,
+            index,
+            name: meta.fileName || img.getAttribute('alt') || (role === 'cover' ? 'Ảnh bìa' : `Ảnh nội dung ${index + 1}`),
+            src,
+            driveUrl: img.dataset.driveUrl || '',
+            driveFileId: img.dataset.driveFileId || ((typeof extractDriveFileId === 'function') ? extractDriveFileId(img.dataset.driveUrl || src) : ''),
+            width: img.naturalWidth || img.width || (role === 'cover' ? 1280 : 1080),
+            height: img.naturalHeight || img.height || (role === 'cover' ? 800 : 1080),
+            frameState: (typeof readImageFrameState === 'function') ? readImageFrameState(img) : null,
+            scalePercent: img.dataset.scalePercent || (frame && frame.style.width && frame.style.width.includes('%') ? frame.style.width.replace('%', '') : '100'),
+            metadata: meta
+        };
+        const uniq = item.imageId || item.safeKey;
+        if (seen.has(uniq)) return null;
+        seen.add(uniq);
+        return item;
+    }).filter(Boolean);
 }
 
 function sendImageToCanvaStudio() {
-    if (!vbActiveImage) return alert("Không xác định được ảnh đang chọn!");
+    if (!vbActiveImage) return alert('Không xác định được ảnh đang chọn!');
 
-    const anchorSrc = vbActiveImage.getAttribute('src') || vbActiveImage.src;
-    const safeKey = mktGetSafeUrlKey(anchorSrc);
-    let pId = new URLSearchParams(window.location.search).get('id') || currentPostId || "BAI_VIET_GENERAL";
+    if (!vbActiveImage.dataset.imageId) {
+        vbActiveImage.dataset.imageId = (typeof createImageClientId === 'function') ? createImageClientId() : ('img_' + Date.now().toString(36));
+    }
+
+    const pId = (typeof currentPostId !== 'undefined' && currentPostId) ? currentPostId : ((draftData && draftData.data && draftData.data[0]) ? draftData.data[0] : 'BAI_VIET_NHAP');
+    currentPostId = pId;
+
+    const allImages = mktCollectPostImagesForCanvas(vbActiveImage);
+    const activeSource = mktGetStableImageSource(vbActiveImage);
+    const activeImageId = vbActiveImage.dataset.imageId;
+    const activeSafeKey = mktGetSafeImageKey(pId, activeImageId, activeSource);
+    const activeRole = vbActiveImage.closest('#coverEditor') ? 'cover' : 'content';
 
     const payload = {
+        version: 2,
         postId: pId,
-        safeKey: safeKey,
-        anchorSrc: anchorSrc,
-        src: anchorSrc,
-        width: vbActiveImage.naturalWidth || vbActiveImage.width || 1080,
-        height: vbActiveImage.naturalHeight || vbActiveImage.height || 1080
+        activeImageId,
+        activeRole,
+        activeSafeKey,
+        activeSrc: activeSource,
+        images: allImages,
+        openedAt: Date.now()
     };
 
     if (typeof closeImageProperties === 'function') closeImageProperties();
 
     localStorage.setItem('MKT_CANVA_BRIDGE_PAYLOAD', JSON.stringify(payload));
-    localStorage.setItem('MKT_ACTIVE_POST_ID', pId);
+    localStorage.setItem('MKT_CANVA_POST_ID', pId);
+    localStorage.setItem('MKT_CANVA_ACTIVE_IMAGE_ID', activeImageId);
+    localStorage.setItem('MKT_CANVA_SAFE_KEY', activeSafeKey);
+    localStorage.setItem('MKT_CANVA_ANCHOR_SRC', activeSource);
+    localStorage.setItem('MKT_RETURN_POST_ID', pId);
 
     if (window.parent && typeof window.parent.loadModule === 'function') {
         const imgTab = window.parent.document.querySelector('.menu-item-side[data-target="image"]');
         window.parent.loadModule('image.html', imgTab || undefined);
+    } else {
+        window.location.href = 'image.html';
     }
 }
 
-// LÍNH GÁC ĐÓN NHẬN ẢNH VÀ DỰNG THÀNH COMPONENT HIỂN THỊ DÀI HẠN
-function checkAndApplyStudioReturn() {
+function mktForceLoadReturnPost(postId) {
+    if (!postId) return false;
+    if (typeof currentPostId !== 'undefined' && currentPostId === postId) return true;
+    if (!sysData || !sysData.sheets || !sysData.sheets['Bài viết_hidden']) return false;
+    currentPostId = postId;
+    loadPostIntoEditor(postId);
+    return true;
+}
+
+function mktFindImageForStudioReturn(data) {
+    const imageId = data.imageId || data.originImageId || '';
+    const safeKey = data.safeKey || '';
+    const originSrc = data.originSrc || data.anchorSrc || '';
+    const originNorm = mktNormalizeImageSrcForCompare(originSrc);
+
+    if (imageId) {
+        const byId = document.querySelector(`#coverEditor img[data-image-id="${mktCssEscape(imageId)}"], #postContent img[data-image-id="${mktCssEscape(imageId)}"]`);
+        if (byId) return byId;
+    }
+
+    const allImages = Array.from(document.querySelectorAll('#coverEditor img, #postContent img'));
+    if (safeKey) {
+        const byKey = allImages.find(img => img.dataset.canvasSafeKey === safeKey || img.dataset.mktSafeKey === safeKey);
+        if (byKey) return byKey;
+    }
+
+    if (originNorm) {
+        return allImages.find(img => {
+            const current = mktGetStableImageSource(img);
+            const currentNorm = mktNormalizeImageSrcForCompare(current);
+            return currentNorm && (currentNorm === originNorm || current.includes(originSrc) || originSrc.includes(current));
+        }) || null;
+    }
+    return null;
+}
+
+async function checkAndApplyStudioReturn() {
     const raw = localStorage.getItem('MKT_CANVA_RETURN_PAYLOAD');
     if (!raw) return;
 
     try {
         const data = JSON.parse(raw);
-        const targetSrc = data.originSrc;
+        const postId = data.postId || localStorage.getItem('MKT_RETURN_POST_ID') || localStorage.getItem('MKT_CANVA_POST_ID') || '';
+        if (postId && !mktForceLoadReturnPost(postId)) return;
 
-        const allImages = Array.from(document.querySelectorAll('#editorContainer img, body img'));
-        
-        const targetImg = allImages.find(img => {
-            const curSrc = img.getAttribute('src') || img.src || "";
-            const origSrc = img.dataset.originDriveSrc || img.dataset.driveUrl || "";
-            return (curSrc && (curSrc === targetSrc || curSrc.includes(targetSrc) || targetSrc.includes(curSrc))) ||
-                   (origSrc && (origSrc === targetSrc || origSrc.includes(targetSrc)));
-        });
+        const targetImg = mktFindImageForStudioReturn(data);
+        if (!targetImg) return;
 
-        if (!targetImg) return; // Chờ trang blog render dữ liệu từ Sheet xong
-
-        const liveComp = document.createElement('img');
-        liveComp.src = data.screenshot || targetSrc;
-        liveComp.style.width = "100%";
-        liveComp.style.maxWidth = (data.pageWidth || 1080) + "px";
-        liveComp.setAttribute('width', data.pageWidth || 1080);
-        liveComp.setAttribute('height', data.pageHeight || 1080);
-
-        liveComp.className = "vb-managed-image mkt-live-canvas-component";
-        liveComp.dataset.isCanvasComponent = "true";
-        liveComp.dataset.originDriveSrc = targetSrc;
-        liveComp.dataset.imageId = targetImg.dataset.imageId || ('img_' + Date.now());
-
-        const frame = targetImg.closest('.vb-image-frame');
-        if (frame) {
-            frame.dataset.targetWidth = data.pageWidth;
-            frame.dataset.targetHeight = data.pageHeight;
-            targetImg.replaceWith(liveComp);
-        } else {
-            targetImg.parentNode.replaceChild(liveComp, targetImg);
+        const screenshot = data.screenshot || data.preview || '';
+        if (!screenshot) {
+            console.warn('Canvas Studio không trả về ảnh xuất. Payload:', data);
+            return;
         }
+
+        const role = data.role || (targetImg.closest('#coverEditor') ? 'cover' : 'content');
+        const imageId = data.imageId || targetImg.dataset.imageId || '';
+
+        targetImg.classList.add('vb-managed-image');
+        if (imageId) targetImg.dataset.imageId = imageId;
+        targetImg.dataset.imageRole = role;
+        targetImg.dataset.isCanvasComponent = 'true';
+        targetImg.dataset.canvasProjectId = postId;
+        targetImg.dataset.canvasPageId = data.pageId || '';
+        targetImg.dataset.canvasSafeKey = data.safeKey || '';
+        targetImg.dataset.originDriveSrc = data.originSrc || data.anchorSrc || targetImg.dataset.originDriveSrc || '';
+        targetImg.dataset.originalSource = screenshot;
+        targetImg.setAttribute('src', screenshot);
+        targetImg.removeAttribute('data-pending-remote-image');
+        targetImg.classList.remove('vb-image-pending');
+        delete targetImg.dataset.driveUrl;
+        delete targetImg.dataset.driveFileId;
+        delete targetImg.dataset.archivedDrive;
+        delete targetImg.dataset.isLocalUpload;
+
+        let mktFrame = null;
+        if (typeof ensureManagedImageFrame === 'function') {
+            mktFrame = ensureManagedImageFrame(targetImg, role, false);
+            if (mktFrame) {
+                mktFrame.dataset.imageMode = 'natural';
+                mktFrame.dataset.imageRole = role;
+                mktFrame.dataset.imageId = targetImg.dataset.imageId || '';
+                mktFrame.style.height = 'auto';
+                mktFrame.style.aspectRatio = 'auto';
+                mktFrame.style.overflow = 'visible';
+                mktFrame.style.width = role === 'cover' ? '100%' : ((targetImg.dataset.scalePercent || '100') + '%');
+            }
+            targetImg.style.position = 'relative';
+            targetImg.style.inset = 'auto';
+            targetImg.style.width = '100%';
+            targetImg.style.height = 'auto';
+            targetImg.style.maxWidth = '100%';
+            targetImg.style.objectFit = 'contain';
+            targetImg.style.objectPosition = '50% 50%';
+        }
+        if (typeof hydrateManagedImages === 'function') {
+            hydrateManagedImages(document.getElementById('coverEditor'), 'cover');
+            hydrateManagedImages(document.getElementById('postContent'), 'content');
+        }
+
+        isVBDirty = true;
+        const status = document.getElementById('syncStatusVB');
+        if (status) {
+            status.innerHTML = '⏳ Đã nhận ảnh từ Canvas, đang lưu bài...';
+            status.style.color = '#f39c12';
+        }
+
+        localStorage.removeItem('MKT_CANVA_RETURN_PAYLOAD');
+        localStorage.setItem('MKT_RETURN_POST_ID', postId || '');
 
         if (typeof markImageDirty === 'function') markImageDirty(true);
         if (typeof checkEditorChanges === 'function') checkEditorChanges();
-        liveComp.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
-        localStorage.removeItem('MKT_CANVA_RETURN_PAYLOAD');
-        if (typeof toast === 'function') toast('Đã cập nhật ảnh thiết kế vào bài!');
+        targetImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
+        if (data.autoSave !== false && typeof savePostToSheet === 'function') {
+            setTimeout(() => {
+                Promise.resolve(savePostToSheet()).catch(err => {
+                    console.error('Không thể tự lưu bài sau khi nhận Canvas:', err);
+                    if (status) {
+                        status.innerHTML = '⚠️ Đã thêm ảnh, nhưng chưa tự lưu được';
+                        status.style.color = 'var(--red)';
+                    }
+                });
+            }, 250);
+        }
     } catch(e) {
-        console.error("Lỗi hoàn trả Canvas:", e);
+        console.error('Lỗi nhận ảnh từ Canvas Studio:', e);
     }
 }
 
+// Quét đến khi post.html tải đúng bài và tìm được đúng data-image-id.
 setInterval(checkAndApplyStudioReturn, 350);
 </script>
+
 </body>
 </html>
