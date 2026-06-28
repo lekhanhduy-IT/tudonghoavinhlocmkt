@@ -5,8 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="light" />
   <title>Trình thiết kế đa layer - màu, page và Google Fonts</title>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -2789,354 +2787,116 @@ function bind(){
 
 try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.onmessage=e=>{const m=e.data;if(!m||m.clientId===state.clientId||m.type!=='doc-operation')return;state.applyingRemote=true;restore(m.after);state.applyingRemote=false;toast(`Đã đồng bộ: ${m.label||'thay đổi'}`)}}catch(e){}
 // ==========================================================================
-  // LÕI CANVAS PROJECT THEO BÀI VIẾT - MỖI ẢNH LÀ 1 PAGE
-  // ======================================================================
+  // LÕI CANVAS ĐỒNG BỘ REALTIME THEO Mỏ Neo URL (JSON BLUEPRINT)
+  // ==========================================================================
 
-  const MKT_FIREBASE_CONFIG = {
-    databaseURL: 'https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/'
-  };
-
-  function mktHashText(str) {
-    let hash = 0;
-    const text = String(str || '');
-    for (let i = 0; i < text.length; i++) {
-      hash = ((hash << 5) - hash) + text.charCodeAt(i);
-      hash |= 0;
-    }
-    return Math.abs(hash).toString(36);
-  }
-
-  function mktSafeFirebaseKey(value) {
-    return String(value || 'BAI_VIET_NHAP').replace(/[.#$\[\]/]/g, '_').slice(0, 160) || 'BAI_VIET_NHAP';
-  }
-
-  function mktEnsureFirebaseDb() {
-    try {
-      if (typeof firebase === 'undefined') return null;
-      if (!firebase.apps.length) firebase.initializeApp(MKT_FIREBASE_CONFIG);
-      return firebase.database();
-    } catch (err) {
-      console.warn('Không khởi tạo được Firebase Canvas Project:', err);
+  function getMktFirebaseRef(postId, safeKey) {
+      if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+          return firebase.database().ref(`canvas_designs/${postId}/${safeKey}`);
+      }
       return null;
-    }
   }
-
-  function getMktProjectRef(postId) {
-    const db = mktEnsureFirebaseDb();
-    return db ? db.ref(`canvas_design_projects/${mktSafeFirebaseKey(postId)}`) : null;
-  }
-
-  function mktProjectLocalKey(postId) {
-    return `MKT_CANVA_PROJECT_${mktSafeFirebaseKey(postId)}`;
-  }
-
-  function mktNormalizeBridgeImages(payload) {
-    if (Array.isArray(payload?.images) && payload.images.length) return payload.images;
-    const src = payload?.src || payload?.activeSrc || payload?.anchorSrc || '';
-    const imageId = payload?.activeImageId || payload?.imageId || payload?.safeKey || ('img_' + mktHashText(src));
-    return [{
-      imageId,
-      role: payload?.activeRole || 'content',
-      safeKey: payload?.safeKey || payload?.activeSafeKey || ('post_img_' + mktHashText(imageId + src)),
-      index: 0,
-      name: 'Ảnh bài viết',
-      src,
-      driveUrl: payload?.driveUrl || '',
-      driveFileId: payload?.driveFileId || '',
-      width: payload?.width || 1080,
-      height: payload?.height || 1080,
-      metadata: {}
-    }];
-  }
-
-  function mktImageSafeKey(postId, item) {
-    return item.safeKey || ('post_img_' + mktHashText([postId, item.imageId, item.src || item.driveUrl].join('|')));
-  }
-
-  function mktPageIdForImage(postId, item) {
-    return 'page_' + mktImageSafeKey(postId, item);
-  }
-
-  function mktImageSource(item) {
-    return item.src || item.driveUrl || item.preview || SAMPLE_SRC;
-  }
-
-  function mktCreatePageFromPostImage(postId, item, index) {
-    const safeKey = mktImageSafeKey(postId, item);
-    const w = clamp(Number(item.width) || 1080, 100, 5000);
-    const h = clamp(Number(item.height) || 1080, 100, 5000);
-    const src = mktImageSource(item);
-    const roleLabel = item.role === 'cover' ? 'Ảnh bìa' : 'Ảnh nội dung';
-    const layer = baseLayer('image', {
-      id: uid('post-image-layer'),
-      name: item.name || `${roleLabel} ${index + 1}`,
-      src,
-      assetId: 'post-' + (item.imageId || safeKey),
-      x: 0,
-      y: 0,
-      width: w,
-      height: h,
-      filters: defaultFilters(),
-      cropX: 50,
-      cropY: 50,
-      mktOriginImageId: item.imageId || '',
-      mktOriginRole: item.role || 'content',
-      mktOriginSrc: src,
-      mktSafeKey: safeKey
-    });
-    const doc = createPageDocument({
-      id: mktPageIdForImage(postId, item),
-      name: `${roleLabel} ${index + 1}`,
-      page: { width: w, height: h, background: '#ffffff' },
-      layers: [layer],
-      groups: {},
-      comments: [],
-      pageDuration: state.pageDuration || 8,
-      preview: ''
-    });
-    doc.mktImage = {
-      postId,
-      imageId: item.imageId || '',
-      role: item.role || 'content',
-      safeKey,
-      src,
-      driveUrl: item.driveUrl || '',
-      driveFileId: item.driveFileId || '',
-      index,
-      name: item.name || `${roleLabel} ${index + 1}`,
-      metadata: item.metadata || {},
-      frameState: item.frameState || null,
-      scalePercent: item.scalePercent || '100'
-    };
-    return doc;
-  }
-
-  function mktMergePostImagesIntoPages(postId, images) {
-    const existingById = new Map();
-    const existingBySafe = new Map();
-    state.pages.forEach(p => {
-      if (p.mktImage?.imageId) existingById.set(p.mktImage.imageId, p);
-      if (p.mktImage?.safeKey) existingBySafe.set(p.mktImage.safeKey, p);
-    });
-
-    images.forEach((item, index) => {
-      const safeKey = mktImageSafeKey(postId, item);
-      let page = (item.imageId && existingById.get(item.imageId)) || existingBySafe.get(safeKey);
-      if (!page) {
-        page = mktCreatePageFromPostImage(postId, item, index);
-        state.pages.push(page);
-      } else {
-        page.mktImage = { ...(page.mktImage || {}), ...item, postId, safeKey, index, src: mktImageSource(item) };
-        page.name = page.name || (item.role === 'cover' ? 'Ảnh bìa' : `Ảnh nội dung ${index + 1}`);
-      }
-    });
-  }
-
-  async function mktLoadProject(postId) {
-    let project = null;
-    const ref = getMktProjectRef(postId);
-    if (ref) {
-      try {
-        const snap = await ref.once('value');
-        if (snap.exists()) project = snap.val();
-      } catch (err) {
-        console.warn('Không đọc được Firebase Canvas Project:', err);
-      }
-    }
-    if (!project) {
-      try {
-        const raw = localStorage.getItem(mktProjectLocalKey(postId));
-        if (raw) project = JSON.parse(raw);
-      } catch (err) {}
-    }
-    return project;
-  }
-
-  async function mktSaveProject(postId) {
-    syncCurrentPageDoc();
-    const project = {
-      version: 2,
-      postId,
-      currentPageId: state.currentPageId,
-      pages: deepClone(state.pages),
-      postImages: deepClone(state.mktPostImages || []),
-      edited: deepClone(state.edited || []),
-      updatedAt: Date.now()
-    };
-    localStorage.setItem(mktProjectLocalKey(postId), JSON.stringify(project));
-    const ref = getMktProjectRef(postId);
-    if (ref) {
-      try { await ref.set(project); }
-      catch (err) { console.warn('Không ghi được Firebase Canvas Project:', err); }
-    }
-    return project;
-  }
-
-  function mktApplyProject(project, postId) {
-    if (project?.pages?.length) {
-      state.pages = deepClone(project.pages);
-      state.currentPageId = project.currentPageId || state.pages[0].id;
-      state.edited = Array.isArray(project.edited) ? deepClone(project.edited) : state.edited;
-    } else {
-      state.pages = [];
-      state.currentPageId = null;
-    }
-    state.mktPostId = postId;
-  }
-
-  function mktSelectImagePage(postId, payload) {
-    const activeId = payload.activeImageId || localStorage.getItem('MKT_CANVA_ACTIVE_IMAGE_ID') || '';
-    const activeSafe = payload.activeSafeKey || payload.safeKey || localStorage.getItem('MKT_CANVA_SAFE_KEY') || '';
-    const target = state.pages.find(p => (activeId && p.mktImage?.imageId === activeId) || (activeSafe && p.mktImage?.safeKey === activeSafe)) || state.pages[0];
-    if (target) {
-      state.currentPageId = target.id;
-      applyPageDocument(target);
-    }
-  }
-
-  function mktCollectionCard(item, kind) {
-    const name = escapeHtml(item.name || (kind === 'edited' ? 'Ảnh đã sửa' : 'Ảnh bài viết'));
-    const src = item.preview || item.src || item.driveUrl || item.screenshot || SAMPLE_SRC;
-    const sub = kind === 'drive' ? 'Drive' : (item.role === 'cover' ? 'Ảnh bìa' : 'Nội dung');
-    const pageId = item.pageId || item.id || '';
-    return `<div class="media-card" data-mkt-page-id="${escapeHtml(pageId)}" data-mkt-kind="${kind}"><img src="${src}" alt=""><div class="media-name">${name}<br><span style="font-weight:600;color:#687386">${escapeHtml(sub)}</span></div></div>`;
-  }
-
-  function renderMktCollectionPanels() {
-    const postGrid = document.getElementById('gridCol_post');
-    const driveGrid = document.getElementById('gridCol_drive');
-    const editedGrid = document.getElementById('gridCol_edited');
-    if (!postGrid && !driveGrid && !editedGrid) return;
-
-    const pages = state.pages || [];
-    const postItems = pages.filter(p => p.mktImage).map(p => ({ ...p.mktImage, pageId: p.id, preview: p.preview || p.mktImage.src }));
-    const driveItems = postItems.filter(x => x.driveUrl || x.driveFileId);
-    const editedItems = (state.edited || []).filter(x => !state.mktPostId || !x.postId || x.postId === state.mktPostId);
-
-    if (postGrid) postGrid.innerHTML = postItems.map(x => mktCollectionCard(x, 'post')).join('') || '<div class="blank-state">Chưa có ảnh của bài viết.</div>';
-    if (driveGrid) driveGrid.innerHTML = driveItems.map(x => mktCollectionCard(x, 'drive')).join('') || '<div class="blank-state">Chưa có ảnh Drive cho bài viết này.</div>';
-    if (editedGrid) editedGrid.innerHTML = editedItems.map(x => mktCollectionCard({ ...x, preview: x.src, pageId: x.pageId }, 'edited')).join('') || '<div class="blank-state">Chưa có ảnh đã sửa của bài viết này.</div>';
-  }
-
-  const mktOldRenderUploadPanels = renderUploadPanels;
-  renderUploadPanels = function() {
-    mktOldRenderUploadPanels();
-    renderMktCollectionPanels();
-  };
-
-  window.switchSubColTab = function(name, btn) {
-    document.querySelectorAll('.sub-col-panel').forEach(p => p.style.display = 'none');
-    const panel = document.getElementById('subPanel_' + name);
-    if (panel) panel.style.display = 'block';
-    document.querySelectorAll('.sub-col-btn').forEach(b => b.classList.remove('active', 'primary'));
-    if (btn) btn.classList.add('active', 'primary');
-    renderMktCollectionPanels();
-  };
-
-  document.addEventListener('click', e => {
-    const card = e.target.closest('[data-mkt-page-id]');
-    if (!card) return;
-    const pageId = card.dataset.mktPageId;
-    if (pageId && state.pages.some(p => p.id === pageId)) {
-      switchPage(pageId);
-      switchTab('customize');
-    }
-  });
 
   async function checkAndLoadBridgeImage() {
-    const raw = localStorage.getItem('MKT_CANVA_BRIDGE_PAYLOAD');
-    if (!raw) return;
+      const raw = localStorage.getItem('MKT_CANVA_BRIDGE_PAYLOAD');
+      if (!raw) return;
 
-    try {
-      const payload = JSON.parse(raw);
-      const postId = payload.postId || localStorage.getItem('MKT_CANVA_POST_ID') || 'BAI_VIET_NHAP';
-      const images = mktNormalizeBridgeImages(payload);
-      state.mktPostId = postId;
-      state.mktPostImages = deepClone(images);
+      try {
+          const payload = JSON.parse(raw);
+          const postId = payload.postId || "BAI_VIET_NHAP";
+          const safeKey = payload.safeKey;
 
-      if (typeof toast === 'function') toast('Đang mở project canvas của bài viết...');
-      const project = await mktLoadProject(postId);
-      mktApplyProject(project, postId);
-      mktMergePostImagesIntoPages(postId, images);
-      if (!state.pages.length) state.pages.push(mktCreatePageFromPostImage(postId, images[0], 0));
-      mktSelectImagePage(postId, payload);
+          if (typeof toast === 'function') toast('Đang đối chiếu thiết kế trên đám mây...');
+          
+          let savedDesign = null;
+          const dbRef = getMktFirebaseRef(postId, safeKey);
 
-      state.selectedIds = [];
-      state.primaryId = null;
-      renderAll();
-      renderMktCollectionPanels();
-      if (typeof fitCanvas === 'function') setTimeout(fitCanvas, 60);
-      localStorage.removeItem('MKT_CANVA_BRIDGE_PAYLOAD');
-      toast(`Đã mở ${state.pages.length} page ảnh trong cùng project bài viết`);
-    } catch (err) {
-      console.error('Lỗi tải project canvas bài viết:', err);
-      toast('Không mở được project canvas bài viết');
-    }
+          if (dbRef) {
+              const snapshot = await dbRef.once('value');
+              if (snapshot.exists()) savedDesign = snapshot.val();
+          }
+
+          if (!savedDesign) {
+              const localBak = localStorage.getItem(`MKT_BAK_${safeKey}`);
+              if (localBak) savedDesign = JSON.parse(localBak);
+          }
+
+          if (savedDesign && savedDesign.layers) {
+              state.page.width = Number(savedDesign.pageWidth) || 1080;
+              state.page.height = Number(savedDesign.pageHeight) || 1080;
+              state.page.background = savedDesign.pageBackground || '#ffffff';
+              state.layers = savedDesign.layers;
+              if (typeof toast === 'function') toast('Đã khôi phục thiết kế cũ!');
+          } else {
+              const w = Number(payload.width) || 1080;
+              const h = Number(payload.height) || 1080;
+
+              state.page.width = w;
+              state.page.height = h;
+              state.page.background = '#ffffff';
+
+              state.layers.length = 0;
+              state.layers.push({
+                  id: 'layer_root_' + new Date().getTime(),
+                  type: 'image', name: 'Ảnh gốc bài viết',
+                  src: payload.src, x: 0, y: 0, width: w, height: h,
+                  rotation: 0, scale: 1, opacity: 1, visible: true
+              });
+              if (typeof toast === 'function') toast('Đã tạo nền Canvas từ ảnh blog!');
+          }
+
+          state.selectedIds = [];
+          if (typeof renderAll === 'function') renderAll();
+          if (typeof fitCanvas === 'function') setTimeout(fitCanvas, 60);
+
+      } catch (err) {
+          console.error("Lỗi tải cầu nối:", err);
+      } finally {
+          localStorage.removeItem('MKT_CANVA_BRIDGE_PAYLOAD');
+      }
   }
 
   setInterval(checkAndLoadBridgeImage, 400);
   window.addEventListener('focus', checkAndLoadBridgeImage);
-  setTimeout(checkAndLoadBridgeImage, 120);
+
 
   window.pushEditedCanvasBackToPost = async function() {
-    const postId = state.mktPostId || localStorage.getItem('MKT_CANVA_POST_ID') || 'BAI_VIET_NHAP';
-    syncCurrentPageDoc();
-    const doc = currentPageDoc();
-    if (!doc) return alert('Không tìm thấy page canvas hiện tại!');
-    const meta = doc.mktImage || {};
-    if (!meta.imageId && !meta.safeKey) return alert('Page này chưa gắn với ảnh gốc trong bài viết!');
+      const anchorSrc = localStorage.getItem('MKT_CANVA_ANCHOR_SRC');
+      const safeKey = localStorage.getItem('MKT_CANVA_SAFE_KEY');
+      const originPostId = localStorage.getItem('MKT_CANVA_POST_ID') || "BAI_VIET_NHAP";
+      
+      if (!anchorSrc || !safeKey) return alert('Không tìm thấy mỏ neo định danh ảnh gốc!');
 
-    if (typeof toast === 'function') toast('Đang lưu project và xuất ảnh...');
-    const project = await mktSaveProject(postId);
+      if (typeof toast === 'function') toast('Đang đồng bộ Blueprint...');
 
-    let screenshot = '';
-    try {
-      const canvas = await exportPageDoc(doc, 1);
-      screenshot = canvas.toDataURL('image/jpeg', 0.92);
-    } catch (err) {
-      console.error('Không xuất được canvas full size:', err);
-      screenshot = doc.preview || '';
-    }
-
-    if (screenshot) {
-      const editedItem = {
-        id: uid('edited'),
-        pageId: doc.id,
-        postId,
-        imageId: meta.imageId || '',
-        name: `${doc.name || 'canvas'}-${Date.now()}.jpg`,
-        src: screenshot,
-        width: doc.page?.width || state.page.width,
-        height: doc.page?.height || state.page.height
+      const canvasBlueprint = {
+          safeKey: safeKey,
+          anchorSrc: anchorSrc,
+          postId: originPostId,
+          pageWidth: state.page.width,
+          pageHeight: state.page.height,
+          pageBackground: state.page.background || '#ffffff',
+          layers: state.layers,
+          updatedAt: new Date().getTime()
       };
-      state.edited.unshift(editedItem);
-      renderUploadPanels();
-      await mktSaveProject(postId);
-    }
 
-    const returnPayload = {
-      version: 2,
-      postId,
-      imageId: meta.imageId || '',
-      role: meta.role || 'content',
-      safeKey: meta.safeKey || '',
-      pageId: doc.id,
-      originSrc: meta.src || meta.driveUrl || '',
-      screenshot,
-      projectUpdatedAt: project.updatedAt,
-      autoSave: true
-    };
+      const dbRef = getMktFirebaseRef(originPostId, safeKey);
+      if (dbRef) await dbRef.set(canvasBlueprint);
+      localStorage.setItem(`MKT_BAK_${safeKey}`, JSON.stringify(canvasBlueprint));
 
-    localStorage.setItem('MKT_CANVA_RETURN_PAYLOAD', JSON.stringify(returnPayload));
-    localStorage.setItem('MKT_RETURN_POST_ID', postId);
-    localStorage.setItem('MKT_CANVA_POST_ID', postId);
+      const mainCanvas = document.querySelector('canvas');
+      const returnPayload = {
+          anchorSrc: anchorSrc,
+          blueprint: canvasBlueprint,
+          screenshot: mainCanvas ? mainCanvas.toDataURL('image/jpeg', 0.90) : ""
+      };
 
-    if (window.parent && typeof window.parent.loadModule === 'function') {
-      const postTab = window.parent.document.querySelector('.menu-item-side[data-target="post"]');
-      window.parent.loadModule('post.html?id=' + encodeURIComponent(postId), postTab || undefined);
-    } else {
-      window.location.href = 'post.html?id=' + encodeURIComponent(postId);
-    }
+      localStorage.setItem('MKT_CANVA_RETURN_PAYLOAD', JSON.stringify(returnPayload));
+
+      if (window.parent && typeof window.parent.loadModule === 'function') {
+          const postTab = window.parent.document.querySelector('.menu-item-side[data-target="post"]');
+          window.parent.loadModule('post.html', postTab || undefined);
+      }
   };
 ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
 })();

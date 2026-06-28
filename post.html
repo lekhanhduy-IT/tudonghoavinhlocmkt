@@ -6323,255 +6323,101 @@ function renderImageLibraries() {
     }
 }
 // =========================================================================
-// CẦU NỐI CANVAS STUDIO THEO PROJECT BÀI VIẾT - V2
+// CẦU NỐI CANVA STUDIO - BẢN KHẮC PHỤC TRƯỢT RELOAD IFRAME
 // =========================================================================
 
-function mktHashText(str) {
+// Hàm băm URL thành một mã Key tuyệt đối an toàn cho Firebase (không chứa dấu chấm, sọc chéo)
+function mktGetSafeUrlKey(url) {
     let hash = 0;
-    const text = String(str || "");
-    for (let i = 0; i < text.length; i++) {
-        hash = ((hash << 5) - hash) + text.charCodeAt(i);
+    const str = String(url || "");
+    for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
         hash |= 0;
     }
-    return Math.abs(hash).toString(36);
-}
-
-function mktCssEscape(value) {
-    if (window.CSS && typeof CSS.escape === 'function') return CSS.escape(String(value || ""));
-    return String(value || "").replace(/[^a-zA-Z0-9_-]/g, "\\$&");
-}
-
-// Giữ tên hàm cũ để không vỡ các nút/đoạn code đang gọi.
-function mktGetSafeUrlKey(url) {
-    return 'drive_img_' + mktHashText(url);
-}
-
-function mktGetSafeImageKey(postId, imageId, src) {
-    return 'post_img_' + mktHashText([postId || '', imageId || '', src || ''].join('|'));
-}
-
-function mktNormalizeImageSrcForCompare(src) {
-    const text = String(src || '').trim();
-    const driveId = (typeof extractDriveFileId === 'function') ? extractDriveFileId(text) : '';
-    if (driveId) return 'drive:' + driveId;
-    return text.replace(location.origin, '').replace(/^https?:\/\/[^/]+/i, '').replace(/[?#].*$/, '');
-}
-
-function mktGetStableImageSource(img) {
-    if (!img) return '';
-    return img.dataset.driveUrl || img.dataset.originalSource || img.getAttribute('src') || img.src || '';
-}
-
-function mktCollectPostImagesForCanvas(activeImg) {
-    const nodes = Array.from(document.querySelectorAll('#coverEditor img, #postContent img'));
-    const seen = new Set();
-    const postId = (typeof currentPostId !== 'undefined' && currentPostId) ? currentPostId : (localStorage.getItem('MKT_RETURN_POST_ID') || 'BAI_VIET_NHAP');
-
-    return nodes.map((img, index) => {
-        if (!img.dataset.imageId) {
-            img.dataset.imageId = (typeof createImageClientId === 'function') ? createImageClientId() : ('img_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7));
-        }
-        const role = img.closest('#coverEditor') ? 'cover' : 'content';
-        const src = mktGetStableImageSource(img);
-        const safeKey = mktGetSafeImageKey(postId, img.dataset.imageId, src);
-        const frame = (typeof getManagedImageFrame === 'function') ? getManagedImageFrame(img) : img.closest('.vb-image-frame');
-        const meta = (typeof readImageMetadata === 'function') ? readImageMetadata(img) : {};
-        const item = {
-            imageId: img.dataset.imageId,
-            role,
-            safeKey,
-            index,
-            name: meta.fileName || img.getAttribute('alt') || (role === 'cover' ? 'Ảnh bìa' : `Ảnh nội dung ${index + 1}`),
-            src,
-            driveUrl: img.dataset.driveUrl || '',
-            driveFileId: img.dataset.driveFileId || ((typeof extractDriveFileId === 'function') ? extractDriveFileId(img.dataset.driveUrl || src) : ''),
-            width: img.naturalWidth || img.width || (role === 'cover' ? 1280 : 1080),
-            height: img.naturalHeight || img.height || (role === 'cover' ? 800 : 1080),
-            frameState: (typeof readImageFrameState === 'function') ? readImageFrameState(img) : null,
-            scalePercent: img.dataset.scalePercent || (frame && frame.style.width && frame.style.width.includes('%') ? frame.style.width.replace('%', '') : '100'),
-            metadata: meta
-        };
-        const uniq = item.imageId || item.safeKey;
-        if (seen.has(uniq)) return null;
-        seen.add(uniq);
-        return item;
-    }).filter(Boolean);
+    return 'drive_img_' + Math.abs(hash);
 }
 
 function sendImageToCanvaStudio() {
-    if (!vbActiveImage) return alert('Không xác định được ảnh đang chọn!');
+    if (!vbActiveImage) return alert("Không xác định được ảnh đang chọn!");
 
-    if (!vbActiveImage.dataset.imageId) {
-        vbActiveImage.dataset.imageId = (typeof createImageClientId === 'function') ? createImageClientId() : ('img_' + Date.now().toString(36));
-    }
+    // MỎ NEO BẤT BIẾN: Lấy chính xác chuỗi URL gốc đang hiển thị trong trình soạn thảo
+    const anchorSrc = vbActiveImage.getAttribute('src') || vbActiveImage.src;
+    const safeKey = mktGetSafeUrlKey(anchorSrc);
 
-    const pId = (typeof currentPostId !== 'undefined' && currentPostId) ? currentPostId : ((draftData && draftData.data && draftData.data[0]) ? draftData.data[0] : 'BAI_VIET_NHAP');
-    currentPostId = pId;
-
-    const allImages = mktCollectPostImagesForCanvas(vbActiveImage);
-    const activeSource = mktGetStableImageSource(vbActiveImage);
-    const activeImageId = vbActiveImage.dataset.imageId;
-    const activeSafeKey = mktGetSafeImageKey(pId, activeImageId, activeSource);
-    const activeRole = vbActiveImage.closest('#coverEditor') ? 'cover' : 'content';
+    let pId = typeof currentPostId !== "undefined" && currentPostId ? currentPostId : "BAI_VIET_NHAP";
 
     const payload = {
-        version: 2,
         postId: pId,
-        activeImageId,
-        activeRole,
-        activeSafeKey,
-        activeSrc: activeSource,
-        images: allImages,
-        openedAt: Date.now()
+        safeKey: safeKey,
+        anchorSrc: anchorSrc, // <--- Dùng chính URL này làm vật định danh
+        src: anchorSrc,
+        width: vbActiveImage.naturalWidth || vbActiveImage.width || 1080,
+        height: vbActiveImage.naturalHeight || vbActiveImage.height || 1080
     };
 
     if (typeof closeImageProperties === 'function') closeImageProperties();
 
     localStorage.setItem('MKT_CANVA_BRIDGE_PAYLOAD', JSON.stringify(payload));
+    localStorage.setItem('MKT_CANVA_ANCHOR_SRC', anchorSrc);
+    localStorage.setItem('MKT_CANVA_SAFE_KEY', safeKey);
     localStorage.setItem('MKT_CANVA_POST_ID', pId);
-    localStorage.setItem('MKT_CANVA_ACTIVE_IMAGE_ID', activeImageId);
-    localStorage.setItem('MKT_CANVA_SAFE_KEY', activeSafeKey);
-    localStorage.setItem('MKT_CANVA_ANCHOR_SRC', activeSource);
-    localStorage.setItem('MKT_RETURN_POST_ID', pId);
 
     if (window.parent && typeof window.parent.loadModule === 'function') {
         const imgTab = window.parent.document.querySelector('.menu-item-side[data-target="image"]');
         window.parent.loadModule('image.html', imgTab || undefined);
-    } else {
-        window.location.href = 'image.html';
     }
 }
 
-function mktForceLoadReturnPost(postId) {
-    if (!postId) return false;
-    if (typeof currentPostId !== 'undefined' && currentPostId === postId) return true;
-    if (!sysData || !sysData.sheets || !sysData.sheets['Bài viết_hidden']) return false;
-    currentPostId = postId;
-    loadPostIntoEditor(postId);
-    return true;
-}
-
-function mktFindImageForStudioReturn(data) {
-    const imageId = data.imageId || data.originImageId || '';
-    const safeKey = data.safeKey || '';
-    const originSrc = data.originSrc || data.anchorSrc || '';
-    const originNorm = mktNormalizeImageSrcForCompare(originSrc);
-
-    if (imageId) {
-        const byId = document.querySelector(`#coverEditor img[data-image-id="${mktCssEscape(imageId)}"], #postContent img[data-image-id="${mktCssEscape(imageId)}"]`);
-        if (byId) return byId;
-    }
-
-    const allImages = Array.from(document.querySelectorAll('#coverEditor img, #postContent img'));
-    if (safeKey) {
-        const byKey = allImages.find(img => img.dataset.canvasSafeKey === safeKey || img.dataset.mktSafeKey === safeKey);
-        if (byKey) return byKey;
-    }
-
-    if (originNorm) {
-        return allImages.find(img => {
-            const current = mktGetStableImageSource(img);
-            const currentNorm = mktNormalizeImageSrcForCompare(current);
-            return currentNorm && (currentNorm === originNorm || current.includes(originSrc) || originSrc.includes(current));
-        }) || null;
-    }
-    return null;
-}
-
-async function checkAndApplyStudioReturn() {
+// NGƯỜI LÍNH GÁC BÊN POST.HTML (Đứng kiên nhẫn đợi trang tải xong từ Sheet mới làm việc)
+function checkAndApplyStudioReturn() {
     const raw = localStorage.getItem('MKT_CANVA_RETURN_PAYLOAD');
     if (!raw) return;
 
     try {
         const data = JSON.parse(raw);
-        const postId = data.postId || localStorage.getItem('MKT_RETURN_POST_ID') || localStorage.getItem('MKT_CANVA_POST_ID') || '';
-        if (postId && !mktForceLoadReturnPost(postId)) return;
+        const targetSrc = data.anchorSrc;
 
-        const targetImg = mktFindImageForStudioReturn(data);
-        if (!targetImg) return;
+        // Quét toàn bộ thẻ ảnh hiện có trên trang blog
+        const allImages = Array.from(document.querySelectorAll('#editorContainer img, body img'));
+        
+        // Tìm bức ảnh có đường dẫn URL trùng khớp với mỏ neo
+        const targetImg = allImages.find(img => {
+            const currentSrc = img.getAttribute('src') || img.src;
+            return currentSrc && (currentSrc === targetSrc || currentSrc.includes(targetSrc) || targetSrc.includes(currentSrc));
+        });
 
-        const screenshot = data.screenshot || data.preview || '';
-        if (!screenshot) {
-            console.warn('Canvas Studio không trả về ảnh xuất. Payload:', data);
-            return;
-        }
+        if (!targetImg) return; // Trang chưa kéo xong Sheet -> Im lặng đợi chu kỳ 350ms tiếp theo!
 
-        const role = data.role || (targetImg.closest('#coverEditor') ? 'cover' : 'content');
-        const imageId = data.imageId || targetImg.dataset.imageId || '';
+        // ĐÃ TÌM THẤY ẢNH GỐC SAU KHI RELOAD! Tiến hành tráo đổi:
+        const blueprint = data.blueprint;
 
-        targetImg.classList.add('vb-managed-image');
-        if (imageId) targetImg.dataset.imageId = imageId;
-        targetImg.dataset.imageRole = role;
-        targetImg.dataset.isCanvasComponent = 'true';
-        targetImg.dataset.canvasProjectId = postId;
-        targetImg.dataset.canvasPageId = data.pageId || '';
-        targetImg.dataset.canvasSafeKey = data.safeKey || '';
-        targetImg.dataset.originDriveSrc = data.originSrc || data.anchorSrc || targetImg.dataset.originDriveSrc || '';
-        targetImg.dataset.originalSource = screenshot;
-        targetImg.setAttribute('src', screenshot);
-        targetImg.removeAttribute('data-pending-remote-image');
-        targetImg.classList.remove('vb-image-pending');
-        delete targetImg.dataset.driveUrl;
-        delete targetImg.dataset.driveFileId;
-        delete targetImg.dataset.archivedDrive;
-        delete targetImg.dataset.isLocalUpload;
+        const liveComp = document.createElement('img');
+        liveComp.src = data.screenshot || targetSrc;
+        liveComp.style.width = "100%";
+        liveComp.style.maxWidth = (blueprint.pageWidth || 1080) + "px";
+        liveComp.setAttribute('width', blueprint.pageWidth);
+        liveComp.setAttribute('height', blueprint.pageHeight);
 
-        let mktFrame = null;
-        if (typeof ensureManagedImageFrame === 'function') {
-            mktFrame = ensureManagedImageFrame(targetImg, role, false);
-            if (mktFrame) {
-                mktFrame.dataset.imageMode = 'natural';
-                mktFrame.dataset.imageRole = role;
-                mktFrame.dataset.imageId = targetImg.dataset.imageId || '';
-                mktFrame.style.height = 'auto';
-                mktFrame.style.aspectRatio = 'auto';
-                mktFrame.style.overflow = 'visible';
-                mktFrame.style.width = role === 'cover' ? '100%' : ((targetImg.dataset.scalePercent || '100') + '%');
-            }
-            targetImg.style.position = 'relative';
-            targetImg.style.inset = 'auto';
-            targetImg.style.width = '100%';
-            targetImg.style.height = 'auto';
-            targetImg.style.maxWidth = '100%';
-            targetImg.style.objectFit = 'contain';
-            targetImg.style.objectPosition = '50% 50%';
-        }
-        if (typeof hydrateManagedImages === 'function') {
-            hydrateManagedImages(document.getElementById('coverEditor'), 'cover');
-            hydrateManagedImages(document.getElementById('postContent'), 'content');
-        }
+        liveComp.className = "mkt-live-canvas-component";
+        liveComp.dataset.isCanvasComponent = "true";
+        liveComp.dataset.originDriveSrc = targetSrc; 
 
-        isVBDirty = true;
-        const status = document.getElementById('syncStatusVB');
-        if (status) {
-            status.innerHTML = '⏳ Đã nhận ảnh từ Canvas, đang lưu bài...';
-            status.style.color = '#f39c12';
-        }
-
-        localStorage.removeItem('MKT_CANVA_RETURN_PAYLOAD');
-        localStorage.setItem('MKT_RETURN_POST_ID', postId || '');
+        targetImg.parentNode.replaceChild(liveComp, targetImg);
 
         if (typeof markImageDirty === 'function') markImageDirty(true);
         if (typeof checkEditorChanges === 'function') checkEditorChanges();
-        targetImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-        if (data.autoSave !== false && typeof savePostToSheet === 'function') {
-            setTimeout(() => {
-                Promise.resolve(savePostToSheet()).catch(err => {
-                    console.error('Không thể tự lưu bài sau khi nhận Canvas:', err);
-                    if (status) {
-                        status.innerHTML = '⚠️ Đã thêm ảnh, nhưng chưa tự lưu được';
-                        status.style.color = 'var(--red)';
-                    }
-                });
-            }, 250);
-        }
+        liveComp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // Hoàn tất nhiệm vụ -> Tiêu hủy bưu phẩm
+        localStorage.removeItem('MKT_CANVA_RETURN_PAYLOAD');
+
     } catch(e) {
-        console.error('Lỗi nhận ảnh từ Canvas Studio:', e);
+        console.error("Lỗi dựng quay vòng Canvas:", e);
     }
 }
 
-// Quét đến khi post.html tải đúng bài và tìm được đúng data-image-id.
+// Quét ngầm 350ms/lần. Bất kể mạng chậm làm post.html tải mất 2 giây hay 5 giây, cứ hiện ảnh ra là chộp được!
 setInterval(checkAndApplyStudioReturn, 350);
 </script>
 
