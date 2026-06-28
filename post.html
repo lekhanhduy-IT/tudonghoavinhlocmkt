@@ -6322,42 +6322,74 @@ function renderImageLibraries() {
         container.appendChild(item);
     }
 }
+// =========================================================================
+// CẦU NỐI CANVA STUDIO (POST <--> IMAGE)
+// =========================================================================
+
 function sendImageToCanvaStudio() {
     if (!vbActiveImage) return;
-
-    // 1. Đóng popup hiện tại
     closeImageProperties();
 
-    // 2. Thu thập toàn bộ dữ liệu bức ảnh được chọn
     const payload = {
         postId: typeof currentPostId !== "undefined" && currentPostId ? currentPostId : "BAI_VIET_NHAP",
-        imageId: vbActiveImage.dataset.imageId || createImageClientId(),
+        imageId: vbActiveImage.dataset.imageId || ('img_' + new Date().getTime()),
         src: vbActiveImage.src || vbActiveImage.dataset.driveUrl,
         width: vbActiveImage.naturalWidth || vbActiveImage.width || 1080,
-        height: vbActiveImage.naturalHeight || vbActiveImage.height || 1080,
-        styleWidth: vbActiveImage.style.width || "100%",
-        scalePercent: vbActiveImage.dataset.scalePercent || "100",
-        frameState: vbActiveImage.dataset.vbFrameState || "{}"
+        height: vbActiveImage.naturalHeight || vbActiveImage.height || 1080
     };
 
-    // 3. Cầu nối bộ nhớ liên Iframe
+    // 1. Nhét ảnh vào "hòm thư" LocalStorage
     localStorage.setItem('MKT_CANVA_BRIDGE_PAYLOAD', JSON.stringify(payload));
 
-    // 4. Ra lệnh cho Admin ép chuyển sang tab Hình Ảnh
+    // 2. Ra lệnh cho admin.html bẻ lái sang tab Hình Ảnh
     if (window.parent && typeof window.parent.loadModule === 'function') {
         const imageTabBtn = window.parent.document.querySelector('.menu-item-side[data-target="image"]');
-        if (imageTabBtn) {
-            window.parent.loadModule('image.html', imageTabBtn);
-        }
+        if (imageTabBtn) window.parent.loadModule('image.html', imageTabBtn);
     }
 
-    // 5. Gửi tín hiệu kích hoạt tức thời cho image.html
+    // 3. Đánh thức image.html nhận bưu phẩm
     setTimeout(() => {
         const imgFrame = window.parent.document.getElementById('frame-image');
         if (imgFrame && imgFrame.contentWindow && typeof imgFrame.contentWindow.receiveImageFromPostBridge === 'function') {
             imgFrame.contentWindow.receiveImageFromPostBridge();
         }
     }, 150);
+}
+
+// 4. Đứng đợi sẵn ở đây, khi nào image.html bấm nút "Thêm vào bài" thì nhận ảnh về thay thế
+window.replaceEditedImageFromStudio = function() {
+    const raw = localStorage.getItem('MKT_CANVA_RETURN_PAYLOAD');
+    if (!raw) return;
+    const data = JSON.parse(raw);
+
+    const targetImg = document.querySelector(`img[data-image-id="${data.targetImageId}"]`);
+    if (!targetImg) return vbShowAlert('Không tìm thấy ảnh gốc trong bài viết!');
+
+    targetImg.src = data.newBase64;
+    targetImg.style.width = "100%";
+    targetImg.setAttribute('width', data.canvasWidth);
+    targetImg.setAttribute('height', data.canvasHeight);
+    
+    // Đánh dấu ảnh này là ảnh mới để hệ thống tự động đẩy lại lên Google Drive
+    targetImg.dataset.isLocalUpload = "true";
+    delete targetImg.dataset.driveFileId;
+    delete targetImg.dataset.driveUrl;
+
+    let pId = typeof currentPostId !== "undefined" && currentPostId ? currentPostId : "POST_EDITED";
+    if (typeof backgroundUploadToDrive === 'function') {
+        backgroundUploadToDrive(data.targetImageId, base64ToFile_Canva(data.newBase64, `canva_${data.targetImageId}.jpg`), pId);
+    }
+
+    if (typeof markImageDirty === 'function') markImageDirty(true);
+    targetImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    localStorage.removeItem('MKT_CANVA_RETURN_PAYLOAD');
+};
+
+function base64ToFile_Canva(dataurl, filename) {
+    let arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+        bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+    while(n--){ u8arr[n] = bstr.charCodeAt(n); }
+    return new File([u8arr], filename, {type:mime});
 }
 </script>
 
