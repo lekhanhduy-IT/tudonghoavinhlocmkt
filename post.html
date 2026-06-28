@@ -1390,9 +1390,6 @@
   <div class="vb-image-popup-box" role="dialog" aria-modal="true" aria-labelledby="vbImagePopupTitle">
     <div class="vb-image-popup-head">
       <span id="vbImagePopupTitle"><i class="fas fa-image"></i> Thông tin ảnh</span>
-      <button type="button" class="tool-btn" style="border-color:#f39c12; color:#d68910;" onclick="sendImageToCanvaStudio()">
-      <i class="fas fa-magic"></i> Mở trong canva
-    </button>
       <div class="vb-image-head-actions">
         <button type="button" class="vb-image-head-icon-btn" id="vbImageUndoBtn" title="Hoàn tác (Ctrl+Z)" onclick="imageHistoryUndo()" disabled><i class="fas fa-undo"></i></button>
         <button type="button" class="vb-image-head-icon-btn" id="vbImageRedoBtn" title="Làm lại (Ctrl+Y)" onclick="imageHistoryRedo()" disabled><i class="fas fa-redo"></i></button>
@@ -1486,6 +1483,9 @@
         <div class="vb-image-upload-status" id="vbImageUploadStatus"></div>
 
         <div class="vb-image-actions" style="margin-top: auto;">
+            <button class="tool-btn" onclick="openImageInCanvasStudio()" style="background: #8b3dff; color: #fff; border-color: #8b3dff;">
+                <i class="fas fa-palette"></i> Mở Canvas Studio
+            </button>
           <button class="tool-btn save-btn" onclick="applyImageProperties()"><i class="fas fa-check"></i> Cập nhật</button>
           <button class="tool-btn" onclick="copyActiveImage(false)"><i class="fas fa-copy"></i> Sao chép</button>
           <button class="tool-btn danger" onclick="deleteActiveImage()"><i class="fas fa-trash"></i> Xóa</button>
@@ -3588,24 +3588,26 @@ function toggleVietbaiMode() {
         });
     }
 }
-window.forceReloadDraft = function() {
-    // [CHỐT CHẶN BẢO VỆ DOM]: Nếu phát hiện có bưu phẩm trả về từ Studio -> CẤM XÓA BÀI!
-    if (localStorage.getItem('MKT_CANVA_RETURN_PAYLOAD')) {
-        console.log("🛡️ Đang giữ nguyên hiện trường bài viết để đón ảnh Studio...");
-        return;
-    }
+// BỔ SUNG HÀM NÀY VÀO CUỐI THẺ <script> CỦA FILE: post.html
 
+window.forceReloadDraft = function() {
     loadDraftData();
     let postIdToLoad = (draftData && draftData.data) ? draftData.data[0] : null;
 
+    // =========================================================================
+    // CHỐT CHẶN PHÂN LẬP PHÒNG: Kiểm tra xem ID bài gửi sang có khớp ID trên URL không?
+    // =========================================================================
     const urlParams = new URLSearchParams(window.location.search);
     let currentUrlId = urlParams.get('id');
 
     if (postIdToLoad && postIdToLoad !== currentUrlId) {
+        // Phát hiện user vừa bấm Viết bài cho một dòng khác bên Kế Hoạch!
+        // -> Ra lệnh tải lại toàn bộ trang Post sạch sẽ với URL mới để giết chết vĩnh viễn socket cũ
         window.location.replace('post.html?id=' + encodeURIComponent(postIdToLoad));
         return; 
     }
     else {
+        // NẾU LÀ DÒNG KẾ HOẠCH MỚI TINH: Phải dọn sạch rác của bài gõ trước đó!
         currentPostId = null;
         document.getElementById("postTitle").innerHTML = "";
         document.getElementById("postSapo").innerHTML = "";
@@ -3614,12 +3616,14 @@ window.forceReloadDraft = function() {
         isVBDirty = false;
     }
 
+    // Chớp đèn tín hiệu cho user biết đã ăn dòng mới
     let syncStatus = document.getElementById('syncStatusVB');
     if (syncStatus) {
         syncStatus.innerText = "⚡ Đã nạp Kế hoạch mới";
         syncStatus.style.color = "#27ae60";
     }
 };
+
 /* ====================================================================
    TRÌNH QUẢN LÝ ẢNH BÌA + ẢNH NỘI DUNG + METADATA
    V2: SHEET SELECTION, LOCK LABELS, REALTIME CROP/SCALE, UNDO/REDO
@@ -3658,6 +3662,7 @@ const VB_DEFAULT_IMAGE_META = Object.freeze({
     description: "",
     author: "Tu Dong Hoa Vinh Loc",
     copyright: "tudonghoavinhloc.com",
+    canvasPageId: "",
     _labels: VB_DEFAULT_IMAGE_LABELS
 });
 
@@ -6319,229 +6324,94 @@ function renderImageLibraries() {
     }
 }
 // =========================================================================
-// CẦU NỐI CANVA STUDIO - GIỮ NGUYÊN DOM ĐỂ CLICK MỞ POPUP & LƯU VĨNH VIỄN
+// TÍCH HỢP CANVAS STUDIO (IMAGE.HTML)
 // =========================================================================
 
-function mktGetSafeUrlKey(url) {
-    let hash = 0;
-    const str = String(url || "");
-    for (let i = 0; i < str.length; i++) {
-        hash = ((hash << 5) - hash) + str.charCodeAt(i);
-        hash |= 0;
-    }
-    return 'page_img_' + Math.abs(hash);
-}
+const canvasChannel = new BroadcastChannel('canvas-studio-sync');
 
-// =========================================================================
-// CẦU NỐI CANVA STUDIO - ĐỒNG BỘ PAGE ID, WIDTH/HEIGHT CHUẨN VÀ HỦY LIÊN KẾT
-// =========================================================================
-
-function sendImageToCanvaStudio() {
-    if (!vbActiveImage) return alert("Không xác định được ảnh đang chọn!");
-
-    const anchorSrc = vbActiveImage.getAttribute('src') || vbActiveImage.src;
-    const safeKey = vbActiveImage.dataset.imageId; 
+function openImageInCanvasStudio() {
+    if (!vbActiveImage) return;
     
-    // Lấy Width/Height từ khung Frame chứa ảnh (các kích thước người dùng đã thiết lập trong ô Kích thước)
-    const frame = vbActiveImage.closest('.vb-image-frame');
-    const targetW = frame ? parseFloat(frame.dataset.targetWidth) : vbActiveImage.naturalWidth;
-    const targetH = frame ? parseFloat(frame.dataset.targetHeight) : vbActiveImage.naturalHeight;
-
-    const urlParams = new URLSearchParams(window.location.search);
-    let pId = urlParams.get('id') || currentPostId || "BAI_VIET_GENERAL";
-
-    const payload = {
-        postId: pId,
-        safeKey: safeKey, // Dùng làm Page ID bên Canvas
-        anchorSrc: anchorSrc,
-        src: anchorSrc,
-        width: targetW || 1080,
-        height: targetH || 1080
+    // Lấy thông số từ Form (không được làm thay đổi thông số này theo Canvas)
+    const state = readImageFrameState(vbActiveImage);
+    const scalePct = parseFloat(document.getElementById("vbScalePercent").value) || 100;
+    const cw = parseFloat(document.getElementById("vbImgWidth").value) || state.targetWidth;
+    const ch = parseFloat(document.getElementById("vbImgHeight").value) || state.targetHeight;
+    
+    // Đảm bảo bài viết có ID Project (dùng currentPostId)
+    const projectId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_TEMP");
+    const imageId = vbActiveImage.dataset.imageId;
+    
+    // Lấy URL ảnh gốc để truyền sang làm nền
+    const sourceUrl = vbActiveImage.dataset.driveUrl || vbActiveImage.src;
+    const meta = readImageMetadata(vbActiveImage);
+    
+    // Lưu cấu hình vào LocalStorage để image.html đọc
+    const launchData = {
+        projectId: projectId,
+        imageId: imageId,
+        pageId: meta.canvasPageId || null,
+        width: cw,
+        height: ch,
+        scale: scalePct,
+        sourceUrl: sourceUrl
     };
-
-    if (typeof closeImageProperties === 'function') closeImageProperties();
-
-    localStorage.setItem('MKT_CANVA_BRIDGE_PAYLOAD', JSON.stringify(payload));
-    localStorage.setItem('MKT_ACTIVE_POST_ID', pId);
-
-    if (window.parent && typeof window.parent.loadModule === 'function') {
-        const imgTab = window.parent.document.querySelector('.menu-item-side[data-target="image"]');
-        window.parent.loadModule('image.html', imgTab || undefined);
-    }
-}
-
-// Đón bản thiết kế từ Studio về, áp dụng mượt mà lên khung ảnh gốc
-function checkAndApplyStudioReturn() {
-    const raw = localStorage.getItem('MKT_CANVA_RETURN_PAYLOAD');
-    if (!raw) return;
-
-    try {
-        const data = JSON.parse(raw);
-        const targetImg = document.querySelector(`img[data-image-id="${data.imageId}"]`);
-        if (!targetImg) return; 
-
-        // Lưu vết ID trang Canvas
-        targetImg.dataset.canvasPageId = data.imageId; 
-
-        // Render Canvas layer lên trên
-        applyCanvaStateToFrame(targetImg, data.canvaState);
-
-        if (typeof markImageDirty === 'function') markImageDirty(true);
-        targetImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-        localStorage.removeItem('MKT_CANVA_RETURN_PAYLOAD');
-        if (typeof toast === 'function') toast('Đã áp dụng các thiết kế Canvas vào ảnh!');
-    } catch(e) {}
-}
-
-// Đón tín hiệu người dùng bấm XÓA TRANG từ bên Image.html
-function checkAndApplyStudioDelete() {
-    const raw = localStorage.getItem('MKT_CANVA_DELETE_PAYLOAD');
-    if (!raw) return;
-    try {
-        const data = JSON.parse(raw);
-        // Tìm kiếm ảnh mang Page ID bị xóa
-        const targetImg = document.querySelector(`img[data-canvas-page-id="${data.pageId}"]`) || document.querySelector(`img[data-image-id="${data.pageId}"]`);
-        
-        if (targetImg) {
-            // Tẩy vết tích Canvas
-            targetImg.removeAttribute('data-canvas-page-id');
-            targetImg.removeAttribute('data-canva-saved-state');
-            
-            // Xóa rỗng các lớp phủ (trả ảnh về nguyên dạng ảnh tĩnh)
-            const frame = targetImg.closest('.vb-image-frame');
-            if (frame) {
-                frame.querySelectorAll('.vb-canva-overlay-layer, .vb-canva-elements-container').forEach(e => e.remove());
-            }
-            
-            // Xóa Filter do Canvas can thiệp (nếu có)
-            targetImg.style.filter = '';
-            
-            if (typeof markImageDirty === 'function') markImageDirty(true);
-            if (typeof toast === 'function') toast('Đã xóa bỏ thiết kế Canvas khỏi ảnh.');
-        }
-        localStorage.removeItem('MKT_CANVA_DELETE_PAYLOAD');
-    } catch(e) {}
-}
-
-// Hàm khởi tạo và Render Layer Canvas (vẽ đè HTML/CSS lên thẻ ảnh)
-function applyCanvaStateToFrame(img, canvaState) {
-    const frame = img.closest('.vb-image-frame');
-    if (!frame || !canvaState || !canvaState.layers) return;
-
-    img.dataset.canvaSavedState = JSON.stringify(canvaState);
     
-    // Đánh dấu ảnh này được thiết kế bằng Page ID nào
-    if (canvaState.id) img.dataset.canvasPageId = canvaState.id;
-
-    // Dọn dẹp layer cũ
-    frame.querySelectorAll('.vb-canva-overlay-layer').forEach(e => e.remove());
-
-    let container = frame.querySelector('.vb-canva-elements-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.className = 'vb-canva-elements-container';
-        container.style.cssText = `
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; 
-            overflow: hidden;
-            z-index: 10;
-        `;
-        frame.appendChild(container);
-    } else {
-        container.innerHTML = ''; 
-    }
-
-    // Lấy kích thước hệ quy chiếu (đây là kích thước khi ảnh được đẩy sang Canva)
-    const baseWidth = canvaState.page.width || 1080;
-    const baseHeight = canvaState.page.height || 1080;
-
-    const scaleX = 100 / baseWidth;
-    const scaleY = 100 / baseHeight;
-
-    // Trình quan sát sự thay đổi kích thước của Frame (để giãn Font Chữ)
-    if (!frame._vbCanvaResizeObserver) {
-        frame._vbCanvaResizeObserver = new ResizeObserver(entries => {
-            for (let entry of entries) {
-                const ratio = entry.contentRect.width / baseWidth;
-                container.style.setProperty('--vb-scale-ratio', ratio);
-            }
-        });
-        frame._vbCanvaResizeObserver.observe(frame);
-    }
-
-    canvaState.layers.forEach((layer, index) => {
-        if (layer.visible === false) return;
-
-        // Áp dụng Filter cho lớp nền
-        if (index === 0 && layer.type === 'image') {
-            const f = layer.filters || {};
-            const brightness = Math.min(250, Math.max(10, 100 + (f.exposure || 0) * 0.75 + (f.shadows || 0) * 0.18 + (f.highlights || 0) * 0.08));
-            const contrast = Math.min(250, Math.max(10, 100 + (f.contrast || 0) + (f.clarity || 0) * 0.22 + (f.sharpen || 0) * 0.1 - (f.highlights || 0) * 0.06));
-            const sat = Math.min(300, Math.max(0, 100 + (f.saturation || 0)));
-            const sepia = Math.abs(f.temperature || 0) * 0.18;
-            const hue = (f.temperature || 0) * 0.22 + (f.tint || 0) * 0.36;
-            const blur = (f.denoise || 0) * 0.08;
-            
-            img.style.filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${sat}%) sepia(${sepia}%) hue-rotate(${hue}deg) blur(${blur}px)`;
-            img.style.objectPosition = `${layer.cropX ?? 50}% ${layer.cropY ?? 50}%`;
-            return; 
-        }
-
-        const el = document.createElement('div');
-        el.className = 'vb-canva-overlay-layer';
-        
-        const sx = (layer.scale || 1) * (layer.flipX ? -1 : 1);
-        const sy = (layer.scale || 1) * (layer.flipY ? -1 : 1);
-        
-        el.style.cssText = `
-            position: absolute;
-            left: ${layer.x * scaleX}%;
-            top: ${layer.y * scaleY}%;
-            width: ${layer.width * scaleX}%;
-            height: ${layer.height * scaleY}%;
-            opacity: ${layer.opacity ?? 1};
-            transform: rotate(${layer.rotation || 0}deg) scale(${sx}, ${sy});
-            transform-origin: center center;
-            z-index: ${index + 2};
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        `;
-
-        if (layer.type === 'text') {
-            el.innerHTML = `<div style="width:100%; height:100%; white-space:pre-wrap; background:${layer.textBackground || 'transparent'}; color:${layer.color || '#172033'}; font-family:'${layer.fontFamily}', sans-serif; font-size:calc(${layer.fontSize || 42}px * var(--vb-scale-ratio, 1)); font-weight:${layer.fontWeight || 700}; font-style:${layer.fontStyle || 'normal'}; text-decoration:${layer.textDecoration || 'none'}; text-align:${layer.textAlign || 'left'}; line-height:${layer.lineHeight || 1.2}; letter-spacing:${layer.letterSpacing || 0}px;">${layer.content || ''}</div>`;
-        } else if (layer.type === 'shape') {
-            el.innerHTML = `<div style="width:100%; height:100%; background:${layer.fill || '#2947d3'}; border:${layer.strokeWidth || 0}px solid ${layer.stroke || 'transparent'}; ${layer.shape === 'circle' ? 'border-radius: 50%;' : ''}"></div>`;
-        } else if (layer.type === 'html') {
-            el.innerHTML = `<div style="width:100%; height:100%; padding: 24px; background:linear-gradient(135deg, ${layer.htmlBg1 || '#2947d3'}, ${layer.htmlBg2 || '#12bee7'}); color:${layer.htmlColor || '#ffffff'};"><strong style="font-size: calc(28px * var(--vb-scale-ratio, 1)); display: block;">${layer.title || ''}</strong><span style="font-size: calc(15px * var(--vb-scale-ratio, 1)); display: block; opacity: 0.88;">${layer.subtitle || ''}</span></div>`;
-        }
-
-        container.appendChild(el);
-    });
+    localStorage.setItem('CANVAS_LAUNCH_INTENT', JSON.stringify(launchData));
+    
+    // Mở image.html với URL Parameter để định danh Project
+    window.open(`image.html?project=${encodeURIComponent(projectId)}&img=${encodeURIComponent(imageId)}`, `Canvas_${projectId}`);
 }
 
-// Hàm khởi động quét và tái tạo lại các ảnh đã có Canvas khi load trang
-const originalHydrateManagedImages = window.hydrateManagedImages || hydrateManagedImages;
-hydrateManagedImages = function(root, role = "content") {
-    originalHydrateManagedImages(root, role);
-    if (!root) return;
-    Array.from(root.querySelectorAll("img.vb-managed-image")).forEach(img => {
-        if (img.dataset.canvaSavedState) {
-            try {
-                const canvaState = JSON.parse(img.dataset.canvaSavedState);
-                applyCanvaStateToFrame(img, canvaState);
-            } catch(e) {}
+// Lắng nghe tín hiệu từ Canvas Studio trả về
+canvasChannel.onmessage = function(e) {
+    const data = e.data;
+    if (data.type === 'CANVAS_IMAGE_UPDATED' && data.projectId === currentPostId) {
+        // Tìm ảnh trong bài viết
+        const targetImg = document.querySelector(`img[data-image-id="${data.imageId}"]`);
+        if (targetImg) {
+            // 1. Cập nhật Metadata lưu canvasPageId
+            let meta = readImageMetadata(targetImg);
+            meta.canvasPageId = data.pageId;
+            writeImageMetadata(targetImg, meta);
+            
+            // 2. Tráo ảnh hiển thị bằng bản xem trước (Base64) từ Canvas
+            // Gỡ Drive URL cũ, gắn cờ isLocalUpload để hàm savePostToSheet tự động upload bản Design này lên Drive lại.
+            delete targetImg.dataset.driveFileId;
+            delete targetImg.dataset.driveUrl;
+            delete targetImg.dataset.archivedDrive;
+            targetImg.dataset.isLocalUpload = "true";
+            targetImg.src = data.previewBase64;
+            
+            markImageDirty(true);
+            
+            // Nếu đang mở popup của đúng ảnh này, cập nhật lại hình preview
+            if (vbActiveImage && vbActiveImage.dataset.imageId === data.imageId) {
+                document.getElementById('vbPreviewImg').src = data.previewBase64;
+            }
+            
+            vbShowAlert("Đã áp dụng bản thiết kế từ Canvas Studio vào bài viết!");
         }
-    });
+    } 
+    else if (data.type === 'CANVAS_PAGE_DELETED' && data.projectId === currentPostId) {
+        // Nếu trang bên Canvas bị xóa, gỡ canvasPageId và khôi phục ảnh
+        const targetImg = document.querySelector(`img[data-image-id="${data.imageId}"]`);
+        if (targetImg) {
+            let meta = readImageMetadata(targetImg);
+            if (meta.canvasPageId === data.pageId) {
+                meta.canvasPageId = "";
+                writeImageMetadata(targetImg, meta);
+                
+                // Khôi phục lại ảnh gốc nếu có lưu trong dataset
+                if (targetImg.dataset.originalSource) {
+                    targetImg.src = targetImg.dataset.originalSource;
+                }
+                markImageDirty(true);
+                vbShowAlert("Trang thiết kế đã bị xóa, ảnh đã được khôi phục về trạng thái gốc.");
+            }
+        }
+    }
 };
-
-// Chạy vòng lặp ngầm liên tục để đón payload từ iframe Image.html
-setInterval(() => {
-    checkAndApplyStudioReturn();
-    checkAndApplyStudioDelete();
-}, 350);
 </script>
 
 </body>

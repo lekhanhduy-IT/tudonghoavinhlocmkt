@@ -148,19 +148,39 @@
     .floating-toolbar .color-chip,.floating-toolbar .color-chip-more{width:28px!important;height:28px!important;min-width:28px!important;min-height:28px!important;border-radius:999px!important}
     .color-sidebar .sidebar-color-chip[style*="gradient"],.color-chip[style*="gradient"]{background-size:cover!important}
     @media(max-width:1180px){:root{--sidebar:360px}.color-sidebar{right:360px;width:340px}.btn .label{display:none}.top-tool.wide{min-width:auto}.google-font-link{min-width:190px}.google-font-link input{width:138px}}
-
+/* CSS cho Alert Xóa Trang */
+.canvas-alert-overlay { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(14,22,36,0.6); z-index:200000; display:none; justify-content:center; align-items:center; backdrop-filter: blur(3px); }
+.canvas-alert-box { background:#fff; width: 380px; padding:24px; border-radius:12px; text-align:center; box-shadow:0 18px 50px rgba(0,0,0,0.3); border-top: 4px solid var(--red); }
+.canvas-alert-box h3 { margin: 0 0 10px; font-size: 18px; color: var(--ink); }
+.canvas-alert-box p { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.5; }
+.canvas-alert-actions { display:flex; justify-content:center; gap:10px; }
+.canvas-alert-actions button { height: 38px; padding: 0 20px; border-radius: 6px !important; font-weight: 800; border: 1px solid var(--line); background: #fff; transition: 0.2s; }
+.canvas-alert-actions button.btn-danger { background: var(--red); color: #fff; border-color: var(--red); }
+.canvas-alert-actions button.btn-danger:hover { background: #b80c0c; }
   </style>
 </head>
 <body>
+  <div class="canvas-alert-overlay" id="canvasDeleteModal">
+  <div class="canvas-alert-box">
+    <h3>Xác nhận xóa trang</h3>
+    <p>Trang này sẽ bị xóa khỏi Project. Nếu ảnh này đang được dùng trong bài viết, nó sẽ bị khôi phục về ảnh gốc. Bạn có chắc chắn?</p>
+    <div class="canvas-alert-actions">
+      <button onclick="document.getElementById('canvasDeleteModal').style.display='none'">Hủy</button>
+      <button class="btn-danger" onclick="confirmDeletePage()">Xóa vĩnh viễn</button>
+    </div>
+  </div>
+</div>
 <div class="app" id="app">
   <section class="editor-column">
     <div class="viewer-toolbar" id="viewerToolbar">
       <div class="toolbar-group">
+        <button class="btn" id="sendToPostBtn" style="color: #8b3dff;"><i class="fa-solid fa-paper-plane"></i><span class="label">Áp dụng vào Bài</span></button>
         <button class="btn btn-primary" id="uploadBtn"><i class="fa-solid fa-cloud-arrow-up"></i><span class="label">Tải ảnh</span></button>
         <button class="btn" id="addTextBtn"><i class="fa-solid fa-font"></i><span class="label">Thêm chữ</span></button>
         <button class="btn" id="autoBtn" disabled><i class="fa-solid fa-wand-magic-sparkles"></i><span class="label">Tự động thông minh</span></button>
         <button class="btn" id="undoBtn" disabled title="Ctrl+Z"><i class="fa-solid fa-rotate-left"></i></button>
         <button class="btn" id="redoBtn" disabled title="Ctrl+Y"><i class="fa-solid fa-rotate-right"></i></button>
+
       </div>
       <div class="toolbar-group">
         <button class="btn" id="groupBtn" disabled><i class="fa-solid fa-object-group"></i><span class="label">Nhóm</span></button>
@@ -215,13 +235,7 @@
     </nav>
     <div class="sidebar-content">
       <section class="tab-panel active" data-panel="customize">
-          <div class="panel-title-row">
-          <h2>Chẩn đoán ảnh</h2>
-          <!-- NÚT TRẢ ẢNH VỀ BÀI VIẾT -->
-          <button type="button" class="mini-btn primary" style="background:#27ae60; border-color:#27ae60; color:#fff;" onclick="pushEditedCanvasBackToPost()">
-            <i class="fas fa-check"></i> Thêm vào bài
-          </button>
-        </div>
+        <div class="panel-title-row"><h2>Chẩn đoán ảnh</h2><span class="small-pill">Smart Scan</span></div>
         <div class="score-card"><div class="score-ring" id="scoreRing"><strong id="scoreValue">—</strong></div><div class="score-copy"><strong id="scoreTitle">Chưa chọn ảnh</strong><span id="scoreSubtitle">Chọn một layer ảnh để phân tích</span></div></div>
         <div class="diagnosis-list" id="diagnosisList"><div class="blank-state">Chưa có dữ liệu chẩn đoán.</div></div>
 
@@ -289,23 +303,6 @@
         <div class="section-title"><span>Ảnh dùng làm element</span></div><div class="media-grid" id="assetMediaGrid"></div>
       </section>
       <section class="tab-panel" data-panel="uploads"><div class="panel-title-row"><h2>Tải lên</h2><button class="mini-btn primary" id="uploadSidebarBtn"><i class="fa-solid fa-plus"></i> Chọn nhiều ảnh</button></div><div class="media-grid" id="uploadGrid"></div></section>
-      <!-- ==================== PANEL TỔNG HỢP (MỚI THÊM) ==================== -->
-      <section class="tab-panel" data-panel="collection">
-        <div class="panel-title-row"><h2>Tổng hợp ảnh</h2></div>
-        
-        <!-- 3 Tab con -->
-        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:4px; margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:8px;">
-          <button type="button" class="mini-btn sub-col-btn active primary" style="font-size:11px; padding:0;" onclick="switchSubColTab('post', this)">Bài viết</button>
-          <button type="button" class="mini-btn sub-col-btn" style="font-size:11px; padding:0;" onclick="switchSubColTab('drive', this)">Drive</button>
-          <button type="button" class="mini-btn sub-col-btn" style="font-size:11px; padding:0;" onclick="switchSubColTab('edited', this)">Đã sửa</button>
-        </div>
-
-        <!-- Khung chứa DOM của 3 tab -->
-        <div id="subPanel_post" class="sub-col-panel" style="display:block;"><div class="media-grid" id="gridCol_post"></div></div>
-        <div id="subPanel_drive" class="sub-col-panel" style="display:none;"><div class="media-grid" id="gridCol_drive"><div class="blank-state">Ảnh Drive theo bài viết sẽ tổng hợp tại đây</div></div></div>
-        <div id="subPanel_edited" class="sub-col-panel" style="display:none;"><div class="media-grid" id="gridCol_edited"></div></div>
-      </section>
-      <!-- =================================================================== -->
       <section class="tab-panel" data-panel="edited"><div class="panel-title-row"><h2>Đã sửa</h2><span id="editedCount" class="small-pill">0</span></div><div class="media-grid" id="editedGrid"></div></section>
       <section class="tab-panel" data-panel="templates"><div class="panel-title-row"><h2>Mẫu</h2><button class="mini-btn primary" id="saveTemplateSidebarBtn"><i class="fa-solid fa-plus"></i> Lưu mẫu</button></div><div class="media-grid" id="templateGrid"></div></section>
     </div>
@@ -2786,243 +2783,219 @@ function bind(){
 })();
 
 try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.onmessage=e=>{const m=e.data;if(!m||m.clientId===state.clientId||m.type!=='doc-operation')return;state.applyingRemote=true;restore(m.after);state.applyingRemote=false;toast(`Đã đồng bộ: ${m.label||'thay đổi'}`)}}catch(e){}
-// ==========================================================================
-  // HỆ THỐNG CẦU NỐI PROJECT & KẾT XUẤT ĐA LAYER CHÍNH THỨC (CANVA CORE)
-  // ==========================================================================
+ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
+// =========================================================================
+// PROJECT MANAGEMENT & CROSS-DEVICE SYNC (FIREBASE + POST.HTML)
+// =========================================================================
+const canvasChannel = new BroadcastChannel('canvas-studio-sync');
+let currentProjectId = null;
+let currentLaunchIntent = null;
+let firebaseProjectRef = null;
 
-  async function checkAndLoadBridgeImage() {
-      const raw = localStorage.getItem('MKT_CANVA_BRIDGE_PAYLOAD');
-      if (!raw) return;
+// Khởi tạo Firebase (Sử dụng config có sẵn của bạn)
+const firebaseConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
-      try {
-          const payload = JSON.parse(raw);
-          const postId = payload.postId || "BAI_VIET_GENERAL";
-          const targetPageId = payload.safeKey; 
+function initCanvasProject() {
+    const urlParams = new URLSearchParams(window.location.search);
+    currentProjectId = urlParams.get('project');
+    const targetImageId = urlParams.get('img');
+    
+    // Đọc intent từ localStorage
+    try {
+        const intentStr = localStorage.getItem('CANVAS_LAUNCH_INTENT');
+        if (intentStr) {
+            const intent = JSON.parse(intentStr);
+            if (intent.projectId === currentProjectId && intent.imageId === targetImageId) {
+                currentLaunchIntent = intent;
+            }
+        }
+    } catch(e) {}
 
-          if (typeof toast === 'function') toast(`Đang đồng bộ Project bài viết...`);
-
-          if (window.mktCurrentProjectPostId !== postId) {
-              window.mktCurrentProjectPostId = postId;
-              let projectPages = null;
-
-              if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-                  const snap = await firebase.database().ref(`canvas_projects/${postId}`).once('value');
-                  if (snap.exists()) projectPages = snap.val().pages;
-              }
-              if (!projectPages) {
-                  const localBak = localStorage.getItem(`MKT_PROJ_${postId}`);
-                  if (localBak) projectPages = JSON.parse(localBak).pages;
-              }
-
-              state.pages = (projectPages && Array.isArray(projectPages) && projectPages.length > 0) ? projectPages : [];
-          }
-
-          let existingPage = state.pages.find(p => p.id === targetPageId || p.originKey === targetPageId);
-
-          if (existingPage) {
-              state.currentPageId = existingPage.id;
-              if (typeof applyPageDocument === 'function') applyPageDocument(existingPage);
-              if (typeof toast === 'function') toast(`Đã mở Page thiết kế cũ!`);
-          } else {
-              const w = Number(payload.width) || 1080;
-              const h = Number(payload.height) || 1080;
-
-              const newPageObj = {
-                  id: targetPageId,
-                  originKey: targetPageId,
-                  originSrc: payload.anchorSrc,
-                  name: `Ảnh ${state.pages.length + 1}`,
-                  page: { width: w, height: h, background: '#ffffff' },
-                  layers: [
-                      {
-                          id: typeof uid === 'function' ? uid('layer') : ('layer_' + Date.now()),
-                          type: 'image',
-                          name: 'Ảnh gốc bài blog',
-                          src: payload.src,
-                          x: 0, y: 0, width: w, height: h,
-                          rotation: 0, scale: 1, opacity: 1, visible: true
-                      }
-                  ],
-                  groups: {}, comments: [], pageDuration: 8, preview: ''
-              };
-
-              state.pages.push(newPageObj);
-              state.currentPageId = newPageObj.id;
-              if (typeof applyPageDocument === 'function') applyPageDocument(newPageObj);
-              if (typeof toast === 'function') toast(`Đã nạp ảnh vào Page mới!`);
-          }
-
-          state.selectedIds = [];
-          state.primaryId = null;
-          if (typeof renderAll === 'function') renderAll();
-          if (typeof renderPageStrip === 'function') renderPageStrip();
-          if (typeof fitCanvas === 'function') setTimeout(fitCanvas, 60);
-
-      } catch (err) {
-          console.error("Lỗi nạp cầu nối Project:", err);
-      } finally {
-          localStorage.removeItem('MKT_CANVA_BRIDGE_PAYLOAD');
-      }
-  }
-
-  setInterval(checkAndLoadBridgeImage, 400);
-  window.addEventListener('focus', checkAndLoadBridgeImage);
-
-
-  // HÀM KẾT XUẤT NƯỚNG CHÍN TOÀN BỘ LAYER TEXT, IMAGE, SHAPE, FRAME, HTML, TEXTURE
-  window.pushEditedCanvasBackToPost = async function() {
-    const postId = window.mktCurrentProjectPostId || localStorage.getItem('MKT_ACTIVE_POST_ID') || "BAI_VIET_GENERAL";
-    if (typeof syncCurrentPageDoc === 'function') syncCurrentPageDoc();
-
-    const curDoc = state.pages.find(p => p.id === state.currentPageId) || state.pages[0];
-    if (!curDoc) return alert("Không tìm thấy dữ liệu Page hiện tại!");
-
-    if (typeof toast === 'function') toast('Đang lưu cấu trúc thiết kế...');
-
-    // Lưu vào Project Database
-    const projSave = { postId: postId, pages: state.pages, updatedAt: Date.now() };
-    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-        firebase.database().ref(`canvas_projects/${postId}`).set(projSave);
+    if (!currentProjectId) {
+        toast("Đang mở chế độ thiết kế tự do (Không thuộc bài viết nào).");
+        return;
     }
-    localStorage.setItem(`MKT_PROJ_${postId}`, JSON.stringify(projSave));
 
-    // SỬA TẠI ĐÂY: Gửi nguyên JSON data của thiết kế về post.html, KHÔNG DÙNG BASE64 NỮA
-    const returnPayload = {
-        postId: postId,
-        imageId: curDoc.id, // Khớp với safeKey
-        pageWidth: state.page.width,
-        pageHeight: state.page.height,
-        canvaState: curDoc // Truyền toàn bộ object chứa layer, text, shape, filters...
+    firebaseProjectRef = db.ref(`canvas_projects/${currentProjectId}`);
+    
+    // Tải Project từ Firebase
+    firebaseProjectRef.once('value').then(snapshot => {
+        const projectData = snapshot.val();
+        if (projectData && projectData.pages && projectData.pages.length > 0) {
+            // Đã có Project -> Phục hồi
+            restore({
+                pages: JSON.parse(projectData.pages),
+                currentPageId: currentLaunchIntent?.pageId || JSON.parse(projectData.pages)[0].id
+            });
+            toast(`Đã tải Project của bài viết: ${currentProjectId}`);
+            
+            // Xử lý nếu đây là ảnh mới toanh chưa có page nào
+            if (currentLaunchIntent && !currentLaunchIntent.pageId) {
+                createNewPageForIntent();
+            }
+        } else {
+            // Chưa có Project -> Tạo mới
+            state.pages = [];
+            if (currentLaunchIntent) {
+                createNewPageForIntent();
+            }
+        }
+        
+        // Lắng nghe thay đổi từ thiết bị khác
+        firebaseProjectRef.on('value', syncSnap => {
+            const data = syncSnap.val();
+            // Cần cơ chế lock để không ghi đè khi chính máy này đang vẽ
+            // Trong scope này tôi demo việc đồng bộ tĩnh khi mở tab.
+        });
+    });
+}
+
+function createNewPageForIntent() {
+    if (!currentLaunchIntent) return;
+    
+    const newPageId = uid('page');
+    currentLaunchIntent.pageId = newPageId; // Gắn ID mới
+    
+    // Tạo Page với kích thước chuẩn từ post.html truyền sang
+    const basePage = {
+        width: currentLaunchIntent.width || 1080,
+        height: currentLaunchIntent.height || 1080,
+        background: '#ffffff'
     };
-    localStorage.setItem('MKT_CANVA_RETURN_PAYLOAD', JSON.stringify(returnPayload));
+    
+    // Tạo layer ảnh nền (Ảnh gốc từ bài viết)
+    const baseLayerObj = baseLayer('image', {
+        name: 'Ảnh gốc từ bài',
+        src: currentLaunchIntent.sourceUrl,
+        width: basePage.width,
+        height: basePage.height,
+        x: 0, y: 0,
+        lockMode: 'full' // Khóa cứng để làm nền
+    });
+    baseLayerObj.imageId = currentLaunchIntent.imageId; // Đánh dấu layer này thuộc về ảnh nào
 
-    if (window.parent && typeof window.parent.loadModule === 'function') {
-        const postTab = window.parent.document.querySelector('.menu-item-side[data-target="post"]');
-        window.parent.loadModule('post.html', postTab || undefined);
+    const newPage = createPageDocument({
+        id: newPageId,
+        name: `Thiết kế ${state.pages.length + 1}`,
+        page: basePage,
+        layers: [baseLayerObj],
+        groups: {},
+        comments: []
+    });
+    
+    state.pages.push(newPage);
+    switchPage(newPageId);
+    syncProjectToFirebase();
+}
+
+// Lưu toàn bộ Project lên Firebase
+function syncProjectToFirebase() {
+    if (!firebaseProjectRef || !currentProjectId) return;
+    syncCurrentPageDoc();
+    firebaseProjectRef.set({
+        updatedAt: Date.now(),
+        pages: JSON.stringify(state.pages)
+    });
+}
+
+// Override hàm Commit để mỗi thao tác đều lưu Project
+const originalCommit = commit;
+commit = function(before, label) {
+    originalCommit(before, label);
+    if (currentProjectId) syncProjectToFirebase();
+};
+
+// Gửi ảnh về post.html
+document.getElementById('sendToPostBtn').onclick = async () => {
+    if (!currentLaunchIntent || !currentProjectId) {
+        toast("Bạn phải mở Canvas từ một Bài viết để sử dụng tính năng này!");
+        return;
+    }
+    
+    els.sendToPostBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý...';
+    try {
+        syncCurrentPageDoc();
+        syncProjectToFirebase();
+        
+        // Render trang hiện tại ra Base64
+        const doc = currentPageDoc();
+        const canvas = await exportPageDoc(doc, 1); // Scale 1 để lấy chất lượng cao nhất
+        // Xuất dưới dạng WebP/JPEG cho nhẹ
+        const previewBase64 = canvas.toDataURL('image/jpeg', 0.92);
+        
+        // Bắn tín hiệu về post.html
+        canvasChannel.postMessage({
+            type: 'CANVAS_IMAGE_UPDATED',
+            projectId: currentProjectId,
+            imageId: currentLaunchIntent.imageId,
+            pageId: state.currentPageId,
+            previewBase64: previewBase64
+        });
+        
+        toast("Đã áp dụng ảnh vào bài viết thành công!");
+    } catch(e) {
+        toast("Lỗi kết xuất ảnh: " + e.message);
+    } finally {
+        els.sendToPostBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i><span class="label">Áp dụng vào Bài</span>';
     }
 };
-ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
-})();
-</script>
-<div class="modal-overlay" id="canvaConfirmOverlay" style="z-index: 999999;">
-  <div class="modal-box" style="width: 350px; text-align: center; border-color: var(--red, #e53d45); padding: 25px;">
-    <i class="fa-solid fa-triangle-exclamation" style="font-size: 40px; color: var(--red, #e53d45); margin-bottom: 15px;"></i>
-    <h3 style="margin: 0 0 10px; font-size: 16px;">Xác nhận xóa trang</h3>
-    <p id="canvaConfirmMsg" style="font-size: 13px; color: #555; margin-bottom: 20px;"></p>
-    <div style="display: flex; gap: 10px; justify-content: center;">
-      <button class="action-btn" id="canvaConfirmCancel" style="flex: 1;">Hủy bỏ</button>
-      <button class="action-btn danger" id="canvaConfirmOk" style="flex: 1; background: var(--red, #e53d45); color: #fff; border-color: var(--red, #e53d45);">Xóa ngay</button>
-    </div>
-  </div>
-</div>
 
-<script>
-(function applyV23IntegrationPatch() {
-    // 1. Hàm hiển thị hộp thoại xác nhận tùy chỉnh
-    let confirmCallback = null;
-    const overlay = document.getElementById('canvaConfirmOverlay');
-    const msgEl = document.getElementById('canvaConfirmMsg');
-    const btnCancel = document.getElementById('canvaConfirmCancel');
-    const btnOk = document.getElementById('canvaConfirmOk');
+// Ghi đè chức năng Xóa Trang
+let pageToDeleteId = null;
+els.clearBtn.onclick = () => {
+    if (!state.pages.length) return;
+    pageToDeleteId = state.currentPageId;
+    document.getElementById('canvasDeleteModal').style.display = 'flex';
+};
 
-    function showCustomConfirm(msg, callback) {
-        msgEl.textContent = msg;
-        confirmCallback = callback;
-        overlay.style.display = 'flex';
+window.confirmDeletePage = function() {
+    if (!pageToDeleteId) return;
+    
+    const docToDelete = state.pages.find(p => p.id === pageToDeleteId);
+    let associatedImageId = null;
+    
+    // Tìm xem trang này có gắn với imageId nào từ bài viết không (tìm trong layers)
+    if (docToDelete && docToDelete.layers) {
+        const bgLayer = docToDelete.layers.find(l => l.imageId);
+        if (bgLayer) associatedImageId = bgLayer.imageId;
     }
-
-    btnCancel.onclick = () => { overlay.style.display = 'none'; confirmCallback = null; };
-    btnOk.onclick = () => { overlay.style.display = 'none'; if(confirmCallback) confirmCallback(); };
-
-    // 2. Ghi đè chức năng nút "Xóa trang" (thùng rác trên thanh công cụ)
-    const oldClearBtn = els.clearBtn.onclick;
-    els.clearBtn.onclick = () => {
-        showCustomConfirm('Bạn có chắc chắn muốn xóa trang này không? Ảnh bên bài viết (nếu có) sẽ trở về trạng thái ảnh tĩnh gốc.', () => {
-            transact('Xóa trang và hủy liên kết', () => {
-                const deletedId = state.currentPageId;
-                
-                if (state.pages.length <= 1) {
-                    // Nếu chỉ có 1 trang, làm sạch trang thay vì xóa mảng
-                    state.layers = []; state.groups = {}; state.selectedIds = []; state.primaryId = null;
-                    const curDoc = currentPageDoc();
-                    if(curDoc) { curDoc.layers = []; curDoc.groups = {}; }
-                } else {
-                    // Nếu có nhiều trang, xóa hẳn trang khỏi dải (strip)
-                    const idx = state.pages.findIndex(p => p.id === deletedId);
-                    if (idx !== -1) {
-                        state.pages.splice(idx, 1);
-                        state.currentPageId = state.pages[Math.max(0, idx - 1)].id;
-                        applyPageDocument(currentPageDoc());
-                    }
-                }
-
-                // Gửi tín hiệu XÓA về bài viết để tháo lớp Canvas
-                const postId = window.mktCurrentProjectPostId || localStorage.getItem('MKT_ACTIVE_POST_ID');
-                localStorage.setItem('MKT_CANVA_DELETE_PAYLOAD', JSON.stringify({ pageId: deletedId, postId: postId }));
-            });
-            renderAll();
-            toast('Đã xóa trang thiết kế');
+    
+    // Xóa trang khỏi state
+    state.pages = state.pages.filter(p => p.id !== pageToDeleteId);
+    
+    if (state.pages.length === 0) {
+        // Nếu hết trang, tạo trang trắng
+        state.page = {width:1080, height:1080, background:'#ffffff'};
+        state.layers = [];
+        ensurePages();
+    } else {
+        state.currentPageId = state.pages[0].id;
+        applyPageDocument(state.pages[0]);
+    }
+    
+    renderAll();
+    syncProjectToFirebase();
+    
+    // Bắn tín hiệu hủy Canvas về cho post.html
+    if (associatedImageId && currentProjectId) {
+        canvasChannel.postMessage({
+            type: 'CANVAS_PAGE_DELETED',
+            projectId: currentProjectId,
+            imageId: associatedImageId,
+            pageId: pageToDeleteId
         });
-    };
+    }
+    
+    document.getElementById('canvasDeleteModal').style.display = 'none';
+    toast("Đã xóa trang.");
+};
 
-    // 3. Can thiệp vào Bridge: Tự động đổi kích thước Page Canvas khớp với thông số từ bài viết truyền sang
-    const oldCheckBridge = window.checkAndLoadBridgeImage;
-    window.checkAndLoadBridgeImage = async function() {
-        const raw = localStorage.getItem('MKT_CANVA_BRIDGE_PAYLOAD');
-        if (!raw) return;
-        
-        try {
-            const payload = JSON.parse(raw);
-            const targetPageId = payload.safeKey; 
-            const w = Math.round(Number(payload.width) || 1080);
-            const h = Math.round(Number(payload.height) || 1080);
-
-            // Xử lý nạp Project cũ (bỏ qua bước fetch network để nhanh gọn, đã có sẵn trong file gốc)
-            if (window.mktCurrentProjectPostId !== payload.postId) {
-                window.mktCurrentProjectPostId = payload.postId;
-                let localBak = localStorage.getItem(`MKT_PROJ_${payload.postId}`);
-                if (localBak) {
-                    let projectPages = JSON.parse(localBak).pages;
-                    if(projectPages && projectPages.length > 0) state.pages = projectPages;
-                }
-            }
-
-            let existingPage = state.pages.find(p => p.id === targetPageId || p.originKey === targetPageId);
-            
-            if (existingPage) {
-                state.currentPageId = existingPage.id;
-                // Ép kích thước canvas phải bằng với kích thước khung ảnh bên post
-                existingPage.page.width = w;
-                existingPage.page.height = h;
-                applyPageDocument(existingPage);
-                toast(`Đã mở Page: Kích thước được đồng bộ (${w}x${h})`);
-            } else {
-                const newPageObj = {
-                    id: targetPageId, originKey: targetPageId, originSrc: payload.anchorSrc,
-                    name: `Ảnh ${state.pages.length + 1}`,
-                    page: { width: w, height: h, background: '#ffffff' },
-                    layers: [{
-                        id: uid('layer'), type: 'image', name: 'Ảnh gốc bài blog',
-                        src: payload.src, x: 0, y: 0, width: w, height: h,
-                        rotation: 0, scale: 1, opacity: 1, visible: true
-                    }],
-                    groups: {}, comments: [], pageDuration: 8, preview: ''
-                };
-                state.pages.push(newPageObj);
-                state.currentPageId = newPageObj.id;
-                applyPageDocument(newPageObj);
-                toast(`Đã nạp ảnh vào Page mới (${w}x${h})`);
-            }
-
-            state.selectedIds = []; state.primaryId = null;
-            renderAll(); fitCanvas();
-
-        } catch (err) {} finally {
-            localStorage.removeItem('MKT_CANVA_BRIDGE_PAYLOAD');
-        }
-    };
-
+// Khởi chạy khi load
+setTimeout(initCanvasProject, 500);
 })();
 </script>
+
 </body>
 </html>
