@@ -6323,114 +6323,102 @@ function renderImageLibraries() {
     }
 }
 // =========================================================================
-// HỆ THỐNG ĐÓN NHẬN LIVE CANVAS COMPONENT (JSON BLUEPRINT)
+// CẦU NỐI CANVA STUDIO - BẢN KHẮC PHỤC TRƯỢT RELOAD IFRAME
 // =========================================================================
 
+// Hàm băm URL thành một mã Key tuyệt đối an toàn cho Firebase (không chứa dấu chấm, sọc chéo)
+function mktGetSafeUrlKey(url) {
+    let hash = 0;
+    const str = String(url || "");
+    for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+    }
+    return 'drive_img_' + Math.abs(hash);
+}
+
 function sendImageToCanvaStudio() {
-    if (!vbActiveImage) {
-        alert("Không tìm thấy đối tượng hình ảnh được chọn!");
-        return;
-    }
+    if (!vbActiveImage) return alert("Không xác định được ảnh đang chọn!");
 
-    // Lấy ID bài viết hiện tại hoặc tạo mã nháp tạm thời
-    let pId = "BAI_VIET_NHAP";
-    if (typeof currentPostId !== "undefined" && currentPostId) pId = currentPostId;
+    // MỎ NEO BẤT BIẾN: Lấy chính xác chuỗi URL gốc đang hiển thị trong trình soạn thảo
+    const anchorSrc = vbActiveImage.getAttribute('src') || vbActiveImage.src;
+    const safeKey = mktGetSafeUrlKey(anchorSrc);
 
-    // Định danh độc nhất vĩnh viễn cho cấu phần Canvas này trong database
-    let imgId = vbActiveImage.dataset.imageId;
-    if (!imgId) {
-        imgId = 'canvas_comp_' + new Date().getTime();
-        vbActiveImage.dataset.imageId = imgId;
-    }
+    let pId = typeof currentPostId !== "undefined" && currentPostId ? currentPostId : "BAI_VIET_NHAP";
 
     const payload = {
         postId: pId,
-        imageId: imgId,
-        src: vbActiveImage.dataset.originDriveSrc || vbActiveImage.src, // Luôn giữ link gốc Drive kế thừa
+        safeKey: safeKey,
+        anchorSrc: anchorSrc, // <--- Dùng chính URL này làm vật định danh
+        src: anchorSrc,
         width: vbActiveImage.naturalWidth || vbActiveImage.width || 1080,
         height: vbActiveImage.naturalHeight || vbActiveImage.height || 1080
     };
 
     if (typeof closeImageProperties === 'function') closeImageProperties();
 
-    // Rải phong bì vào hòm thư hệ thống
     localStorage.setItem('MKT_CANVA_BRIDGE_PAYLOAD', JSON.stringify(payload));
-    localStorage.setItem('MKT_CANVA_ORIGIN_ID', payload.imageId);
-    localStorage.setItem('MKT_CANVA_POST_ID', payload.postId);
+    localStorage.setItem('MKT_CANVA_ANCHOR_SRC', anchorSrc);
+    localStorage.setItem('MKT_CANVA_SAFE_KEY', safeKey);
+    localStorage.setItem('MKT_CANVA_POST_ID', pId);
 
-    // Chuyển hướng màn hình chính sang tab Thiết kế hình ảnh
     if (window.parent && typeof window.parent.loadModule === 'function') {
         const imgTab = window.parent.document.querySelector('.menu-item-side[data-target="image"]');
-        if (imgTab) window.parent.loadModule('image.html', imgTab);
+        window.parent.loadModule('image.html', imgTab || undefined);
     }
 }
 
-// HÀM ĐÓN NHẬN TÍN HIỆU HOÀN BÀI - BIẾN THÀNH LIVE COMPONENT HIỂN THỊ VĨNH VIỄN
-window.replaceEditedImageFromStudio = function() {
+// NGƯỜI LÍNH GÁC BÊN POST.HTML (Đứng kiên nhẫn đợi trang tải xong từ Sheet mới làm việc)
+function checkAndApplyStudioReturn() {
     const raw = localStorage.getItem('MKT_CANVA_RETURN_PAYLOAD');
     if (!raw) return;
 
     try {
         const data = JSON.parse(raw);
+        const targetSrc = data.anchorSrc;
+
+        // Quét toàn bộ thẻ ảnh hiện có trên trang blog
+        const allImages = Array.from(document.querySelectorAll('#editorContainer img, body img'));
+        
+        // Tìm bức ảnh có đường dẫn URL trùng khớp với mỏ neo
+        const targetImg = allImages.find(img => {
+            const currentSrc = img.getAttribute('src') || img.src;
+            return currentSrc && (currentSrc === targetSrc || currentSrc.includes(targetSrc) || targetSrc.includes(currentSrc));
+        });
+
+        if (!targetImg) return; // Trang chưa kéo xong Sheet -> Im lặng đợi chu kỳ 350ms tiếp theo!
+
+        // ĐÃ TÌM THẤY ẢNH GỐC SAU KHI RELOAD! Tiến hành tráo đổi:
         const blueprint = data.blueprint;
 
-        // Định vị cấu phần cũ trong vùng soạn thảo blog
-        let targetImg = document.querySelector(`img[data-image-id="${data.targetImageId}"]`);
-        
-        if (!targetImg) {
-            // Lưới an toàn: Tìm theo thuộc tính dự phòng nếu nó đã bị biến đổi cấu trúc
-            targetImg = document.querySelector(`[data-image-id="${data.targetImageId}"]`);
-        }
+        const liveComp = document.createElement('img');
+        liveComp.src = data.screenshot || targetSrc;
+        liveComp.style.width = "100%";
+        liveComp.style.maxWidth = (blueprint.pageWidth || 1080) + "px";
+        liveComp.setAttribute('width', blueprint.pageWidth);
+        liveComp.setAttribute('height', blueprint.pageHeight);
 
-        if (!targetImg) {
-            alert('Không tìm thấy vị trí đối tượng gốc trong bài viết để thay thế thiết kế!');
-            return;
-        }
+        liveComp.className = "mkt-live-canvas-component";
+        liveComp.dataset.isCanvasComponent = "true";
+        liveComp.dataset.originDriveSrc = targetSrc; 
 
-        // BƯỚC ĐỘT PHÁ: Tạo ra một thẻ hiển thị lai thông minh (Hybrid Element)
-        // Thẻ này bản chất bề ngoài vẫn là ảnh chụp Canvas sắc nét (giúp tương thích trình duyệt cũ và load nhanh vèo vèo)
-        // Nhưng bên trong bụng chứa toàn bộ Blueprint cấu trúc layer và Link Drive gốc ẩn dưới dạng Dataset.
-        
-        // Tìm ra link ảnh gốc Drive nằm ở layer đầu tiên trong Canvas để làm neo dữ liệu vĩnh viễn
-        let originDriveLink = targetImg.src;
-        if (blueprint.layers && blueprint.layers.length > 0) {
-            const rootLayer = blueprint.layers.find(l => l.type === 'image');
-            if (rootLayer) originDriveLink = rootLayer.src;
-        }
+        targetImg.parentNode.replaceChild(liveComp, targetImg);
 
-        // Tạo thẻ Img lai mang sức mạnh của Canvas
-        const liveCanvasElement = document.createElement('img');
-        
-        // Hiển thị bề mặt lấy từ ảnh chụp màn hình Canvas hiện tại để giữ độ chân thực hiệu ứng + chữ đè
-        liveCanvasElement.src = data.screenshot || originDriveLink; 
-        
-        // Thiết lập kích thước khung theo đúng tỉ lệ canvas đã căn chỉnh
-        liveCanvasElement.style.width = "100%"; 
-        liveCanvasElement.style.maxWidth = blueprint.pageWidth + "px";
-        liveCanvasElement.setAttribute('width', blueprint.pageWidth);
-        liveCanvasElement.setAttribute('height', blueprint.pageHeight);
-        
-        // Khóa các lệnh bài cấu trúc để lần sau click vào hệ thống nhận diện đây là cấu phần thiết kế sống
-        liveCanvasElement.className = "mkt-live-canvas-component";
-        liveCanvasElement.dataset.imageId = data.targetImageId;
-        liveCanvasElement.dataset.isCanvasComponent = "true";
-        liveCanvasElement.dataset.originDriveSrc = originDriveLink; // Lưu vết link Drive gốc vĩnh viễn
-        
-        // Thực hiện tráo đổi phần tử trên DOM soạn thảo bài viết
-        targetImg.parentNode.replaceChild(liveCanvasElement, targetImg);
-
-        // Kích hoạt cờ báo bài viết đã có sự thay đổi dữ liệu để người dùng nhấn Lưu hệ thống
         if (typeof markImageDirty === 'function') markImageDirty(true);
         if (typeof checkEditorChanges === 'function') checkEditorChanges();
 
-        liveCanvasElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        liveComp.scrollIntoView({ behavior: 'smooth', block: 'center' });
         
-    } catch (e) {
-        console.error("Lỗi dựng cấu phần Live Canvas Component:", e);
-    } finally {
+        // Hoàn tất nhiệm vụ -> Tiêu hủy bưu phẩm
         localStorage.removeItem('MKT_CANVA_RETURN_PAYLOAD');
+
+    } catch(e) {
+        console.error("Lỗi dựng quay vòng Canvas:", e);
     }
-};
+}
+
+// Quét ngầm 350ms/lần. Bất kể mạng chậm làm post.html tải mất 2 giây hay 5 giây, cứ hiện ảnh ra là chộp được!
+setInterval(checkAndApplyStudioReturn, 350);
 </script>
 
 </body>
