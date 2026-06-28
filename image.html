@@ -2787,15 +2787,8 @@ function bind(){
 
 try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.onmessage=e=>{const m=e.data;if(!m||m.clientId===state.clientId||m.type!=='doc-operation')return;state.applyingRemote=true;restore(m.after);state.applyingRemote=false;toast(`Đã đồng bộ: ${m.label||'thay đổi'}`)}}catch(e){}
 // ==========================================================================
-  // LÕI CANVAS ĐỒNG BỘ REALTIME THEO Mỏ Neo URL (JSON BLUEPRINT)
+  // HỆ THỐNG PROJECT CANVAS THEO BÀI VIẾT & QUẢN LÝ ĐA PAGE (CANVA ARCHITECTURE)
   // ==========================================================================
-
-  function getMktFirebaseRef(postId, safeKey) {
-      if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-          return firebase.database().ref(`canvas_designs/${postId}/${safeKey}`);
-      }
-      return null;
-  }
 
   async function checkAndLoadBridgeImage() {
       const raw = localStorage.getItem('MKT_CANVA_BRIDGE_PAYLOAD');
@@ -2803,54 +2796,76 @@ try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.o
 
       try {
           const payload = JSON.parse(raw);
-          const postId = payload.postId || "BAI_VIET_NHAP";
-          const safeKey = payload.safeKey;
+          const postId = payload.postId || "BAI_VIET_GENERAL";
+          const targetPageId = payload.safeKey; 
 
-          if (typeof toast === 'function') toast('Đang đối chiếu thiết kế trên đám mây...');
-          
-          let savedDesign = null;
-          const dbRef = getMktFirebaseRef(postId, safeKey);
+          if (typeof toast === 'function') toast(`Đang đồng bộ Project bài viết...`);
 
-          if (dbRef) {
-              const snapshot = await dbRef.once('value');
-              if (snapshot.exists()) savedDesign = snapshot.val();
+          // 1. CHUYỂN HOẶC KHỞI TẠO PROJECT THEO ID BÀI VIẾT
+          if (window.mktCurrentProjectPostId !== postId) {
+              window.mktCurrentProjectPostId = postId;
+              let projectPages = null;
+
+              if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+                  const snap = await firebase.database().ref(`canvas_projects/${postId}`).once('value');
+                  if (snap.exists()) projectPages = snap.val().pages;
+              }
+              if (!projectPages) {
+                  const localBak = localStorage.getItem(`MKT_PROJ_${postId}`);
+                  if (localBak) projectPages = JSON.parse(localBak).pages;
+              }
+
+              if (projectPages && Array.isArray(projectPages) && projectPages.length > 0) {
+                  state.pages = projectPages;
+              } else {
+                  state.pages = []; // Project mới tinh
+              }
           }
 
-          if (!savedDesign) {
-              const localBak = localStorage.getItem(`MKT_BAK_${safeKey}`);
-              if (localBak) savedDesign = JSON.parse(localBak);
-          }
+          // 2. TÌM HOẶC TẠO PAGE TRONG PROJECT CHO BỨC ẢNH NÀY
+          let existingPage = state.pages.find(p => p.id === targetPageId || p.originKey === targetPageId);
 
-          if (savedDesign && savedDesign.layers) {
-              state.page.width = Number(savedDesign.pageWidth) || 1080;
-              state.page.height = Number(savedDesign.pageHeight) || 1080;
-              state.page.background = savedDesign.pageBackground || '#ffffff';
-              state.layers = savedDesign.layers;
-              if (typeof toast === 'function') toast('Đã khôi phục thiết kế cũ!');
+          if (existingPage) {
+              state.currentPageId = existingPage.id;
+              applyPageDocument(existingPage);
+              if (typeof toast === 'function') toast(`Đã mở Page thiết kế cũ của ảnh!`);
           } else {
               const w = Number(payload.width) || 1080;
               const h = Number(payload.height) || 1080;
 
-              state.page.width = w;
-              state.page.height = h;
-              state.page.background = '#ffffff';
+              const newPageObj = {
+                  id: targetPageId,
+                  originKey: targetPageId,
+                  originSrc: payload.anchorSrc,
+                  name: `Ảnh ${state.pages.length + 1}`,
+                  page: { width: w, height: h, background: '#ffffff' },
+                  layers: [
+                      {
+                          id: uid('layer'),
+                          type: 'image',
+                          name: 'Ảnh gốc bài blog',
+                          src: payload.src,
+                          x: 0, y: 0, width: w, height: h,
+                          rotation: 0, scale: 1, opacity: 1, visible: true
+                      }
+                  ],
+                  groups: {}, comments: [], pageDuration: 8, preview: ''
+              };
 
-              state.layers.length = 0;
-              state.layers.push({
-                  id: 'layer_root_' + new Date().getTime(),
-                  type: 'image', name: 'Ảnh gốc bài viết',
-                  src: payload.src, x: 0, y: 0, width: w, height: h,
-                  rotation: 0, scale: 1, opacity: 1, visible: true
-              });
-              if (typeof toast === 'function') toast('Đã tạo nền Canvas từ ảnh blog!');
+              state.pages.push(newPageObj);
+              state.currentPageId = newPageObj.id;
+              applyPageDocument(newPageObj);
+              if (typeof toast === 'function') toast(`Đã tạo Page mới trong Project!`);
           }
 
           state.selectedIds = [];
-          if (typeof renderAll === 'function') renderAll();
+          state.primaryId = null;
+          renderAll();
+          if (typeof renderPageStrip === 'function') renderPageStrip();
           if (typeof fitCanvas === 'function') setTimeout(fitCanvas, 60);
 
       } catch (err) {
-          console.error("Lỗi tải cầu nối:", err);
+          console.error("Lỗi nạp cầu nối Project:", err);
       } finally {
           localStorage.removeItem('MKT_CANVA_BRIDGE_PAYLOAD');
       }
@@ -2859,38 +2874,31 @@ try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.o
   setInterval(checkAndLoadBridgeImage, 400);
   window.addEventListener('focus', checkAndLoadBridgeImage);
 
-
+  // LỆNH TRẢ ẢNH VỀ BÀI VIẾT
   window.pushEditedCanvasBackToPost = async function() {
-      const anchorSrc = localStorage.getItem('MKT_CANVA_ANCHOR_SRC');
-      const safeKey = localStorage.getItem('MKT_CANVA_SAFE_KEY');
-      const originPostId = localStorage.getItem('MKT_CANVA_POST_ID') || "BAI_VIET_NHAP";
-      
-      if (!anchorSrc || !safeKey) return alert('Không tìm thấy mỏ neo định danh ảnh gốc!');
+      const postId = window.mktCurrentProjectPostId || localStorage.getItem('MKT_ACTIVE_POST_ID') || "BAI_VIET_GENERAL";
+      if (typeof syncCurrentPageDoc === 'function') syncCurrentPageDoc();
 
-      if (typeof toast === 'function') toast('Đang đồng bộ Blueprint...');
+      const curDoc = state.pages.find(p => p.id === state.currentPageId) || state.pages[0];
+      if (!curDoc) return alert("Không tìm thấy dữ liệu Page hiện tại!");
 
-      const canvasBlueprint = {
-          safeKey: safeKey,
-          anchorSrc: anchorSrc,
-          postId: originPostId,
-          pageWidth: state.page.width,
-          pageHeight: state.page.height,
-          pageBackground: state.page.background || '#ffffff',
-          layers: state.layers,
-          updatedAt: new Date().getTime()
-      };
+      if (typeof toast === 'function') toast('Đang lưu Project & xuất ảnh...');
 
-      const dbRef = getMktFirebaseRef(originPostId, safeKey);
-      if (dbRef) await dbRef.set(canvasBlueprint);
-      localStorage.setItem(`MKT_BAK_${safeKey}`, JSON.stringify(canvasBlueprint));
+      // Lưu Project lên đám mây Firebase & máy cục bộ
+      const projSave = { postId: postId, pages: state.pages, updatedAt: Date.now() };
+      if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+          await firebase.database().ref(`canvas_projects/${postId}`).set(projSave);
+      }
+      localStorage.setItem(`MKT_PROJ_${postId}`, JSON.stringify(projSave));
 
       const mainCanvas = document.querySelector('canvas');
       const returnPayload = {
-          anchorSrc: anchorSrc,
-          blueprint: canvasBlueprint,
-          screenshot: mainCanvas ? mainCanvas.toDataURL('image/jpeg', 0.90) : ""
+          postId: postId,
+          originSrc: curDoc.originSrc || curDoc.layers?.[0]?.src,
+          screenshot: mainCanvas ? mainCanvas.toDataURL('image/jpeg', 0.95) : "",
+          pageWidth: state.page.width,
+          pageHeight: state.page.height
       };
-
       localStorage.setItem('MKT_CANVA_RETURN_PAYLOAD', JSON.stringify(returnPayload));
 
       if (window.parent && typeof window.parent.loadModule === 'function') {
@@ -2898,6 +2906,91 @@ try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.o
           window.parent.loadModule('post.html', postTab || undefined);
       }
   };
+
+  // CƠ CHẾ TỔNG HỢP TÀI NGUYÊN BÀI VIẾT THEO PROJECT
+  window.switchSubColTab = function(tabName, btnEl) {
+      document.querySelectorAll('.sub-col-btn').forEach(b => b.classList.remove('active', 'primary'));
+      document.querySelectorAll('.sub-col-panel').forEach(p => p.style.display = 'none');
+
+      btnEl.classList.add('active', 'primary');
+      const targetPanel = document.getElementById('subPanel_' + tabName);
+      if (targetPanel) targetPanel.style.display = 'block';
+
+      const pId = window.mktCurrentProjectPostId || localStorage.getItem('MKT_ACTIVE_POST_ID') || "";
+      if (tabName === 'post') scanColPostImages(pId);
+      if (tabName === 'edited') scanColEditedImages(pId);
+      if (tabName === 'drive') scanColDriveImages(pId);
+  };
+
+  function quickAddDomImageToLayer(src) {
+      if (typeof addLayer === 'function' && typeof baseLayer === 'function') {
+          addLayer(baseLayer('image', {
+              name: 'Ảnh chèn nhanh', src: src,
+              width: 400, height: 400, x: 100, y: 100
+          }), 'Thêm ảnh tổng hợp');
+      }
+  }
+
+  function scanColPostImages(postId) {
+      const grid = document.getElementById('gridCol_post');
+      const postFrame = window.parent?.document.getElementById('frame-post');
+      if (!grid || !postFrame?.contentDocument) return;
+
+      const imgs = Array.from(postFrame.contentDocument.querySelectorAll('#editorContainer img'));
+      if (!imgs.length) { grid.innerHTML = '<div class="blank-state">Bài viết này chưa có ảnh</div>'; return; }
+
+      grid.innerHTML = imgs.map(img => `
+          <div class="media-card">
+              <img src="${img.src}" onclick="quickAddDomImageToLayer('${img.src}')">
+              <div class="media-name">${img.dataset.imageRole || 'Ảnh bài'}</div>
+          </div>
+      `).join('');
+  }
+
+  function scanColEditedImages(postId) {
+      const grid = document.getElementById('gridCol_edited');
+      if (!grid) return;
+      const curProj = JSON.parse(localStorage.getItem(`MKT_PROJ_${postId}`) || "{}");
+      const pagesList = curProj.pages || state.pages || [];
+
+      if (!pagesList.length) { grid.innerHTML = '<div class="blank-state">Chưa có ảnh sửa nào trong bài</div>'; return; }
+
+      grid.innerHTML = pagesList.map((p, i) => `
+          <div class="media-card">
+              <img src="${p.preview || p.layers?.[0]?.src}" onclick="quickAddDomImageToLayer('${p.preview || p.layers?.[0]?.src}')">
+              <div class="media-name">${escapeHtml(p.name || `Page ${i+1}`)}</div>
+          </div>
+      `).join('');
+  }
+
+  function scanColDriveImages(postId) {
+      const grid = document.getElementById('gridCol_drive');
+      if (!grid) return;
+      const cacheStr = localStorage.getItem("MKT_DATA");
+      let resList = [];
+      if (cacheStr) {
+          try {
+              const parsed = JSON.parse(cacheStr);
+              const bvTab = parsed.sheets?.["Bài viết_hidden"] || [];
+              const row = bvTab.find(r => r[0] === postId);
+              if (row) {
+                  if (row[3]) resList.push({ src: row[3], name: 'Ảnh bìa Drive' });
+                  if (row[4]) {
+                      const d = document.createElement('div'); d.innerHTML = row[4];
+                      d.querySelectorAll('img').forEach((im, idx) => resList.push({ src: im.src, name: `Drive ${idx+1}` }));
+                  }
+              }
+          } catch(e) {}
+      }
+      if (!resList.length) { grid.innerHTML = '<div class="blank-state">Không có ảnh Drive của bài này</div>'; return; }
+
+      grid.innerHTML = resList.map(im => `
+          <div class="media-card">
+              <img src="${im.src}" onclick="quickAddDomImageToLayer('${im.src}')">
+              <div class="media-name">${escapeHtml(im.name)}</div>
+          </div>
+      `).join('');
+  }
 ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
 })();
 </script>

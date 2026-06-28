@@ -3588,26 +3588,24 @@ function toggleVietbaiMode() {
         });
     }
 }
-// BỔ SUNG HÀM NÀY VÀO CUỐI THẺ <script> CỦA FILE: post.html
-
 window.forceReloadDraft = function() {
+    // [CHỐT CHẶN BẢO VỆ DOM]: Nếu phát hiện có bưu phẩm trả về từ Studio -> CẤM XÓA BÀI!
+    if (localStorage.getItem('MKT_CANVA_RETURN_PAYLOAD')) {
+        console.log("🛡️ Đang giữ nguyên hiện trường bài viết để đón ảnh Studio...");
+        return;
+    }
+
     loadDraftData();
     let postIdToLoad = (draftData && draftData.data) ? draftData.data[0] : null;
 
-    // =========================================================================
-    // CHỐT CHẶN PHÂN LẬP PHÒNG: Kiểm tra xem ID bài gửi sang có khớp ID trên URL không?
-    // =========================================================================
     const urlParams = new URLSearchParams(window.location.search);
     let currentUrlId = urlParams.get('id');
 
     if (postIdToLoad && postIdToLoad !== currentUrlId) {
-        // Phát hiện user vừa bấm Viết bài cho một dòng khác bên Kế Hoạch!
-        // -> Ra lệnh tải lại toàn bộ trang Post sạch sẽ với URL mới để giết chết vĩnh viễn socket cũ
         window.location.replace('post.html?id=' + encodeURIComponent(postIdToLoad));
         return; 
     }
     else {
-        // NẾU LÀ DÒNG KẾ HOẠCH MỚI TINH: Phải dọn sạch rác của bài gõ trước đó!
         currentPostId = null;
         document.getElementById("postTitle").innerHTML = "";
         document.getElementById("postSapo").innerHTML = "";
@@ -3616,14 +3614,12 @@ window.forceReloadDraft = function() {
         isVBDirty = false;
     }
 
-    // Chớp đèn tín hiệu cho user biết đã ăn dòng mới
     let syncStatus = document.getElementById('syncStatusVB');
     if (syncStatus) {
         syncStatus.innerText = "⚡ Đã nạp Kế hoạch mới";
         syncStatus.style.color = "#27ae60";
     }
 };
-
 /* ====================================================================
    TRÌNH QUẢN LÝ ẢNH BÌA + ẢNH NỘI DUNG + METADATA
    V2: SHEET SELECTION, LOCK LABELS, REALTIME CROP/SCALE, UNDO/REDO
@@ -6323,10 +6319,9 @@ function renderImageLibraries() {
     }
 }
 // =========================================================================
-// CẦU NỐI CANVA STUDIO - BẢN KHẮC PHỤC TRƯỢT RELOAD IFRAME
+// CẦU NỐI CANVA STUDIO - HỆ THỐNG PROJECT THEO BÀI VIẾT (V5.0)
 // =========================================================================
 
-// Hàm băm URL thành một mã Key tuyệt đối an toàn cho Firebase (không chứa dấu chấm, sọc chéo)
 function mktGetSafeUrlKey(url) {
     let hash = 0;
     const str = String(url || "");
@@ -6334,22 +6329,23 @@ function mktGetSafeUrlKey(url) {
         hash = ((hash << 5) - hash) + str.charCodeAt(i);
         hash |= 0;
     }
-    return 'drive_img_' + Math.abs(hash);
+    return 'page_img_' + Math.abs(hash);
 }
 
 function sendImageToCanvaStudio() {
     if (!vbActiveImage) return alert("Không xác định được ảnh đang chọn!");
 
-    // MỎ NEO BẤT BIẾN: Lấy chính xác chuỗi URL gốc đang hiển thị trong trình soạn thảo
     const anchorSrc = vbActiveImage.getAttribute('src') || vbActiveImage.src;
     const safeKey = mktGetSafeUrlKey(anchorSrc);
-
-    let pId = typeof currentPostId !== "undefined" && currentPostId ? currentPostId : "BAI_VIET_NHAP";
+    
+    // Lấy ID bài viết chuẩn xác để Gom nhóm Project bên image.html
+    const urlParams = new URLSearchParams(window.location.search);
+    let pId = urlParams.get('id') || currentPostId || "BAI_VIET_GENERAL";
 
     const payload = {
         postId: pId,
         safeKey: safeKey,
-        anchorSrc: anchorSrc, // <--- Dùng chính URL này làm vật định danh
+        anchorSrc: anchorSrc,
         src: anchorSrc,
         width: vbActiveImage.naturalWidth || vbActiveImage.width || 1080,
         height: vbActiveImage.naturalHeight || vbActiveImage.height || 1080
@@ -6358,9 +6354,7 @@ function sendImageToCanvaStudio() {
     if (typeof closeImageProperties === 'function') closeImageProperties();
 
     localStorage.setItem('MKT_CANVA_BRIDGE_PAYLOAD', JSON.stringify(payload));
-    localStorage.setItem('MKT_CANVA_ANCHOR_SRC', anchorSrc);
-    localStorage.setItem('MKT_CANVA_SAFE_KEY', safeKey);
-    localStorage.setItem('MKT_CANVA_POST_ID', pId);
+    localStorage.setItem('MKT_ACTIVE_POST_ID', pId);
 
     if (window.parent && typeof window.parent.loadModule === 'function') {
         const imgTab = window.parent.document.querySelector('.menu-item-side[data-target="image"]');
@@ -6368,56 +6362,59 @@ function sendImageToCanvaStudio() {
     }
 }
 
-// NGƯỜI LÍNH GÁC BÊN POST.HTML (Đứng kiên nhẫn đợi trang tải xong từ Sheet mới làm việc)
+// NGƯỜI LÍNH GÁC: Đón nhận ảnh từ Studio trả về và biến thành Khấu phần sống
 function checkAndApplyStudioReturn() {
     const raw = localStorage.getItem('MKT_CANVA_RETURN_PAYLOAD');
     if (!raw) return;
 
     try {
         const data = JSON.parse(raw);
-        const targetSrc = data.anchorSrc;
+        const targetSrc = data.originSrc;
 
-        // Quét toàn bộ thẻ ảnh hiện có trên trang blog
         const allImages = Array.from(document.querySelectorAll('#editorContainer img, body img'));
         
-        // Tìm bức ảnh có đường dẫn URL trùng khớp với mỏ neo
         const targetImg = allImages.find(img => {
-            const currentSrc = img.getAttribute('src') || img.src;
-            return currentSrc && (currentSrc === targetSrc || currentSrc.includes(targetSrc) || targetSrc.includes(currentSrc));
+            const curSrc = img.getAttribute('src') || img.src || "";
+            const origSrc = img.dataset.originDriveSrc || img.dataset.driveUrl || "";
+            return (curSrc && (curSrc === targetSrc || curSrc.includes(targetSrc) || targetSrc.includes(curSrc))) ||
+                   (origSrc && (origSrc === targetSrc || origSrc.includes(targetSrc)));
         });
 
-        if (!targetImg) return; // Trang chưa kéo xong Sheet -> Im lặng đợi chu kỳ 350ms tiếp theo!
-
-        // ĐÃ TÌM THẤY ẢNH GỐC SAU KHI RELOAD! Tiến hành tráo đổi:
-        const blueprint = data.blueprint;
+        if (!targetImg) return; 
 
         const liveComp = document.createElement('img');
         liveComp.src = data.screenshot || targetSrc;
         liveComp.style.width = "100%";
-        liveComp.style.maxWidth = (blueprint.pageWidth || 1080) + "px";
-        liveComp.setAttribute('width', blueprint.pageWidth);
-        liveComp.setAttribute('height', blueprint.pageHeight);
+        liveComp.style.maxWidth = (data.pageWidth || 1080) + "px";
+        liveComp.setAttribute('width', data.pageWidth || 1080);
+        liveComp.setAttribute('height', data.pageHeight || 1080);
 
-        liveComp.className = "mkt-live-canvas-component";
+        liveComp.className = "vb-managed-image mkt-live-canvas-component";
         liveComp.dataset.isCanvasComponent = "true";
-        liveComp.dataset.originDriveSrc = targetSrc; 
+        liveComp.dataset.originDriveSrc = targetSrc;
+        liveComp.dataset.imageId = targetImg.dataset.imageId || ('img_' + Date.now());
 
-        targetImg.parentNode.replaceChild(liveComp, targetImg);
+        const frame = targetImg.closest('.vb-image-frame');
+        if (frame) {
+            frame.dataset.targetWidth = data.pageWidth;
+            frame.dataset.targetHeight = data.pageHeight;
+            targetImg.replaceWith(liveComp);
+        } else {
+            targetImg.parentNode.replaceChild(liveComp, targetImg);
+        }
 
         if (typeof markImageDirty === 'function') markImageDirty(true);
         if (typeof checkEditorChanges === 'function') checkEditorChanges();
-
         liveComp.scrollIntoView({ behavior: 'smooth', block: 'center' });
         
-        // Hoàn tất nhiệm vụ -> Tiêu hủy bưu phẩm
         localStorage.removeItem('MKT_CANVA_RETURN_PAYLOAD');
+        if (typeof toast === 'function') toast('Đã cập nhật ảnh thiết kế vào bài!');
 
     } catch(e) {
-        console.error("Lỗi dựng quay vòng Canvas:", e);
+        console.error("Lỗi hoàn trả Canvas:", e);
     }
 }
 
-// Quét ngầm 350ms/lần. Bất kể mạng chậm làm post.html tải mất 2 giây hay 5 giây, cứ hiện ảnh ra là chộp được!
 setInterval(checkAndApplyStudioReturn, 350);
 </script>
 
