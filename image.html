@@ -2787,118 +2787,145 @@ function bind(){
 
 try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.onmessage=e=>{const m=e.data;if(!m||m.clientId===state.clientId||m.type!=='doc-operation')return;state.applyingRemote=true;restore(m.after);state.applyingRemote=false;toast(`Đã đồng bộ: ${m.label||'thay đổi'}`)}}catch(e){}
 // ==========================================================================
-  // HỆ THỐNG TỰ ĐỘNG HÚT ẢNH TỪ BLOG VÀ TRẢ ẢNH VỀ BÀI (CHUẨN 100%)
+  // LÕI CANVAS ĐỒNG BỘ REALTIME DATABASE (JSON BLUEPRINT)
   // ==========================================================================
 
-  function checkAndLoadBridgeImage() {
+  // Hàm phụ trợ kết nối an toàn với Firebase Realtime Database của hệ thống
+  function getMktFirebaseRef(postId, imageId) {
+      if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+          return firebase.database().ref(`canvas_designs/${postId}/${imageId}`);
+      }
+      return null;
+  }
+
+  // 1. NGƯỜI GÁC CỔNG: Quét và hút ảnh từ Blog hoặc tải Blueprint từ Firebase
+  async function checkAndLoadBridgeImage() {
       const raw = localStorage.getItem('MKT_CANVA_BRIDGE_PAYLOAD');
-      if (!raw) return; // Không có lệnh nào thì thôi
+      if (!raw) return;
 
       try {
           const payload = JSON.parse(raw);
-          const w = Number(payload.width) || 1080;
-          const h = Number(payload.height) || 1080;
+          const postId = payload.postId || "BAI_VIET_NHAP";
+          const imageId = payload.imageId;
 
-          // 1. Cập nhật thông số trang Canvas khớp tỷ lệ 1:1 với ảnh blog
-          state.page.width = w;
-          state.page.height = h;
-          state.page.background = '#ffffff';
+          if (typeof toast === 'function') toast('Đang kiểm tra dữ liệu thiết kế cũ...');
+          
+          let savedDesign = null;
+          const dbRef = getMktFirebaseRef(postId, imageId);
 
-          // 2. Tạo đối tượng layer chứa ảnh
-          const blogImageLayer = {
-              id: 'layer_' + new Date().getTime(),
-              type: 'image',
-              name: 'Ảnh từ bài viết',
-              src: payload.src,
-              x: 0,
-              y: 0,
-              width: w,
-              height: h,
-              rotation: 0,
-              scale: 1,
-              opacity: 1,
-              visible: true
-          };
-
-          if (typeof defaultFilters === 'function') {
-              blogImageLayer.filters = defaultFilters();
+          // Thử kéo thiết bị đa cấu hình từ Firebase Realtime trước
+          if (dbRef) {
+              const snapshot = await dbRef.once('value');
+              if (snapshot.exists()) {
+                  savedDesign = snapshot.val();
+              }
           }
 
-          // Xóa sạch các layer mẫu mặc định trên trang hiện tại để chèn ảnh blog vào
-          state.layers.length = 0;
-          state.layers.push(blogImageLayer);
+          // Nếu Firebase chưa có, kiểm tra bộ nhớ tạm cục bộ của máy hiện tại
+          if (!savedDesign) {
+              const localBackup = localStorage.getItem(`MKT_LOCAL_BAK_${imageId}`);
+              if (localBackup) savedDesign = JSON.parse(localBackup);
+          }
 
-          state.selectedIds = [blogImageLayer.id];
-          state.primaryId = blogImageLayer.id;
+          if (savedDesign && savedDesign.layers) {
+              // TRƯỜNG HỢP 1: ĐÃ CÓ BẢN THIẾT KẾ CŨ -> PHỤC HỒI NGUYÊN TRẠNG LAYER ĐỂ SỬA TIẾP
+              state.page.width = Number(savedDesign.pageWidth) || 1080;
+              state.page.height = Number(savedDesign.pageHeight) || 1080;
+              state.page.background = savedDesign.pageBackground || '#ffffff';
+              state.layers = savedDesign.layers;
+              if (typeof toast === 'function') toast('Đã khôi phục 100% layer thiết kế cũ để sửa tiếp!');
+          } else {
+              // TRƯỜNG HỢP 2: ẢNH MỚI TINH -> TẠO KHUNG CANVAS MỚI TỪ ẢNH GỐC BLOG
+              const w = Number(payload.width) || 1080;
+              const h = Number(payload.height) || 1080;
 
-          // 3. Kích hoạt vẽ lại bề mặt Canvas
+              state.page.width = w;
+              state.page.height = h;
+              state.page.background = '#ffffff';
+
+              const rootImageLayer = {
+                  id: 'layer_root_' + new Date().getTime(),
+                  type: 'image',
+                  name: 'Ảnh gốc bài viết',
+                  src: payload.src,
+                  x: 0, y: 0, width: w, height: h,
+                  rotation: 0, scale: 1, opacity: 1, visible: true
+              };
+              if (typeof defaultFilters === 'function') rootImageLayer.filters = defaultFilters();
+
+              state.layers.length = 0; // Xóa trắng các layer rác mặc định
+              state.layers.push(rootImageLayer);
+              if (typeof toast === 'function') toast('Đã nạp ảnh gốc vào Canvas mới!');
+          }
+
+          state.selectedIds = [];
+          state.primaryId = null;
+
           if (typeof renderAll === 'function') renderAll();
           if (typeof fitCanvas === 'function') setTimeout(fitCanvas, 60);
 
-          if (typeof toast === 'function') toast('Đã nạp ảnh từ bài viết vào Canvas!');
       } catch (err) {
-          console.error("Lỗi nạp ảnh cầu nối:", err);
+          console.error("Lỗi đồng bộ cầu nối Canvas:", err);
       } finally {
-          // Hút xong thì xóa thư để không bị nạp lặp lại lần 2
           localStorage.removeItem('MKT_CANVA_BRIDGE_PAYLOAD');
       }
   }
 
-  // Quét ngầm mỗi 400ms (Cực nhẹ, vừa bấm bên blog là bên này chộp được ngay)
+  // Chạy quét liên tục mỗi 400ms để bắt lệnh bẻ lái từ post.html sang
   setInterval(checkAndLoadBridgeImage, 400);
-
-  // Kiểm tra kép khi tab được focus hiển thị
   window.addEventListener('focus', checkAndLoadBridgeImage);
-  document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) checkAndLoadBridgeImage();
-  });
 
-
-  // ==========================================================================
-  // HÀM BẤM NÚT "THÊM VÀO BÀI" TRẢ ẢNH VỀ BLOG
-  // ==========================================================================
-  window.pushEditedCanvasBackToPost = function() {
+  // 2. LỆNH CHỐT HẠ: "Thêm vào bài" -> Đóng gói Blueprint đẩy lên Firebase & Trả cấu trúc về Blog
+  window.pushEditedCanvasBackToPost = async function() {
       const originId = localStorage.getItem('MKT_CANVA_ORIGIN_ID');
-      if (!originId) {
-          alert('Không tìm thấy ID ảnh gốc của bài viết để trả về!');
-          return;
+      const originPostId = localStorage.getItem('MKT_CANVA_POST_ID') || "BAI_VIET_NHAP";
+      if (!originId) return alert('Không tìm thấy định danh ảnh gốc để đồng bộ!');
+
+      if (typeof toast === 'function') toast('Đang đóng gói cấu trúc layer...');
+
+      // Đóng gói toàn bộ linh hồn bản thiết kế thành Object JSON siêu nhẹ
+      const canvasBlueprint = {
+          imageId: originId,
+          postId: originPostId,
+          pageWidth: state.page.width,
+          pageHeight: state.page.height,
+          pageBackground: state.page.background || '#ffffff',
+          layers: state.layers, // Giữ nguyên toàn bộ text, shape, effect, link ảnh gốc Drive
+          updatedAt: new Date().getTime()
+      };
+
+      // Đồng bộ Blueprint lên đám mây Firebase Realtime Database để lưu trữ vĩnh viễn, đa thiết bị
+      const dbRef = getMktFirebaseRef(originPostId, originId);
+      if (dbRef) {
+          await dbRef.set(canvasBlueprint);
       }
+      // Bản sao lưu dự phòng tại máy cục bộ
+      localStorage.setItem(`MKT_LOCAL_BAK_${originId}`, JSON.stringify(canvasBlueprint));
 
-      if (typeof toast === 'function') toast('Đang xuất ảnh chất lượng cao...');
-
-      // Xuất trực tiếp thẻ canvas thực tế đang hiển thị trên trang
+      // Kết xuất một tấm ảnh phẳng Base64 làm ảnh chụp màn hình hiển thị tức thời (Dự phòng tốc độ)
       const mainCanvas = document.querySelector('canvas');
-      if (!mainCanvas) {
-          alert('Lỗi: Không tìm thấy bề mặt vẽ Canvas!');
-          return;
-      }
+      const screenshotBase64 = mainCanvas ? mainCanvas.toDataURL('image/jpeg', 0.90) : "";
 
-      const dataUrl = mainCanvas.toDataURL('image/jpeg', 0.95);
-
+      // Đóng gói gửi trả về cho post.html
       const returnPayload = {
           targetImageId: originId,
-          newBase64: dataUrl,
-          canvasWidth: state.page.width,
-          canvasHeight: state.page.height
+          blueprint: canvasBlueprint,
+          screenshot: screenshotBase64 
       };
       localStorage.setItem('MKT_CANVA_RETURN_PAYLOAD', JSON.stringify(returnPayload));
 
-      // Bẻ lái Admin chuyển iframe ngược lại module Bài viết
+      // Điều hướng iframe quay trở lại giao diện Bài Viết
       if (window.parent && typeof window.parent.loadModule === 'function') {
-          const postTabBtn = window.parent.document.querySelector('.menu-item-side[data-target="post"]');
-          if (postTabBtn) {
-              window.parent.loadModule('post.html', postTabBtn);
-          } else {
-              window.parent.loadModule('post.html');
-          }
+          const postTab = window.parent.document.querySelector('.menu-item-side[data-target="post"]');
+          if (postTab) window.parent.loadModule('post.html', postTab);
       }
 
       setTimeout(() => {
           const postFrame = window.parent.document.getElementById('frame-post');
-          if (postFrame && postFrame.contentWindow && typeof postFrame.contentWindow.replaceEditedImageFromStudio === 'function') {
+          if (postFrame?.contentWindow?.replaceEditedImageFromStudio) {
               postFrame.contentWindow.replaceEditedImageFromStudio();
           }
-      }, 200);
+      }, 150);
   };
 ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
 })();
