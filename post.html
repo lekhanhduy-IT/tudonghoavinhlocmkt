@@ -3594,34 +3594,18 @@ window.forceReloadDraft = function() {
     loadDraftData();
     let postIdToLoad = (draftData && draftData.data) ? draftData.data[0] : null;
 
-    // =========================================================================
-    // CHỐT CHẶN PHÂN LẬP PHÒNG: Kiểm tra xem ID bài gửi sang có khớp ID trên URL không?
-    // =========================================================================
     const urlParams = new URLSearchParams(window.location.search);
     let currentUrlId = urlParams.get('id');
 
+    // TRƯỜNG HỢP 1: User vừa chủ động bấm nút "Viết bài" cho một dòng Kế Hoạch KHÁC bên plan.html
     if (postIdToLoad && postIdToLoad !== currentUrlId) {
-        // Phát hiện user vừa bấm Viết bài cho một dòng khác bên Kế Hoạch!
-        // -> Ra lệnh tải lại toàn bộ trang Post sạch sẽ với URL mới để giết chết vĩnh viễn socket cũ
         window.location.replace('post.html?id=' + encodeURIComponent(postIdToLoad));
         return; 
     }
-    else {
-        // NẾU LÀ DÒNG KẾ HOẠCH MỚI TINH: Phải dọn sạch rác của bài gõ trước đó!
-        currentPostId = null;
-        document.getElementById("postTitle").innerHTML = "";
-        document.getElementById("postSapo").innerHTML = "";
-        document.getElementById("coverEditor").innerHTML = "";
-        document.getElementById("postContent").innerHTML = "";
-        isVBDirty = false;
-    }
-
-    // Chớp đèn tín hiệu cho user biết đã ăn dòng mới
-    let syncStatus = document.getElementById('syncStatusVB');
-    if (syncStatus) {
-        syncStatus.innerText = "⚡ Đã nạp Kế hoạch mới";
-        syncStatus.style.color = "#27ae60";
-    }
+    
+    // TRƯỜNG HỢP 2: ID trùng khớp (User chỉ bấm chuyển qua chuyển lại các tab bên Admin)
+    // -> TUYỆT ĐỐI KHÔNG LÀM GÌ CẢ! Giữ nguyên 100% hiện trạng DOM, chữ đang gõ dở và kết nối Firebase.
+    return;
 };
 
 /* ====================================================================
