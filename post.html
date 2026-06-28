@@ -6324,7 +6324,7 @@ function renderImageLibraries() {
     }
 }
 // =========================================================================
-// TÍCH HỢP CANVAS STUDIO (IMAGE.HTML)
+// TÍCH HỢP CANVAS STUDIO (IMAGE.HTML) VÀ ĐỒNG BỘ 1 CHIỀU
 // =========================================================================
 
 const canvasChannel = new BroadcastChannel('canvas-studio-sync');
@@ -6332,28 +6332,28 @@ const canvasChannel = new BroadcastChannel('canvas-studio-sync');
 function openImageInCanvasStudio() {
     if (!vbActiveImage) return;
     
-    // Lấy thông số từ Form (không được làm thay đổi thông số này theo Canvas)
     const state = readImageFrameState(vbActiveImage);
     const scalePct = parseFloat(document.getElementById("vbScalePercent").value) || 100;
-    const cw = parseFloat(document.getElementById("vbImgWidth").value) || state.targetWidth;
-    const ch = parseFloat(document.getElementById("vbImgHeight").value) || state.targetHeight;
+    const meta = readImageMetadata(vbActiveImage);
     
-    // Đảm bảo bài viết có ID Project (dùng currentPostId)
+    // YÊU CẦU CỦA BẠN: Bê nguyên khung chứa ảnh sang.
+    // Tính toán pixel thực tế dựa trên Width, Height và tỷ lệ Scale %
+    const scaleMultiplier = scalePct / 100;
+    const realWidth = Math.max(1, Math.round(state.targetWidth * scaleMultiplier));
+    const realHeight = Math.max(1, Math.round(state.targetHeight * scaleMultiplier));
+    
     const projectId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_TEMP");
     const imageId = vbActiveImage.dataset.imageId;
     
-    // Lấy URL ảnh gốc để truyền sang làm nền
-    const sourceUrl = vbActiveImage.dataset.driveUrl || vbActiveImage.src;
-    const meta = readImageMetadata(vbActiveImage);
+    // Quan trọng: Phải truyền ảnh GỐC (chưa bị Canvas làm hỏng base64) sang làm nền
+    const sourceUrl = vbActiveImage.dataset.originalSource || vbActiveImage.dataset.driveUrl || vbActiveImage.src;
     
-    // Lưu cấu hình vào LocalStorage để image.html đọc
     const launchData = {
         projectId: projectId,
         imageId: imageId,
         pageId: meta.canvasPageId || null,
-        width: cw,
-        height: ch,
-        scale: scalePct,
+        width: realWidth,
+        height: realHeight,
         sourceUrl: sourceUrl
     };
     
@@ -6363,51 +6363,59 @@ function openImageInCanvasStudio() {
     window.open(`image.html?project=${encodeURIComponent(projectId)}&img=${encodeURIComponent(imageId)}`, `Canvas_${projectId}`);
 }
 
-// Lắng nghe tín hiệu từ Canvas Studio trả về
 canvasChannel.onmessage = function(e) {
     const data = e.data;
+    
+    // 1. KHI ÁP DỤNG ẢNH TỪ CANVAS VỀ BÀI VIẾT
     if (data.type === 'CANVAS_IMAGE_UPDATED' && data.projectId === currentPostId) {
-        // Tìm ảnh trong bài viết
         const targetImg = document.querySelector(`img[data-image-id="${data.imageId}"]`);
         if (targetImg) {
-            // 1. Cập nhật Metadata lưu canvasPageId
             let meta = readImageMetadata(targetImg);
-            meta.canvasPageId = data.pageId;
+            meta.canvasPageId = data.pageId; // Lưu page id của Canvas
             writeImageMetadata(targetImg, meta);
             
-            // 2. Tráo ảnh hiển thị bằng bản xem trước (Base64) từ Canvas
-            // Gỡ Drive URL cũ, gắn cờ isLocalUpload để hàm savePostToSheet tự động upload bản Design này lên Drive lại.
+            // Bảo toàn originalSource, chỉ thay đổi src để hiển thị
+            if (!targetImg.dataset.originalSource) {
+                targetImg.dataset.originalSource = targetImg.dataset.driveUrl || targetImg.src;
+            }
+            
             delete targetImg.dataset.driveFileId;
             delete targetImg.dataset.driveUrl;
             delete targetImg.dataset.archivedDrive;
             targetImg.dataset.isLocalUpload = "true";
-            targetImg.src = data.previewBase64;
             
+            targetImg.src = data.previewBase64;
             markImageDirty(true);
             
-            // Nếu đang mở popup của đúng ảnh này, cập nhật lại hình preview
             if (vbActiveImage && vbActiveImage.dataset.imageId === data.imageId) {
                 document.getElementById('vbPreviewImg').src = data.previewBase64;
             }
-            
             vbShowAlert("Đã áp dụng bản thiết kế từ Canvas Studio vào bài viết!");
         }
     } 
+    
+    // 2. KHI XÓA TRANG TRONG CANVAS
     else if (data.type === 'CANVAS_PAGE_DELETED' && data.projectId === currentPostId) {
-        // Nếu trang bên Canvas bị xóa, gỡ canvasPageId và khôi phục ảnh
         const targetImg = document.querySelector(`img[data-image-id="${data.imageId}"]`);
         if (targetImg) {
             let meta = readImageMetadata(targetImg);
             if (meta.canvasPageId === data.pageId) {
-                meta.canvasPageId = "";
+                meta.canvasPageId = ""; // Gỡ canvasPageId
                 writeImageMetadata(targetImg, meta);
                 
-                // Khôi phục lại ảnh gốc nếu có lưu trong dataset
+                // Khôi phục lại ảnh gốc
                 if (targetImg.dataset.originalSource) {
                     targetImg.src = targetImg.dataset.originalSource;
+                } else if (targetImg.dataset.driveUrl) {
+                    targetImg.src = runtimeImageUrl(targetImg.dataset.driveUrl);
                 }
+                
                 markImageDirty(true);
-                vbShowAlert("Trang thiết kế đã bị xóa, ảnh đã được khôi phục về trạng thái gốc.");
+                
+                if (vbActiveImage && vbActiveImage.dataset.imageId === data.imageId) {
+                    document.getElementById('vbPreviewImg').src = targetImg.src;
+                }
+                vbShowAlert("Trang thiết kế đã bị xóa, ảnh đã được khôi phục về nguyên bản.");
             }
         }
     }

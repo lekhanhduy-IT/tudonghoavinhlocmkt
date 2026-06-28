@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light" />
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
-  <meta name="color-scheme" content="light" />
   <title>Trình thiết kế đa layer - màu, page và Google Fonts</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2786,6 +2786,7 @@ function bind(){
 
 try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.onmessage=e=>{const m=e.data;if(!m||m.clientId===state.clientId||m.type!=='doc-operation')return;state.applyingRemote=true;restore(m.after);state.applyingRemote=false;toast(`Đã đồng bộ: ${m.label||'thay đổi'}`)}}catch(e){}
 ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
+
 // =========================================================================
 // PROJECT MANAGEMENT & CROSS-DEVICE SYNC (FIREBASE + POST.HTML)
 // =========================================================================
@@ -2794,17 +2795,51 @@ let currentProjectId = null;
 let currentLaunchIntent = null;
 let firebaseProjectRef = null;
 
-// Khởi tạo Firebase (Sử dụng config có sẵn của bạn)
+// Khởi tạo Firebase
 const firebaseConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" };
 if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+
+// Tự động tạo Panel "Tổng hợp" do trong HTML gốc đang bị thiếu
+(function ensureCollectionPanel() {
+    if (!document.querySelector('.tab-panel[data-panel="collection"]')) {
+        const sidebarContent = document.querySelector('.sidebar-content');
+        sidebarContent.insertAdjacentHTML('beforeend', `
+            <section class="tab-panel" data-panel="collection">
+                <div class="panel-title-row">
+                    <h2>Tổng hợp</h2><span class="small-pill">Bài viết</span>
+                </div>
+                <div class="section-title"><span>Các ảnh trong bài viết này</span></div>
+                <div class="media-grid" id="collectionGrid"></div>
+            </section>
+        `);
+    }
+})();
+
+function buildProjectCollection() {
+    // Tập hợp tất cả các layer ảnh gốc của bài viết đang mở vào tab Tổng hợp
+    const projectImages = [];
+    state.pages.forEach(p => {
+        const bgLayer = p.layers.find(l => l.imageId);
+        if (bgLayer) {
+            projectImages.push({
+                id: bgLayer.assetId || uid(),
+                src: bgLayer.src,
+                name: p.name || 'Ảnh bài viết'
+            });
+        }
+    });
+    const grid = document.getElementById('collectionGrid');
+    if (grid) {
+        grid.innerHTML = projectImages.map(a => mediaCard(a, 'collection')).join('') || '<div class="blank-state">Bài viết này chưa có ảnh nào được thiết kế.</div>';
+    }
+}
 
 function initCanvasProject() {
     const urlParams = new URLSearchParams(window.location.search);
     currentProjectId = urlParams.get('project');
     const targetImageId = urlParams.get('img');
     
-    // Đọc intent từ localStorage
     try {
         const intentStr = localStorage.getItem('CANVAS_LAUNCH_INTENT');
         if (intentStr) {
@@ -2816,40 +2851,43 @@ function initCanvasProject() {
     } catch(e) {}
 
     if (!currentProjectId) {
-        toast("Đang mở chế độ thiết kế tự do (Không thuộc bài viết nào).");
+        toast("Đang mở chế độ tự do. Mọi thay đổi sẽ không được lưu vào bài viết.");
         return;
     }
 
     firebaseProjectRef = db.ref(`canvas_projects/${currentProjectId}`);
     
-    // Tải Project từ Firebase
     firebaseProjectRef.once('value').then(snapshot => {
         const projectData = snapshot.val();
         if (projectData && projectData.pages && projectData.pages.length > 0) {
-            // Đã có Project -> Phục hồi
-            restore({
-                pages: JSON.parse(projectData.pages),
-                currentPageId: currentLaunchIntent?.pageId || JSON.parse(projectData.pages)[0].id
-            });
-            toast(`Đã tải Project của bài viết: ${currentProjectId}`);
+            const loadedPages = JSON.parse(projectData.pages);
             
-            // Xử lý nếu đây là ảnh mới toanh chưa có page nào
-            if (currentLaunchIntent && !currentLaunchIntent.pageId) {
-                createNewPageForIntent();
+            restore({
+                pages: loadedPages,
+                currentPageId: loadedPages[0].id
+            });
+            toast(`Đã tải Project: ${currentProjectId}`);
+            
+            if (currentLaunchIntent) {
+                // Kiểm tra xem ảnh này đã có page chưa
+                const existingPage = loadedPages.find(p => p.id === currentLaunchIntent.pageId);
+                if (existingPage) {
+                    switchPage(existingPage.id); // Tự động nhảy đến page của ảnh đó
+                } else {
+                    createNewPageForIntent(); // Ảnh này chưa từng được mở, tạo page mới
+                }
             }
         } else {
-            // Chưa có Project -> Tạo mới
+            // Project mới tinh
             state.pages = [];
             if (currentLaunchIntent) {
                 createNewPageForIntent();
             }
         }
+        buildProjectCollection();
         
-        // Lắng nghe thay đổi từ thiết bị khác
         firebaseProjectRef.on('value', syncSnap => {
-            const data = syncSnap.val();
-            // Cần cơ chế lock để không ghi đè khi chính máy này đang vẽ
-            // Trong scope này tôi demo việc đồng bộ tĩnh khi mở tab.
+            // Lắng nghe realtime từ thiết bị khác (có thể mở rộng sau)
         });
     });
 }
@@ -2858,41 +2896,48 @@ function createNewPageForIntent() {
     if (!currentLaunchIntent) return;
     
     const newPageId = uid('page');
-    currentLaunchIntent.pageId = newPageId; // Gắn ID mới
+    currentLaunchIntent.pageId = newPageId; 
     
-    // Tạo Page với kích thước chuẩn từ post.html truyền sang
+    // Lấy chính xác kích thước thật đã scale từ post.html
     const basePage = {
         width: currentLaunchIntent.width || 1080,
         height: currentLaunchIntent.height || 1080,
         background: '#ffffff'
     };
     
-    // Tạo layer ảnh nền (Ảnh gốc từ bài viết)
-    const baseLayerObj = baseLayer('image', {
-        name: 'Ảnh gốc từ bài',
+    const assetId = uid('asset');
+    state.uploads.unshift({
+        id: assetId,
+        name: `Ảnh ${state.pages.length + 1}`,
         src: currentLaunchIntent.sourceUrl,
+        width: basePage.width,
+        height: basePage.height
+    });
+
+    const baseLayerObj = baseLayer('image', {
+        name: 'Ảnh gốc bài viết',
+        src: currentLaunchIntent.sourceUrl,
+        assetId: assetId,
         width: basePage.width,
         height: basePage.height,
         x: 0, y: 0,
-        lockMode: 'full' // Khóa cứng để làm nền
+        lockMode: 'full' // Bắt buộc khóa cứng làm nền
     });
-    baseLayerObj.imageId = currentLaunchIntent.imageId; // Đánh dấu layer này thuộc về ảnh nào
+    baseLayerObj.imageId = currentLaunchIntent.imageId; 
 
     const newPage = createPageDocument({
         id: newPageId,
-        name: `Thiết kế ${state.pages.length + 1}`,
+        name: `Trang ${state.pages.length + 1}`,
         page: basePage,
-        layers: [baseLayerObj],
-        groups: {},
-        comments: []
+        layers: [baseLayerObj]
     });
     
     state.pages.push(newPage);
     switchPage(newPageId);
     syncProjectToFirebase();
+    buildProjectCollection();
 }
 
-// Lưu toàn bộ Project lên Firebase
 function syncProjectToFirebase() {
     if (!firebaseProjectRef || !currentProjectId) return;
     syncCurrentPageDoc();
@@ -2902,17 +2947,15 @@ function syncProjectToFirebase() {
     });
 }
 
-// Override hàm Commit để mỗi thao tác đều lưu Project
 const originalCommit = commit;
 commit = function(before, label) {
     originalCommit(before, label);
     if (currentProjectId) syncProjectToFirebase();
 };
 
-// Gửi ảnh về post.html
 document.getElementById('sendToPostBtn').onclick = async () => {
     if (!currentLaunchIntent || !currentProjectId) {
-        toast("Bạn phải mở Canvas từ một Bài viết để sử dụng tính năng này!");
+        toast("Bạn phải mở từ Bài viết để dùng tính năng này!");
         return;
     }
     
@@ -2921,13 +2964,11 @@ document.getElementById('sendToPostBtn').onclick = async () => {
         syncCurrentPageDoc();
         syncProjectToFirebase();
         
-        // Render trang hiện tại ra Base64
         const doc = currentPageDoc();
-        const canvas = await exportPageDoc(doc, 1); // Scale 1 để lấy chất lượng cao nhất
-        // Xuất dưới dạng WebP/JPEG cho nhẹ
-        const previewBase64 = canvas.toDataURL('image/jpeg', 0.92);
+        // Xuất tỷ lệ 1:1 gốc để đẩy về post.html
+        const canvas = await exportPageDoc(doc, 1); 
+        const previewBase64 = canvas.toDataURL('image/jpeg', 0.95);
         
-        // Bắn tín hiệu về post.html
         canvasChannel.postMessage({
             type: 'CANVAS_IMAGE_UPDATED',
             projectId: currentProjectId,
@@ -2936,7 +2977,7 @@ document.getElementById('sendToPostBtn').onclick = async () => {
             previewBase64: previewBase64
         });
         
-        toast("Đã áp dụng ảnh vào bài viết thành công!");
+        toast("Đã áp dụng thiết kế vào bài viết!");
     } catch(e) {
         toast("Lỗi kết xuất ảnh: " + e.message);
     } finally {
@@ -2944,7 +2985,9 @@ document.getElementById('sendToPostBtn').onclick = async () => {
     }
 };
 
-// Ghi đè chức năng Xóa Trang
+// ========================================================
+// QUẢN LÝ XÓA TRANG (CÓ CSS VÀ KHÔI PHỤC BÊN POST.HTML)
+// ========================================================
 let pageToDeleteId = null;
 els.clearBtn.onclick = () => {
     if (!state.pages.length) return;
@@ -2958,19 +3001,18 @@ window.confirmDeletePage = function() {
     const docToDelete = state.pages.find(p => p.id === pageToDeleteId);
     let associatedImageId = null;
     
-    // Tìm xem trang này có gắn với imageId nào từ bài viết không (tìm trong layers)
     if (docToDelete && docToDelete.layers) {
         const bgLayer = docToDelete.layers.find(l => l.imageId);
         if (bgLayer) associatedImageId = bgLayer.imageId;
     }
     
-    // Xóa trang khỏi state
+    // Xóa trang khỏi danh sách
     state.pages = state.pages.filter(p => p.id !== pageToDeleteId);
     
     if (state.pages.length === 0) {
-        // Nếu hết trang, tạo trang trắng
         state.page = {width:1080, height:1080, background:'#ffffff'};
         state.layers = [];
+        state.currentPageId = null;
         ensurePages();
     } else {
         state.currentPageId = state.pages[0].id;
@@ -2979,8 +3021,9 @@ window.confirmDeletePage = function() {
     
     renderAll();
     syncProjectToFirebase();
+    buildProjectCollection();
     
-    // Bắn tín hiệu hủy Canvas về cho post.html
+    // Bắn tín hiệu về post.html để gỡ CanvasID và hiện lại ảnh url
     if (associatedImageId && currentProjectId) {
         canvasChannel.postMessage({
             type: 'CANVAS_PAGE_DELETED',
@@ -2991,10 +3034,18 @@ window.confirmDeletePage = function() {
     }
     
     document.getElementById('canvasDeleteModal').style.display = 'none';
-    toast("Đã xóa trang.");
+    toast("Đã xóa trang và khôi phục ảnh bên bài viết.");
 };
 
-// Khởi chạy khi load
+// Lắng nghe sự kiện click cho tab "Tổng hợp"
+document.addEventListener('click', e => {
+    const card = e.target.closest('.media-card[data-kind="collection"]');
+    if (card) {
+        const asset = state.uploads.find(a => a.id === card.dataset.mediaId);
+        if(asset) addImageFromAsset(asset, false);
+    }
+});
+
 setTimeout(initCanvasProject, 500);
 })();
 </script>
