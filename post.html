@@ -6336,13 +6336,15 @@ function sendImageToCanvaStudio() {
     if (!vbActiveImage) return alert("Không xác định được ảnh đang chọn!");
 
     const anchorSrc = vbActiveImage.getAttribute('src') || vbActiveImage.src;
-    const safeKey = mktGetSafeUrlKey(anchorSrc);
+    // SỬA TẠI ĐÂY: Dùng imageId định danh duy nhất của Firebase thay vì băm URL
+    const safeKey = vbActiveImage.dataset.imageId; 
+    
     const urlParams = new URLSearchParams(window.location.search);
     let pId = urlParams.get('id') || currentPostId || "BAI_VIET_GENERAL";
 
     const payload = {
         postId: pId,
-        safeKey: safeKey,
+        safeKey: safeKey, // Truyền chìa khóa cố định sang image.html
         anchorSrc: anchorSrc,
         src: anchorSrc,
         width: vbActiveImage.naturalWidth || vbActiveImage.width || 1080,
@@ -6374,60 +6376,253 @@ function checkAndApplyStudioReturn() {
 
     try {
         const data = JSON.parse(raw);
-        const targetSrc = data.originSrc;
-
-        const allImages = Array.from(document.querySelectorAll('#editorContainer img, body img'));
-        
-        const targetImg = allImages.find(img => {
-            const curSrc = img.getAttribute('src') || img.src || "";
-            const origSrc = img.dataset.originDriveSrc || img.dataset.driveUrl || "";
-            return (curSrc && (curSrc === targetSrc || curSrc.includes(targetSrc) || targetSrc.includes(curSrc))) ||
-                   (origSrc && (origSrc === targetSrc || origSrc.includes(targetSrc)));
-        });
-
+        // Tìm ảnh thông qua data-image-id thay vì src
+        const targetImg = document.querySelector(`img[data-image-id="${data.imageId}"]`);
         if (!targetImg) return; 
 
-        // --- VÁ KỸ THUẬT SỐNG CÒN ---
-        // TUYỆT ĐỐI KHÔNG dùng replaceWith() làm chết thẻ <img>. 
-        // Ghi đè trực tiếp src để bảo toàn 100% sự kiện click mở Popup!
-                   
-        targetImg.src = data.screenshot;
-        targetImg.style.width = "100%";
-        targetImg.setAttribute('width', data.pageWidth || 1080);
-        targetImg.setAttribute('height', data.pageHeight || 1080);
-
-        const frame = targetImg.closest('.vb-image-frame');
-        if (frame) {
-            frame.dataset.targetWidth = data.pageWidth;
-            frame.dataset.targetHeight = data.pageHeight;
-            frame.style.width = (data.pageWidth || 1080) + "px";
-        }
-
-        // BIẾN ẢNH ĐÃ SỬA THÀNH FILE UPLOAD MỚI ĐỂ ĐẨY LÊN GOOGLE SHARED DRIVE
-        targetImg.dataset.isLocalUpload = "true";
-        delete targetImg.dataset.driveFileId;
-        delete targetImg.dataset.driveUrl;
-        delete targetImg.dataset.archivedDrive;
-
-        let targetPostId = typeof currentPostId !== "undefined" && currentPostId ? currentPostId : "POST_EDITED";
-        if (typeof backgroundUploadToDrive === 'function') {
-            const editedFile = dataURLtoFile_Studio(data.screenshot, `canva_edited_${Date.now()}.jpg`);
-            backgroundUploadToDrive(targetImg.dataset.imageId || (targetImg.dataset.imageId = 'img_' + Date.now()), editedFile, targetPostId);
-        }
+        // KÍCH HOẠT HÀM RENDER LAYER TỪ JSON STATE
+        applyCanvaStateToFrame(targetImg, data.canvaState);
 
         if (typeof markImageDirty === 'function') markImageDirty(true);
         if (typeof checkEditorChanges === 'function') checkEditorChanges();
         targetImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
         localStorage.removeItem('MKT_CANVA_RETURN_PAYLOAD');
-        if (typeof toast === 'function') toast('Đã cập nhật ảnh thiết kế mới vào bài!');
+        if (typeof toast === 'function') toast('Đã áp dụng các thiết kế Canvas vào ảnh!');
 
     } catch(e) {
         console.error("Lỗi hoàn trả Studio:", e);
     }
 }
 
+// HÀM MỚI: Tái tạo giao diện Canvas bằng HTML/CSS trực tiếp trong Bài viết
+function applyCanvaStateToFrame(img, canvaState) {
+    const frame = img.closest('.vb-image-frame');
+    if (!frame || !canvaState || !canvaState.layers) return;
+
+    // 1. Lưu JSON state vào DOM để khi load lại bài viết vẫn giữ nguyên
+    img.dataset.canvaSavedState = JSON.stringify(canvaState);
+
+    // 2. Thiết lập khung Frame
+    frame.style.position = 'relative';
+    frame.style.overflow = 'hidden';
+    frame.dataset.targetWidth = canvaState.page.width;
+    frame.dataset.targetHeight = canvaState.page.height;
+    frame.style.aspectRatio = `${canvaState.page.width} / ${canvaState.page.height}`;
+
+    // Xóa các layer cũ (nếu có)
+    frame.querySelectorAll('.vb-canva-overlay-layer').forEach(e => e.remove());
+
+    // Tạo một vùng chứa tỷ lệ chuẩn (để scale tự động theo kích thước màn hình bài viết)
+    let container = frame.querySelector('.vb-canva-elements-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'vb-canva-elements-container';
+        // Đặt kích thước cố định như Canvas, sau đó dùng CSS container-type hoặc phần trăm để auto scale
+        container.style.position = 'absolute';
+        container.style.top = '0';
+        container.style.left = '0';
+        container.style.width = '100%';
+        container.style.height = '100%';
+        container.style.pointerEvents = 'none'; // Không cản trở việc click vào ảnh gốc
+        frame.appendChild(container);
+    } else {
+        container.innerHTML = ''; // Làm sạch
+    }
+
+    // Tỉ lệ scale thực tế của khung bài viết so với khung Canvas gốc
+    const scaleX = 100 / canvaState.page.width;
+    const scaleY = 100 / canvaState.page.height;
+
+    // 3. Duyệt qua các Layer để vẽ (Layer 0 thường là ảnh nền)
+    canvaState.layers.forEach((layer, index) => {
+        if (layer.visible === false) return;
+
+        // Nếu là ảnh base (thường nằm dưới cùng và có cùng kích thước Canvas), áp dụng Filter vào thẻ <img> gốc
+        if (index === 0 && layer.type === 'image') {
+            const f = layer.filters || {};
+            const brightness = Math.min(250, Math.max(10, 100 + (f.exposure || 0) * 0.75 + (f.shadows || 0) * 0.18 + (f.highlights || 0) * 0.08));
+            const contrast = Math.min(250, Math.max(10, 100 + (f.contrast || 0) + (f.clarity || 0) * 0.22 + (f.sharpen || 0) * 0.1 - (f.highlights || 0) * 0.06));
+            const sat = Math.min(300, Math.max(0, 100 + (f.saturation || 0)));
+            const sepia = Math.abs(f.temperature || 0) * 0.18;
+            const hue = (f.temperature || 0) * 0.22 + (f.tint || 0) * 0.36;
+            const blur = (f.denoise || 0) * 0.08;
+            
+            img.style.filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${sat}%) sepia(${sepia}%) hue-rotate(${hue}deg) blur(${blur}px)`;
+            img.style.objectPosition = `${layer.cropX ?? 50}% ${layer.cropY ?? 50}%`;
+            return; // Bỏ qua không vẽ div đè lên
+        }
+
+        // Với các Layer khác (Text, Shape, Frame, Html), vẽ thẻ div lơ lửng
+        const el = document.createElement('div');
+        el.className = 'vb-canva-overlay-layer';
+        
+        // Quy đổi tọa độ px của Canva sang % để hiển thị responsive trong post.html
+        const leftPct = layer.x * scaleX;
+        const topPct = layer.y * scaleY;
+        const widthPct = layer.width * scaleX;
+        const heightPct = layer.height * scaleY;
+        
+        // Tính toán các thông số Transform (Scale, Rotate, Flip)
+        const sx = (layer.scale || 1) * (layer.flipX ? -1 : 1);
+        const sy = (layer.scale || 1) * (layer.flipY ? -1 : 1);
+        
+        el.style.cssText = `
+            position: absolute;
+            left: ${leftPct}%;
+            top: ${topPct}%;
+            width: ${widthPct}%;
+            height: ${heightPct}%;
+            opacity: ${layer.opacity ?? 1};
+            transform: rotate(${layer.rotation || 0}deg) scale(${sx}, ${sy});
+            transform-origin: center center;
+            z-index: ${index + 2};
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+
+        // Chèn nội dung tùy theo loại Layer
+        if (layer.type === 'text') {
+            el.innerHTML = `<div style="width:100%; height:100%; white-space:pre-wrap; background:${layer.textBackground || 'transparent'}; color:${layer.color || '#172033'}; font-family:'${layer.fontFamily}', sans-serif; font-size:calc(${layer.fontSize || 42}px * var(--vb-scale-ratio, 1)); font-weight:${layer.fontWeight || 700}; font-style:${layer.fontStyle || 'normal'}; text-decoration:${layer.textDecoration || 'none'}; text-align:${layer.textAlign || 'left'}; line-height:${layer.lineHeight || 1.2}; letter-spacing:${layer.letterSpacing || 0}px;">${layer.content || ''}</div>`;
+        } else if (layer.type === 'shape') {
+            el.innerHTML = `<div style="width:100%; height:100%; background:${layer.fill || '#2947d3'}; border:${layer.strokeWidth || 0}px solid ${layer.stroke || 'transparent'}; ${layer.shape === 'circle' ? 'border-radius: 50%;' : ''}"></div>`;
+        } else if (layer.type === 'html') {
+            el.innerHTML = `<div style="width:100%; height:100%; padding: 24px; background:linear-gradient(135deg, ${layer.htmlBg1 || '#2947d3'}, ${layer.htmlBg2 || '#12bee7'}); color:${layer.htmlColor || '#ffffff'};"><strong style="font-size: 28px; display: block;">${layer.title || ''}</strong><span style="font-size: 15px; display: block; opacity: 0.88;">${layer.subtitle || ''}</span></div>`;
+        }
+
+        container.appendChild(el);
+    });
+}
+
 setInterval(checkAndApplyStudioReturn, 350);
+// =========================================================================
+// HỆ THỐNG RENDER CANVA LAYER (HTML/CSS) TRỰC TIẾP TRONG POST.HTML
+// =========================================================================
+
+// 1. Hook vào hàm khởi tạo ảnh để tự động phục hồi Layer khi tải bài viết cũ
+const originalHydrateManagedImages = hydrateManagedImages;
+hydrateManagedImages = function(root, role = "content") {
+    // Chạy các chức năng gốc của hệ thống (bọc frame, load drive url...)
+    originalHydrateManagedImages(root, role);
+
+    if (!root) return;
+    
+    // Quét toàn bộ ảnh, nếu phát hiện có cất giữ bản vẽ Canva thì lôi ra render lại
+    Array.from(root.querySelectorAll("img.vb-managed-image")).forEach(img => {
+        if (img.dataset.canvaSavedState) {
+            try {
+                const canvaState = JSON.parse(img.dataset.canvaSavedState);
+                applyCanvaStateToFrame(img, canvaState);
+            } catch(e) {
+                console.error("Lỗi phục hồi Canva State:", e);
+            }
+        }
+    });
+};
+
+// 2. Hàm vẽ Layer đè lên ảnh gốc (Không làm biến đổi URL ảnh)
+function applyCanvaStateToFrame(img, canvaState) {
+    const frame = img.closest('.vb-image-frame');
+    if (!frame || !canvaState || !canvaState.layers) return;
+
+    // Lưu JSON state vào Data attribute của IMG để nó được lưu vào Sheet cùng bài viết
+    img.dataset.canvaSavedState = JSON.stringify(canvaState);
+
+    // Xóa lớp phủ layer cũ để vẽ mới (chống trùng lặp nếu gọi nhiều lần)
+    frame.querySelectorAll('.vb-canva-overlay-layer').forEach(e => e.remove());
+
+    let container = frame.querySelector('.vb-canva-elements-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.className = 'vb-canva-elements-container';
+        // Ép container phủ khít ảnh, không cho phép click dính layer để tránh lỗi bôi đen văn bản
+        container.style.cssText = `
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; 
+            overflow: hidden;
+            z-index: 10;
+        `;
+        frame.appendChild(container);
+    } else {
+        container.innerHTML = ''; // Dọn dẹp ruột cũ
+    }
+
+    const baseWidth = canvaState.page.width || 1080;
+    const baseHeight = canvaState.page.height || 1080;
+
+    // Tỉ lệ scale thực tế để lấy phần trăm Tọa độ & Kích thước khối
+    const scaleX = 100 / baseWidth;
+    const scaleY = 100 / baseHeight;
+
+    // --- CÔNG NGHỆ RESPONSIVE FONT SIZE ---
+    // Đo đạc kích thước thật của ảnh trên màn hình để scale Font Chữ y như Canvas
+    if (!frame._vbCanvaResizeObserver) {
+        frame._vbCanvaResizeObserver = new ResizeObserver(entries => {
+            for (let entry of entries) {
+                const currentPixelWidth = entry.contentRect.width;
+                // Tính tỷ lệ: Kích thước đang hiển thị / Kích thước Canvas gốc
+                const ratio = currentPixelWidth / baseWidth;
+                container.style.setProperty('--vb-scale-ratio', ratio);
+            }
+        });
+        frame._vbCanvaResizeObserver.observe(frame);
+    }
+
+    // 3. Tiến hành vẽ từng Layer
+    canvaState.layers.forEach((layer, index) => {
+        if (layer.visible === false) return;
+
+        // Bỏ qua ảnh nền (background), chỉ áp dụng Filter lên <img> gốc
+        if (index === 0 && layer.type === 'image') {
+            const f = layer.filters || {};
+            const brightness = Math.min(250, Math.max(10, 100 + (f.exposure || 0) * 0.75 + (f.shadows || 0) * 0.18 + (f.highlights || 0) * 0.08));
+            const contrast = Math.min(250, Math.max(10, 100 + (f.contrast || 0) + (f.clarity || 0) * 0.22 + (f.sharpen || 0) * 0.1 - (f.highlights || 0) * 0.06));
+            const sat = Math.min(300, Math.max(0, 100 + (f.saturation || 0)));
+            const sepia = Math.abs(f.temperature || 0) * 0.18;
+            const hue = (f.temperature || 0) * 0.22 + (f.tint || 0) * 0.36;
+            const blur = (f.denoise || 0) * 0.08;
+            
+            img.style.filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${sat}%) sepia(${sepia}%) hue-rotate(${hue}deg) blur(${blur}px)`;
+            img.style.objectPosition = `${layer.cropX ?? 50}% ${layer.cropY ?? 50}%`;
+            return; 
+        }
+
+        // Vẽ thẻ <div> lơ lửng cho các element khác
+        const el = document.createElement('div');
+        el.className = 'vb-canva-overlay-layer';
+        
+        const sx = (layer.scale || 1) * (layer.flipX ? -1 : 1);
+        const sy = (layer.scale || 1) * (layer.flipY ? -1 : 1);
+        
+        el.style.cssText = `
+            position: absolute;
+            left: ${layer.x * scaleX}%;
+            top: ${layer.y * scaleY}%;
+            width: ${layer.width * scaleX}%;
+            height: ${layer.height * scaleY}%;
+            opacity: ${layer.opacity ?? 1};
+            transform: rotate(${layer.rotation || 0}deg) scale(${sx}, ${sy});
+            transform-origin: center center;
+            z-index: ${index + 2};
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        `;
+
+        if (layer.type === 'text') {
+            // Dùng var(--vb-scale-ratio) để nhân với fontSize
+            el.innerHTML = `<div style="width:100%; height:100%; white-space:pre-wrap; background:${layer.textBackground || 'transparent'}; color:${layer.color || '#172033'}; font-family:'${layer.fontFamily}', sans-serif; font-size:calc(${layer.fontSize || 42}px * var(--vb-scale-ratio, 1)); font-weight:${layer.fontWeight || 700}; font-style:${layer.fontStyle || 'normal'}; text-decoration:${layer.textDecoration || 'none'}; text-align:${layer.textAlign || 'left'}; line-height:${layer.lineHeight || 1.2}; letter-spacing:${layer.letterSpacing || 0}px;">${layer.content || ''}</div>`;
+        } else if (layer.type === 'shape') {
+            el.innerHTML = `<div style="width:100%; height:100%; background:${layer.fill || '#2947d3'}; border:${layer.strokeWidth || 0}px solid ${layer.stroke || 'transparent'}; ${layer.shape === 'circle' ? 'border-radius: 50%;' : ''}"></div>`;
+        } else if (layer.type === 'html') {
+            el.innerHTML = `<div style="width:100%; height:100%; padding: 24px; background:linear-gradient(135deg, ${layer.htmlBg1 || '#2947d3'}, ${layer.htmlBg2 || '#12bee7'}); color:${layer.htmlColor || '#ffffff'};"><strong style="font-size: calc(28px * var(--vb-scale-ratio, 1)); display: block;">${layer.title || ''}</strong><span style="font-size: calc(15px * var(--vb-scale-ratio, 1)); display: block; opacity: 0.88;">${layer.subtitle || ''}</span></div>`;
+        }
+
+        container.appendChild(el);
+    });
+}
 </script>
 
 </body>

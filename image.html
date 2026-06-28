@@ -2871,55 +2871,36 @@ try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.o
 
   // HÀM KẾT XUẤT NƯỚNG CHÍN TOÀN BỘ LAYER TEXT, IMAGE, SHAPE, FRAME, HTML, TEXTURE
   window.pushEditedCanvasBackToPost = async function() {
-      const postId = window.mktCurrentProjectPostId || localStorage.getItem('MKT_ACTIVE_POST_ID') || "BAI_VIET_GENERAL";
-      if (typeof syncCurrentPageDoc === 'function') syncCurrentPageDoc();
+    const postId = window.mktCurrentProjectPostId || localStorage.getItem('MKT_ACTIVE_POST_ID') || "BAI_VIET_GENERAL";
+    if (typeof syncCurrentPageDoc === 'function') syncCurrentPageDoc();
 
-      const curDoc = state.pages.find(p => p.id === state.currentPageId) || state.pages[0];
-      if (!curDoc) return alert("Không tìm thấy dữ liệu Page hiện tại!");
+    const curDoc = state.pages.find(p => p.id === state.currentPageId) || state.pages[0];
+    if (!curDoc) return alert("Không tìm thấy dữ liệu Page hiện tại!");
 
-      if (typeof toast === 'function') toast('Đang kết xuất toàn bộ layer & hiệu ứng...');
+    if (typeof toast === 'function') toast('Đang lưu cấu trúc thiết kế...');
 
-      const projSave = { postId: postId, pages: state.pages, updatedAt: Date.now() };
-      if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-          firebase.database().ref(`canvas_projects/${postId}`).set(projSave);
-      }
-      localStorage.setItem(`MKT_PROJ_${postId}`, JSON.stringify(projSave));
+    // Lưu vào Project Database
+    const projSave = { postId: postId, pages: state.pages, updatedAt: Date.now() };
+    if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
+        firebase.database().ref(`canvas_projects/${postId}`).set(projSave);
+    }
+    localStorage.setItem(`MKT_PROJ_${postId}`, JSON.stringify(projSave));
 
-      // Gọi Engine kết xuất chính thức của hệ thống để nướng chín mọi layer
-      let highResDataUrl = "";
-      if (typeof exportPageDoc === 'function') {
-          const renderedCanvas = await exportPageDoc(curDoc, 1);
-          highResDataUrl = renderedCanvas.toDataURL('image/jpeg', 0.96);
-      } else if (typeof exportPage === 'function') {
-          const renderedCanvas = await exportPage(curDoc);
-          highResDataUrl = renderedCanvas.toDataURL('image/jpeg', 0.96);
-      } else {
-          const canvases = Array.from(document.querySelectorAll('canvas'));
-          let artCanvas = canvases[0];
-          let maxArea = 0;
-          for (const c of canvases) {
-              const area = (c.width || 0) * (c.height || 0);
-              if (area > maxArea && !c.id?.toLowerCase().includes('grid')) {
-                  maxArea = area; artCanvas = c;
-              }
-          }
-          highResDataUrl = artCanvas ? artCanvas.toDataURL('image/jpeg', 0.96) : "";
-      }
+    // SỬA TẠI ĐÂY: Gửi nguyên JSON data của thiết kế về post.html, KHÔNG DÙNG BASE64 NỮA
+    const returnPayload = {
+        postId: postId,
+        imageId: curDoc.id, // Khớp với safeKey
+        pageWidth: state.page.width,
+        pageHeight: state.page.height,
+        canvaState: curDoc // Truyền toàn bộ object chứa layer, text, shape, filters...
+    };
+    localStorage.setItem('MKT_CANVA_RETURN_PAYLOAD', JSON.stringify(returnPayload));
 
-      const returnPayload = {
-          postId: postId,
-          originSrc: curDoc.originSrc || curDoc.layers?.[0]?.src,
-          screenshot: highResDataUrl,
-          pageWidth: state.page.width,
-          pageHeight: state.page.height
-      };
-      localStorage.setItem('MKT_CANVA_RETURN_PAYLOAD', JSON.stringify(returnPayload));
-
-      if (window.parent && typeof window.parent.loadModule === 'function') {
-          const postTab = window.parent.document.querySelector('.menu-item-side[data-target="post"]');
-          window.parent.loadModule('post.html', postTab || undefined);
-      }
-  };
+    if (window.parent && typeof window.parent.loadModule === 'function') {
+        const postTab = window.parent.document.querySelector('.menu-item-side[data-target="post"]');
+        window.parent.loadModule('post.html', postTab || undefined);
+    }
+};
 ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
 })();
 </script>
