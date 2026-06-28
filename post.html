@@ -6333,7 +6333,7 @@ function renderImageLibraries() {
 
 const canvasChannel = new BroadcastChannel('canvas-studio-sync');
 
-function openImageInCanvasStudio() {
+async function openImageInCanvasStudio() {
     if (!vbActiveImage) return;
     
     const state = readImageFrameState(vbActiveImage);
@@ -6350,16 +6350,30 @@ function openImageInCanvasStudio() {
     const projectId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_TEMP");
     const imageId = vbActiveImage.dataset.imageId;
     
-    // --- [FIX LỖI TRẮNG CANVAS] ---
-    // Không dùng fetch Base64 nữa vì bị CORS chặn.
-    // Dùng trực tiếp API Proxy nội bộ của Vercel (/api/drive-image?id=...)
-    // Vì image.html và post.html chung domain vercel, Canvas sẽ tải ảnh cái vèo không bị chặn!
     let rawUrl = vbActiveImage.dataset.driveUrl || vbActiveImage.src;
     let safeSourceUrl = rawUrl;
     
+    // [CỨU TINH 1]: Chuyển link Drive sang API Thumbnail để thoát kiếp bị Google chặn CORS
     const driveMatch = rawUrl.match(/(?:id=|\/d\/)([a-zA-Z0-9_-]{10,})/);
     if (driveMatch) {
-        safeSourceUrl = "/api/drive-image?id=" + driveMatch[1];
+        safeSourceUrl = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w2000`;
+    }
+    
+    // [CỨU TINH 2]: Nếu ảnh là Blob (vừa dán chưa kịp lưu), ép sang Base64 nội bộ
+    if (safeSourceUrl.startsWith('blob:')) {
+        try {
+            const btn = document.querySelector('.vb-image-actions .tool-btn[onclick="openImageInCanvasStudio()"]');
+            let oldText = btn ? btn.innerHTML : "";
+            if(btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang load...'; btn.style.pointerEvents = "none"; }
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = vbActiveImage.naturalWidth;
+            canvas.height = vbActiveImage.naturalHeight;
+            canvas.getContext('2d').drawImage(vbActiveImage, 0, 0);
+            safeSourceUrl = canvas.toDataURL('image/png');
+            
+            if(btn) { btn.innerHTML = oldText; btn.style.pointerEvents = "auto"; }
+        } catch(e) { console.warn("Lỗi convert Base64:", e); }
     }
     
     if (!vbActiveImage.dataset.originalSource) {

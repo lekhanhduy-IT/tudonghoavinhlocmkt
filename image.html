@@ -2886,12 +2886,20 @@ function loadProjectFromIntent() {
             const loadedPages = typeof projectData.pages === 'string' ? JSON.parse(projectData.pages) : projectData.pages;
             restore({ pages: loadedPages, currentPageId: loadedPages[0].id });
             
-            // TÌM QUÉT SÂU TỪ FIREBASE TẢI VỀ
+            // TÌM QUÉT SÂU TRONG DỮ LIỆU VỪA TẢI
             const existingPage = loadedPages.find(p => p.layers.some(l => l.imageId === currentLaunchIntent.imageId));
             
             if (existingPage) {
                 switchPage(existingPage.id);
                 toast(`Đã mở trang thiết kế của ảnh này`);
+                
+                // Nhắc khéo bài viết lưu lại ID phòng khi lỡ tay xóa mất
+                canvasChannel.postMessage({
+                    type: 'CANVAS_PAGE_CREATED',
+                    projectId: currentProjectId,
+                    imageId: currentLaunchIntent.imageId,
+                    pageId: existingPage.id
+                });
             } else {
                 createNewPageForIntent();
             }
@@ -2942,8 +2950,14 @@ function createNewPageForIntent() {
         layers: [baseLayerObj]
     });
     
-    state.pages.push(newPage);
-    switchPage(newPageId);
+    // [VÁ LỖI TẠO PAGE RÁC] 
+    // KHÔNG dùng switchPage() ở đây vì nó sẽ lấy RAM rỗng đè chết layer của trang vừa tạo!
+    syncCurrentPageDoc(); // Cất công việc của trang hiện tại đi
+    state.pages.push(newPage); // Nhét trang mới vào sổ
+    state.currentPageId = newPageId; // Đổi ID
+    applyPageDocument(newPage); // Nạp trang mới ra màn hình
+    renderAll();
+    
     syncProjectToFirebase();
     buildProjectCollection();
     
