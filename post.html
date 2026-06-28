@@ -4508,7 +4508,11 @@ function closeImageProperties() {
 }
 
 function collectMetadataFromGrid() {
-    const meta = { ...VB_DEFAULT_IMAGE_META, _labels: {...VB_DEFAULT_IMAGE_LABELS} };
+    // [QUAN TRỌNG]: Đọc lại meta cũ để bảo tồn các trường ẩn (như canvasPageId)
+    // Tránh việc bảng Popup ghi đè làm mất ID trang của Canvas
+    const oldMeta = vbActiveImage ? readImageMetadata(vbActiveImage) : {};
+    const meta = { ...VB_DEFAULT_IMAGE_META, ...oldMeta, _labels: {...VB_DEFAULT_IMAGE_LABELS} };
+    
     document.querySelectorAll("#vbMetadataTable .vb-meta-value[data-meta-key]").forEach(cell => {
         meta[cell.dataset.metaKey] = cell.innerText.replace(/\u00a0/g, " ").trim();
     });
@@ -6329,15 +6333,13 @@ function renderImageLibraries() {
 
 const canvasChannel = new BroadcastChannel('canvas-studio-sync');
 
-function openImageInCanvasStudio() {
+async function openImageInCanvasStudio() {
     if (!vbActiveImage) return;
     
-    // Lấy thông số từ popup
     const state = readImageFrameState(vbActiveImage);
     const scalePct = parseFloat(document.getElementById("vbScalePercent").value) || 100;
     const meta = readImageMetadata(vbActiveImage);
     
-    // Bê nguyên khung chứa ảnh sang (Giữ đúng Width/Height/Scale)
     const cw = parseFloat(document.getElementById("vbImgWidth").value) || state.targetWidth;
     const ch = parseFloat(document.getElementById("vbImgHeight").value) || state.targetHeight;
     const scaleMultiplier = scalePct / 100;
@@ -6348,11 +6350,27 @@ function openImageInCanvasStudio() {
     const projectId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_TEMP");
     const imageId = vbActiveImage.dataset.imageId;
     
-    // Phải truyền ảnh GỐC (chưa bị Canvas làm hỏng base64) sang làm nền
-    const sourceUrl = vbActiveImage.dataset.originalSource || vbActiveImage.dataset.driveUrl || vbActiveImage.src;
+    // [FIX LỖI KHÔNG HIỆN ẢNH]: Lấy src thực tế đang hiển thị (đã qua API Proxy) để tránh lỗi CORS của Google Drive
+    let sourceUrl = vbActiveImage.src;
+    
+    // Nếu ảnh chưa lưu lên Drive (đang là blob local), phải chuyển sang Base64
+    // Vì iframe image.html sẽ không thể đọc được blob nội bộ của iframe post.html
+    if (sourceUrl.startsWith('blob:')) {
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = vbActiveImage.naturalWidth;
+            canvas.height = vbActiveImage.naturalHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(vbActiveImage, 0, 0);
+            sourceUrl = canvas.toDataURL('image/jpeg', 0.95);
+        } catch(e) {
+            vbShowAlert("Đang xử lý ảnh cục bộ, vui lòng thử lại sau giây lát.");
+            return;
+        }
+    }
     
     if (!vbActiveImage.dataset.originalSource) {
-        vbActiveImage.dataset.originalSource = sourceUrl;
+        vbActiveImage.dataset.originalSource = vbActiveImage.dataset.driveUrl || sourceUrl;
     }
     
     const launchData = {
@@ -6364,16 +6382,13 @@ function openImageInCanvasStudio() {
         sourceUrl: sourceUrl
     };
     
-    // Lưu tạm vào LocalStorage dự phòng
     localStorage.setItem('CANVAS_LAUNCH_INTENT', JSON.stringify(launchData));
     
-    // 1. Phóng tín hiệu cho iframe image.html thức dậy và nạp dữ liệu
     canvasChannel.postMessage({
         type: 'LAUNCH_CANVAS_INTENT',
         intent: launchData
     });
     
-    // 2. Ra lệnh cho admin.html (cửa sổ cha) chuyển tab sang image.html
     if (window.parent && typeof window.parent.loadModule === 'function') {
         const imageMenuBtn = window.parent.document.querySelector('.menu-item-side[data-target="image"]');
         if (imageMenuBtn) {

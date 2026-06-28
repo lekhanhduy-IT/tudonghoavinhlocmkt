@@ -3051,7 +3051,18 @@ setTimeout(() => {
         } catch(e) {}
     }
 }, 500);
-
+// ================= V23 FIX: CẤP QUYỀN CORS ĐỂ ĐỌC ẢNH PROXY TỪ POST.HTML =================
+  const v23LoadImage = loadImage;
+  loadImage = function(src) {
+      return new Promise((resolve, reject) => {
+          const im = new Image();
+          // Chìa khóa quyết định: Cho phép Canvas vẽ lại ảnh từ Proxy/Drive mà không bị lỗi Tainted
+          im.crossOrigin = "Anonymous"; 
+          im.onload = () => resolve(im);
+          im.onerror = reject;
+          im.src = src;
+      });
+  };
 })();
 </script>
 
