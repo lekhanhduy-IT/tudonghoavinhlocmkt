@@ -1483,9 +1483,6 @@
         <div class="vb-image-upload-status" id="vbImageUploadStatus"></div>
 
         <div class="vb-image-actions" style="margin-top: auto;">
-            <button class="tool-btn" onclick="openImageInCanvasStudio()" style="background: #8b3dff; color: #fff; border-color: #8b3dff;">
-                <i class="fas fa-palette"></i> Mở Canvas Studio
-            </button>
           <button class="tool-btn save-btn" onclick="applyImageProperties()"><i class="fas fa-check"></i> Cập nhật</button>
           <button class="tool-btn" onclick="copyActiveImage(false)"><i class="fas fa-copy"></i> Sao chép</button>
           <button class="tool-btn danger" onclick="deleteActiveImage()"><i class="fas fa-trash"></i> Xóa</button>
@@ -3662,7 +3659,6 @@ const VB_DEFAULT_IMAGE_META = Object.freeze({
     description: "",
     author: "Tu Dong Hoa Vinh Loc",
     copyright: "tudonghoavinhloc.com",
-    canvasPageId: "",
     _labels: VB_DEFAULT_IMAGE_LABELS
 });
 
@@ -4508,11 +4504,7 @@ function closeImageProperties() {
 }
 
 function collectMetadataFromGrid() {
-    // [QUAN TRỌNG]: Đọc lại meta cũ để bảo tồn các trường ẩn (như canvasPageId)
-    // Tránh việc bảng Popup ghi đè làm mất ID trang của Canvas
-    const oldMeta = vbActiveImage ? readImageMetadata(vbActiveImage) : {};
-    const meta = { ...VB_DEFAULT_IMAGE_META, ...oldMeta, _labels: {...VB_DEFAULT_IMAGE_LABELS} };
-    
+    const meta = { ...VB_DEFAULT_IMAGE_META, _labels: {...VB_DEFAULT_IMAGE_LABELS} };
     document.querySelectorAll("#vbMetadataTable .vb-meta-value[data-meta-key]").forEach(cell => {
         meta[cell.dataset.metaKey] = cell.innerText.replace(/\u00a0/g, " ").trim();
     });
@@ -6327,152 +6319,6 @@ function renderImageLibraries() {
         container.appendChild(item);
     }
 }
-// =========================================================================
-// TÍCH HỢP CANVAS STUDIO TRONG MÔI TRƯỜNG IFRAME
-// =========================================================================
-
-const canvasChannel = new BroadcastChannel('canvas-studio-sync');
-
-async function openImageInCanvasStudio() {
-    if (!vbActiveImage) return;
-    
-    const state = readImageFrameState(vbActiveImage);
-    const scalePct = parseFloat(document.getElementById("vbScalePercent").value) || 100;
-    const meta = readImageMetadata(vbActiveImage);
-    
-    const cw = parseFloat(document.getElementById("vbImgWidth").value) || state.targetWidth;
-    const ch = parseFloat(document.getElementById("vbImgHeight").value) || state.targetHeight;
-    const scaleMultiplier = scalePct / 100;
-    
-    const realWidth = Math.max(1, Math.round(cw * scaleMultiplier));
-    const realHeight = Math.max(1, Math.round(ch * scaleMultiplier));
-    
-    const projectId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_TEMP");
-    const imageId = vbActiveImage.dataset.imageId;
-    
-    let rawUrl = vbActiveImage.dataset.driveUrl || vbActiveImage.src;
-    let safeSourceUrl = rawUrl;
-    
-    // [VÁ LỖI XUẤT ẢNH]: BẮT BUỘC dùng Proxy nội bộ /api/drive-image. 
-    // Trình duyệt sẽ nhận diện đây là file "người nhà" và không chặn quyền xuất ảnh (CORS).
-    const driveMatch = rawUrl.match(/(?:id=|\/d\/)([a-zA-Z0-9_-]{10,})/);
-    if (driveMatch) {
-        safeSourceUrl = "/api/drive-image?id=" + driveMatch[1];
-    }
-    
-    // Nếu ảnh vừa dán (Blob), ép sang Base64
-    if (safeSourceUrl.startsWith('blob:')) {
-        try {
-            const btn = document.querySelector('.vb-image-actions .tool-btn[onclick="openImageInCanvasStudio()"]');
-            let oldText = btn ? btn.innerHTML : "";
-            if(btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang load...'; btn.style.pointerEvents = "none"; }
-            
-            const canvas = document.createElement('canvas');
-            canvas.width = vbActiveImage.naturalWidth;
-            canvas.height = vbActiveImage.naturalHeight;
-            canvas.getContext('2d').drawImage(vbActiveImage, 0, 0);
-            safeSourceUrl = canvas.toDataURL('image/png');
-            
-            if(btn) { btn.innerHTML = oldText; btn.style.pointerEvents = "auto"; }
-        } catch(e) { console.warn("Lỗi convert Base64:", e); }
-    }
-    
-    if (!vbActiveImage.dataset.originalSource) {
-        vbActiveImage.dataset.originalSource = rawUrl;
-    }
-
-    const launchData = {
-        projectId: projectId,
-        imageId: imageId,
-        pageId: meta.canvasPageId || null,
-        width: realWidth,
-        height: realHeight,
-        sourceUrl: safeSourceUrl
-    };
-    
-    localStorage.setItem('CANVAS_LAUNCH_INTENT', JSON.stringify(launchData));
-    
-    canvasChannel.postMessage({
-        type: 'LAUNCH_CANVAS_INTENT',
-        intent: launchData
-    });
-    
-    if (window.parent && typeof window.parent.loadModule === 'function') {
-        const imageMenuBtn = window.parent.document.querySelector('.menu-item-side[data-target="image"]');
-        if (imageMenuBtn) {
-            window.parent.loadModule('image.html', imageMenuBtn);
-        }
-    }
-}
-
-canvasChannel.onmessage = function(e) {
-    const data = e.data;
-    
-    // 1. KHI CANVAS TẠO TRANG MỚI CHO ẢNH NÀY -> PHẢI LƯU LẠI ID PAGE NGAY
-    // Để lần sau bấm nút nó sẽ chuyển sang page cũ chứ không tạo page mới
-    if (data.type === 'CANVAS_PAGE_CREATED' && data.projectId === currentPostId) {
-        const targetImg = document.querySelector(`img[data-image-id="${data.imageId}"]`);
-        if (targetImg) {
-            let meta = readImageMetadata(targetImg);
-            meta.canvasPageId = data.pageId;
-            writeImageMetadata(targetImg, meta);
-            markImageDirty(true);
-        }
-    }
-
-    // 2. KHI ÁP DỤNG ẢNH TỪ CANVAS VỀ BÀI VIẾT
-    else if (data.type === 'CANVAS_IMAGE_UPDATED' && data.projectId === currentPostId) {
-        const targetImg = document.querySelector(`img[data-image-id="${data.imageId}"]`);
-        if (targetImg) {
-            let meta = readImageMetadata(targetImg);
-            meta.canvasPageId = data.pageId; 
-            writeImageMetadata(targetImg, meta);
-            
-            if (!targetImg.dataset.originalSource) {
-                targetImg.dataset.originalSource = targetImg.dataset.driveUrl || targetImg.src;
-            }
-            
-            delete targetImg.dataset.driveFileId;
-            delete targetImg.dataset.driveUrl;
-            delete targetImg.dataset.archivedDrive;
-            targetImg.dataset.isLocalUpload = "true";
-            
-            targetImg.src = data.previewBase64; 
-            markImageDirty(true);
-            
-            if (vbActiveImage && vbActiveImage.dataset.imageId === data.imageId) {
-                document.getElementById('vbPreviewImg').src = data.previewBase64;
-            }
-            vbShowAlert("Đã áp dụng bản thiết kế từ Canvas Studio vào bài viết!");
-        }
-    } 
-    
-    // 3. KHI XÓA TRANG TRONG CANVAS
-    else if (data.type === 'CANVAS_PAGE_DELETED' && data.projectId === currentPostId) {
-        const targetImg = document.querySelector(`img[data-image-id="${data.imageId}"]`);
-        if (targetImg) {
-            let meta = readImageMetadata(targetImg);
-            if (meta.canvasPageId === data.pageId) {
-                meta.canvasPageId = ""; // Lột bỏ page id
-                writeImageMetadata(targetImg, meta);
-                
-                // Trả về ảnh gốc
-                if (targetImg.dataset.originalSource) {
-                    targetImg.src = targetImg.dataset.originalSource;
-                } else if (targetImg.dataset.driveUrl) {
-                    targetImg.src = runtimeImageUrl(targetImg.dataset.driveUrl);
-                }
-                
-                markImageDirty(true);
-                
-                if (vbActiveImage && vbActiveImage.dataset.imageId === data.imageId) {
-                    document.getElementById('vbPreviewImg').src = targetImg.src;
-                }
-                vbShowAlert("Trang thiết kế đã bị xóa. Ảnh đã được khôi phục về nguyên bản.");
-            }
-        }
-    }
-};
 </script>
 
 </body>
