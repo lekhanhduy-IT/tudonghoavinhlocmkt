@@ -149,7 +149,17 @@
     .color-sidebar .sidebar-color-chip[style*="gradient"],.color-chip[style*="gradient"]{background-size:cover!important}
     @media(max-width:1180px){:root{--sidebar:360px}.color-sidebar{right:360px;width:340px}.btn .label{display:none}.top-tool.wide{min-width:auto}.google-font-link{min-width:190px}.google-font-link input{width:138px}}
 
+
+    .canva-collection-grid{grid-template-columns:1fr!important;gap:10px!important}
+    .canva-collection-card{display:grid;grid-template-columns:74px 1fr;gap:10px;border:1px solid var(--line);background:#fff;padding:8px;min-height:92px}
+    .canva-collection-card img{width:74px;height:74px;object-fit:cover;background:#f2f5f8;border:1px solid var(--line)}
+    .canva-collection-card strong{display:block;font-size:12px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .canva-collection-card small{display:block;color:#667386;font-size:10px;line-height:1.35;margin-top:2px;word-break:break-all}
+    .canva-card-actions{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.canva-card-actions button{height:26px;border:1px solid var(--line);background:#fff;font-size:10px;font-weight:800;padding:0 6px}.canva-card-actions button:hover{background:#edf3ff;color:var(--blue)}
+
   </style>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 </head>
 <body>
 <div class="app" id="app">
@@ -283,6 +293,15 @@
         <div class="section-title"><span>Ảnh dùng làm element</span></div><div class="media-grid" id="assetMediaGrid"></div>
       </section>
       <section class="tab-panel" data-panel="uploads"><div class="panel-title-row"><h2>Tải lên</h2><button class="mini-btn primary" id="uploadSidebarBtn"><i class="fa-solid fa-plus"></i> Chọn nhiều ảnh</button></div><div class="media-grid" id="uploadGrid"></div></section>
+      <section class="tab-panel" data-panel="collection">
+        <div class="panel-title-row"><h2>Tổng hợp</h2><button class="mini-btn primary" id="canvaRefreshBrain" type="button"><i class="fa-solid fa-rotate"></i> Nạp lại</button></div>
+        <div class="action-stack" style="margin-bottom:10px">
+          <button class="action-btn primary" id="canvaSaveRenderToPost" type="button"><i class="fa-solid fa-cloud-arrow-up"></i> Lưu ảnh vào bài viết</button>
+          <label style="display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800"><input type="checkbox" id="canvaAutoSyncRender"> Auto-sync render sau chỉnh sửa</label>
+        </div>
+        <div class="blank-state" id="canvaProjectInfo"><i class="fa-solid fa-diagram-project"></i> Đang nạp dữ liệu Canva...</div>
+        <div class="media-grid canva-collection-grid" id="canvaCollectionGrid"></div>
+      </section>
       <section class="tab-panel" data-panel="edited"><div class="panel-title-row"><h2>Đã sửa</h2><span id="editedCount" class="small-pill">0</span></div><div class="media-grid" id="editedGrid"></div></section>
       <section class="tab-panel" data-panel="templates"><div class="panel-title-row"><h2>Mẫu</h2><button class="mini-btn primary" id="saveTemplateSidebarBtn"><i class="fa-solid fa-plus"></i> Lưu mẫu</button></div><div class="media-grid" id="templateGrid"></div></section>
     </div>
@@ -2760,6 +2779,339 @@ function bind(){
     }
     drawField(l.title||'TIÊU ĐỀ','title',24);drawField(l.subtitle||'','subtitle',78);ctx.restore();
   };
+})();
+
+
+
+(function(){
+  // =========================================================
+  // CANVA PROJECT DESIGN PATCH: postId -> stable project/pages -> Canva_hidden
+  // =========================================================
+  const CANVA_API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+  const CANVA_DB_URL = "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/";
+  const DRIVE_PROXY = "/api/drive-image?id=";
+  const canvaParams = new URLSearchParams(location.search);
+  const canvaPostId = canvaParams.get('postId') || canvaParams.get('id') || '';
+  const canvaInitialImageId = canvaParams.get('imageId') || canvaParams.get('sourceImageId') || '';
+  const canvaInitialRole = canvaParams.get('role') || '';
+  const canvaInitialPageId = canvaParams.get('pageId') || '';
+  let canvaSaveTimer = null;
+  let canvaRenderTimer = null;
+  let canvaBooted = false;
+  let canvaFirebaseDb = null;
+
+  function canvaEscapeHtml(v){ return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch])); }
+  function canvaId(p){ return 'canva_' + p + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
+  function canvaProjectId(postId){ return 'canva_project_' + postId; }
+  function canvaPageId(postId, role, imageId){ return 'canva_page_' + postId + '*' + role + '*' + imageId; }
+  function canvaSafeKey(value){ return String(value || 'GLOBAL').replace(/[.#$\[\]]/g, '_'); }
+  function canvaExtractDriveFileId(url){ const text=String(url||''); const patterns=[/\/d\/([a-zA-Z0-9_-]{10,})/,/[?&]id=([a-zA-Z0-9_-]{10,})/,/\/thumbnail\?id=([a-zA-Z0-9_-]{10,})/]; for(const p of patterns){const m=text.match(p); if(m)return m[1];} return ''; }
+  function canvaRuntimeUrl(url){ const id=canvaExtractDriveFileId(url); return id ? DRIVE_PROXY + encodeURIComponent(id) : url; }
+  function canvaParseJson(v, fallback={}){ try{return v ? JSON.parse(v) : fallback}catch(e){return fallback} }
+  function canvaCurrentDoc(){ syncCurrentPageDoc(); return currentPageDoc(); }
+
+  state.project = Object.assign({id:'',postId:canvaPostId,name:'Global Library',loaded:false,currentSourceImageId:null,lastSavedAt:null,version:1}, state.project || {});
+  state.canvaBrain = null;
+  state.canvaCollection = [];
+  state.canvaAutoSync = false;
+
+  async function canvaApi(action, payload={}){
+    const res = await fetch(CANVA_API_URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(Object.assign({}, payload, {action}))});
+    const json = await res.json();
+    if(!json || json.success === false) throw new Error(json?.error || ('Canva API lỗi: ' + action));
+    return json;
+  }
+  window.canvaApi = canvaApi;
+
+  function canvaEntity(entity){
+    return Object.assign({
+      entity_type:'setting', id:'', project_id:state.project.id||'', post_id:state.project.postId||'', page_id:'', source_image_id:'', role:'', name:'', drive_file_id:'', drive_url:'', googleusercontent_url:'', json:{}, version:1, updated_by:localStorage.getItem('admin_email')||'', deleted:false, sort_index:0
+    }, entity || {});
+  }
+
+  function serializeCurrentPageToEntity(doc){
+    doc = doc || canvaCurrentDoc();
+    if(!doc) return null;
+    return canvaEntity({
+      entity_type:'page',
+      id:doc.id,
+      project_id:doc.projectId || state.project.id,
+      post_id:doc.postId || state.project.postId,
+      page_id:doc.id,
+      source_image_id:doc.sourceImageId || '',
+      role:doc.role || '',
+      name:doc.name || doc.id,
+      drive_url:doc.currentRenderDriveUrl || doc.sourceDriveUrl || '',
+      googleusercontent_url:doc.currentRenderDriveUrl || doc.sourceDriveUrl || '',
+      json:Object.assign({}, deepClone(doc), {documentVersion:'canva_page_v1'}),
+      version:(doc.version || 1) + 1,
+      sort_index:doc.sortIndex || state.pages.indexOf(doc)
+    });
+  }
+  window.serializeCurrentPageToEntity = serializeCurrentPageToEntity;
+
+  function serializeLayerToEntities(doc){
+    doc = doc || canvaCurrentDoc();
+    if(!doc) return [];
+    return (doc.layers || []).map((l, index)=>canvaEntity({
+      entity_type:'layer', id:l.id, project_id:doc.projectId || state.project.id, post_id:doc.postId || state.project.postId,
+      page_id:doc.id, source_image_id:l.sourceImageId || doc.sourceImageId || '', role:l.boundRole || doc.role || '', name:l.name || l.type || 'layer',
+      drive_file_id:l.driveFileId || '', drive_url:l.driveUrl || l.src || '', googleusercontent_url:l.driveUrl || l.src || '', json:deepClone(l), sort_index:index
+    }));
+  }
+  window.serializeLayerToEntities = serializeLayerToEntities;
+
+  function saveCanvaBatch(entities){
+    entities = (entities || []).filter(Boolean);
+    if(!entities.length) return Promise.resolve({success:true});
+    return canvaApi('SAVE_CANVA_BATCH', {entities}).catch(err=>{ console.warn('SAVE_CANVA_BATCH lỗi', err); return {success:false,error:String(err)}; });
+  }
+  window.saveCanvaBatch = saveCanvaBatch;
+
+  function saveCurrentProjectDebounced(){
+    if(!state.project?.loaded) return;
+    clearTimeout(canvaSaveTimer);
+    canvaSaveTimer = setTimeout(async()=>{
+      try{
+        syncCurrentPageDoc();
+        const doc = currentPageDoc();
+        const entities = [canvaEntity({entity_type:'project', id:state.project.id, project_id:state.project.id, post_id:state.project.postId, name:state.project.name, json:deepClone(state.project), version:state.project.version || 1})];
+        if(doc) entities.push(serializeCurrentPageToEntity(doc), ...serializeLayerToEntities(doc));
+        const res = await saveCanvaBatch(entities);
+        state.project.lastSavedAt = new Date().toISOString();
+        const info = document.getElementById('canvaProjectInfo');
+        if(info && res.success) info.innerHTML = `<i class="fa-solid fa-diagram-project"></i> Đã lưu ${canvaEscapeHtml(state.project.id || 'Global')} · ${new Date().toLocaleTimeString()}`;
+      }catch(err){ console.warn(err); }
+    }, 800);
+  }
+  window.saveCurrentProjectDebounced = saveCurrentProjectDebounced;
+  window.saveCurrentPageDebounced = saveCurrentProjectDebounced;
+
+  function canvaPageFromRow(row){
+    const data = canvaParseJson(row.json, {});
+    const doc = data.documentVersion ? data : data.page ? data : null;
+    if(!doc) return null;
+    return Object.assign(createPageDocument({
+      id:row.page_id || row.id,
+      name:row.name || data.name,
+      page:data.page || {width:1080,height:1080,background:'#ffffff'},
+      layers:data.layers || [], groups:data.groups || {}, comments:data.comments || [], pageDuration:data.pageDuration || 8, preview:data.preview || ''
+    }), data, {id:row.page_id || row.id});
+  }
+
+  function hydrateCanvaStateFromRows(rows){
+    rows = rows || [];
+    const projectRow = rows.find(r=>r.entity_type==='project' && (!canvaPostId || r.post_id === canvaPostId || r.id === canvaProjectId(canvaPostId)));
+    if(projectRow){
+      state.project = Object.assign(state.project, canvaParseJson(projectRow.json, {}), {id:projectRow.id, postId:projectRow.post_id || canvaPostId, name:projectRow.name || state.project.name, loaded:true});
+    }
+    const pageRows = rows.filter(r=>r.entity_type==='page' && (!state.project.id || r.project_id === state.project.id));
+    const docs = pageRows.map(canvaPageFromRow).filter(Boolean).sort((a,b)=>(a.sortIndex||0)-(b.sortIndex||0));
+    if(docs.length){
+      state.pages = docs;
+      state.currentPageId = docs[0].id;
+      applyPageDocument(docs[0]);
+    }
+  }
+  window.hydrateCanvaStateFromRows = hydrateCanvaStateFromRows;
+
+  function createPageFromPostImage(postImage){
+    const imageId = postImage.sourceImageId || postImage.imageId;
+    const role = postImage.role || 'content';
+    const pageId = postImage.pageId || canvaPageId(postImage.postId || canvaPostId, role, imageId);
+    const src = canvaRuntimeUrl(postImage.currentRenderDriveUrl || postImage.googleusercontentUrl || postImage.googleusercontent_url || postImage.driveUrl || postImage.src || '');
+    const doc = createPageDocument({
+      id:pageId,
+      name:(role === 'cover' ? 'Ảnh bìa' : 'Ảnh nội dung') + ' · ' + (postImage.name || imageId),
+      page:{width:1080,height:1080,background:'#ffffff'},
+      layers:[], groups:{}, comments:[], pageDuration:8, preview:''
+    });
+    const baseW = role === 'cover' ? 1080 : 960;
+    const baseH = role === 'cover' ? 608 : 640;
+    doc.projectId = postImage.projectId || state.project.id;
+    doc.postId = postImage.postId || canvaPostId;
+    doc.sourceImageId = imageId;
+    doc.role = role;
+    doc.sourceDriveUrl = postImage.driveUrl || postImage.src || '';
+    doc.currentRenderDriveUrl = postImage.currentRenderDriveUrl || '';
+    doc.sortIndex = postImage.sortIndex || postImage.sort_index || 0;
+    doc.version = 1;
+    doc.layers = [baseLayer('image', {
+      id: canvaId('layer'), type:'image', name:'Ảnh gốc bài viết', sourceImageId:imageId, boundPostId:doc.postId, boundRole:role, boundPageId:pageId,
+      src:src, driveUrl:postImage.driveUrl || '', driveFileId:postImage.oldDriveFileId || canvaExtractDriveFileId(postImage.driveUrl || ''), assetId:imageId,
+      isPostImageBase:true, width:baseW, height:baseH, x:Math.round((1080-baseW)/2), y:Math.round((1080-baseH)/2), filters:defaultFilters(), cropX:50, cropY:50
+    })];
+    return doc;
+  }
+  window.createPageFromPostImage = createPageFromPostImage;
+
+  function collectPagesFromPostImages(postImages){
+    const existing = new Map((state.pages || []).map(p=>[p.id,p]));
+    (postImages || []).forEach(pi=>{
+      const doc = createPageFromPostImage(pi);
+      if(existing.has(doc.id)){
+        const old = existing.get(doc.id);
+        Object.assign(old, {projectId:doc.projectId, postId:doc.postId, sourceImageId:doc.sourceImageId, role:doc.role, sourceDriveUrl:doc.sourceDriveUrl, sortIndex:doc.sortIndex});
+        if(!(old.layers||[]).some(l=>l.isPostImageBase && l.sourceImageId === doc.sourceImageId)) old.layers = [...doc.layers, ...(old.layers||[])];
+      } else {
+        state.pages.push(doc); existing.set(doc.id, doc);
+      }
+    });
+    state.pages.sort((a,b)=>(a.sortIndex||0)-(b.sortIndex||0));
+    const target = canvaInitialPageId || (canvaInitialImageId ? canvaPageId(canvaPostId, canvaInitialRole || 'content', canvaInitialImageId) : '');
+    const targetDoc = state.pages.find(p=>p.id===target || p.sourceImageId===canvaInitialImageId) || state.pages[0];
+    if(targetDoc){ state.currentPageId = targetDoc.id; applyPageDocument(targetDoc); state.project.currentSourceImageId = targetDoc.sourceImageId || null; }
+  }
+  window.collectPagesFromPostImages = collectPagesFromPostImages;
+
+  async function loadCanvaBrain(postId){
+    const brain = await canvaApi('GET_CANVA_BRAIN', {postId:postId || ''});
+    state.canvaBrain = brain;
+    return brain;
+  }
+  window.loadCanvaBrain = loadCanvaBrain;
+
+  async function initCanvaProject(postId){
+    if(canvaBooted) return;
+    canvaBooted = true;
+    const info = document.getElementById('canvaProjectInfo');
+    try{
+      const brain = await loadCanvaBrain(postId || '');
+      state.project = Object.assign(state.project, {id:postId ? canvaProjectId(postId) : 'canva_global_library', postId:postId || '', name:postId ? ('Design bài viết ' + postId) : 'Global Library', loaded:true});
+      hydrateCanvaStateFromRows(brain.canvaRows || []);
+      if(postId) collectPagesFromPostImages(brain.postImages || []);
+      if(!postId && !state.pages.length) ensurePages();
+      renderAll(); setTimeout(fitCanvas, 30);
+      renderCanvaCollectionPanel();
+      saveCurrentProjectDebounced();
+      if(info) info.innerHTML = `<i class="fa-solid fa-diagram-project"></i> ${postId ? 'Project ' + canvaEscapeHtml(state.project.id) : 'Global Library'} · ${brain.canvaRows?.length || 0} entity`;
+      bindCanvaFirebase(postId);
+    }catch(err){
+      console.error(err);
+      if(info) info.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Lỗi nạp Canva: ${canvaEscapeHtml(err.message || err)}`;
+    }
+  }
+  window.initCanvaProject = initCanvaProject;
+
+  function canvaCollectionItems(){
+    const brain = state.canvaBrain || {};
+    const rows = brain.canvaRows || [];
+    const items = [];
+    (brain.postImages || []).forEach(pi=>items.push({kind:'post_current', id:pi.sourceImageId, sourceImageId:pi.sourceImageId, role:pi.role, name:pi.name || pi.sourceImageId, src:canvaRuntimeUrl(pi.currentRenderDriveUrl || pi.googleusercontentUrl || pi.driveUrl), pageId:pi.pageId || canvaPageId(pi.postId || canvaPostId, pi.role, pi.sourceImageId)}));
+    rows.filter(r=>['render','upload','asset','template','element'].includes(r.entity_type) && !r.deleted).forEach(r=>items.push({kind:r.entity_type, id:r.id, sourceImageId:r.source_image_id, role:r.role, name:r.name || r.id, src:canvaRuntimeUrl(r.googleusercontent_url || r.drive_url), pageId:r.page_id || ''}));
+    (brain.driveFiles || []).forEach(f=>items.push({kind:'drive_old', id:f.fileId, name:f.name, src:canvaRuntimeUrl(f.driveUrl), role:'drive', pageId:''}));
+    return items.filter(x=>x.src);
+  }
+
+  function renderCanvaCollectionPanel(){
+    const grid = document.getElementById('canvaCollectionGrid');
+    if(!grid) return;
+    const items = canvaCollectionItems();
+    state.canvaCollection = items;
+    if(!items.length){ grid.innerHTML = '<div class="blank-state">Chưa có ảnh/tài nguyên trong Tổng hợp.</div>'; return; }
+    grid.innerHTML = items.map((it, idx)=>`<div class="canva-collection-card" data-canva-idx="${idx}"><img src="${canvaEscapeHtml(it.src)}" alt=""><div><strong>${canvaEscapeHtml(it.name || it.id)}</strong><small>${canvaEscapeHtml(it.kind)} · ${canvaEscapeHtml(it.role || '')}</small><small>${canvaEscapeHtml(it.sourceImageId || it.id || '')}</small><div class="canva-card-actions"><button data-canva-action="add">Đưa vào canvas</button><button data-canva-action="open">Mở page</button><button data-canva-action="replace">Thay ảnh</button></div></div></div>`).join('');
+  }
+  window.renderCanvaCollectionPanel = renderCanvaCollectionPanel;
+
+  function addCollectionItemToCanvas(item, replace){
+    if(!item) return;
+    const asset = {id:item.id || canvaId('asset'), name:item.name || 'Ảnh', src:item.src, width:900, height:600};
+    addImageFromAsset(asset, !!replace);
+    saveCurrentProjectDebounced();
+  }
+
+  async function uploadCanvaDataUrl(dataUrl, fileRole='upload', meta={}){
+    return canvaApi('UPLOAD_CANVA_FILE', {fileRole, postId:state.project.postId || '', projectId:state.project.id || '', pageId:state.currentPageId || '', sourceImageId:currentPageDoc()?.sourceImageId || '', fileName:meta.fileName || (fileRole + '-' + Date.now() + '.png'), mimeType:meta.mimeType || 'image/png', source:dataUrl, metadata:meta});
+  }
+  window.uploadCanvaDataUrl = uploadCanvaDataUrl;
+
+  async function renderCurrentPageToDrive(){
+    const doc = canvaCurrentDoc();
+    if(!doc) throw new Error('Chưa có page để render.');
+    const type = els.exportType?.value || 'image/png';
+    const q = Number(els.exportQuality?.value || .92);
+    const canvas = await exportDocument({selectionOnly:false, scale:1, transparent:false});
+    const dataUrl = canvas.toDataURL(type, q);
+    const ext = type.split('/')[1].replace('jpeg','jpg');
+    const upload = await uploadCanvaDataUrl(dataUrl, 'render', {fileName:(doc.sourceImageId || 'page') + '-' + Date.now() + '.' + ext, mimeType:type, pageId:doc.id, sourceImageId:doc.sourceImageId || '', role:doc.role || ''});
+    doc.currentRenderDriveUrl = upload.driveUrl;
+    doc.currentRenderFileId = upload.fileId;
+    doc.updatedAt = new Date().toISOString();
+    state.edited.unshift({id:canvaId('edited'), name:upload.fileName, src:dataUrl, width:canvas.width, height:canvas.height});
+    renderUploadPanels();
+    await saveCanvaBatch([serializeCurrentPageToEntity(doc), canvaEntity({entity_type:'render', id:'canva_render_' + (doc.sourceImageId || doc.id) + '_' + Date.now(), project_id:state.project.id, post_id:state.project.postId, page_id:doc.id, source_image_id:doc.sourceImageId || '', role:doc.role || 'render', name:upload.fileName, drive_file_id:upload.fileId, drive_url:upload.driveUrl, googleusercontent_url:upload.driveUrl, json:{pageId:doc.id, sourceImageId:doc.sourceImageId, role:doc.role}, sort_index:Date.now()})]);
+    renderCanvaCollectionPanel();
+    return upload;
+  }
+  window.renderCurrentPageToDrive = renderCurrentPageToDrive;
+
+  function sendCanvaRenderRealtime(upload, extra={}){
+    const doc = canvaCurrentDoc();
+    const payload = Object.assign({
+      type:'CANVA_RENDER_UPDATED', postId:state.project.postId, sourceImageId:doc?.sourceImageId || '', role:doc?.role || 'content', pageId:doc?.id || state.currentPageId,
+      renderDriveUrl:upload.driveUrl, renderFileId:upload.fileId, metadata:{canvaUpdatedAt:new Date().toISOString()}, timestamp:Date.now()
+    }, extra || {});
+    try{ window.parent && window.parent.postMessage(payload, '*'); }catch(e){}
+    try{
+      if(canvaFirebaseDb && payload.postId && payload.sourceImageId){
+        canvaFirebaseDb.ref('collab_rooms/' + canvaSafeKey(payload.postId) + '/canva_image_updates/' + canvaSafeKey(payload.sourceImageId)).set(payload);
+      }
+    }catch(err){ console.warn('Firebase Canva update lỗi', err); }
+    return payload;
+  }
+
+  async function applyRenderToPost(){
+    const doc = canvaCurrentDoc();
+    if(!doc || !state.project.postId || !doc.sourceImageId){ toast('Page này chưa liên kết với ảnh bài viết'); return; }
+    try{
+      toast('Đang render và lưu vào bài viết...');
+      const upload = await renderCurrentPageToDrive();
+      const payload = sendCanvaRenderRealtime(upload);
+      const res = await canvaApi('APPLY_CANVA_RENDER_TO_POST', {postId:payload.postId, sourceImageId:payload.sourceImageId, role:payload.role, renderDriveUrl:payload.renderDriveUrl, renderFileId:payload.renderFileId, metadata:payload.metadata, pageId:payload.pageId});
+      toast(res.warning ? ('Đã lưu, có cảnh báo: ' + res.warning) : 'Đã lưu ảnh vào bài viết');
+      return res;
+    }catch(err){ console.error(err); toast('Lỗi lưu ảnh vào bài viết'); }
+  }
+  window.applyRenderToPost = applyRenderToPost;
+
+  function bindCanvaFirebase(postId){
+    if(!postId || !window.firebase || !firebase.database) return;
+    try{
+      if(!firebase.apps.length) firebase.initializeApp({databaseURL:CANVA_DB_URL});
+      canvaFirebaseDb = firebase.database();
+    }catch(err){ console.warn('Không khởi tạo Firebase cho Canva', err); }
+  }
+
+  const oldCommit = commit;
+  commit = function(){ const ret = oldCommit.apply(this, arguments); saveCurrentProjectDebounced(); if(state.canvaAutoSync){ clearTimeout(canvaRenderTimer); canvaRenderTimer=setTimeout(()=>applyRenderToPost(),1500); } return ret; };
+  const oldSwitchPage = switchPage;
+  switchPage = function(id){ const ret = oldSwitchPage.apply(this, arguments); const doc=currentPageDoc(); if(doc) state.project.currentSourceImageId = doc.sourceImageId || null; saveCurrentProjectDebounced(); return ret; };
+  const oldUploadFiles = uploadFiles;
+  uploadFiles = async function(files){ const beforeCount = state.uploads.length; const ret = await oldUploadFiles.apply(this, arguments); const added = state.uploads.slice(0, Math.max(0, state.uploads.length - beforeCount)); added.forEach(a=>{ if(a.src && /^data:image\//.test(a.src)) uploadCanvaDataUrl(a.src, 'upload', {fileName:a.name || 'upload.png'}).catch(console.warn); }); saveCurrentProjectDebounced(); return ret; };
+
+  document.addEventListener('click', function(e){
+    const refresh = e.target.closest('#canvaRefreshBrain');
+    if(refresh){ e.preventDefault(); canvaBooted=false; initCanvaProject(canvaPostId); return; }
+    const saveBtn = e.target.closest('#canvaSaveRenderToPost');
+    if(saveBtn){ e.preventDefault(); applyRenderToPost(); return; }
+    const auto = e.target.closest('#canvaAutoSyncRender');
+    if(auto){ state.canvaAutoSync = auto.checked; return; }
+    const actionBtn = e.target.closest('[data-canva-action]');
+    if(actionBtn){
+      const card = actionBtn.closest('[data-canva-idx]');
+      const item = state.canvaCollection[Number(card?.dataset.canvaIdx)];
+      if(!item) return;
+      const action = actionBtn.dataset.canvaAction;
+      if(action === 'add') addCollectionItemToCanvas(item, false);
+      if(action === 'replace') addCollectionItemToCanvas(item, true);
+      if(action === 'open'){
+        const doc = state.pages.find(p=>p.id===item.pageId || p.sourceImageId===item.sourceImageId);
+        if(doc) switchPage(doc.id); else toast('Chưa có page liên kết');
+      }
+    }
+  }, true);
+
+  setTimeout(()=>initCanvaProject(canvaPostId), 120);
 })();
 
 try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.onmessage=e=>{const m=e.data;if(!m||m.clientId===state.clientId||m.type!=='doc-operation')return;state.applyingRemote=true;restore(m.after);state.applyingRemote=false;toast(`Đã đồng bộ: ${m.label||'thay đổi'}`)}}catch(e){}
