@@ -2834,11 +2834,33 @@ function buildProjectCollection() {
 }
 
 // Bắt tín hiệu từ post.html truyền sang (Vì Iframe tĩnh không đổi URL được)
+// Bắt tín hiệu từ post.html truyền sang
 canvasChannel.onmessage = function(e) {
     const data = e.data;
     if (data.type === 'LAUNCH_CANVAS_INTENT') {
-        currentLaunchIntent = data.intent;
-        currentProjectId = data.intent.projectId;
+        const intent = data.intent;
+        currentLaunchIntent = intent;
+        
+        // --- [FIX LỖI TẠO PAGE MỚI LIÊN TỤC] ---
+        // Nếu Project này đang mở sẵn trong RAM của Canvas Iframe (Không cần load lại Firebase)
+        if (currentProjectId === intent.projectId && state.pages && state.pages.length > 0) {
+            if (intent.pageId) {
+                // Đã có page ID từ bài viết -> Bẻ lái màn hình sang đúng Page đó luôn
+                const existingPage = state.pages.find(p => p.id === intent.pageId);
+                if (existingPage) {
+                    switchPage(existingPage.id);
+                    toast(`Đã chuyển đến trang thiết kế của ảnh này`);
+                    return; // NGẮT LỆNH: Không gọi loadProjectFromIntent() để Firebase không ghi đè
+                }
+            } else {
+                // Bấm vào ảnh chưa từng thiết kế -> Tạo Page mới tinh và nhét vào bộ nhớ
+                createNewPageForIntent();
+                return; // NGẮT LỆNH
+            }
+        }
+        
+        // Trạng thái load bài mới hoàn toàn (Lần bấm đầu tiên)
+        currentProjectId = intent.projectId;
         loadProjectFromIntent();
     }
 };

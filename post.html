@@ -6350,36 +6350,51 @@ async function openImageInCanvasStudio() {
     const projectId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_TEMP");
     const imageId = vbActiveImage.dataset.imageId;
     
-    // [FIX LỖI KHÔNG HIỆN ẢNH]: Lấy src thực tế đang hiển thị (đã qua API Proxy) để tránh lỗi CORS của Google Drive
-    let sourceUrl = vbActiveImage.src;
+    const originalUrl = vbActiveImage.dataset.originalSource || vbActiveImage.dataset.driveUrl || vbActiveImage.src;
+    if (!vbActiveImage.dataset.originalSource) {
+        vbActiveImage.dataset.originalSource = originalUrl;
+    }
+
+    // --- HIỆU ỨNG NÚT BẤM CHỜ XỬ LÝ ẢNH ---
+    const btn = document.querySelector('.vb-image-actions .tool-btn[onclick="openImageInCanvasStudio()"]');
+    let oldBtnText = "";
+    if (btn) {
+        oldBtnText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang chuẩn bị...';
+        btn.style.pointerEvents = "none";
+    }
     
-    // Nếu ảnh chưa lưu lên Drive (đang là blob local), phải chuyển sang Base64
-    // Vì iframe image.html sẽ không thể đọc được blob nội bộ của iframe post.html
-    if (sourceUrl.startsWith('blob:')) {
+    let safeSourceUrl = vbActiveImage.src;
+    
+    // --- [FIX LỖI TRẮNG CANVAS] ---
+    // Biến mọi link ảnh thành Base64 nội bộ trước khi ném qua Iframe Canvas
+    if (!safeSourceUrl.startsWith('data:')) {
         try {
-            const canvas = document.createElement('canvas');
-            canvas.width = vbActiveImage.naturalWidth;
-            canvas.height = vbActiveImage.naturalHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(vbActiveImage, 0, 0);
-            sourceUrl = canvas.toDataURL('image/jpeg', 0.95);
+            const res = await fetch(safeSourceUrl);
+            const blob = await res.blob();
+            safeSourceUrl = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.readAsDataURL(blob);
+            });
         } catch(e) {
-            vbShowAlert("Đang xử lý ảnh cục bộ, vui lòng thử lại sau giây lát.");
-            return;
+            console.warn("Không thể convert ảnh sang Base64, dùng link gốc:", e);
         }
     }
     
-    if (!vbActiveImage.dataset.originalSource) {
-        vbActiveImage.dataset.originalSource = vbActiveImage.dataset.driveUrl || sourceUrl;
+    // Khôi phục nút bấm
+    if (btn) {
+        btn.innerHTML = oldBtnText;
+        btn.style.pointerEvents = "auto";
     }
-    
+
     const launchData = {
         projectId: projectId,
         imageId: imageId,
         pageId: meta.canvasPageId || null,
         width: realWidth,
         height: realHeight,
-        sourceUrl: sourceUrl
+        sourceUrl: safeSourceUrl
     };
     
     localStorage.setItem('CANVAS_LAUNCH_INTENT', JSON.stringify(launchData));
