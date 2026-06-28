@@ -1487,7 +1487,6 @@
           <button class="tool-btn" onclick="copyActiveImage(false)"><i class="fas fa-copy"></i> Sao chép</button>
           <button class="tool-btn danger" onclick="deleteActiveImage()"><i class="fas fa-trash"></i> Xóa</button>
           <button class="tool-btn" onclick="downloadActiveImageWithMetadata()"><i class="fas fa-download"></i> Tải xuống</button>
-          <button class="tool-btn" onclick="openActiveImageInCanvasStudio()"><i class="fas fa-palette"></i> Canvas Studio</button>
           <button class="tool-btn" onclick="closeImageProperties()"><i class="fas fa-times"></i> Hủy</button>
         </div>
       </div>
@@ -6320,120 +6319,6 @@ function renderImageLibraries() {
         container.appendChild(item);
     }
 }
-</script>
-
-
-<script>
-/* =========================================================
-   CANVA STUDIO PATCH: mở ảnh đúng page + nhận render realtime
-========================================================= */
-(function(){
-  const CANVA_DB_URL = "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/";
-  function canvaSafeKey(value){ return String(value || 'DRAFT_ROOM_GENERAL').replace(/[.#$\[\]]/g, '_'); }
-  function canvaPageId(postId, role, imageId){ return 'canva_page_' + postId + '*' + role + '*' + imageId; }
-  function canvaCurrentPostId(){
-    try {
-      const params = new URLSearchParams(location.search);
-      return currentPostId || params.get('id') || (window.draftData && draftData.data && draftData.data[0]) || '';
-    } catch(e) { return (typeof currentPostId !== 'undefined' ? currentPostId : '') || ''; }
-  }
-  function canvaHydrateAllImages(){
-    if (typeof hydrateManagedImages === 'function') {
-      hydrateManagedImages(document.getElementById('coverEditor'), 'cover');
-      hydrateManagedImages(document.getElementById('postContent'), 'content');
-    }
-  }
-  window.openActiveImageInCanvasStudio = function(){
-    canvaHydrateAllImages();
-    let activeImage = null;
-    try { activeImage = vbActiveImage || null; } catch(e) {}
-    const img = activeImage || document.querySelector('.vb-image-active img, img.vb-image-active') || document.querySelector('#coverEditor img.vb-managed-image, #postContent img.vb-managed-image');
-    if (!img) { if (typeof vbShowAlert === 'function') vbShowAlert('Hãy chọn một ảnh trước khi mở Canvas Studio.'); else alert('Hãy chọn một ảnh trước khi mở Canvas Studio.'); return; }
-    if (!img.dataset.imageId && typeof createImageClientId === 'function') img.dataset.imageId = createImageClientId();
-    const role = img.closest('#coverEditor') ? 'cover' : (img.dataset.imageRole || 'content');
-    img.dataset.imageRole = role;
-    const postId = canvaCurrentPostId();
-    if (!postId) { if (typeof vbShowAlert === 'function') vbShowAlert('Bài viết chưa có ID. Hãy lưu/nạp bài viết trước.'); else alert('Bài viết chưa có ID.'); return; }
-    const imageId = img.dataset.imageId;
-    const pageId = canvaPageId(postId, role, imageId);
-    const payload = {type:'CANVA_OPEN_IMAGE', postId, sourceImageId:imageId, imageId, role, pageId};
-    try {
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage(payload, '*');
-        return;
-      }
-    } catch(e) {}
-    const qs = new URLSearchParams({postId, id:postId, imageId, role, pageId});
-    window.open('image.html?' + qs.toString(), 'canva_studio_' + postId);
-  };
-
-  function applyCanvaRenderToDom(payload){
-    if (!payload || payload.type !== 'CANVA_RENDER_UPDATED') return;
-    const postId = canvaCurrentPostId();
-    if (payload.postId && postId && String(payload.postId) !== String(postId)) return;
-    const sourceImageId = payload.sourceImageId || payload.imageId;
-    const renderDriveUrl = payload.renderDriveUrl || payload.driveUrl;
-    if (!sourceImageId || !renderDriveUrl) return;
-    canvaHydrateAllImages();
-    let img = null;
-    if (payload.role === 'cover') {
-      img = document.querySelector('#coverEditor img[data-image-id="' + CSS.escape(sourceImageId) + '"]') || document.querySelector('#coverEditor img.vb-managed-image, #coverEditor img');
-    } else {
-      img = document.querySelector('#postContent img[data-image-id="' + CSS.escape(sourceImageId) + '"]');
-    }
-    if (!img) return;
-    img.dataset.imageId = sourceImageId;
-    img.dataset.imageRole = payload.role || img.dataset.imageRole || (img.closest('#coverEditor') ? 'cover' : 'content');
-    img.dataset.driveUrl = renderDriveUrl;
-    if (payload.renderFileId) img.dataset.driveFileId = payload.renderFileId;
-    img.dataset.canvaPageId = payload.pageId || img.dataset.canvaPageId || '';
-    img.dataset.canvaRenderFileId = payload.renderFileId || img.dataset.canvaRenderFileId || '';
-    img.dataset.archivedDrive = '1';
-    try {
-      if (typeof setManagedImageSource === 'function') setManagedImageSource(img, renderDriveUrl, {archived:true});
-      else img.src = typeof runtimeImageUrl === 'function' ? runtimeImageUrl(renderDriveUrl) : renderDriveUrl;
-    } catch(e) { img.src = renderDriveUrl; }
-    if (payload.metadata && typeof readImageMetadata === 'function' && typeof writeImageMetadata === 'function') {
-      const meta = Object.assign({}, readImageMetadata(img), payload.metadata || {}, {sourceImageId, pageId:payload.pageId || '', renderFileId:payload.renderFileId || '', renderDriveUrl});
-      writeImageMetadata(img, meta);
-    }
-    if (typeof ensureManagedImageFrame === 'function') ensureManagedImageFrame(img, img.dataset.imageRole);
-    if (typeof markImageDirty === 'function') markImageDirty(true); else window.isVBDirty = true;
-    const status = document.getElementById('syncStatusVB');
-    if (status) { status.innerText = '✅ Canvas Studio đã cập nhật ảnh'; status.style.color = '#27ae60'; }
-  }
-  window.applyCanvaRenderToPostDom = applyCanvaRenderToDom;
-  window.addEventListener('message', function(e){ applyCanvaRenderToDom(e.data || {}); });
-
-  let currentBoundRoom = '';
-  function bindCanvaFirebaseListener(){
-    const postId = canvaCurrentPostId();
-    const safe = canvaSafeKey(postId);
-    if (!postId || safe === currentBoundRoom || !window.firebase || !firebase.database) return;
-    try {
-      if (!firebase.apps.length) firebase.initializeApp({databaseURL: CANVA_DB_URL});
-      currentBoundRoom = safe;
-      firebase.database().ref('collab_rooms/' + safe + '/canva_image_updates').on('child_changed', snap => applyCanvaRenderToDom(Object.assign({type:'CANVA_RENDER_UPDATED'}, snap.val() || {})));
-      firebase.database().ref('collab_rooms/' + safe + '/canva_image_updates').on('child_added', snap => applyCanvaRenderToDom(Object.assign({type:'CANVA_RENDER_UPDATED'}, snap.val() || {})));
-    } catch(err) { console.warn('Không thể lắng nghe Canva Firebase', err); }
-  }
-  setInterval(bindCanvaFirebaseListener, 1500);
-  setTimeout(bindCanvaFirebaseListener, 400);
-
-  const oldSerialize = window.serializeEditorContentForSheet;
-  if (typeof oldSerialize === 'function') {
-    window.serializeEditorContentForSheet = function(){
-      canvaHydrateAllImages();
-      document.querySelectorAll('#postContent img.vb-managed-image, #postContent img').forEach(img => {
-        if (!img.dataset.imageId && typeof createImageClientId === 'function') img.dataset.imageId = createImageClientId();
-        if (typeof readImageFrameState === 'function') {
-          try { img.dataset.vbFrameState = JSON.stringify(readImageFrameState(img)); } catch(e) {}
-        }
-      });
-      return oldSerialize.apply(this, arguments);
-    };
-  }
-})();
 </script>
 
 </body>
