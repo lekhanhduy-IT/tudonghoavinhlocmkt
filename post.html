@@ -6332,21 +6332,29 @@ const canvasChannel = new BroadcastChannel('canvas-studio-sync');
 function openImageInCanvasStudio() {
     if (!vbActiveImage) return;
     
+    // Lấy thông số từ popup
     const state = readImageFrameState(vbActiveImage);
     const scalePct = parseFloat(document.getElementById("vbScalePercent").value) || 100;
     const meta = readImageMetadata(vbActiveImage);
     
-    // YÊU CẦU CỦA BẠN: Bê nguyên khung chứa ảnh sang.
-    // Tính toán pixel thực tế dựa trên Width, Height và tỷ lệ Scale %
+    // YÊU CẦU: Bê nguyên khung chứa ảnh sang (Giữ đúng Width/Height/Scale)
+    const cw = parseFloat(document.getElementById("vbImgWidth").value) || state.targetWidth;
+    const ch = parseFloat(document.getElementById("vbImgHeight").value) || state.targetHeight;
     const scaleMultiplier = scalePct / 100;
-    const realWidth = Math.max(1, Math.round(state.targetWidth * scaleMultiplier));
-    const realHeight = Math.max(1, Math.round(state.targetHeight * scaleMultiplier));
+    
+    const realWidth = Math.max(1, Math.round(cw * scaleMultiplier));
+    const realHeight = Math.max(1, Math.round(ch * scaleMultiplier));
     
     const projectId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_TEMP");
     const imageId = vbActiveImage.dataset.imageId;
     
-    // Quan trọng: Phải truyền ảnh GỐC (chưa bị Canvas làm hỏng base64) sang làm nền
+    // Phải truyền ảnh GỐC (chưa bị Canvas làm hỏng base64) sang làm nền
     const sourceUrl = vbActiveImage.dataset.originalSource || vbActiveImage.dataset.driveUrl || vbActiveImage.src;
+    
+    // Lưu originalSource lại để phòng trường hợp xóa trang bên canvas thì có cái khôi phục
+    if (!vbActiveImage.dataset.originalSource) {
+        vbActiveImage.dataset.originalSource = sourceUrl;
+    }
     
     const launchData = {
         projectId: projectId,
@@ -6359,7 +6367,7 @@ function openImageInCanvasStudio() {
     
     localStorage.setItem('CANVAS_LAUNCH_INTENT', JSON.stringify(launchData));
     
-    // Mở image.html với URL Parameter để định danh Project
+    // Mở image.html (Cùng 1 ID bài viết sẽ mở chung 1 Project)
     window.open(`image.html?project=${encodeURIComponent(projectId)}&img=${encodeURIComponent(imageId)}`, `Canvas_${projectId}`);
 }
 
@@ -6374,19 +6382,16 @@ canvasChannel.onmessage = function(e) {
             meta.canvasPageId = data.pageId; // Lưu page id của Canvas
             writeImageMetadata(targetImg, meta);
             
-            // Bảo toàn originalSource, chỉ thay đổi src để hiển thị
-            if (!targetImg.dataset.originalSource) {
-                targetImg.dataset.originalSource = targetImg.dataset.driveUrl || targetImg.src;
-            }
-            
+            // Xóa url drive cũ, bật cờ local để hệ thống tự động upload bản design mới này lên Drive
             delete targetImg.dataset.driveFileId;
             delete targetImg.dataset.driveUrl;
             delete targetImg.dataset.archivedDrive;
             targetImg.dataset.isLocalUpload = "true";
             
-            targetImg.src = data.previewBase64;
+            targetImg.src = data.previewBase64; // Hiển thị ảnh Design
             markImageDirty(true);
             
+            // Cập nhật popup nếu đang mở đúng ảnh này
             if (vbActiveImage && vbActiveImage.dataset.imageId === data.imageId) {
                 document.getElementById('vbPreviewImg').src = data.previewBase64;
             }
@@ -6400,10 +6405,10 @@ canvasChannel.onmessage = function(e) {
         if (targetImg) {
             let meta = readImageMetadata(targetImg);
             if (meta.canvasPageId === data.pageId) {
-                meta.canvasPageId = ""; // Gỡ canvasPageId
+                meta.canvasPageId = ""; // Gỡ page id
                 writeImageMetadata(targetImg, meta);
                 
-                // Khôi phục lại ảnh gốc
+                // Khôi phục lại ảnh gốc ban đầu
                 if (targetImg.dataset.originalSource) {
                     targetImg.src = targetImg.dataset.originalSource;
                 } else if (targetImg.dataset.driveUrl) {
@@ -6415,7 +6420,7 @@ canvasChannel.onmessage = function(e) {
                 if (vbActiveImage && vbActiveImage.dataset.imageId === data.imageId) {
                     document.getElementById('vbPreviewImg').src = targetImg.src;
                 }
-                vbShowAlert("Trang thiết kế đã bị xóa, ảnh đã được khôi phục về nguyên bản.");
+                vbShowAlert("Trang thiết kế đã bị xóa. Ảnh đã được khôi phục về trạng thái gốc ban đầu.");
             }
         }
     }

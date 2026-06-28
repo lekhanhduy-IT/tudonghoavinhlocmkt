@@ -2800,7 +2800,7 @@ const firebaseConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-r
 if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// Tự động tạo Panel "Tổng hợp" do trong HTML gốc đang bị thiếu
+// Tự động tạo Panel "Tổng hợp" nếu HTML đang thiếu
 (function ensureCollectionPanel() {
     if (!document.querySelector('.tab-panel[data-panel="collection"]')) {
         const sidebarContent = document.querySelector('.sidebar-content');
@@ -2816,16 +2816,17 @@ const db = firebase.database();
     }
 })();
 
+// Xây dựng tab "Tổng hợp" chuyên biệt cho 1 Bài viết (Project)
 function buildProjectCollection() {
-    // Tập hợp tất cả các layer ảnh gốc của bài viết đang mở vào tab Tổng hợp
     const projectImages = [];
-    state.pages.forEach(p => {
-        const bgLayer = p.layers.find(l => l.imageId);
+    state.pages.forEach((p, idx) => {
+        // Tìm layer ảnh gốc đã bị khóa
+        const bgLayer = p.layers.find(l => l.imageId && l.lockMode === 'full');
         if (bgLayer) {
             projectImages.push({
                 id: bgLayer.assetId || uid(),
                 src: bgLayer.src,
-                name: p.name || 'Ảnh bài viết'
+                name: p.name || `Trang ${idx + 1}`
             });
         }
     });
@@ -2851,34 +2852,35 @@ function initCanvasProject() {
     } catch(e) {}
 
     if (!currentProjectId) {
-        toast("Đang mở chế độ tự do. Mọi thay đổi sẽ không được lưu vào bài viết.");
+        toast("Đang mở chế độ tự do. Thay đổi sẽ không lưu vào bài viết.");
         return;
     }
 
     firebaseProjectRef = db.ref(`canvas_projects/${currentProjectId}`);
     
+    // Tải toàn bộ Project (Tất cả ảnh của 1 bài)
     firebaseProjectRef.once('value').then(snapshot => {
         const projectData = snapshot.val();
         if (projectData && projectData.pages && projectData.pages.length > 0) {
-            const loadedPages = JSON.parse(projectData.pages);
+            const loadedPages = typeof projectData.pages === 'string' ? JSON.parse(projectData.pages) : projectData.pages;
             
             restore({
                 pages: loadedPages,
                 currentPageId: loadedPages[0].id
             });
-            toast(`Đã tải Project: ${currentProjectId}`);
+            toast(`Đã tải dự án bài viết: ${currentProjectId}`);
             
             if (currentLaunchIntent) {
-                // Kiểm tra xem ảnh này đã có page chưa
+                // Kiểm tra xem ảnh này đã có page riêng trong project chưa
                 const existingPage = loadedPages.find(p => p.id === currentLaunchIntent.pageId);
                 if (existingPage) {
                     switchPage(existingPage.id); // Tự động nhảy đến page của ảnh đó
                 } else {
-                    createNewPageForIntent(); // Ảnh này chưa từng được mở, tạo page mới
+                    createNewPageForIntent(); // Mở ảnh mới thì tạo page mới vào project
                 }
             }
         } else {
-            // Project mới tinh
+            // Lần đầu tiên thiết kế bài viết này -> Tạo project mới
             state.pages = [];
             if (currentLaunchIntent) {
                 createNewPageForIntent();
@@ -2898,13 +2900,14 @@ function createNewPageForIntent() {
     const newPageId = uid('page');
     currentLaunchIntent.pageId = newPageId; 
     
-    // Lấy chính xác kích thước thật đã scale từ post.html
+    // Khởi tạo trang với Width/Height chuẩn từ post.html
     const basePage = {
         width: currentLaunchIntent.width || 1080,
         height: currentLaunchIntent.height || 1080,
         background: '#ffffff'
     };
     
+    // Phải nạp ảnh vào state.uploads để Canvas hiển thị được
     const assetId = uid('asset');
     state.uploads.unshift({
         id: assetId,
@@ -2914,6 +2917,7 @@ function createNewPageForIntent() {
         height: basePage.height
     });
 
+    // Tạo Layer ảnh nền (Khóa cứng)
     const baseLayerObj = baseLayer('image', {
         name: 'Ảnh gốc bài viết',
         src: currentLaunchIntent.sourceUrl,
@@ -2921,7 +2925,7 @@ function createNewPageForIntent() {
         width: basePage.width,
         height: basePage.height,
         x: 0, y: 0,
-        lockMode: 'full' // Bắt buộc khóa cứng làm nền
+        lockMode: 'full' 
     });
     baseLayerObj.imageId = currentLaunchIntent.imageId; 
 
@@ -2933,7 +2937,7 @@ function createNewPageForIntent() {
     });
     
     state.pages.push(newPage);
-    switchPage(newPageId);
+    switchPage(newPageId); // Lệnh quan trọng để vẽ ra màn hình
     syncProjectToFirebase();
     buildProjectCollection();
 }
@@ -2947,6 +2951,7 @@ function syncProjectToFirebase() {
     });
 }
 
+// Bắt sự kiện commit để lưu realtime vào Firebase
 const originalCommit = commit;
 commit = function(before, label) {
     originalCommit(before, label);
@@ -2965,10 +2970,11 @@ document.getElementById('sendToPostBtn').onclick = async () => {
         syncProjectToFirebase();
         
         const doc = currentPageDoc();
-        // Xuất tỷ lệ 1:1 gốc để đẩy về post.html
+        // Xuất tỷ lệ 1:1 chuẩn
         const canvas = await exportPageDoc(doc, 1); 
         const previewBase64 = canvas.toDataURL('image/jpeg', 0.95);
         
+        // Bắn tín hiệu sang post.html
         canvasChannel.postMessage({
             type: 'CANVAS_IMAGE_UPDATED',
             projectId: currentProjectId,
@@ -2986,7 +2992,7 @@ document.getElementById('sendToPostBtn').onclick = async () => {
 };
 
 // ========================================================
-// QUẢN LÝ XÓA TRANG (CÓ CSS VÀ KHÔI PHỤC BÊN POST.HTML)
+// CSS & LOGIC QUẢN LÝ XÓA TRANG
 // ========================================================
 let pageToDeleteId = null;
 els.clearBtn.onclick = () => {
@@ -3001,12 +3007,13 @@ window.confirmDeletePage = function() {
     const docToDelete = state.pages.find(p => p.id === pageToDeleteId);
     let associatedImageId = null;
     
+    // Tìm imageId để báo cho post.html biết ảnh nào bị xóa thiết kế
     if (docToDelete && docToDelete.layers) {
         const bgLayer = docToDelete.layers.find(l => l.imageId);
         if (bgLayer) associatedImageId = bgLayer.imageId;
     }
     
-    // Xóa trang khỏi danh sách
+    // Xóa trang
     state.pages = state.pages.filter(p => p.id !== pageToDeleteId);
     
     if (state.pages.length === 0) {
