@@ -2787,7 +2787,7 @@ function bind(){
 
 try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.onmessage=e=>{const m=e.data;if(!m||m.clientId===state.clientId||m.type!=='doc-operation')return;state.applyingRemote=true;restore(m.after);state.applyingRemote=false;toast(`Đã đồng bộ: ${m.label||'thay đổi'}`)}}catch(e){}
 // ==========================================================================
-  // HỆ THỐNG PROJECT CANVAS THEO BÀI VIẾT & QUẢN LÝ ĐA PAGE (CANVA ARCHITECTURE)
+  // HỆ THỐNG CẦU NỐI PROJECT & KẾT XUẤT ĐA LAYER CHÍNH THỨC (CANVA CORE)
   // ==========================================================================
 
   async function checkAndLoadBridgeImage() {
@@ -2801,7 +2801,6 @@ try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.o
 
           if (typeof toast === 'function') toast(`Đang đồng bộ Project bài viết...`);
 
-          // 1. CHUYỂN HOẶC KHỞI TẠO PROJECT THEO ID BÀI VIẾT
           if (window.mktCurrentProjectPostId !== postId) {
               window.mktCurrentProjectPostId = postId;
               let projectPages = null;
@@ -2815,20 +2814,15 @@ try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.o
                   if (localBak) projectPages = JSON.parse(localBak).pages;
               }
 
-              if (projectPages && Array.isArray(projectPages) && projectPages.length > 0) {
-                  state.pages = projectPages;
-              } else {
-                  state.pages = []; // Project mới tinh
-              }
+              state.pages = (projectPages && Array.isArray(projectPages) && projectPages.length > 0) ? projectPages : [];
           }
 
-          // 2. TÌM HOẶC TẠO PAGE TRONG PROJECT CHO BỨC ẢNH NÀY
           let existingPage = state.pages.find(p => p.id === targetPageId || p.originKey === targetPageId);
 
           if (existingPage) {
               state.currentPageId = existingPage.id;
-              applyPageDocument(existingPage);
-              if (typeof toast === 'function') toast(`Đã mở Page thiết kế cũ của ảnh!`);
+              if (typeof applyPageDocument === 'function') applyPageDocument(existingPage);
+              if (typeof toast === 'function') toast(`Đã mở Page thiết kế cũ!`);
           } else {
               const w = Number(payload.width) || 1080;
               const h = Number(payload.height) || 1080;
@@ -2841,7 +2835,7 @@ try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.o
                   page: { width: w, height: h, background: '#ffffff' },
                   layers: [
                       {
-                          id: uid('layer'),
+                          id: typeof uid === 'function' ? uid('layer') : ('layer_' + Date.now()),
                           type: 'image',
                           name: 'Ảnh gốc bài blog',
                           src: payload.src,
@@ -2854,13 +2848,13 @@ try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.o
 
               state.pages.push(newPageObj);
               state.currentPageId = newPageObj.id;
-              applyPageDocument(newPageObj);
-              if (typeof toast === 'function') toast(`Đã tạo Page mới trong Project!`);
+              if (typeof applyPageDocument === 'function') applyPageDocument(newPageObj);
+              if (typeof toast === 'function') toast(`Đã nạp ảnh vào Page mới!`);
           }
 
           state.selectedIds = [];
           state.primaryId = null;
-          renderAll();
+          if (typeof renderAll === 'function') renderAll();
           if (typeof renderPageStrip === 'function') renderPageStrip();
           if (typeof fitCanvas === 'function') setTimeout(fitCanvas, 60);
 
@@ -2874,7 +2868,8 @@ try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.o
   setInterval(checkAndLoadBridgeImage, 400);
   window.addEventListener('focus', checkAndLoadBridgeImage);
 
-  // LỆNH TRẢ ẢNH VỀ BÀI VIẾT
+
+  // HÀM KẾT XUẤT NƯỚNG CHÍN TOÀN BỘ LAYER TEXT, IMAGE, SHAPE, FRAME, HTML, TEXTURE
   window.pushEditedCanvasBackToPost = async function() {
       const postId = window.mktCurrentProjectPostId || localStorage.getItem('MKT_ACTIVE_POST_ID') || "BAI_VIET_GENERAL";
       if (typeof syncCurrentPageDoc === 'function') syncCurrentPageDoc();
@@ -2882,20 +2877,39 @@ try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.o
       const curDoc = state.pages.find(p => p.id === state.currentPageId) || state.pages[0];
       if (!curDoc) return alert("Không tìm thấy dữ liệu Page hiện tại!");
 
-      if (typeof toast === 'function') toast('Đang lưu Project & xuất ảnh...');
+      if (typeof toast === 'function') toast('Đang kết xuất toàn bộ layer & hiệu ứng...');
 
-      // Lưu Project lên đám mây Firebase & máy cục bộ
       const projSave = { postId: postId, pages: state.pages, updatedAt: Date.now() };
       if (typeof firebase !== 'undefined' && firebase.apps.length > 0) {
-          await firebase.database().ref(`canvas_projects/${postId}`).set(projSave);
+          firebase.database().ref(`canvas_projects/${postId}`).set(projSave);
       }
       localStorage.setItem(`MKT_PROJ_${postId}`, JSON.stringify(projSave));
 
-      const mainCanvas = document.querySelector('canvas');
+      // Gọi Engine kết xuất chính thức của hệ thống để nướng chín mọi layer
+      let highResDataUrl = "";
+      if (typeof exportPageDoc === 'function') {
+          const renderedCanvas = await exportPageDoc(curDoc, 1);
+          highResDataUrl = renderedCanvas.toDataURL('image/jpeg', 0.96);
+      } else if (typeof exportPage === 'function') {
+          const renderedCanvas = await exportPage(curDoc);
+          highResDataUrl = renderedCanvas.toDataURL('image/jpeg', 0.96);
+      } else {
+          const canvases = Array.from(document.querySelectorAll('canvas'));
+          let artCanvas = canvases[0];
+          let maxArea = 0;
+          for (const c of canvases) {
+              const area = (c.width || 0) * (c.height || 0);
+              if (area > maxArea && !c.id?.toLowerCase().includes('grid')) {
+                  maxArea = area; artCanvas = c;
+              }
+          }
+          highResDataUrl = artCanvas ? artCanvas.toDataURL('image/jpeg', 0.96) : "";
+      }
+
       const returnPayload = {
           postId: postId,
           originSrc: curDoc.originSrc || curDoc.layers?.[0]?.src,
-          screenshot: mainCanvas ? mainCanvas.toDataURL('image/jpeg', 0.95) : "",
+          screenshot: highResDataUrl,
           pageWidth: state.page.width,
           pageHeight: state.page.height
       };
@@ -2906,91 +2920,6 @@ try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.o
           window.parent.loadModule('post.html', postTab || undefined);
       }
   };
-
-  // CƠ CHẾ TỔNG HỢP TÀI NGUYÊN BÀI VIẾT THEO PROJECT
-  window.switchSubColTab = function(tabName, btnEl) {
-      document.querySelectorAll('.sub-col-btn').forEach(b => b.classList.remove('active', 'primary'));
-      document.querySelectorAll('.sub-col-panel').forEach(p => p.style.display = 'none');
-
-      btnEl.classList.add('active', 'primary');
-      const targetPanel = document.getElementById('subPanel_' + tabName);
-      if (targetPanel) targetPanel.style.display = 'block';
-
-      const pId = window.mktCurrentProjectPostId || localStorage.getItem('MKT_ACTIVE_POST_ID') || "";
-      if (tabName === 'post') scanColPostImages(pId);
-      if (tabName === 'edited') scanColEditedImages(pId);
-      if (tabName === 'drive') scanColDriveImages(pId);
-  };
-
-  function quickAddDomImageToLayer(src) {
-      if (typeof addLayer === 'function' && typeof baseLayer === 'function') {
-          addLayer(baseLayer('image', {
-              name: 'Ảnh chèn nhanh', src: src,
-              width: 400, height: 400, x: 100, y: 100
-          }), 'Thêm ảnh tổng hợp');
-      }
-  }
-
-  function scanColPostImages(postId) {
-      const grid = document.getElementById('gridCol_post');
-      const postFrame = window.parent?.document.getElementById('frame-post');
-      if (!grid || !postFrame?.contentDocument) return;
-
-      const imgs = Array.from(postFrame.contentDocument.querySelectorAll('#editorContainer img'));
-      if (!imgs.length) { grid.innerHTML = '<div class="blank-state">Bài viết này chưa có ảnh</div>'; return; }
-
-      grid.innerHTML = imgs.map(img => `
-          <div class="media-card">
-              <img src="${img.src}" onclick="quickAddDomImageToLayer('${img.src}')">
-              <div class="media-name">${img.dataset.imageRole || 'Ảnh bài'}</div>
-          </div>
-      `).join('');
-  }
-
-  function scanColEditedImages(postId) {
-      const grid = document.getElementById('gridCol_edited');
-      if (!grid) return;
-      const curProj = JSON.parse(localStorage.getItem(`MKT_PROJ_${postId}`) || "{}");
-      const pagesList = curProj.pages || state.pages || [];
-
-      if (!pagesList.length) { grid.innerHTML = '<div class="blank-state">Chưa có ảnh sửa nào trong bài</div>'; return; }
-
-      grid.innerHTML = pagesList.map((p, i) => `
-          <div class="media-card">
-              <img src="${p.preview || p.layers?.[0]?.src}" onclick="quickAddDomImageToLayer('${p.preview || p.layers?.[0]?.src}')">
-              <div class="media-name">${escapeHtml(p.name || `Page ${i+1}`)}</div>
-          </div>
-      `).join('');
-  }
-
-  function scanColDriveImages(postId) {
-      const grid = document.getElementById('gridCol_drive');
-      if (!grid) return;
-      const cacheStr = localStorage.getItem("MKT_DATA");
-      let resList = [];
-      if (cacheStr) {
-          try {
-              const parsed = JSON.parse(cacheStr);
-              const bvTab = parsed.sheets?.["Bài viết_hidden"] || [];
-              const row = bvTab.find(r => r[0] === postId);
-              if (row) {
-                  if (row[3]) resList.push({ src: row[3], name: 'Ảnh bìa Drive' });
-                  if (row[4]) {
-                      const d = document.createElement('div'); d.innerHTML = row[4];
-                      d.querySelectorAll('img').forEach((im, idx) => resList.push({ src: im.src, name: `Drive ${idx+1}` }));
-                  }
-              }
-          } catch(e) {}
-      }
-      if (!resList.length) { grid.innerHTML = '<div class="blank-state">Không có ảnh Drive của bài này</div>'; return; }
-
-      grid.innerHTML = resList.map(im => `
-          <div class="media-card">
-              <img src="${im.src}" onclick="quickAddDomImageToLayer('${im.src}')">
-              <div class="media-name">${escapeHtml(im.name)}</div>
-          </div>
-      `).join('');
-  }
 ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
 })();
 </script>

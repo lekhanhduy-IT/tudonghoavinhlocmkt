@@ -6319,7 +6319,7 @@ function renderImageLibraries() {
     }
 }
 // =========================================================================
-// CẦU NỐI CANVA STUDIO - HỆ THỐNG PROJECT THEO BÀI VIẾT (V5.0)
+// CẦU NỐI CANVA STUDIO - GIỮ NGUYÊN DOM ĐỂ CLICK MỞ POPUP & LƯU VĨNH VIỄN
 // =========================================================================
 
 function mktGetSafeUrlKey(url) {
@@ -6337,8 +6337,6 @@ function sendImageToCanvaStudio() {
 
     const anchorSrc = vbActiveImage.getAttribute('src') || vbActiveImage.src;
     const safeKey = mktGetSafeUrlKey(anchorSrc);
-    
-    // Lấy ID bài viết chuẩn xác để Gom nhóm Project bên image.html
     const urlParams = new URLSearchParams(window.location.search);
     let pId = urlParams.get('id') || currentPostId || "BAI_VIET_GENERAL";
 
@@ -6362,7 +6360,14 @@ function sendImageToCanvaStudio() {
     }
 }
 
-// NGƯỜI LÍNH GÁC: Đón nhận ảnh từ Studio trả về và biến thành Khấu phần sống
+function dataURLtoFile_Studio(dataurl, filename) {
+    let arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+        bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+    while(n--){ u8arr[n] = bstr.charCodeAt(n); }
+    return new File([u8arr], filename, {type:mime});
+}
+
+// LÍNH GÁC: Đón ảnh hoàn thiện chứa đủ Layer & Texture, áp trực tiếp vào thẻ đang sống
 function checkAndApplyStudioReturn() {
     const raw = localStorage.getItem('MKT_CANVA_RETURN_PAYLOAD');
     if (!raw) return;
@@ -6382,36 +6387,43 @@ function checkAndApplyStudioReturn() {
 
         if (!targetImg) return; 
 
-        const liveComp = document.createElement('img');
-        liveComp.src = data.screenshot || targetSrc;
-        liveComp.style.width = "100%";
-        liveComp.style.maxWidth = (data.pageWidth || 1080) + "px";
-        liveComp.setAttribute('width', data.pageWidth || 1080);
-        liveComp.setAttribute('height', data.pageHeight || 1080);
-
-        liveComp.className = "vb-managed-image mkt-live-canvas-component";
-        liveComp.dataset.isCanvasComponent = "true";
-        liveComp.dataset.originDriveSrc = targetSrc;
-        liveComp.dataset.imageId = targetImg.dataset.imageId || ('img_' + Date.now());
+        // --- VÁ KỸ THUẬT SỐNG CÒN ---
+        // TUYỆT ĐỐI KHÔNG dùng replaceWith() làm chết thẻ <img>. 
+        // Ghi đè trực tiếp src để bảo toàn 100% sự kiện click mở Popup!
+                   
+        targetImg.src = data.screenshot;
+        targetImg.style.width = "100%";
+        targetImg.setAttribute('width', data.pageWidth || 1080);
+        targetImg.setAttribute('height', data.pageHeight || 1080);
 
         const frame = targetImg.closest('.vb-image-frame');
         if (frame) {
             frame.dataset.targetWidth = data.pageWidth;
             frame.dataset.targetHeight = data.pageHeight;
-            targetImg.replaceWith(liveComp);
-        } else {
-            targetImg.parentNode.replaceChild(liveComp, targetImg);
+            frame.style.width = (data.pageWidth || 1080) + "px";
+        }
+
+        // BIẾN ẢNH ĐÃ SỬA THÀNH FILE UPLOAD MỚI ĐỂ ĐẨY LÊN GOOGLE SHARED DRIVE
+        targetImg.dataset.isLocalUpload = "true";
+        delete targetImg.dataset.driveFileId;
+        delete targetImg.dataset.driveUrl;
+        delete targetImg.dataset.archivedDrive;
+
+        let targetPostId = typeof currentPostId !== "undefined" && currentPostId ? currentPostId : "POST_EDITED";
+        if (typeof backgroundUploadToDrive === 'function') {
+            const editedFile = dataURLtoFile_Studio(data.screenshot, `canva_edited_${Date.now()}.jpg`);
+            backgroundUploadToDrive(targetImg.dataset.imageId || (targetImg.dataset.imageId = 'img_' + Date.now()), editedFile, targetPostId);
         }
 
         if (typeof markImageDirty === 'function') markImageDirty(true);
         if (typeof checkEditorChanges === 'function') checkEditorChanges();
-        liveComp.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
+        targetImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
         localStorage.removeItem('MKT_CANVA_RETURN_PAYLOAD');
-        if (typeof toast === 'function') toast('Đã cập nhật ảnh thiết kế vào bài!');
+        if (typeof toast === 'function') toast('Đã cập nhật ảnh thiết kế mới vào bài!');
 
     } catch(e) {
-        console.error("Lỗi hoàn trả Canvas:", e);
+        console.error("Lỗi hoàn trả Studio:", e);
     }
 }
 
