@@ -3013,7 +3013,11 @@ document.getElementById('sendToPostBtn').onclick = async () => {
         return;
     }
     
-    els.sendToPostBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý...';
+    // [VÁ LỖI]: Bỏ dùng els.sendToPostBtn vì nó undefined, gọi DOM trực tiếp
+    const btn = document.getElementById('sendToPostBtn');
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Đang xử lý...';
+    btn.style.pointerEvents = 'none'; // Ngăn chặn bấm 2 lần
+    
     try {
         syncCurrentPageDoc();
         syncProjectToFirebase();
@@ -3031,9 +3035,12 @@ document.getElementById('sendToPostBtn').onclick = async () => {
         
         toast("Đã gửi ảnh thành công vào bài viết!");
     } catch(e) {
+        console.error(e);
         toast("Lỗi kết xuất ảnh: " + e.message);
     } finally {
-        els.sendToPostBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i><span class="label">Áp dụng vào Bài</span>';
+        // Phục hồi lại nút bấm
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i><span class="label">Áp dụng vào Bài</span>';
+        btn.style.pointerEvents = 'auto';
     }
 };
 
