@@ -6353,13 +6353,14 @@ async function openImageInCanvasStudio() {
     let rawUrl = vbActiveImage.dataset.driveUrl || vbActiveImage.src;
     let safeSourceUrl = rawUrl;
     
-    // [CỨU TINH 1]: Chuyển link Drive sang API Thumbnail để thoát kiếp bị Google chặn CORS
+    // [VÁ LỖI XUẤT ẢNH]: BẮT BUỘC dùng Proxy nội bộ /api/drive-image. 
+    // Trình duyệt sẽ nhận diện đây là file "người nhà" và không chặn quyền xuất ảnh (CORS).
     const driveMatch = rawUrl.match(/(?:id=|\/d\/)([a-zA-Z0-9_-]{10,})/);
     if (driveMatch) {
-        safeSourceUrl = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w2000`;
+        safeSourceUrl = "/api/drive-image?id=" + driveMatch[1];
     }
     
-    // [CỨU TINH 2]: Nếu ảnh là Blob (vừa dán chưa kịp lưu), ép sang Base64 nội bộ
+    // Nếu ảnh vừa dán (Blob), ép sang Base64
     if (safeSourceUrl.startsWith('blob:')) {
         try {
             const btn = document.querySelector('.vb-image-actions .tool-btn[onclick="openImageInCanvasStudio()"]');
