@@ -6323,12 +6323,14 @@ function renderImageLibraries() {
     }
 }
 // =========================================================================
-// CẦU NỐI CANVA STUDIO (POST <--> IMAGE)
+// CẦU NỐI CANVA STUDIO (POST <--> IMAGE) - BẢN KHẮC PHỤC TRƯỢT TÍN HIỆU
 // =========================================================================
 
 function sendImageToCanvaStudio() {
-    if (!vbActiveImage) return;
-    closeImageProperties();
+    if (!vbActiveImage) {
+        alert("Lỗi: Chưa xác định được bức ảnh bạn đang click!");
+        return;
+    }
 
     const payload = {
         postId: typeof currentPostId !== "undefined" && currentPostId ? currentPostId : "BAI_VIET_NHAP",
@@ -6338,51 +6340,59 @@ function sendImageToCanvaStudio() {
         height: vbActiveImage.naturalHeight || vbActiveImage.height || 1080
     };
 
-    // 1. Nhét ảnh vào "hòm thư" LocalStorage
-    localStorage.setItem('MKT_CANVA_BRIDGE_PAYLOAD', JSON.stringify(payload));
+    // 1. Đóng popup thông tin ảnh
+    if (typeof closeImageProperties === 'function') closeImageProperties();
 
-    // 2. Ra lệnh cho admin.html bẻ lái sang tab Hình Ảnh
+    // 2. Gửi bưu phẩm vào hòm thư LocalStorage
+    localStorage.setItem('MKT_CANVA_BRIDGE_PAYLOAD', JSON.stringify(payload));
+    localStorage.setItem('MKT_CANVA_ORIGIN_ID', payload.imageId);
+
+    // 3. Ra lệnh cho admin.html bẻ lái sang tab Hình Ảnh
     if (window.parent && typeof window.parent.loadModule === 'function') {
         const imageTabBtn = window.parent.document.querySelector('.menu-item-side[data-target="image"]');
-        if (imageTabBtn) window.parent.loadModule('image.html', imageTabBtn);
-    }
-
-    // 3. Đánh thức image.html nhận bưu phẩm
-    setTimeout(() => {
-        const imgFrame = window.parent.document.getElementById('frame-image');
-        if (imgFrame && imgFrame.contentWindow && typeof imgFrame.contentWindow.receiveImageFromPostBridge === 'function') {
-            imgFrame.contentWindow.receiveImageFromPostBridge();
+        if (imageTabBtn) {
+            window.parent.loadModule('image.html', imageTabBtn);
+        } else {
+            window.parent.loadModule('image.html');
         }
-    }, 150);
+    }
 }
 
-// 4. Đứng đợi sẵn ở đây, khi nào image.html bấm nút "Thêm vào bài" thì nhận ảnh về thay thế
+// Hàm đón nhận ảnh đã sửa từ Canvas trả ngược lại blog
 window.replaceEditedImageFromStudio = function() {
     const raw = localStorage.getItem('MKT_CANVA_RETURN_PAYLOAD');
     if (!raw) return;
-    const data = JSON.parse(raw);
-
-    const targetImg = document.querySelector(`img[data-image-id="${data.targetImageId}"]`);
-    if (!targetImg) return vbShowAlert('Không tìm thấy ảnh gốc trong bài viết!');
-
-    targetImg.src = data.newBase64;
-    targetImg.style.width = "100%";
-    targetImg.setAttribute('width', data.canvasWidth);
-    targetImg.setAttribute('height', data.canvasHeight);
     
-    // Đánh dấu ảnh này là ảnh mới để hệ thống tự động đẩy lại lên Google Drive
-    targetImg.dataset.isLocalUpload = "true";
-    delete targetImg.dataset.driveFileId;
-    delete targetImg.dataset.driveUrl;
+    try {
+        const data = JSON.parse(raw);
+        const targetImg = document.querySelector(`img[data-image-id="${data.targetImageId}"]`) || vbActiveImage;
+        
+        if (!targetImg) {
+            alert('Không tìm thấy vị trí ảnh cũ trong bài viết để thay thế!');
+            return;
+        }
 
-    let pId = typeof currentPostId !== "undefined" && currentPostId ? currentPostId : "POST_EDITED";
-    if (typeof backgroundUploadToDrive === 'function') {
-        backgroundUploadToDrive(data.targetImageId, base64ToFile_Canva(data.newBase64, `canva_${data.targetImageId}.jpg`), pId);
+        targetImg.src = data.newBase64;
+        targetImg.style.width = "100%";
+        targetImg.setAttribute('width', data.canvasWidth);
+        targetImg.setAttribute('height', data.canvasHeight);
+        
+        targetImg.dataset.isLocalUpload = "true";
+        delete targetImg.dataset.driveFileId;
+        delete targetImg.dataset.driveUrl;
+
+        let pId = typeof currentPostId !== "undefined" && currentPostId ? currentPostId : "POST_EDITED";
+        if (typeof backgroundUploadToDrive === 'function') {
+            backgroundUploadToDrive(data.targetImageId, base64ToFile_Canva(data.newBase64, `canva_${data.targetImageId}.jpg`), pId);
+        }
+
+        if (typeof markImageDirty === 'function') markImageDirty(true);
+        targetImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch(e) {
+        console.error("Lỗi trả ảnh blog:", e);
+    } finally {
+        localStorage.removeItem('MKT_CANVA_RETURN_PAYLOAD');
     }
-
-    if (typeof markImageDirty === 'function') markImageDirty(true);
-    targetImg.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    localStorage.removeItem('MKT_CANVA_RETURN_PAYLOAD');
 };
 
 function base64ToFile_Canva(dataurl, filename) {

@@ -2787,140 +2787,119 @@ function bind(){
 
 try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.onmessage=e=>{const m=e.data;if(!m||m.clientId===state.clientId||m.type!=='doc-operation')return;state.applyingRemote=true;restore(m.after);state.applyingRemote=false;toast(`Đã đồng bộ: ${m.label||'thay đổi'}`)}}catch(e){}
 // ==========================================================================
-  // HỆ THỐNG CẦU NỐI MKT (POST <--> IMAGE) & DOM CACHING
+  // HỆ THỐNG TỰ ĐỘNG HÚT ẢNH TỪ BLOG VÀ TRẢ ẢNH VỀ BÀI (CHUẨN 100%)
   // ==========================================================================
 
-  // 1. Nhận lệnh từ post.html -> Tạo Page mới có kích thước 1:1 với ảnh gốc
-  window.receiveImageFromPostBridge = function() {
+  function checkAndLoadBridgeImage() {
       const raw = localStorage.getItem('MKT_CANVA_BRIDGE_PAYLOAD');
-      if (!raw) return;
-      const payload = JSON.parse(raw);
+      if (!raw) return; // Không có lệnh nào thì thôi
 
-      const w = Number(payload.width) || 1080;
-      const h = Number(payload.height) || 1080;
-      const newPageId = uid('page');
+      try {
+          const payload = JSON.parse(raw);
+          const w = Number(payload.width) || 1080;
+          const h = Number(payload.height) || 1080;
 
-      const newPage = {
-          id: newPageId,
-          name: `Sửa ảnh blog`,
-          page: { width: w, height: h, background: '#ffffff' },
-          layers: [
-              {
-                  id: uid('layer'),
-                  type: 'image',
-                  name: 'Ảnh gốc bài viết',
-                  src: payload.src,
-                  x: 0, y: 0, width: w, height: h,
-                  rotation: 0, scale: 1, opacity: 1, visible: true, lockMode: 'none',
-                  filters: defaultFilters()
-              }
-          ],
-          groups: {}, comments: [], pageDuration: 8, preview: ''
-      };
+          // 1. Cập nhật thông số trang Canvas khớp tỷ lệ 1:1 với ảnh blog
+          state.page.width = w;
+          state.page.height = h;
+          state.page.background = '#ffffff';
 
-      state.pages.push(newPage);
-      state.currentPageId = newPageId;
-      applyPageDocument(newPage); // Nạp thẳng vào Viewport lõi
-      
-      renderAll();
-      setTimeout(fitCanvas, 20);
-      toast('Đã nạp ảnh vào Canvas tỉ lệ chuẩn 1:1');
-  };
+          // 2. Tạo đối tượng layer chứa ảnh
+          const blogImageLayer = {
+              id: 'layer_' + new Date().getTime(),
+              type: 'image',
+              name: 'Ảnh từ bài viết',
+              src: payload.src,
+              x: 0,
+              y: 0,
+              width: w,
+              height: h,
+              rotation: 0,
+              scale: 1,
+              opacity: 1,
+              visible: true
+          };
 
-  // 2. Xuất ngược Canvas trả về cho post.html
-  window.pushEditedCanvasBackToPost = async function() {
-      const rawBridge = localStorage.getItem('MKT_CANVA_BRIDGE_PAYLOAD');
-      if (!rawBridge) return toast('Không tìm thấy dữ liệu gốc của bài viết!');
-      
-      const originMeta = JSON.parse(rawBridge);
-      toast('Đang kết xuất ảnh chất lượng cao...');
+          if (typeof defaultFilters === 'function') {
+              blogImageLayer.filters = defaultFilters();
+          }
 
-      const currentDoc = currentPageDoc();
-      // Xuất tỉ lệ scale=1 để giữ độ phân giải thực tuyệt đối
-      const exportedCanvas = await exportPageDoc(currentDoc, 1); 
-      const dataUrl = exportedCanvas.toDataURL('image/jpeg', 0.95);
+          // Xóa sạch các layer mẫu mặc định trên trang hiện tại để chèn ảnh blog vào
+          state.layers.length = 0;
+          state.layers.push(blogImageLayer);
+
+          state.selectedIds = [blogImageLayer.id];
+          state.primaryId = blogImageLayer.id;
+
+          // 3. Kích hoạt vẽ lại bề mặt Canvas
+          if (typeof renderAll === 'function') renderAll();
+          if (typeof fitCanvas === 'function') setTimeout(fitCanvas, 60);
+
+          if (typeof toast === 'function') toast('Đã nạp ảnh từ bài viết vào Canvas!');
+      } catch (err) {
+          console.error("Lỗi nạp ảnh cầu nối:", err);
+      } finally {
+          // Hút xong thì xóa thư để không bị nạp lặp lại lần 2
+          localStorage.removeItem('MKT_CANVA_BRIDGE_PAYLOAD');
+      }
+  }
+
+  // Quét ngầm mỗi 400ms (Cực nhẹ, vừa bấm bên blog là bên này chộp được ngay)
+  setInterval(checkAndLoadBridgeImage, 400);
+
+  // Kiểm tra kép khi tab được focus hiển thị
+  window.addEventListener('focus', checkAndLoadBridgeImage);
+  document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) checkAndLoadBridgeImage();
+  });
+
+
+  // ==========================================================================
+  // HÀM BẤM NÚT "THÊM VÀO BÀI" TRẢ ẢNH VỀ BLOG
+  // ==========================================================================
+  window.pushEditedCanvasBackToPost = function() {
+      const originId = localStorage.getItem('MKT_CANVA_ORIGIN_ID');
+      if (!originId) {
+          alert('Không tìm thấy ID ảnh gốc của bài viết để trả về!');
+          return;
+      }
+
+      if (typeof toast === 'function') toast('Đang xuất ảnh chất lượng cao...');
+
+      // Xuất trực tiếp thẻ canvas thực tế đang hiển thị trên trang
+      const mainCanvas = document.querySelector('canvas');
+      if (!mainCanvas) {
+          alert('Lỗi: Không tìm thấy bề mặt vẽ Canvas!');
+          return;
+      }
+
+      const dataUrl = mainCanvas.toDataURL('image/jpeg', 0.95);
 
       const returnPayload = {
-          targetImageId: originMeta.imageId,
+          targetImageId: originId,
           newBase64: dataUrl,
           canvasWidth: state.page.width,
           canvasHeight: state.page.height
       };
       localStorage.setItem('MKT_CANVA_RETURN_PAYLOAD', JSON.stringify(returnPayload));
 
-      // Ép Admin chuyển iframe ngược lại post.html
+      // Bẻ lái Admin chuyển iframe ngược lại module Bài viết
       if (window.parent && typeof window.parent.loadModule === 'function') {
-          const postItem = window.parent.document.querySelector('.menu-item-side[data-target="post"]');
-          if (postItem) window.parent.loadModule('post.html', postItem);
-       }
+          const postTabBtn = window.parent.document.querySelector('.menu-item-side[data-target="post"]');
+          if (postTabBtn) {
+              window.parent.loadModule('post.html', postTabBtn);
+          } else {
+              window.parent.loadModule('post.html');
+          }
+      }
 
       setTimeout(() => {
           const postFrame = window.parent.document.getElementById('frame-post');
           if (postFrame && postFrame.contentWindow && typeof postFrame.contentWindow.replaceEditedImageFromStudio === 'function') {
               postFrame.contentWindow.replaceEditedImageFromStudio();
           }
-      }, 150);
+      }, 200);
   };
-
-  // 3. Cơ chế chuyển tab con Tổng hợp & Quét DOM Caching
-  window.switchSubColTab = function(tabName, btnEl) {
-      document.querySelectorAll('.sub-col-btn').forEach(b => b.classList.remove('active', 'primary'));
-      document.querySelectorAll('.sub-col-panel').forEach(p => p.style.display = 'none');
-
-      btnEl.classList.add('active', 'primary');
-      const targetPanel = document.getElementById('subPanel_' + tabName);
-      if (targetPanel) targetPanel.style.display = 'block';
-
-      if (tabName === 'post') domCache_scanPost();
-      if (tabName === 'edited') domCache_scanEdited();
-  };
-
-  function quickAddDomImageToLayer(src) {
-      const layer = baseLayer('image', {
-          name: 'Ảnh chèn nhanh', src: src,
-          width: 400, height: 400, x: 200, y: 200,
-          filters: defaultFilters()
-      });
-      state.layers.push(layer);
-      state.selectedIds = [layer.id];
-      state.primaryId = layer.id;
-      renderAll();
-      toast('Đã nạp ảnh vào layer!');
-  }
-
-  function domCache_scanPost() {
-      const grid = document.getElementById('gridCol_post');
-      const postFrame = window.parent?.document.getElementById('frame-post');
-      if (!grid || !postFrame?.contentDocument) return;
-
-      const imgs = Array.from(postFrame.contentDocument.querySelectorAll('#editorContainer img'));
-      if (!imgs.length) { grid.innerHTML = '<div class="blank-state">Bài viết chưa có ảnh</div>'; return; }
-
-      imgs.forEach(img => {
-          const id = img.dataset.imageId || img.src;
-          if (grid.querySelector(`[data-cache-id="${id}"]`)) return; // Có rồi thì thôi
-
-          const card = document.createElement('div');
-          card.className = 'media-card';
-          card.setAttribute('data-cache-id', id);
-          card.innerHTML = `<img src="${img.src}" onclick="quickAddDomImageToLayer('${img.src}')"><div class="media-name">${img.dataset.imageRole || 'Ảnh bài'}</div>`;
-          grid.appendChild(card);
-      });
-  }
-
-  function domCache_scanEdited() {
-      const grid = document.getElementById('gridCol_edited');
-      if (!grid) return;
-      state.edited.forEach(item => {
-          if (grid.querySelector(`[data-cache-id="${item.id}"]`)) return;
-          const card = document.createElement('div');
-          card.className = 'media-card';
-          card.setAttribute('data-cache-id', item.id);
-          card.innerHTML = `<img src="${item.src}" onclick="quickAddDomImageToLayer('${item.src}')"><div class="media-name">${escapeHtml(item.name)}</div>`;
-          grid.appendChild(card);
-      });
-  }
-  // ==========================================================================
 ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
 })();
 </script>
