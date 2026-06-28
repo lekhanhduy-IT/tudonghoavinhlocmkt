@@ -4508,7 +4508,11 @@ function closeImageProperties() {
 }
 
 function collectMetadataFromGrid() {
-    const meta = { ...VB_DEFAULT_IMAGE_META, _labels: {...VB_DEFAULT_IMAGE_LABELS} };
+    // [QUAN TRỌNG]: Đọc lại meta cũ để bảo tồn các trường ẩn (như canvasPageId)
+    // Tránh việc bảng Popup ghi đè làm mất ID trang của Canvas
+    const oldMeta = vbActiveImage ? readImageMetadata(vbActiveImage) : {};
+    const meta = { ...VB_DEFAULT_IMAGE_META, ...oldMeta, _labels: {...VB_DEFAULT_IMAGE_LABELS} };
+    
     document.querySelectorAll("#vbMetadataTable .vb-meta-value[data-meta-key]").forEach(cell => {
         meta[cell.dataset.metaKey] = cell.innerText.replace(/\u00a0/g, " ").trim();
     });
@@ -6327,42 +6331,15 @@ function renderImageLibraries() {
 // TÍCH HỢP CANVAS STUDIO TRONG MÔI TRƯỜNG IFRAME
 // =========================================================================
 
-
-// =========================================================================
-// PATCH: LIÊN KẾT ỔN ĐỊNH POST.HTML ↔ IMAGE.HTML
-// - Lưu pageId theo projectId + imageId trong localStorage.
-// - Khi post.html bị unload lúc chuyển module, image.html vẫn tự tìm lại page cũ.
-// =========================================================================
-function getCanvasProjectIdForPost() {
-    return currentPostId || ((draftData && draftData.data && draftData.data[0]) ? draftData.data[0] : "POST_TEMP");
-}
-function canvasPageLinkKey(projectId, imageId) {
-    return "CANVAS_PAGE_LINK::" + encodeURIComponent(projectId || "") + "::" + encodeURIComponent(imageId || "");
-}
-function rememberCanvasPageLink(projectId, imageId, pageId) {
-    if (!projectId || !imageId || !pageId) return;
-    try { localStorage.setItem(canvasPageLinkKey(projectId, imageId), pageId); } catch(e) {}
-}
-function forgetCanvasPageLink(projectId, imageId) {
-    if (!projectId || !imageId) return;
-    try { localStorage.removeItem(canvasPageLinkKey(projectId, imageId)); } catch(e) {}
-}
-function getRememberedCanvasPageId(projectId, imageId) {
-    if (!projectId || !imageId) return "";
-    try { return localStorage.getItem(canvasPageLinkKey(projectId, imageId)) || ""; } catch(e) { return ""; }
-}
-
 const canvasChannel = new BroadcastChannel('canvas-studio-sync');
 
 function openImageInCanvasStudio() {
     if (!vbActiveImage) return;
     
-    // Lấy thông số từ popup
     const state = readImageFrameState(vbActiveImage);
     const scalePct = parseFloat(document.getElementById("vbScalePercent").value) || 100;
     const meta = readImageMetadata(vbActiveImage);
     
-    // Bê nguyên khung chứa ảnh sang (Giữ đúng Width/Height/Scale)
     const cw = parseFloat(document.getElementById("vbImgWidth").value) || state.targetWidth;
     const ch = parseFloat(document.getElementById("vbImgHeight").value) || state.targetHeight;
     const scaleMultiplier = scalePct / 100;
@@ -6370,35 +6347,41 @@ function openImageInCanvasStudio() {
     const realWidth = Math.max(1, Math.round(cw * scaleMultiplier));
     const realHeight = Math.max(1, Math.round(ch * scaleMultiplier));
     
-    const projectId = getCanvasProjectIdForPost();
+    const projectId = currentPostId || ((draftData && draftData.data[0]) ? draftData.data[0] : "POST_TEMP");
     const imageId = vbActiveImage.dataset.imageId;
     
-    // Phải truyền ảnh GỐC (chưa bị Canvas làm hỏng base64) sang làm nền
-    const sourceUrl = vbActiveImage.dataset.originalSource || vbActiveImage.dataset.driveUrl || vbActiveImage.src;
+    // --- [FIX LỖI TRẮNG CANVAS] ---
+    // Không dùng fetch Base64 nữa vì bị CORS chặn.
+    // Dùng trực tiếp API Proxy nội bộ của Vercel (/api/drive-image?id=...)
+    // Vì image.html và post.html chung domain vercel, Canvas sẽ tải ảnh cái vèo không bị chặn!
+    let rawUrl = vbActiveImage.dataset.driveUrl || vbActiveImage.src;
+    let safeSourceUrl = rawUrl;
     
-    if (!vbActiveImage.dataset.originalSource) {
-        vbActiveImage.dataset.originalSource = sourceUrl;
+    const driveMatch = rawUrl.match(/(?:id=|\/d\/)([a-zA-Z0-9_-]{10,})/);
+    if (driveMatch) {
+        safeSourceUrl = "/api/drive-image?id=" + driveMatch[1];
     }
     
+    if (!vbActiveImage.dataset.originalSource) {
+        vbActiveImage.dataset.originalSource = rawUrl;
+    }
+
     const launchData = {
         projectId: projectId,
         imageId: imageId,
-        pageId: meta.canvasPageId || getRememberedCanvasPageId(projectId, imageId) || null,
+        pageId: meta.canvasPageId || null,
         width: realWidth,
         height: realHeight,
-        sourceUrl: sourceUrl
+        sourceUrl: safeSourceUrl
     };
     
-    // Lưu tạm vào LocalStorage dự phòng
     localStorage.setItem('CANVAS_LAUNCH_INTENT', JSON.stringify(launchData));
     
-    // 1. Phóng tín hiệu cho iframe image.html thức dậy và nạp dữ liệu
     canvasChannel.postMessage({
         type: 'LAUNCH_CANVAS_INTENT',
         intent: launchData
     });
     
-    // 2. Ra lệnh cho admin.html (cửa sổ cha) chuyển tab sang image.html
     if (window.parent && typeof window.parent.loadModule === 'function') {
         const imageMenuBtn = window.parent.document.querySelector('.menu-item-side[data-target="image"]');
         if (imageMenuBtn) {
@@ -6412,25 +6395,23 @@ canvasChannel.onmessage = function(e) {
     
     // 1. KHI CANVAS TẠO TRANG MỚI CHO ẢNH NÀY -> PHẢI LƯU LẠI ID PAGE NGAY
     // Để lần sau bấm nút nó sẽ chuyển sang page cũ chứ không tạo page mới
-    if (data.type === 'CANVAS_PAGE_CREATED' && data.projectId === getCanvasProjectIdForPost()) {
+    if (data.type === 'CANVAS_PAGE_CREATED' && data.projectId === currentPostId) {
         const targetImg = document.querySelector(`img[data-image-id="${data.imageId}"]`);
         if (targetImg) {
             let meta = readImageMetadata(targetImg);
             meta.canvasPageId = data.pageId;
             writeImageMetadata(targetImg, meta);
-            rememberCanvasPageLink(data.projectId, data.imageId, data.pageId);
             markImageDirty(true);
         }
     }
 
     // 2. KHI ÁP DỤNG ẢNH TỪ CANVAS VỀ BÀI VIẾT
-    else if (data.type === 'CANVAS_IMAGE_UPDATED' && data.projectId === getCanvasProjectIdForPost()) {
+    else if (data.type === 'CANVAS_IMAGE_UPDATED' && data.projectId === currentPostId) {
         const targetImg = document.querySelector(`img[data-image-id="${data.imageId}"]`);
         if (targetImg) {
             let meta = readImageMetadata(targetImg);
             meta.canvasPageId = data.pageId; 
             writeImageMetadata(targetImg, meta);
-            rememberCanvasPageLink(data.projectId, data.imageId, data.pageId);
             
             if (!targetImg.dataset.originalSource) {
                 targetImg.dataset.originalSource = targetImg.dataset.driveUrl || targetImg.src;
@@ -6452,14 +6433,13 @@ canvasChannel.onmessage = function(e) {
     } 
     
     // 3. KHI XÓA TRANG TRONG CANVAS
-    else if (data.type === 'CANVAS_PAGE_DELETED' && data.projectId === getCanvasProjectIdForPost()) {
+    else if (data.type === 'CANVAS_PAGE_DELETED' && data.projectId === currentPostId) {
         const targetImg = document.querySelector(`img[data-image-id="${data.imageId}"]`);
         if (targetImg) {
             let meta = readImageMetadata(targetImg);
             if (meta.canvasPageId === data.pageId) {
                 meta.canvasPageId = ""; // Lột bỏ page id
                 writeImageMetadata(targetImg, meta);
-                forgetCanvasPageLink(data.projectId, data.imageId);
                 
                 // Trả về ảnh gốc
                 if (targetImg.dataset.originalSource) {
