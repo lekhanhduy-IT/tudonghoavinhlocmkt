@@ -2836,16 +2836,32 @@ function renderProjectList() {
         }
     }
     if (currentVal) select.value = currentVal;
+    
+    // GẮN SỰ KIỆN TRỰC TIẾP LÊN THẺ SELECT Ở ĐÂY
+    select.onchange = function(e) {
+        console.log("Đã chọn Project ID:", e.target.value);
+        loadProject(e.target.value);
+    };
 }
 
 function loadProject(postId) {
-    if (!postId) return;
+    if (!postId) {
+        console.log("Không có postId được truyền vào.");
+        return;
+    }
+    
+    console.log("Bắt đầu nạp Project:", postId);
     const sheet = mktSysData.sheets["Bài viết_hidden"];
     let rowIdx = -1;
     for (let i = 1; i < sheet.length; i++) {
         if (sheet[i][0] === postId) { rowIdx = i; break; }
     }
-    if (rowIdx === -1) { toast("Không tìm thấy bài viết"); return; }
+    
+    if (rowIdx === -1) { 
+        toast("Không tìm thấy bài viết"); 
+        console.log("Không tìm thấy hàng nào chứa ID:", postId);
+        return; 
+    }
     
     currentProjectPost = {
         rowIndex: rowIdx,
@@ -2859,11 +2875,13 @@ function loadProject(postId) {
 
     let imagesToProcess = [];
     
+    // Bóc tách Ảnh Bìa
     if (currentProjectPost.coverUrl) {
         let meta = {};
         try { meta = JSON.parse(currentProjectPost.coverMeta || "{}"); } catch(e){}
         imagesToProcess.push({
             id: 'cover_' + postId,
+            name: 'Ảnh Bìa',
             role: 'cover',
             src: currentProjectPost.coverUrl,
             width: meta.frameState?.targetWidth || 1080,
@@ -2873,6 +2891,7 @@ function loadProject(postId) {
         });
     }
 
+    // Bóc tách Ảnh Nội Dung
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = currentProjectPost.contentHtml || "";
     const imgs = tempDiv.querySelectorAll('img.vb-managed-image, img');
@@ -2889,6 +2908,7 @@ function loadProject(postId) {
 
         imagesToProcess.push({
             id: imageId,
+            name: `Ảnh nội dung ${index + 1}`,
             role: 'content',
             src: src,
             width: w,
@@ -2899,8 +2919,12 @@ function loadProject(postId) {
         });
     });
 
+    console.log("Tìm thấy số lượng ảnh cần tạo page:", imagesToProcess.length);
+    
+    // KHỞI TẠO PAGE CANVAS MỚI
     state.pages = [];
     state.currentPageId = null;
+    let oldSelectedIds = state.selectedIds; // Lưu lại để tránh lỗi DOM
 
     imagesToProcess.forEach((imgData) => {
         let bgLayer = {
@@ -2919,6 +2943,7 @@ function loadProject(postId) {
         
         let newPage = {
             id: imgData.id,
+            name: imgData.name, // Đặt tên để hiện dưới Thumbnail
             role: imgData.role,
             originalImageId: imgData.originalImageId,
             page: { width: imgData.width, height: imgData.height, background: '#ffffff' },
@@ -2939,12 +2964,16 @@ function loadProject(postId) {
 
     if (state.pages.length > 0) {
         state.currentPageId = state.pages[0].id;
+        state.selectedIds = []; // Xóa chọn layer cũ để tránh lỗi xung đột canvas
         restorePage(state.pages[0]);
     }
     
+    // Gọi hàm refresh danh sách Thumbnail ở dưới (của mã gốc Canvas)
+    if(typeof queuePagePreviewRefresh === 'function') queuePagePreviewRefresh();
+    
     renderProjectImagesGrid(imagesToProcess);
     renderAll();
-    toast(`Đã nạp dự án: ${currentProjectPost.title.substring(0, 20)}...`);
+    toast(`Đã nạp ${imagesToProcess.length} ảnh từ bài viết: ${currentProjectPost.title.substring(0, 20)}...`);
 }
 
 function renderProjectImagesGrid(images) {
@@ -2968,9 +2997,6 @@ function renderProjectImagesGrid(images) {
     });
 }
 
-document.addEventListener('change', e => {
-    if(e.target.id === "projectSelect") loadProject(e.target.value);
-});
 document.addEventListener('click', e => {
     if(e.target.closest('#refreshProjectsBtn')) fetchMktData();
 });
@@ -3039,6 +3065,7 @@ function scheduleProjectSync() {
 }
 
 fetchMktData();
+// ================= HẾT V23 PATCH =================
 // ================= HẾT V23 PATCH =================
 ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
 })();
