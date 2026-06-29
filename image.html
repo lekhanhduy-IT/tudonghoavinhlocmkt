@@ -3026,7 +3026,7 @@ commit = function(beforeState, label) {
 // Hàm chuyển đổi Layer Canvas thành Thẻ HTML & CSS tuyệt đối (Responsive %)
 function buildHtmlLayerOverlay(imgData) {
     if(!imgData.layers || imgData.layers.length === 0) return "";
-    let html = `<div class="vb-spider-layers" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; container-type: inline-size;">`;
+    let html = `<div class="vb-spider-layers" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; container-type: size;">`;
     
     imgData.layers.forEach(layer => {
         let leftPct = (layer.x / imgData.width) * 100;
@@ -3045,22 +3045,14 @@ function buildHtmlLayerOverlay(imgData) {
         if(layer.opacity !== undefined) style += `opacity: ${layer.opacity}; `;
 
         if(layer.type === 'text') {
-            style += `color: ${layer.fill || layer.color || '#000'}; font-family: '${layer.fontFamily || 'sans-serif'}'; font-size: ${(layer.fontSize / imgData.width * 100)}cqi; font-weight: ${layer.fontWeight || 'normal'}; font-style: ${layer.fontStyle || 'normal'}; text-decoration: ${layer.textDecoration || 'none'}; line-height: ${layer.lineHeight || 1.2}; text-align: ${layer.textAlign || 'left'}; white-space: pre-wrap; display: flex; flex-direction: column; justify-content: flex-start;`;
-            if (layer.textBackground) style += `background-color: ${layer.textBackground}; padding: 4px; `;
-            html += `<div style="${style}">${(layer.text || layer.content || '').replace(/\n/g, '<br>')}</div>`;
+            style += `color: ${layer.fill || '#000'}; font-family: '${layer.fontFamily || 'sans-serif'}'; font-size: ${(layer.fontSize / imgData.width * 100)}cqw; line-height: ${layer.lineHeight || 1.2}; text-align: ${layer.textAlign || 'left'}; white-space: pre-wrap;`;
+            html += `<div style="${style}">${(layer.text || '').replace(/\n/g, '<br>')}</div>`;
         } else if(layer.type === 'image') {
             style += `object-fit: contain;`;
             html += `<img src="${layer.src}" style="${style}">`;
         } else if(layer.type === 'shape') {
             style += `background-color: ${layer.fill || '#000'};`;
-            if(layer.shape === 'circle') style += `border-radius: 50%;`;
             html += `<div style="${style}"></div>`;
-        } else if (layer.type === 'html') {
-            style += `background: ${layer.htmlBackground || 'linear-gradient(135deg, #2947d3, #12bee7)'}; padding: 24px; color: ${layer.htmlColor || '#fff'}; display: flex; flex-direction: column; gap: 10px;`;
-            html += `<div style="${style}">
-                        <strong style="font-size: ${(28 / imgData.width * 100)}cqi; margin:0;">${layer.title || 'TIÊU ĐỀ'}</strong>
-                        <span style="font-size: ${(15 / imgData.width * 100)}cqi;">${layer.subtitle || 'Nội dung khối HTML'}</span>
-                     </div>`;
         }
     });
     html += `</div>`;
@@ -3080,43 +3072,29 @@ function scheduleProjectSync() {
         try { meta = JSON.parse(currentProjectPost.coverMeta || "{}"); } catch(e){}
 
         state.pages.forEach(p => {
-            let baseImage = p.layers.find(l => l.isBaseImage);
             let customLayers = p.layers.filter(l => !l.isBaseImage);
             let layerStr = JSON.stringify(customLayers);
             
-            // Bóc tách hàm độ sáng/tương phản/saturation từ Ảnh gốc
-            let cssFilterStr = 'none';
-            if (baseImage && typeof cssFilter === 'function') {
-                cssFilterStr = cssFilter(baseImage);
-            }
-            
-            // Đẩy dữ liệu cấu trúc lên Realtime Database
+            // Đẩy dữ liệu cấu trúc lên Realtime Database (KHÔNG dùng Base64 ảnh tĩnh)
             let payload = {
-                role: p.role, 
-                width: p.page.width, 
-                height: p.page.height,
-                layers: customLayers, 
-                cssFilter: cssFilterStr, // Chứa thông số Sáng/Tối
-                updatedAt: firebase.database.ServerValue.TIMESTAMP
+                role: p.role, width: p.page.width, height: p.page.height,
+                layers: customLayers, updatedAt: firebase.database.ServerValue.TIMESTAMP
             };
             spiderProjectsRef.child(currentProjectPost.id).child(p.id).update(payload);
 
             if (p.role === 'cover') {
                 meta.layers = customLayers;
-                meta.cssFilter = cssFilterStr;
                 currentProjectPost.coverMeta = JSON.stringify(meta);
             } else if (p.role === 'content') {
                 let img = tempDiv.querySelector(`img[data-image-id="${p.originalImageId}"]`);
                 if (img) {
                     img.setAttribute('data-vb-layers', layerStr);
-                    img.setAttribute('data-vb-filter', cssFilterStr);
-                    img.style.filter = cssFilterStr; 
-                    
                     let frame = img.closest('.vb-image-frame');
                     if (frame) {
-                        frame.style.position = 'relative'; 
+                        frame.style.position = 'relative'; // Bắt buộc để bọc layer
                         let oldLayer = frame.querySelector('.vb-spider-layers');
                         if (oldLayer) oldLayer.remove();
+                        // Chèn khối Layer HTML vào ngay bên dưới thẻ <img gốc>
                         let overlayHtml = buildHtmlLayerOverlay({ width: p.page.width, height: p.page.height, layers: customLayers });
                         img.insertAdjacentHTML('afterend', overlayHtml);
                     }
@@ -3138,6 +3116,88 @@ function scheduleProjectSync() {
         
     }, 1500); 
 }
+
+fetchMktData();
+// ================= HẾT V23 PATCH =================
+ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
+})();
+// =========================================================================
+// 1. HỆ THỐNG ĐỒNG BỘ DỮ LIỆU & QUEUE (KẾ THỪA TỪ PLAN.HTML)
+// =========================================================================
+const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+let sysData = {};
+let actionQueue = [];
+let isProcessingQueue = false;
+let currentSyncToken = 0;
+let currentPostId = null; // ID Project đang mở
+
+// Tự động tải dữ liệu từ LocalStorage khi mở trình duyệt
+function loadLocalData() {
+    let cached = localStorage.getItem("MKT_DATA");
+    if (cached) {
+        try {
+            sysData = JSON.parse(cached);
+            currentSyncToken = sysData.syncToken || 0;
+            renderProjectList();
+        } catch(e) { console.error("Lỗi parse MKT_DATA", e); }
+    }
+}
+
+// Bơm dữ liệu lên Google Sheet ngầm
+async function processQueueAndSync() {
+    if(isProcessingQueue || actionQueue.length === 0) return; 
+    isProcessingQueue = true;
+    let batch = [...actionQueue]; 
+    actionQueue = []; 
+    try {
+        let res = await fetch(API_URL, { method: "POST", body: JSON.stringify(batch), headers: { "Content-Type": "text/plain;charset=utf-8" } });
+        let json = await res.json();
+        if (!json.success) { 
+            actionQueue = batch.concat(actionQueue); 
+        } else {
+            currentSyncToken = json.syncToken;
+            localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+        }
+    } catch(e) { 
+        actionQueue = batch.concat(actionQueue); 
+    }
+    isProcessingQueue = false;
+}
+setInterval(processQueueAndSync, 4000); // Chạy ngầm 4s/lần
+
+// Lắng nghe thay đổi từ Tab khác (post.html, plan.html)
+window.addEventListener('storage', function(e) {
+    if (e.key === "MKT_DATA") {
+        try {
+            let newData = JSON.parse(e.newValue);
+            if (newData && newData.sheets) {
+                sysData = newData;
+                renderProjectList();
+                if(currentPostId) loadProjectToCanvas(currentPostId, true); // Nạp lại ngầm
+            }
+        } catch(err) {}
+    }
+});
+
+// Gọi khởi tạo
+loadLocalData();
+// Khởi tạo Firebase
+const firebaseConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// Lắng nghe dữ liệu ngầm cho TẤT CẢ project (Spider Brain)
+const allProjectsRef = db.ref('spider_brain/projects');
+let globalProjectsData = {};
+
+allProjectsRef.on('value', snapshot => {
+    globalProjectsData = snapshot.val() || {};
+    updateProjectDropdown(); // Cập nhật lại UI chọn Project
+    // Nếu có project đang mở, tự động nạp lại layers
+    if(state.currentProjectId && globalProjectsData[state.currentProjectId]) {
+        syncCanvasWithProjectData(globalProjectsData[state.currentProjectId]);
+    }
+    
 });
 </script>
 

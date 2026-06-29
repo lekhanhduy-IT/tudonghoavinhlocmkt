@@ -5614,7 +5614,7 @@ async function downloadActiveImageWithMetadata() {
     const myPresenceRef = roomRef.child(`users/${safeUserKey}`);
     const domSyncRef = roomRef.child(`dom_state`);
     const imageMetaLiveRef = roomRef.child(`image_meta_subchannel`); 
-// =========================================================================
+    // =========================================================================
 // [SPIDER BRAIN] - RENDER LAYERS THUẦN HTML/CSS LÊN TRÊN ẢNH GỐC
 // =========================================================================
 const spiderBrainProjectRef = db.ref(`spider_brain/projects/${roomId}`);
@@ -5627,104 +5627,70 @@ spiderBrainProjectRef.on('value', snapshot => {
     
     for (let imageId in data) {
         let imgData = data[imageId];
-        let imgEl = null;
+        let imgEl = document.querySelector(`img[data-image-id="${imageId}"]`);
         
-        // Nhận diện riêng cực chuẩn cho Ảnh Bìa (Vì ID Ảnh bìa nhảy random)
-        if (imgData.role === 'cover') {
-            imgEl = document.querySelector('#coverEditor img.vb-managed-image');
-        } else {
-            imgEl = document.querySelector(`img[data-image-id="${imageId}"]`);
-        }
-        
-        if (imgEl) {
-            // 1. CẬP NHẬT ĐỘ SÁNG / TƯƠNG PHẢN CỦA ẢNH GỐC
-            if (imgData.cssFilter) {
-                imgEl.style.filter = imgData.cssFilter;
-                imgEl.setAttribute('data-vb-filter', imgData.cssFilter);
-            }
+        if (imgEl && imgData.layers) {
+            // 1. Cập nhật ngầm danh sách Layer
+            imgEl.setAttribute('data-vb-layers', JSON.stringify(imgData.layers));
             
-            if (imgData.layers) {
-                // Lưu ngầm Array Layer vào DOM
-                imgEl.setAttribute('data-vb-layers', JSON.stringify(imgData.layers));
+            let frame = imgEl.closest('.vb-image-frame');
+            if (frame) {
+                // 2. Chỉnh Box Size chuẩn của Base
+                frame.dataset.targetWidth = imgData.width;
+                frame.dataset.targetHeight = imgData.height;
+                frame.style.aspectRatio = `${imgData.width} / ${imgData.height}`;
+                frame.style.position = 'relative'; // Anchor gốc cho lớp layer
                 
-                let frame = imgEl.closest('.vb-image-frame');
-                if (frame) {
-                    // 2. Chỉnh Kích Thước Khung Canvas Khớp 100%
-                    frame.dataset.targetWidth = imgData.width;
-                    frame.dataset.targetHeight = imgData.height;
-                    frame.style.aspectRatio = `${imgData.width} / ${imgData.height}`;
-                    frame.style.position = 'relative'; // Ép gốc cho lớp layer nổi
+                // 3. Quét bỏ lớp Layer cũ (nếu có)
+                let oldLayer = frame.querySelector('.vb-spider-layers');
+                if (oldLayer) oldLayer.remove();
+                
+                // 4. Sinh ra lớp Layer HTML đè lên
+                if (imgData.layers.length > 0) {
+                    let container = document.createElement('div');
+                    container.className = 'vb-spider-layers';
+                    container.style.cssText = `position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; container-type: size;`;
                     
-                    // 3. Quét sạch lớp Layer rác cũ
-                    let oldLayer = frame.querySelector('.vb-spider-layers');
-                    if (oldLayer) oldLayer.remove();
-                    
-                    // 4. Sinh ra các Lớp Vector HTML tĩnh đè lên ảnh
-                    if (imgData.layers.length > 0) {
-                        let container = document.createElement('div');
-                        container.className = 'vb-spider-layers';
-                        container.style.cssText = `position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; container-type: inline-size;`;
+                    imgData.layers.forEach(layer => {
+                        let el = document.createElement(layer.type === 'image' ? 'img' : 'div');
+                        let leftPct = (layer.x / imgData.width) * 100;
+                        let topPct = (layer.y / imgData.height) * 100;
+                        let widthPct = (layer.width / imgData.width) * 100;
+                        let heightPct = layer.height ? ((layer.height / imgData.height) * 100) : null;
                         
-                        imgData.layers.forEach(layer => {
-                            let el = document.createElement(layer.type === 'image' ? 'img' : 'div');
-                            let leftPct = (layer.x / imgData.width) * 100;
-                            let topPct = (layer.y / imgData.height) * 100;
-                            let widthPct = (layer.width / imgData.width) * 100;
-                            let heightPct = layer.height ? ((layer.height / imgData.height) * 100) : null;
-                            
-                            el.style.position = 'absolute';
-                            el.style.left = leftPct + '%';
-                            el.style.top = topPct + '%';
-                            if(widthPct) el.style.width = widthPct + '%';
-                            if(heightPct) el.style.height = heightPct + '%';
-                            
-                            let transforms = [];
-                            if(layer.rotation) transforms.push(`rotate(${layer.rotation}deg)`);
-                            if(layer.scale && layer.scale !== 1) transforms.push(`scale(${layer.scale})`);
-                            if(transforms.length > 0) { el.style.transform = transforms.join(' '); el.style.transformOrigin = 'top left'; }
-                            if(layer.opacity !== undefined) el.style.opacity = layer.opacity;
+                        el.style.position = 'absolute';
+                        el.style.left = leftPct + '%';
+                        el.style.top = topPct + '%';
+                        if(widthPct) el.style.width = widthPct + '%';
+                        if(heightPct) el.style.height = heightPct + '%';
+                        
+                        let transforms = [];
+                        if(layer.rotation) transforms.push(`rotate(${layer.rotation}deg)`);
+                        if(layer.scale && layer.scale !== 1) transforms.push(`scale(${layer.scale})`);
+                        if(transforms.length > 0) { el.style.transform = transforms.join(' '); el.style.transformOrigin = 'top left'; }
+                        if(layer.opacity !== undefined) el.style.opacity = layer.opacity;
 
-                            if (layer.type === 'text') {
-                                el.innerHTML = (layer.text || layer.content || '').replace(/\n/g, '<br>');
-                                el.style.color = layer.fill || layer.color || '#000';
-                                el.style.fontFamily = layer.fontFamily || 'sans-serif';
-                                el.style.fontSize = (layer.fontSize / imgData.width * 100) + 'cqi';
-                                el.style.fontWeight = layer.fontWeight || 'normal';
-                                el.style.fontStyle = layer.fontStyle || 'normal';
-                                el.style.textDecoration = layer.textDecoration || 'none';
-                                el.style.lineHeight = layer.lineHeight || 1.2;
-                                el.style.textAlign = layer.textAlign || 'left';
-                                el.style.whiteSpace = 'pre-wrap';
-                                el.style.display = 'flex';
-                                el.style.flexDirection = 'column';
-                                el.style.justifyContent = 'flex-start';
-                                if (layer.textBackground) {
-                                    el.style.backgroundColor = layer.textBackground;
-                                    el.style.padding = '4px';
-                                }
-                            } else if (layer.type === 'image') {
-                                el.src = layer.src;
-                                el.style.objectFit = 'contain';
-                            } else if (layer.type === 'shape') {
-                                el.style.backgroundColor = layer.fill || '#000';
-                                if(layer.shape === 'circle') el.style.borderRadius = '50%';
-                            } else if (layer.type === 'html') {
-                                el.style.background = layer.htmlBackground || 'linear-gradient(135deg, #2947d3, #12bee7)';
-                                el.style.padding = '24px';
-                                el.style.color = layer.htmlColor || '#fff';
-                                el.style.display = 'flex';
-                                el.style.flexDirection = 'column';
-                                el.style.gap = '10px';
-                                el.innerHTML = `<strong style="font-size: ${(28 / imgData.width * 100)}cqi; margin:0;">${layer.title || 'TIÊU ĐỀ'}</strong>
-                                                <span style="font-size: ${(15 / imgData.width * 100)}cqi;">${layer.subtitle || 'Nội dung khối HTML'}</span>`;
-                            }
-                            container.appendChild(el);
-                        });
-                        imgEl.insertAdjacentElement('afterend', container);
-                    }
+                        if (layer.type === 'text') {
+                            el.innerText = layer.text || '';
+                            el.style.color = layer.fill || '#000';
+                            el.style.fontFamily = layer.fontFamily || 'sans-serif';
+                            el.style.fontSize = (layer.fontSize / imgData.width * 100) + 'cqw';
+                            el.style.lineHeight = layer.lineHeight || 1.2;
+                            el.style.textAlign = layer.textAlign || 'left';
+                            el.style.whiteSpace = 'pre-wrap';
+                        } else if (layer.type === 'image') {
+                            el.src = layer.src;
+                            el.style.objectFit = 'contain';
+                        } else if (layer.type === 'shape') {
+                            el.style.backgroundColor = layer.fill || '#000';
+                        }
+                        container.appendChild(el);
+                    });
+                    // Chèn khối bọc các Layer HTML ngay sát sau bức ảnh gốc
+                    imgEl.insertAdjacentElement('afterend', container);
                 }
+                hasVisualChanges = true;
             }
-            hasVisualChanges = true;
         }
     }
     
