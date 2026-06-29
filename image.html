@@ -209,6 +209,7 @@
   <aside class="sidebar">
     
     <nav class="sidebar-tabs" aria-label="Công cụ">
+      <button class="tab-btn" data-tab="projects"><i class="fa-solid fa-folder-tree"></i><span>Dự án</span></button>
       <button class="tab-btn active" data-tab="customize"><i class="fa-solid fa-sliders"></i><span>Tùy chỉnh</span></button>
       <button class="tab-btn" data-tab="layers"><i class="fa-solid fa-layer-group"></i><span>Layer</span></button>
       <button class="tab-btn" data-tab="assets"><i class="fa-solid fa-shapes"></i><span>Tài nguyên</span></button>
@@ -218,6 +219,22 @@
       <button class="tab-btn" data-tab="templates"><i class="fa-regular fa-object-group"></i><span>Mẫu</span></button>
     </nav>
     <div class="sidebar-content">
+      <div class="sidebar-content">
+      <section class="tab-panel" data-panel="projects">
+        <div class="panel-title-row">
+          <h2>Dự án Bài Viết</h2>
+          <button class="mini-btn primary" id="refreshProjectsBtn"><i class="fa-solid fa-sync"></i> Làm mới</button>
+        </div>
+        <div class="field" style="margin-bottom: 15px;">
+          <label>Chọn Bài Viết (Project)</label>
+          <select id="projectSelect" class="select" style="font-weight: bold; color: var(--blue);">
+              <option value="">-- Chọn Project --</option>
+          </select>
+        </div>
+        <div class="section-title"><span>Tổng hợp ảnh trong bài</span></div>
+        <div class="media-grid" id="projectImagesGrid"></div>
+      </section>
+      <section class="tab-panel active" data-panel="customize">
       <section class="tab-panel active" data-panel="customize">
         <div class="panel-title-row"><h2>Chẩn đoán ảnh</h2><span class="small-pill">Smart Scan</span></div>
         <div class="score-card"><div class="score-ring" id="scoreRing"><strong id="scoreValue">—</strong></div><div class="score-copy"><strong id="scoreTitle">Chưa chọn ảnh</strong><span id="scoreSubtitle">Chọn một layer ảnh để phân tích</span></div></div>
@@ -2767,70 +2784,16 @@ function bind(){
 })();
 
 try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.onmessage=e=>{const m=e.data;if(!m||m.clientId===state.clientId||m.type!=='doc-operation')return;state.applyingRemote=true;restore(m.after);state.applyingRemote=false;toast(`Đã đồng bộ: ${m.label||'thay đổi'}`)}}catch(e){}
-ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
-})();
-// Khởi tạo Firebase
-const firebaseConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" };
-if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
-
-// Lắng nghe dữ liệu ngầm cho TẤT CẢ project (Spider Brain)
-const allProjectsRef = db.ref('spider_brain/projects');
-let globalProjectsData = {};
-
-allProjectsRef.on('value', snapshot => {
-    globalProjectsData = snapshot.val() || {};
-    updateProjectDropdown(); // Cập nhật lại UI chọn Project
-    // Nếu có project đang mở, tự động nạp lại layers
-    if(state.currentProjectId && globalProjectsData[state.currentProjectId]) {
-        syncCanvasWithProjectData(globalProjectsData[state.currentProjectId]);
-    }
-    // ================= V23 PATCH: TÍCH HỢP QUẢN LÝ PROJECT VÀ ĐỒNG BỘ REALTIME =================
-
-// 1. TẠO GIAO DIỆN TAB "DỰ ÁN" TỰ ĐỘNG
-// Đoạn này dùng DOM để tự chèn nút "Dự án" vào thanh công cụ bên trái mà không cần sửa HTML cứng.
-const projectTabBtn = document.createElement('button');
-projectTabBtn.className = 'tab-btn';
-projectTabBtn.dataset.tab = 'projects';
-projectTabBtn.innerHTML = '<i class="fa-solid fa-folder-tree"></i><span>Dự án</span>';
-document.querySelector('.sidebar-tabs').appendChild(projectTabBtn);
-
-const projectPanel = document.createElement('section');
-projectPanel.className = 'tab-panel';
-projectPanel.dataset.panel = 'projects';
-projectPanel.innerHTML = `
-  <div class="panel-title-row">
-    <h2>Dự án Bài Viết</h2>
-    <button class="mini-btn primary" id="refreshProjectsBtn"><i class="fa-solid fa-sync"></i> Làm mới</button>
-  </div>
-  <div class="field" style="margin-bottom: 15px;">
-    <label>Chọn Bài Viết (Project)</label>
-    <select id="projectSelect" class="select" style="font-weight: bold; color: var(--blue);">
-        <option value="">-- Chọn Project --</option>
-    </select>
-  </div>
-  <div class="section-title"><span>Tổng hợp ảnh trong bài</span></div>
-  <div class="media-grid" id="projectImagesGrid"></div>
-`;
-document.querySelector('.sidebar-content').appendChild(projectPanel);
-
-// Lắng nghe sự kiện chuyển tab
-projectTabBtn.addEventListener('click', () => switchTab('projects'));
-
-
-// 2. BIẾN TOÀN CỤC VÀ KHỞI TẠO FIREBASE SPIDER BRAIN
-// Kết nối với Apps Script và mở nhánh spider_brain trên Firebase.
+// ================= V23 PATCH: LOGIC PROJECT & SPIDER BRAIN =================
 const MKT_API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
 let mktSysData = { sheets: {} };
 let currentProjectPost = null;
 
 const fbConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" };
 if (!firebase.apps.length) firebase.initializeApp(fbConfig);
-const db = firebase.database();
-const allProjectsRef = db.ref('spider_brain/projects');
+const dbSpider = firebase.database();
+const allProjectsRef = dbSpider.ref('spider_brain/projects');
 
-
-// 3. HÀM TẢI DANH SÁCH BÀI VIẾT (LẤY TỪ CACHE HOẶC GOOGLE SHEET)
 async function fetchMktData() {
     const btn = document.getElementById("refreshProjectsBtn");
     if(btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang tải...';
@@ -2854,7 +2817,6 @@ async function fetchMktData() {
     if(btn) btn.innerHTML = '<i class="fa-solid fa-sync"></i> Làm mới';
 }
 
-// Trải danh sách ID bài viết vào thẻ <select>
 function renderProjectList() {
     const select = document.getElementById("projectSelect");
     if(!select) return;
@@ -2863,7 +2825,6 @@ function renderProjectList() {
     const sheet = mktSysData.sheets && mktSysData.sheets["Bài viết_hidden"];
     if (!sheet) return;
     
-    // Duyệt qua cột ID của Sheet (bỏ qua dòng 0 là Tiêu đề)
     for (let i = 1; i < sheet.length; i++) {
         let id = sheet[i][0];
         let title = sheet[i][1] || id;
@@ -2877,8 +2838,6 @@ function renderProjectList() {
     if (currentVal) select.value = currentVal;
 }
 
-
-// 4. THUẬT TOÁN BÓC TÁCH ẢNH VÀ NẠP VÀO CANVAS (TẠO PAGE)
 function loadProject(postId) {
     if (!postId) return;
     const sheet = mktSysData.sheets["Bài viết_hidden"];
@@ -2888,7 +2847,6 @@ function loadProject(postId) {
     }
     if (rowIdx === -1) { toast("Không tìm thấy bài viết"); return; }
     
-    // Ghi nhớ thông tin Bài viết đang mở
     currentProjectPost = {
         rowIndex: rowIdx,
         id: sheet[rowIdx][0],
@@ -2901,7 +2859,6 @@ function loadProject(postId) {
 
     let imagesToProcess = [];
     
-    // 4.1 Bóc tách Ảnh Bìa
     if (currentProjectPost.coverUrl) {
         let meta = {};
         try { meta = JSON.parse(currentProjectPost.coverMeta || "{}"); } catch(e){}
@@ -2911,12 +2868,11 @@ function loadProject(postId) {
             src: currentProjectPost.coverUrl,
             width: meta.frameState?.targetWidth || 1080,
             height: meta.frameState?.targetHeight || 1080,
-            layers: meta.layers || [], // Khôi phục Layer nếu có
+            layers: meta.layers || [],
             originalImageId: meta.imageId || 'cover'
         });
     }
 
-    // 4.2 Bóc tách Ảnh Nội Dung (DOM Parsing)
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = currentProjectPost.contentHtml || "";
     const imgs = tempDiv.querySelectorAll('img.vb-managed-image, img');
@@ -2926,10 +2882,7 @@ function loadProject(postId) {
         if(!src) return;
         let imageId = img.getAttribute('data-image-id') || ('content_' + index);
         let layers = [];
-        
-        // Đọc data layer nhúng trong ảnh
         try { layers = JSON.parse(img.getAttribute('data-vb-layers') || "[]"); } catch(e){}
-        
         let w = img.width || 1080;
         let h = img.height || 1080;
         if(w === 0 || h === 0) { w = 1080; h = 1080; }
@@ -2946,12 +2899,10 @@ function loadProject(postId) {
         });
     });
 
-    // 4.3 Tạo Pages trong image.html từ danh sách Ảnh
     state.pages = [];
     state.currentPageId = null;
 
     imagesToProcess.forEach((imgData) => {
-        // Ảnh gốc bị ép nằm ở dưới cùng và Khóa (Lock Full)
         let bgLayer = {
             id: uid('layer'),
             type: 'image',
@@ -2961,10 +2912,9 @@ function loadProject(postId) {
             width: imgData.width, height: imgData.height,
             rotation: 0, scale: 1, opacity: 1, visible: true,
             lockMode: 'full', 
-            isBaseImage: true // Cờ đánh dấu để phân biệt lúc lưu
+            isBaseImage: true
         };
         
-        // Gắn ID chuẩn cho các layer con nếu trong quá khứ bị hụt
         let parsedLayers = imgData.layers.map(l => ({...l, id: l.id || uid('layer')}));
         
         let newPage = {
@@ -2978,7 +2928,6 @@ function loadProject(postId) {
         };
         state.pages.push(newPage);
         
-        // [SPIDER BRAIN] - Kích hoạt lưu ngầm ngay lúc khởi tạo
         allProjectsRef.child(postId).child(imgData.id).set({
             role: imgData.role,
             width: imgData.width,
@@ -2988,7 +2937,6 @@ function loadProject(postId) {
         });
     });
 
-    // Chọn ảnh đầu tiên để hiển thị
     if (state.pages.length > 0) {
         state.currentPageId = state.pages[0].id;
         restorePage(state.pages[0]);
@@ -2999,7 +2947,6 @@ function loadProject(postId) {
     toast(`Đã nạp dự án: ${currentProjectPost.title.substring(0, 20)}...`);
 }
 
-// Trải lưới ảnh thu nhỏ vào Panel Project
 function renderProjectImagesGrid(images) {
     const grid = document.getElementById("projectImagesGrid");
     if(!grid) return;
@@ -3012,7 +2959,6 @@ function renderProjectImagesGrid(images) {
                             ${img.role === 'cover' ? 'Ảnh Bìa' : 'Ảnh Nội Dung'}
                           </div>`;
         card.style.cursor = "pointer";
-        // Khi click vào Thumbnail -> Đổi Page Canvas
         card.onclick = () => {
             syncCurrentPageDoc();
             switchPage(img.id);
@@ -3022,7 +2968,6 @@ function renderProjectImagesGrid(images) {
     });
 }
 
-// Bắt sự kiện chọn Project từ giao diện
 document.addEventListener('change', e => {
     if(e.target.id === "projectSelect") loadProject(e.target.value);
 });
@@ -3030,13 +2975,9 @@ document.addEventListener('click', e => {
     if(e.target.closest('#refreshProjectsBtn')) fetchMktData();
 });
 
-
-// 5. ĐỘNG CƠ LƯU ĐỒNG BỘ (HOOK VÀO HÀM COMMIT)
-// Bắt cóc hàm commit mặc định của hệ thống. Bất cứ khi nào bạn di chuyển vị trí Layer, 
-// kéo Scale, hay đổi màu, nó sẽ kích hoạt hàm lưu ngầm.
 const v23OldCommit = commit;
 commit = function(beforeState, label) {
-    v23OldCommit(beforeState, label); // Chạy hàm gốc để lưu History Undo/Redo
+    v23OldCommit(beforeState, label);
     if (currentProjectPost) {
         scheduleProjectSync();
     }
@@ -3045,7 +2986,6 @@ commit = function(beforeState, label) {
 let syncProjectTimer = null;
 function scheduleProjectSync() {
     clearTimeout(syncProjectTimer);
-    // Debounce 2 giây: Nếu kéo thả liên tục thì khoan lưu, dừng tay 2 giây mới nén gửi đi.
     syncProjectTimer = setTimeout(() => {
         ensurePages();
         syncCurrentPageDoc();
@@ -3056,11 +2996,9 @@ function scheduleProjectSync() {
         try { meta = JSON.parse(currentProjectPost.coverMeta || "{}"); } catch(e){}
 
         state.pages.forEach(p => {
-            // Loại bỏ base ảnh gốc, chỉ lưu các Layer tự vẽ chồng lên
             let customLayers = p.layers.filter(l => !l.isBaseImage);
             let layerStr = JSON.stringify(customLayers);
             
-            // 5.1 Bơm dữ liệu tươi lên Firebase (Tự hiển thị nếu có máy tính khác đang xem)
             allProjectsRef.child(currentProjectPost.id).child(p.id).set({
                 role: p.role,
                 width: p.page.width,
@@ -3069,7 +3007,6 @@ function scheduleProjectSync() {
                 updatedAt: firebase.database.ServerValue.TIMESTAMP
             });
 
-            // 5.2 Nhúng dữ liệu Layer dạng Text vào HTML cấu trúc của bài viết
             if (p.role === 'cover') {
                 meta.layers = customLayers;
                 currentProjectPost.coverMeta = JSON.stringify(meta);
@@ -3083,7 +3020,6 @@ function scheduleProjectSync() {
         
         currentProjectPost.contentHtml = tempDiv.innerHTML;
         
-        // 5.3 Đóng gói và Xả thẳng về Google Sheet (Bài viết_hidden)
         let queue = [
             { type: 'SYNC_CELL', row: currentProjectPost.rowIndex + 1, col: 5, val: currentProjectPost.contentHtml, tab: "Bài viết_hidden" },
             { type: 'SYNC_CELL', row: currentProjectPost.rowIndex + 1, col: 6, val: currentProjectPost.coverMeta, tab: "Bài viết_hidden" }
@@ -3095,15 +3031,34 @@ function scheduleProjectSync() {
             headers: { "Content-Type": "text/plain;charset=utf-8" }
         }).then(res => res.json()).then(res => {
             if(res.success) {
-                console.log(`[Spider Brain] Cập nhật Layer về Sheet thành công - Bài viết: ${currentProjectPost.id}`);
+                console.log(`[Spider Brain] Đã đồng bộ Sheet - Bài: ${currentProjectPost.id}`);
             }
         }).catch(err => console.error("Lỗi đồng bộ Layer:", err));
         
     }, 2000); 
 }
 
-// Mồi gọi API tự động ở lần nạp đầu tiên
 fetchMktData();
+// ================= HẾT V23 PATCH =================
+ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
+})();
+// Khởi tạo Firebase
+const firebaseConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// Lắng nghe dữ liệu ngầm cho TẤT CẢ project (Spider Brain)
+const allProjectsRef = db.ref('spider_brain/projects');
+let globalProjectsData = {};
+
+allProjectsRef.on('value', snapshot => {
+    globalProjectsData = snapshot.val() || {};
+    updateProjectDropdown(); // Cập nhật lại UI chọn Project
+    // Nếu có project đang mở, tự động nạp lại layers
+    if(state.currentProjectId && globalProjectsData[state.currentProjectId]) {
+        syncCanvasWithProjectData(globalProjectsData[state.currentProjectId]);
+    }
+    
 });
 </script>
 
