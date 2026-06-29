@@ -159,9 +159,6 @@
     
     <div class="viewer-toolbar" id="viewerToolbar">
       <div class="toolbar-group">
-        <select id="projectSelector" class="top-select" style="min-width: 180px; border-right: 1px solid var(--line); font-weight:bold; color:var(--blue);">
-          <option value="">-- Chọn bài viết (Project) --</option>
-        </select>
         <button class="btn btn-primary" id="uploadBtn"><i class="fa-solid fa-cloud-arrow-up"></i><span class="label">Tải ảnh</span></button>
         <button class="btn" id="addTextBtn"><i class="fa-solid fa-font"></i><span class="label">Thêm chữ</span></button>
         <button class="btn" id="autoBtn" disabled><i class="fa-solid fa-wand-magic-sparkles"></i><span class="label">Tự động thông minh</span></button>
@@ -210,7 +207,31 @@
   </section>
 
   <aside class="sidebar">
+
     <nav class="sidebar-tabs" aria-label="Công cụ">
+      <div class="project-box" style="padding: 15px; border-bottom: 1px solid #e0e0e0; background: #ffffff; margin-bottom: 15px;">
+  <div class="field" style="margin-bottom: 12px;">
+    <label style="font-size: 12px; font-weight: 700; color: #01adee; display: block; margin-bottom: 6px;">
+      <i class="fa-solid fa-layer-group"></i> Chọn ID Bài Viết (Project)
+    </label>
+    <select id="projectSelector" style="width: 100%; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 13px; background: #f9f9f9; outline: none;">
+      <option value="">-- Đang tải danh sách ID... --</option>
+    </select>
+  </div>
+  
+  <button id="newProjectBtn" style="width: 100%; padding: 8px; background: #01adee; color: #ffffff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+    <i class="fa-solid fa-folder-plus"></i> Tạo Project Mới
+  </button>
+  
+  <div style="font-size: 12px; font-weight: 700; color: #333333; margin-bottom: 8px; border-top: 1px dashed #e0e0e0; padding-top: 10px;">
+    <i class="fa-solid fa-images"></i> Tổng Hợp Ảnh Hệ Thống
+  </div>
+  <div id="projectImagesMenu" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; max-height: 180px; overflow-y: auto; padding: 2px;">
+     <div class="blank-state" style="grid-column: span 2; font-size: 12px; color: #999; text-align: center; padding: 15px 0;">
+       Chưa chọn bài viết
+     </div>
+  </div>
+</div>
       <button class="tab-btn active" data-tab="customize"><i class="fa-solid fa-sliders"></i><span>Tùy chỉnh</span></button>
       <button class="tab-btn" data-tab="layers"><i class="fa-solid fa-layer-group"></i><span>Layer</span></button>
       <button class="tab-btn" data-tab="assets"><i class="fa-solid fa-shapes"></i><span>Tài nguyên</span></button>
@@ -286,21 +307,9 @@
           <button class="asset-btn" data-add="star"><i class="fa-regular fa-star"></i>SVG ngôi sao</button>
           <button class="asset-btn" data-add="html"><i class="fa-solid fa-code"></i>Khối HTML</button>
         </div>
-        <div class="section-title"><span>Ảnh dùng làm element</span></div>
-        <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>Element Tự Chế</span>
-            <button id="createCustomElementBtn" class="mini-btn primary" style="padding: 2px 8px;"><i class="fa-solid fa-plus"></i> Tạo</button>
-        </div>
-        <div class="media-grid" id="customElementsGrid" style="margin-bottom: 15px;"></div>
-        <div class="media-grid" id="assetMediaGrid"></div>
+        <div class="section-title"><span>Ảnh dùng làm element</span></div><div class="media-grid" id="assetMediaGrid"></div>
       </section>
       <section class="tab-panel" data-panel="uploads"><div class="panel-title-row"><h2>Tải lên</h2><button class="mini-btn primary" id="uploadSidebarBtn"><i class="fa-solid fa-plus"></i> Chọn nhiều ảnh</button></div><div class="media-grid" id="uploadGrid"></div></section>
-      <section class="tab-panel" data-panel="collection">
-          <div class="panel-title-row"><h2>Tổng hợp</h2></div>
-          <div class="media-grid" id="collectionGrid">
-              <div class="blank-state">Vui lòng chọn 1 Project để xem toàn bộ ảnh cũ/hiện tại.</div>
-          </div>
-      </section>
       <section class="tab-panel" data-panel="edited"><div class="panel-title-row"><h2>Đã sửa</h2><span id="editedCount" class="small-pill">0</span></div><div class="media-grid" id="editedGrid"></div></section>
       <section class="tab-panel" data-panel="templates"><div class="panel-title-row"><h2>Mẫu</h2><button class="mini-btn primary" id="saveTemplateSidebarBtn"><i class="fa-solid fa-plus"></i> Lưu mẫu</button></div><div class="media-grid" id="templateGrid"></div></section>
     </div>
@@ -504,40 +513,7 @@ function addAsset(type){
 }
 function readFile(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)})}
 function imageInfo(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve({width:im.naturalWidth,height:im.naturalHeight});im.onerror=reject;im.src=src})}
-// Ghi đè phương thức uploadFiles để đẩy ảnh lên Shared Drive cố định
-async function uploadFiles(files) {
-    for (let file of files) {
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            const payload = {
-                action: "UPLOAD_CANVA_IMAGE",
-                fileName: file.name,
-                mimeType: file.type,
-                source: e.target.result
-            };
-            toast('Đang tải ảnh lên hệ thống Drive...');
-            try {
-                // Thay API_URL của bạn vào đây
-                const res = await fetch("https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec", {
-                    method: "POST", body: JSON.stringify(payload)
-                });
-                const data = await res.json();
-                if(data.success) {
-                    toast('Đã tải xong: ' + file.name);
-                    const img = document.createElement('img');
-                    img.src = data.driveUrl;
-                    img.onclick = () => { /* Thêm vào cavas khi bấm */
-                        const l = baseLayer('image'); l.src = data.driveUrl; state.layers.push(l); renderAll();
-                    };
-                    $('#uploadGrid').appendChild(img);
-                }
-            } catch(err) {
-                toast('Lỗi tải ảnh');
-            }
-        };
-        reader.readAsDataURL(file);
-    }
-}
+async function uploadFiles(files){finishInlineEdit();finishCropEdit();const valid=[...files].filter(f=>f.type.startsWith('image/'));if(!valid.length)return;const before=snapshot();const newIds=[];let offset=0;for(const file of valid){try{const src=await readFile(file),info=await imageInfo(src);const asset={id:uid('asset'),name:file.name,src,width:info.width,height:info.height};state.uploads.unshift(asset);const max=620,ratio=Math.min(1,max/info.width,max/info.height);const layer=baseLayer('image',{name:file.name,src,assetId:asset.id,width:Math.max(80,info.width*ratio),height:Math.max(80,info.height*ratio),x:230+offset,y:230+offset,filters:defaultFilters(),cropX:50,cropY:50});state.layers.push(layer);newIds.push(layer.id);state.primaryId=layer.id;offset+=28}catch(err){console.error(err);toast(`Không đọc được ${file.name}`)}}state.selectedIds=newIds;commit(before,'Tải nhiều ảnh');renderAll();switchTab('uploads');toast(`Đã thêm ${valid.length} ảnh vào canvas`)}
 function addImageFromAsset(asset,replace=true){const target=primaryLayer();if(replace&&target?.type==='image'&&state.selectedIds.length===1){transact('Thay ảnh',()=>{target.src=asset.src;target.assetId=asset.id;target.name=asset.name;target.filters=target.filters||defaultFilters()});return}const max=600,ratio=Math.min(1,max/asset.width,max/asset.height);addLayer(baseLayer('image',{name:asset.name,src:asset.src,assetId:asset.id,width:Math.max(80,asset.width*ratio),height:Math.max(80,asset.height*ratio),x:240,y:240,filters:defaultFilters(),cropX:50,cropY:50}),'Thêm ảnh từ tài nguyên')}
 function cssFilter(l){if(l.type!=='image')return 'none';const f=l.filters||defaultFilters();const brightness=clamp(100+f.exposure*.75+f.shadows*.18+f.highlights*.08,10,250);const contrast=clamp(100+f.contrast+f.clarity*.22+f.sharpen*.1-f.highlights*.06,10,250);const sat=clamp(100+f.saturation,0,300);const sepia=Math.abs(f.temperature)*.18;const hue=f.temperature*.22+f.tint*.36;const blur=f.denoise*.008;return `brightness(${brightness}%) contrast(${contrast}%) saturate(${sat}%) sepia(${sepia}%) hue-rotate(${hue}deg) blur(${blur}px)`}
 function layerStyle(l){const sx=(l.scale||1)*(l.flipX?-1:1),sy=(l.scale||1)*(l.flipY?-1:1);return `left:${l.x}px;top:${l.y}px;width:${l.width}px;height:${l.height}px;opacity:${l.opacity??1};transform:rotate(${l.rotation||0}deg) scale(${sx},${sy});z-index:${layerIndex(l.id)+2};display:${l.visible===false?'none':'block'}`}
@@ -2833,137 +2809,223 @@ allProjectsRef.on('value', snapshot => {
         syncCanvasWithProjectData(globalProjectsData[state.currentProjectId]);
     }
 });
-// =======================================================
-// HỆ THỐNG PROJECT VÀ SPIDER BRAIN (REALTIME SYNC)
-// =======================================================
-let currentProjectId = null;
+// =========================================================================
+// KHỞI TẠO ĐỒNG BỘ PROJECT & CƠ CHẾ NÃO NHỆN REALTIME (IMAGE.HTML)
+// =========================================================================
 
-// Tải danh sách Project từ Local Cache (MKT_DATA)
-function loadProjectsToSelector() {
-    let cache = localStorage.getItem("MKT_DATA");
-    if(cache) {
-        let sysData = JSON.parse(cache);
-        let posts = sysData.sheets["Bài viết_hidden"];
-        let sel = document.getElementById("projectSelector");
-        if(posts && posts.length > 1) {
-           for(let i=1; i<posts.length; i++) {
-               let opt = document.createElement("option");
-               opt.value = posts[i][0];
-               opt.textContent = `ID: ${posts[i][0]} - ${posts[i][1]}`;
-               sel.appendChild(opt);
-           }
+// Đường dẫn nhận dữ liệu từ Apps Script (Dùng chung cổng với hệ thống bài viết)
+const PROJECT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_H_fEup0A5SgU8Psc3ZqD1v5C4hLhVdbyG8W1uCgY6I7OatS4KoxRInM_u5x3DCEF/exec"; 
+let localSheetCache = null;
+window.SpiderBrainCache = {}; // Lưu trữ ngầm toàn bộ dữ liệu giao diện các bài viết
+
+// 1. Tự động lắng nghe và nạp dữ liệu ngầm cho TẤT CẢ Project từ Firebase (Cơ chế Não Nhện)
+const spiderBrainRef = db.ref('spider_brain/projects');
+spiderBrainRef.on('value', (snapshot) => {
+    const val = snapshot.val();
+    if (val) {
+        window.SpiderBrainCache = val;
+        console.log("Spider Brain: Đã đồng bộ ngầm toàn bộ dữ liệu giao diện các project.");
+    }
+});
+
+// 2. Tải danh sách ID bài viết từ tab Bài viết_hidden của Sheet về Dropdown
+async function loadProjectListFromSheet() {
+    try {
+        const response = await fetch(PROJECT_SCRIPT_URL);
+        const json = await response.json();
+        if (json && json.sheets && json.sheets["Bài viết_hidden"]) {
+            localSheetCache = json.sheets["Bài viết_hidden"];
+            renderProjectDropdown();
+        }
+    } catch (err) {
+        console.error("Lỗi khi tải danh sách bài viết từ Sheet:", err);
+        document.getElementById('projectSelector').innerHTML = '<option value="">Lỗi kết nối dữ liệu</option>';
+    }
+}
+
+function renderProjectDropdown() {
+    if (!localSheetCache) return;
+    const selector = document.getElementById('projectSelector');
+    selector.innerHTML = '<option value="">-- Chọn ID Bài Viết --</option>';
+    
+    // Dòng 0 là tiêu đề, lấy dữ liệu từ dòng 1 trở đi
+    for (let i = 1; i < localSheetCache.length; i++) {
+        const row = localSheetCache[i];
+        const idPost = row[0]; // Cột đầu tiên luôn là ID Bài viết
+        if (idPost) {
+            selector.insertAdjacentHTML('beforeend', `<option value="${idPost}">${idPost}</option>`);
         }
     }
 }
 
-// Bắt sự kiện chuyển Project
+// 3. Xử lý bóc tách ảnh, tự tạo Page Canvas tương ứng khi chọn ID bài viết
 document.getElementById('projectSelector').addEventListener('change', function(e) {
-   let projectId = e.target.value;
-   if(!projectId) return;
-   currentProjectId = projectId;
-   loadProjectPages(projectId);
-});
-
-function loadProjectPages(projectId) {
-   let cache = localStorage.getItem("MKT_DATA");
-   let sysData = JSON.parse(cache);
-   let posts = sysData.sheets["Bài viết_hidden"];
-   let postRow = posts.find(r => r[0] === projectId);
-   if(!postRow) return;
-   
-   state.pages = [];
-   
-   // 1. Tách ảnh Bìa
-   if(postRow[3]) {
-       state.pages.push({ id: 'cover', name: 'Ảnh Bìa', layers: [{ id: uid('img'), type: 'image', src: postRow[3], x: 0, y: 0, width: 1080, height: 1080, lockMode: 'full' }]});
-   }
-   
-   // 2. Tách toàn bộ ảnh Nội Dung HTML
-   let temp = document.createElement('div');
-   temp.innerHTML = postRow[4] || '';
-   let imgs = temp.querySelectorAll('img.vb-managed-image');
-   imgs.forEach((img, idx) => {
-       let imgId = img.dataset.imageId || `content_${idx}`;
-       state.pages.push({ id: imgId, name: `Ảnh Nội Dung ${idx+1}`, layers: [{ id: uid('img'), type: 'image', src: img.src, x: 0, y: 0, width: 1080, height: 1080, lockMode: 'full' }]});
-   });
-
-   // Đưa vào Tab Tổng hợp
-   let collectionGrid = document.getElementById('collectionGrid');
-   if(collectionGrid) {
-       collectionGrid.innerHTML = state.pages.map(p => `<div class="media-card"><img src="${p.layers[0].src}"><div class="media-name" style="padding:5px;font-size:11px;font-weight:bold;">${p.name}</div></div>`).join('');
-   }
-   
-   // Tải Layer đính kèm từ Firebase (Não nhện)
-   db.ref(`spider_brain/projects/${projectId}/pages`).once('value', snap => {
-       let pagesData = snap.val();
-       if(pagesData) {
-           state.pages.forEach(p => {
-               if(pagesData[p.id]) {
-                   // Nạp layer (cấp ID riêng, kích thước, texture...)
-                   p.layers = pagesData[p.id].layers || p.layers;
-               }
-           });
-       }
-       switchPage(state.pages[0]?.id);
-       renderPageStrip();
-   });
-}
-
-// Ghi đè hàm đồng bộ Layer để lưu lên Firebase ngầm
-const originalSyncCurrentPageDoc = window.syncCurrentPageDoc || function(){};
-window.syncCurrentPageDoc = function() {
-    originalSyncCurrentPageDoc();
-    if(currentProjectId && state.currentPageId) {
-        db.ref(`spider_brain/projects/${currentProjectId}/pages/${state.currentPageId}`).set({
-            layers: state.layers,
-            pageSettings: state.page
-        });
-    }
-};
-
-// Tạo Custom Element
-document.getElementById('createCustomElementBtn').addEventListener('click', () => {
-    let type = prompt("Nhập loại Element (svg, frame, html):", "svg");
-    let name = prompt("Nhập tên cho Element này:", "Hình khối của tôi");
-    let content = prompt("Dán mã code (Thẻ SVG, thẻ HTML...):", "");
-    if(type && name && content) {
-        let payload = { action: "SAVE_CANVA_ELEMENT", id: uid('elem'), type, name, content };
-        fetch("https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec", {
-            method: "POST", body: JSON.stringify(payload)
-        }).then(() => { toast('Đã lưu element vào DB!'); loadCustomElements(); });
-    }
-});
-
-function loadCustomElements() {
-    let cache = localStorage.getItem("MKT_DATA");
-    if(cache) {
-        let sysData = JSON.parse(cache);
-        let elements = sysData.sheets["Canva elements_hidden"];
-        let grid = document.getElementById("customElementsGrid");
-        if(elements && grid) {
-            grid.innerHTML = '';
-            for(let i=1; i<elements.length; i++) {
-                let [id, type, name, content] = elements[i];
-                let btn = document.createElement('button');
-                btn.className = 'asset-btn';
-                btn.innerHTML = `<div class="asset-caption">${name}</div>`;
-                btn.onclick = () => {
-                   const l = baseLayer(type === 'svg' ? 'star' : type); 
-                   if(type==='svg') l.contentSvg = content;
-                   if(type==='html') l.htmlContent = content;
-                   state.layers.push(l); renderAll(); syncCurrentPageDoc();
-                };
-                grid.appendChild(btn);
-            }
+    const selectedId = e.target.value;
+    if (!selectedId) return;
+    
+    // Tìm hàng dữ liệu tương ứng trong bộ nhớ cache của sheet
+    const headers = localSheetCache[0];
+    const coverIdx = headers.indexOf("Ảnh bìa") !== -1 ? headers.indexOf("Ảnh bìa") : 4;
+    const contentIdx = headers.indexOf("Nội Dung HTML") !== -1 ? headers.indexOf("Nội Dung HTML") : 5;
+    
+    const matchedRow = localSheetCache.find(r => r[0] === selectedId);
+    if (!matchedRow) return;
+    
+    const coverUrl = matchedRow[coverIdx];
+    const htmlBody = matchedRow[contentIdx] || "";
+    
+    // Trích xuất toàn bộ thẻ img bên trong nội dung HTML bằng DOM parser ảo
+    const extractedImages = [];
+    const parserDiv = document.createElement('div');
+    parserDiv.innerHTML = htmlBody;
+    parserDiv.querySelectorAll('img').forEach(img => {
+        if (img.src && !img.src.startsWith('data:')) {
+            extractedImages.push(img.src);
         }
+    });
+    
+    // Tập hợp danh sách ảnh thật để nạp vào Menu Tổng Hợp Ảnh
+    const totalMediaList = [];
+    if (coverUrl && coverUrl.trim() !== "") {
+        totalMediaList.push({ type: 'cover', url: coverUrl, label: 'Ảnh Bìa Bài Viết' });
     }
+    extractedImages.forEach((src, index) => {
+        totalMediaList.push({ type: 'content', url: src, label: `Ảnh HTML Vị Trí ${index + 1}` });
+    });
+    
+    // Cập nhật giao diện danh sách ảnh thật ở sidebar
+    renderProjectImagesMenu(totalMediaList);
+    
+    // Thiết lập hệ thống Page Canvas tương ứng số lượng ảnh
+    state.pages = [];
+    totalMediaList.forEach((media) => {
+        const pId = uid('page');
+        state.pages.push({
+            id: pId,
+            width: 1200,
+            height: 630, // Kích thước khung chuẩn mặc định
+            background: '#ffffff',
+            layers: [
+                {
+                    id: uid('layer'),
+                    type: 'image',
+                    src: media.url,
+                    x: 0, y: 0, 
+                    width: 1200, height: 630,
+                    rotation: 0, 
+                    scale: 1,
+                    filters: { contrast: 100, brightness: 100, saturate: 100 }, // Khởi tạo texture cấu hình
+                    lockMode: 'full', // Khóa nền để thao tác đè layer text/shape lên trên thuận tiện
+                    name: media.label
+                }
+            ]
+        });
+    });
+    
+    state.currentProjectId = selectedId;
+    if (state.pages.length > 0) {
+        state.currentPageId = state.pages[0].id;
+    }
+    
+    // Gọi các hàm render lõi của image.html để cập nhật màn hình thiết kế
+    if (typeof renderAll === 'function') renderAll();
+    if (typeof fitCanvas === 'function') fitCanvas();
+    
+    // Đẩy thông tin giao diện hiện tại lên Não Nhện Realtime
+    pushCurrentLayersToSpiderBrain();
+});
+
+// Hàm hiển thị hình ảnh trực quan trong menu tổng hợp ảnh cũ và hiện tại
+function renderProjectImagesMenu(list) {
+    const container = document.getElementById('projectImagesMenu');
+    if (list.length === 0) {
+        container.innerHTML = '<div class="blank-state" style="grid-column: span 2; font-size: 12px; color: #999; text-align: center;">Bài viết chưa có hình ảnh nào</div>';
+        return;
+    }
+    container.innerHTML = list.map(item => `
+        <div style="border: 1px solid #e0e0e0; border-radius: 4px; padding: 4px; background: #fff; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <img src="${item.url}" style="width: 100%; height: 50px; object-fit: cover; border-radius: 2px;" onerror="this.src='https://placehold.co/100x50?text=Lỗi+Ảnh'"/>
+            <div style="font-size: 9px; color: #666; margin-top: 3px; white-space: nowrap; overflow: hidden; text-transform: grayscale;">${item.label}</div>
+        </div>
+    `).join('');
 }
 
-// Khởi chạy ngầm
-window.addEventListener('load', () => {
-    loadProjectsToSelector();
-    loadCustomElements();
+// 4. Đồng bộ Realtime trạng thái Layer (ID, Vị trí, Kích thước, Cấu hình Texture) lên Database ngầm
+function pushCurrentLayersToSpiderBrain() {
+    if (!state.currentProjectId) return;
+    
+    const payload = {
+        projectId: state.currentProjectId,
+        lastModified: Date.now(),
+        pages: state.pages.map(page => ({
+            id: page.id,
+            width: page.width,
+            height: page.height,
+            layers: page.layers.map(layer => ({
+                id: layer.id, // Định danh duy nhất cho từng layer (text, shape, frame, image)
+                type: layer.type,
+                name: layer.name || '',
+                x: layer.x,
+                y: layer.y,
+                width: layer.width,
+                height: layer.height,
+                rotation: layer.rotation || 0,
+                scale: layer.scale || 1,
+                filters: layer.filters || {}, // Lưu tùy chỉnh texture
+                content: layer.content || '',
+                src: layer.src || ''
+            }))
+        }))
+    };
+    
+    spiderBrainRef.child(state.currentProjectId).set(payload)
+    .catch(err => console.error("Lỗi cập nhật cấu trúc Não Nhện:", err));
+}
+
+// 5. Gắn cơ chế Auto-save ngầm vào hàm commit sự kiện của trình chỉnh sửa
+const originalCommitMethod = typeof commit === 'function' ? commit : null;
+if (originalCommitMethod) {
+    commit = function(before, label) {
+        originalCommitMethod(before, label); // Giữ nguyên chức năng quản lý lịch sử cũ
+        
+        // Kích hoạt đồng bộ ngầm khi người dùng di chuyển hoặc sửa đổi layer
+        if (state.currentProjectId) {
+            clearTimeout(window.spiderDelayTimer);
+            window.spiderDelayTimer = setTimeout(() => {
+                pushCurrentLayersToSpiderBrain();
+            }, 400); // Trì hoãn 400ms để tối ưu hóa hiệu năng đường truyền dữ liệu
+        }
+    };
+}
+
+// Xử lý sự kiện khi click nút tạo project mới
+document.getElementById('newProjectBtn').addEventListener('click', function() {
+    const newId = prompt("Nhập ID Bài viết mới để khởi tạo Project:");
+    if (newId && newId.trim() !== "") {
+        const selector = document.getElementById('projectSelector');
+        const opt = document.createElement('option');
+        opt.value = newId.trim();
+        opt.textContent = newId.trim();
+        selector.appendChild(opt);
+        selector.value = newId.trim();
+        
+        // Tạo trang trắng ban đầu cho project mới
+        state.pages = [{
+            id: uid('page'),
+            width: 1200, height: 630,
+            background: '#ffffff',
+            layers: []
+        }];
+        state.currentProjectId = newId.trim();
+        state.currentPageId = state.pages[0].id;
+        if (typeof renderAll === 'function') renderAll();
+        renderProjectImagesMenu([]);
+        pushCurrentLayersToSpiderBrain();
+    }
 });
+
+// Tự động kích hoạt tải danh sách khi load trang image.html
+loadProjectListFromSheet();
 </script>
 
 </body>
