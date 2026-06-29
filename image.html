@@ -158,13 +158,10 @@
   <section class="editor-column">
     
     <div class="viewer-toolbar" id="viewerToolbar">
-      <div class="toolbar-group" style="padding-left: 15px; border-right: 1px solid var(--line); display: flex; align-items: center; gap: 10px;">
-          <select id="projectSelector" style="height: 30px; border: 1px solid var(--line); outline: none; border-radius: 4px !important; font-weight: bold; color: var(--blue);" onchange="switchProject(this.value)">
-              <option value="">-- Chọn bài viết (Project) --</option>
-          </select>
-          <button class="mini-btn primary" onclick="syncProjectToPost()"><i class="fas fa-save"></i> Đồng bộ bài viết</button>
-      </div>      
       <div class="toolbar-group">
+        <select id="projectSelector" class="top-select" style="min-width: 180px; border-right: 1px solid var(--line); font-weight:bold; color:var(--blue);">
+          <option value="">-- Chọn bài viết (Project) --</option>
+        </select>
         <button class="btn btn-primary" id="uploadBtn"><i class="fa-solid fa-cloud-arrow-up"></i><span class="label">Tải ảnh</span></button>
         <button class="btn" id="addTextBtn"><i class="fa-solid fa-font"></i><span class="label">Thêm chữ</span></button>
         <button class="btn" id="autoBtn" disabled><i class="fa-solid fa-wand-magic-sparkles"></i><span class="label">Tự động thông minh</span></button>
@@ -282,7 +279,6 @@
       <section class="tab-panel" data-panel="assets">
         <div class="panel-title-row"><h2>Tài nguyên</h2><span class="small-pill">Elements</span></div>
         <div class="asset-tools">
-          <button class="asset-btn" onclick="saveElementToSheet()" style="background:#eef9fd; border-color:var(--blue);"><i class="fas fa-save"></i>Lưu thành Element mẫu</button>
           <button class="asset-btn" data-add="text"><i class="fa-solid fa-font"></i>Văn bản</button>
           <button class="asset-btn" data-add="rect"><i class="fa-regular fa-square"></i>Hình chữ nhật</button>
           <button class="asset-btn" data-add="circle"><i class="fa-regular fa-circle"></i>Hình tròn</button>
@@ -290,9 +286,21 @@
           <button class="asset-btn" data-add="star"><i class="fa-regular fa-star"></i>SVG ngôi sao</button>
           <button class="asset-btn" data-add="html"><i class="fa-solid fa-code"></i>Khối HTML</button>
         </div>
-        <div class="section-title"><span>Ảnh dùng làm element</span></div><div class="media-grid" id="assetMediaGrid"></div>
+        <div class="section-title"><span>Ảnh dùng làm element</span></div>
+        <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Element Tự Chế</span>
+            <button id="createCustomElementBtn" class="mini-btn primary" style="padding: 2px 8px;"><i class="fa-solid fa-plus"></i> Tạo</button>
+        </div>
+        <div class="media-grid" id="customElementsGrid" style="margin-bottom: 15px;"></div>
+        <div class="media-grid" id="assetMediaGrid"></div>
       </section>
       <section class="tab-panel" data-panel="uploads"><div class="panel-title-row"><h2>Tải lên</h2><button class="mini-btn primary" id="uploadSidebarBtn"><i class="fa-solid fa-plus"></i> Chọn nhiều ảnh</button></div><div class="media-grid" id="uploadGrid"></div></section>
+      <section class="tab-panel" data-panel="collection">
+          <div class="panel-title-row"><h2>Tổng hợp</h2></div>
+          <div class="media-grid" id="collectionGrid">
+              <div class="blank-state">Vui lòng chọn 1 Project để xem toàn bộ ảnh cũ/hiện tại.</div>
+          </div>
+      </section>
       <section class="tab-panel" data-panel="edited"><div class="panel-title-row"><h2>Đã sửa</h2><span id="editedCount" class="small-pill">0</span></div><div class="media-grid" id="editedGrid"></div></section>
       <section class="tab-panel" data-panel="templates"><div class="panel-title-row"><h2>Mẫu</h2><button class="mini-btn primary" id="saveTemplateSidebarBtn"><i class="fa-solid fa-plus"></i> Lưu mẫu</button></div><div class="media-grid" id="templateGrid"></div></section>
     </div>
@@ -496,49 +504,38 @@ function addAsset(type){
 }
 function readFile(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)})}
 function imageInfo(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve({width:im.naturalWidth,height:im.naturalHeight});im.onerror=reject;im.src=src})}
+// Ghi đè phương thức uploadFiles để đẩy ảnh lên Shared Drive cố định
 async function uploadFiles(files) {
-    finishInlineEdit(); finishCropEdit();
-    const valid = [...files].filter(f => f.type.startsWith('image/'));
-    if (!valid.length) return;
-    
-    toast("Đang tải ảnh lên Shared Drive...");
-    
-    // Nén ảnh sang Base64
-    let payloadImages = [];
-    for (const file of valid) {
-        const src = await readFile(file);
-        payloadImages.push({
-            clientId: uid('upload'),
-            source: src,
-            fileName: file.name,
-            mimeType: file.type
-        });
-    }
-
-    // Gọi API
-    try {
-        const response = await fetch("https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec", {
-            method: "POST",
-            body: JSON.stringify({ action: "UPLOAD_CANVA_IMAGES", images: payloadImages })
-        });
-        const result = await response.json();
-        
-        if (result.success) {
-            result.files.forEach(f => {
-                if(f.success) {
-                    // Dùng URL proxy qua Google Drive
-                    const finalUrl = `https://drive.google.com/uc?export=view&id=${f.fileId}`;
-                    state.uploads.unshift({id: f.clientId, name: f.fileName, src: finalUrl, width: 800, height: 800});
+    for (let file of files) {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const payload = {
+                action: "UPLOAD_CANVA_IMAGE",
+                fileName: file.name,
+                mimeType: file.type,
+                source: e.target.result
+            };
+            toast('Đang tải ảnh lên hệ thống Drive...');
+            try {
+                // Thay API_URL của bạn vào đây
+                const res = await fetch("https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec", {
+                    method: "POST", body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if(data.success) {
+                    toast('Đã tải xong: ' + file.name);
+                    const img = document.createElement('img');
+                    img.src = data.driveUrl;
+                    img.onclick = () => { /* Thêm vào cavas khi bấm */
+                        const l = baseLayer('image'); l.src = data.driveUrl; state.layers.push(l); renderAll();
+                    };
+                    $('#uploadGrid').appendChild(img);
                 }
-            });
-            renderUploadPanels();
-            switchTab('uploads');
-            toast(`Đã tải lên ${valid.length} ảnh vào Shared Drive!`);
-        } else {
-            toast("Lỗi tải ảnh: " + result.error);
-        }
-    } catch(e) {
-        toast("Lỗi kết nối máy chủ khi tải ảnh!");
+            } catch(err) {
+                toast('Lỗi tải ảnh');
+            }
+        };
+        reader.readAsDataURL(file);
     }
 }
 function addImageFromAsset(asset,replace=true){const target=primaryLayer();if(replace&&target?.type==='image'&&state.selectedIds.length===1){transact('Thay ảnh',()=>{target.src=asset.src;target.assetId=asset.id;target.name=asset.name;target.filters=target.filters||defaultFilters()});return}const max=600,ratio=Math.min(1,max/asset.width,max/asset.height);addLayer(baseLayer('image',{name:asset.name,src:asset.src,assetId:asset.id,width:Math.max(80,asset.width*ratio),height:Math.max(80,asset.height*ratio),x:240,y:240,filters:defaultFilters(),cropX:50,cropY:50}),'Thêm ảnh từ tài nguyên')}
@@ -2819,281 +2816,154 @@ function bind(){
 try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.onmessage=e=>{const m=e.data;if(!m||m.clientId===state.clientId||m.type!=='doc-operation')return;state.applyingRemote=true;restore(m.after);state.applyingRemote=false;toast(`Đã đồng bộ: ${m.label||'thay đổi'}`)}}catch(e){}
 ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
 })();
-// =====================================================================
-// SPIDER BRAIN & PROJECT MANAGEMENT CORE
-// =====================================================================
+// Khởi tạo Firebase
 const firebaseConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" };
 if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-let sysDataCache = { sheets: {} };
-let currentProjectPostId = null;
+// Lắng nghe dữ liệu ngầm cho TẤT CẢ project (Spider Brain)
+const allProjectsRef = db.ref('spider_brain/projects');
+let globalProjectsData = {};
 
-// Lắng nghe Spider Brain (Dữ liệu ngầm định)
-const brainRef = db.ref('spider_brain/image_projects');
-brainRef.on('value', snapshot => {
-    const remoteData = snapshot.val() || {};
-    // Chỉ cập nhật trạng thái nếu Project đang mở có sự thay đổi từ thiết bị khác
-    if(currentProjectPostId && remoteData[currentProjectPostId]) {
-        if(remoteData[currentProjectPostId].sender !== state.clientId) {
-            console.log("Spider Brain: Nhận bản cập nhật ngầm cho project", currentProjectPostId);
-            // Có thể thêm logic tự động merge state ở đây nếu cần
+allProjectsRef.on('value', snapshot => {
+    globalProjectsData = snapshot.val() || {};
+    updateProjectDropdown(); // Cập nhật lại UI chọn Project
+    // Nếu có project đang mở, tự động nạp lại layers
+    if(state.currentProjectId && globalProjectsData[state.currentProjectId]) {
+        syncCanvasWithProjectData(globalProjectsData[state.currentProjectId]);
+    }
+});
+// =======================================================
+// HỆ THỐNG PROJECT VÀ SPIDER BRAIN (REALTIME SYNC)
+// =======================================================
+let currentProjectId = null;
+
+// Tải danh sách Project từ Local Cache (MKT_DATA)
+function loadProjectsToSelector() {
+    let cache = localStorage.getItem("MKT_DATA");
+    if(cache) {
+        let sysData = JSON.parse(cache);
+        let posts = sysData.sheets["Bài viết_hidden"];
+        let sel = document.getElementById("projectSelector");
+        if(posts && posts.length > 1) {
+           for(let i=1; i<posts.length; i++) {
+               let opt = document.createElement("option");
+               opt.value = posts[i][0];
+               opt.textContent = `ID: ${posts[i][0]} - ${posts[i][1]}`;
+               sel.appendChild(opt);
+           }
         }
+    }
+}
+
+// Bắt sự kiện chuyển Project
+document.getElementById('projectSelector').addEventListener('change', function(e) {
+   let projectId = e.target.value;
+   if(!projectId) return;
+   currentProjectId = projectId;
+   loadProjectPages(projectId);
+});
+
+function loadProjectPages(projectId) {
+   let cache = localStorage.getItem("MKT_DATA");
+   let sysData = JSON.parse(cache);
+   let posts = sysData.sheets["Bài viết_hidden"];
+   let postRow = posts.find(r => r[0] === projectId);
+   if(!postRow) return;
+   
+   state.pages = [];
+   
+   // 1. Tách ảnh Bìa
+   if(postRow[3]) {
+       state.pages.push({ id: 'cover', name: 'Ảnh Bìa', layers: [{ id: uid('img'), type: 'image', src: postRow[3], x: 0, y: 0, width: 1080, height: 1080, lockMode: 'full' }]});
+   }
+   
+   // 2. Tách toàn bộ ảnh Nội Dung HTML
+   let temp = document.createElement('div');
+   temp.innerHTML = postRow[4] || '';
+   let imgs = temp.querySelectorAll('img.vb-managed-image');
+   imgs.forEach((img, idx) => {
+       let imgId = img.dataset.imageId || `content_${idx}`;
+       state.pages.push({ id: imgId, name: `Ảnh Nội Dung ${idx+1}`, layers: [{ id: uid('img'), type: 'image', src: img.src, x: 0, y: 0, width: 1080, height: 1080, lockMode: 'full' }]});
+   });
+
+   // Đưa vào Tab Tổng hợp
+   let collectionGrid = document.getElementById('collectionGrid');
+   if(collectionGrid) {
+       collectionGrid.innerHTML = state.pages.map(p => `<div class="media-card"><img src="${p.layers[0].src}"><div class="media-name" style="padding:5px;font-size:11px;font-weight:bold;">${p.name}</div></div>`).join('');
+   }
+   
+   // Tải Layer đính kèm từ Firebase (Não nhện)
+   db.ref(`spider_brain/projects/${projectId}/pages`).once('value', snap => {
+       let pagesData = snap.val();
+       if(pagesData) {
+           state.pages.forEach(p => {
+               if(pagesData[p.id]) {
+                   // Nạp layer (cấp ID riêng, kích thước, texture...)
+                   p.layers = pagesData[p.id].layers || p.layers;
+               }
+           });
+       }
+       switchPage(state.pages[0]?.id);
+       renderPageStrip();
+   });
+}
+
+// Ghi đè hàm đồng bộ Layer để lưu lên Firebase ngầm
+const originalSyncCurrentPageDoc = window.syncCurrentPageDoc || function(){};
+window.syncCurrentPageDoc = function() {
+    originalSyncCurrentPageDoc();
+    if(currentProjectId && state.currentPageId) {
+        db.ref(`spider_brain/projects/${currentProjectId}/pages/${state.currentPageId}`).set({
+            layers: state.layers,
+            pageSettings: state.page
+        });
+    }
+};
+
+// Tạo Custom Element
+document.getElementById('createCustomElementBtn').addEventListener('click', () => {
+    let type = prompt("Nhập loại Element (svg, frame, html):", "svg");
+    let name = prompt("Nhập tên cho Element này:", "Hình khối của tôi");
+    let content = prompt("Dán mã code (Thẻ SVG, thẻ HTML...):", "");
+    if(type && name && content) {
+        let payload = { action: "SAVE_CANVA_ELEMENT", id: uid('elem'), type, name, content };
+        fetch("https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec", {
+            method: "POST", body: JSON.stringify(payload)
+        }).then(() => { toast('Đã lưu element vào DB!'); loadCustomElements(); });
     }
 });
 
-// Nạp dữ liệu từ LocalStorage (Được đồng bộ từ admin.html/post.html)
+function loadCustomElements() {
+    let cache = localStorage.getItem("MKT_DATA");
+    if(cache) {
+        let sysData = JSON.parse(cache);
+        let elements = sysData.sheets["Canva elements_hidden"];
+        let grid = document.getElementById("customElementsGrid");
+        if(elements && grid) {
+            grid.innerHTML = '';
+            for(let i=1; i<elements.length; i++) {
+                let [id, type, name, content] = elements[i];
+                let btn = document.createElement('button');
+                btn.className = 'asset-btn';
+                btn.innerHTML = `<div class="asset-caption">${name}</div>`;
+                btn.onclick = () => {
+                   const l = baseLayer(type === 'svg' ? 'star' : type); 
+                   if(type==='svg') l.contentSvg = content;
+                   if(type==='html') l.htmlContent = content;
+                   state.layers.push(l); renderAll(); syncCurrentPageDoc();
+                };
+                grid.appendChild(btn);
+            }
+        }
+    }
+}
+
+// Khởi chạy ngầm
 window.addEventListener('load', () => {
-    let cached = localStorage.getItem("MKT_DATA");
-    if (cached) {
-        try {
-            sysDataCache = JSON.parse(cached);
-            populateProjectDropdown();
-            loadElementsFromSheet();
-        } catch(e) {}
-    }
+    loadProjectsToSelector();
+    loadCustomElements();
 });
-
-window.addEventListener('storage', (e) => {
-    if (e.key === "MKT_DATA") {
-        try { sysDataCache = JSON.parse(e.newValue); populateProjectDropdown(); } catch(e){}
-    }
-});
-
-function populateProjectDropdown() {
-    const select = document.getElementById("projectSelector");
-    const sheet = sysDataCache.sheets["Bài viết_hidden"];
-    if (!sheet) return;
-    
-    let currentVal = select.value;
-    select.innerHTML = '<option value="">-- Chọn bài viết (Project) --</option>';
-    
-    // Bỏ qua dòng header (i=1)
-    for (let i = 1; i < sheet.length; i++) {
-        let postId = sheet[i][0];
-        let title = sheet[i][1] || "Bài viết chưa có tiêu đề";
-        if (postId) {
-            let opt = document.createElement("option");
-            opt.value = postId;
-            opt.text = `${title} (${postId})`;
-            select.appendChild(opt);
-        }
-    }
-    if(currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
-        select.value = currentVal;
-    }
-}
-
-// Chuyển đổi Project -> Bóc tách HTML thành các Page Canvas
-function switchProject(postId) {
-    if (!postId) return;
-    currentProjectPostId = postId;
-    const sheet = sysDataCache.sheets["Bài viết_hidden"];
-    let postRow = sheet.find(r => r[0] === postId);
-    if (!postRow) return;
-
-    state.pages = []; // Reset pages
-    let coverUrl = postRow[3];
-    let htmlContent = postRow[4];
-
-    // 1. Tạo Page 1: Ảnh bìa
-    if (coverUrl) {
-        state.pages.push(createPageDocument({
-            name: "Ảnh Bìa",
-            layers: [baseLayer('image', { name: "Ảnh bìa gốc", src: coverUrl, width: 1080, height: 1080, x:0, y:0 })],
-            page: {width: 1080, height: 1080, background: '#ffffff'}
-        }));
-    }
-
-    // 2. Tạo các Page tiếp theo từ Nội dung HTML
-    if (htmlContent) {
-        let tempDiv = document.createElement('div');
-        tempDiv.innerHTML = htmlContent;
-        let contentImages = tempDiv.querySelectorAll('img');
-        
-        contentImages.forEach((img, index) => {
-            // Cố gắng phục hồi state layer đã lưu trong data-canvas-state (nếu có)
-            let savedLayerState = img.getAttribute('data-canvas-state');
-            let layers = [];
-            if (savedLayerState) {
-                try { layers = JSON.parse(decodeURIComponent(savedLayerState)); } catch(e) {}
-            } else {
-                // Tạo layer mặc định nếu chưa từng chỉnh sửa bằng Canva mode
-                layers.push(baseLayer('image', { name: `Ảnh nội dung ${index + 1}`, src: img.src, width: 1080, height: 1080, x:0, y:0 }));
-            }
-
-            state.pages.push(createPageDocument({
-                name: `Ảnh Nội Dung ${index + 1}`,
-                layers: layers,
-                page: {width: 1080, height: 1080, background: '#ffffff'}
-            }));
-        });
-    }
-
-    // Chuyển UI sang trang đầu tiên
-    if (state.pages.length > 0) {
-        state.currentPageId = state.pages[0].id;
-        applyPageDocument(state.pages[0]);
-    } else {
-        toast("Bài viết này chưa có ảnh nào!");
-    }
-    
-    renderAll();
-    
-    // Bắn tín hiệu cho Spider Brain biết máy này đang thao tác project này
-    brainRef.child(postId).update({
-        sender: state.clientId,
-        lastActive: Date.now(),
-        pageCount: state.pages.length
-    });
-}
-// =====================================================================
-// CANVA ELEMENTS SYNC
-// =====================================================================
-function saveElementToSheet() {
-    const layer = primaryLayer();
-    if (!layer) return toast("Vui lòng chọn 1 layer (Shape/SVG/Frame/HTML) để lưu làm mẫu!");
-    
-    // Chèn logic lưu qua Queue hệ thống (giả lập giống post.html)
-    let actionQueue = [];
-    
-    // Khởi tạo sheet nếu chưa có
-    if (!sysDataCache.sheets["Canva elements_hidden"]) {
-        sysDataCache.tabOrder.push("Canva elements_hidden");
-        sysDataCache.sheets["Canva elements_hidden"] = [["Type", "Tên Element", "Dữ liệu JSON"]];
-        actionQueue.push({type:'MANAGE_TAB', action:'create', tab: "Canva elements_hidden"});
-        actionQueue.push({type:'SYNC_CELL', row: 1, col: 1, val: "Type", tab: "Canva elements_hidden"});
-        actionQueue.push({type:'SYNC_CELL', row: 1, col: 2, val: "Tên Element", tab: "Canva elements_hidden"});
-        actionQueue.push({type:'SYNC_CELL', row: 1, col: 3, val: "Dữ liệu JSON", tab: "Canva elements_hidden"});
-    }
-
-    let elementName = prompt("Nhập tên cho Element này:", layer.name || "Element mới");
-    if (!elementName) return;
-
-    let tab = sysDataCache.sheets["Canva elements_hidden"];
-    let newRow = tab.length;
-    let jsonStr = JSON.stringify(layer);
-    
-    tab.push([layer.type, elementName, jsonStr]);
-    
-    actionQueue.push({type:'STRUCTURAL', action:'insertRow', index: newRow+1, count: 1, tab: "Canva elements_hidden"});
-    actionQueue.push({type:'SYNC_CELL', row: newRow+1, col: 1, val: layer.type, tab: "Canva elements_hidden"});
-    actionQueue.push({type:'SYNC_CELL', row: newRow+1, col: 2, val: elementName, tab: "Canva elements_hidden"});
-    actionQueue.push({type:'SYNC_CELL', row: newRow+1, col: 3, val: jsonStr, tab: "Canva elements_hidden"});
-
-    // Bắn lệnh lưu lên Apps Script
-    fetch("https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec", {
-        method: "POST", body: JSON.stringify(actionQueue)
-    }).then(res => res.json()).then(json => {
-        if(json.success) {
-            localStorage.setItem("MKT_DATA", JSON.stringify(sysDataCache));
-            toast("Đã lưu Element vào thư viện hệ thống!");
-            loadElementsFromSheet(); // Reload UI
-        }
-    });
-}
-
-function loadElementsFromSheet() {
-    const sheet = sysDataCache.sheets["Canva elements_hidden"];
-    if (!sheet) return;
-    
-    const container = document.getElementById("assetMediaGrid");
-    // Giữ nguyên phần render mặc định, bổ sung thêm các custom element
-    let customHtml = '<div class="section-title" style="grid-column: 1/-1;"><span>Custom Elements (Từ Sheet)</span></div>';
-    
-    for (let i = 1; i < sheet.length; i++) {
-        let type = sheet[i][0];
-        let name = sheet[i][1];
-        let jsonStr = sheet[i][2];
-        let id = uid('custom-el');
-        
-        // Lưu tạm data vào mảng ảo để click gọi lại
-        window[`customElementData_${id}`] = jsonStr;
-        
-        customHtml += `<div class="media-card" onclick="addCustomElementFromSheet('${id}')" style="cursor:pointer; padding:10px; background:#f0f9ff; border-color:var(--blue);">
-            <div style="font-size:24px; text-align:center; color:var(--blue);"><i class="fas fa-cube"></i></div>
-            <div class="media-name" style="text-align:center; margin-top:5px; font-weight:bold;">${escapeHtml(name)}</div>
-            <div style="text-align:center; font-size:9px; color:#888;">Type: ${type}</div>
-        </div>`;
-    }
-    
-    if(sheet.length > 1) {
-        container.insertAdjacentHTML('beforeend', customHtml);
-    }
-}
-
-// Để hàm này gọi được từ UI
-window.addCustomElementFromSheet = function(id) {
-    let jsonStr = window[`customElementData_${id}`];
-    if(jsonStr) {
-        try {
-            let layerData = JSON.parse(jsonStr);
-            layerData.id = uid(); // Đổi ID mới để không trùng lặp
-            layerData.x += 20; // Lệch ra một chút để thấy
-            layerData.y += 20;
-            addLayer(layerData, "Thêm Custom Element");
-        } catch(e) { toast("Dữ liệu Element bị lỗi!"); }
-    }
-}
-function syncProjectToPost() {
-    if (!currentProjectPostId) return toast("Chưa chọn Project nào để đồng bộ!");
-    const sheet = sysDataCache.sheets["Bài viết_hidden"];
-    let rowIndex = sheet.findIndex(r => r[0] === currentProjectPostId);
-    if (rowIndex === -1) return toast("Không tìm thấy ID bài viết trong Database!");
-
-    let postRow = sheet[rowIndex];
-    let htmlContent = postRow[4];
-    
-    // Page 0 luôn được quy ước là Ảnh Bìa (Cover)
-    let coverPage = state.pages[0];
-    if (coverPage && coverPage.layers) {
-        let coverMeta = {};
-        try { coverMeta = JSON.parse(postRow[5] || "{}"); } catch(e){}
-        coverMeta.canvasState = encodeURIComponent(JSON.stringify(coverPage.layers));
-        postRow[5] = JSON.stringify(coverMeta);
-    }
-
-    // Các Page tiếp theo ánh xạ vào các thẻ <img> trong Nội dung HTML
-    if (htmlContent) {
-        let tempDiv = document.createElement('div');
-        tempDiv.innerHTML = htmlContent;
-        let contentImages = tempDiv.querySelectorAll('img');
-        
-        contentImages.forEach((img, index) => {
-            let targetPage = state.pages[index + 1];
-            if (targetPage && targetPage.layers) {
-                // Ép toàn bộ layer (vị trí, scale, html con...) vào Data Attribute của img
-                img.setAttribute('data-canvas-state', encodeURIComponent(JSON.stringify(targetPage.layers)));
-            }
-        });
-        
-        postRow[4] = tempDiv.innerHTML; // Cập nhật lại chuỗi HTML
-    }
-
-    // Đồng bộ lên Sheets
-    let actionQueue = [
-        {type:'SYNC_CELL', row: rowIndex + 1, col: 5, val: postRow[4], tab: "Bài viết_hidden"},
-        {type:'SYNC_CELL', row: rowIndex + 1, col: 6, val: postRow[5], tab: "Bài viết_hidden"}
-    ];
-
-    toast("Đang đồng bộ ngược cấu trúc Layer vào Bài viết...");
-    
-    fetch("https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec", {
-        method: "POST", body: JSON.stringify(actionQueue)
-    }).then(res => res.json()).then(json => {
-        if(json.success) {
-            localStorage.setItem("MKT_DATA", JSON.stringify(sysDataCache));
-            toast("Đã đồng bộ Layer thành công!");
-            
-            // Cập nhật Spider Brain để post.html tự tải lại nếu đang mở
-            brainRef.child(currentProjectPostId).update({
-                canvasSyncTimestamp: Date.now()
-            });
-        } else {
-            toast("Lỗi đồng bộ lên Sheets!");
-        }
-    });
-}
 </script>
 
 </body>

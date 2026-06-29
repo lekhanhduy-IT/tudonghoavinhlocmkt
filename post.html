@@ -968,6 +968,17 @@
     display: block !important;
     /* Không khóa height ở đây để JS có thể tự động tính toán chiều cao (aspect-ratio) khi người dùng dùng tính năng Cắt/Scale */
 }
+/* CSS cho Layer phủ thời gian thực từ image.html */
+.canvas-layer-overlay {
+    position: absolute;
+    pointer-events: none; /* Tránh cản trở click vào ảnh mở popup */
+    transform-origin: center center;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
 </style>
   </head>
 <body>
@@ -5657,18 +5668,7 @@ async function downloadActiveImageWithMetadata() {
             });
         };
     }
-// Bổ sung lắng nghe cập nhật Canva Sync từ image.html
-const imageProjectRef = db.ref('spider_brain/image_projects');
-imageProjectRef.on('child_changed', (snapshot) => {
-    const data = snapshot.val();
-    if (data && data.canvasSyncTimestamp && currentPostId === snapshot.key) {
-        console.log("Spider Brain: Nhận lệnh render lại ảnh từ Canva Mode");
-        // Gọi hàm tự động lấy Data mới nhất từ Google Sheets / Local
-        setTimeout(() => {
-            forceFetchData(); // Hàm của bạn đã viết sẵn để reload nội dung
-        }, 1500); // Chờ Apps Script ghi xong cell
-    }
-});
+
     // --- HÀM BẢO TOÀN VỊ TRÍ CON TRỎ (Caret Preservation) ---
     function getCaretCharacterOffsetWithin(el) {
         let caretOffset = 0;
@@ -6329,6 +6329,101 @@ function renderImageLibraries() {
         
         container.appendChild(item);
     }
+}
+// =========================================================================
+// ĐỌC REALTIME LAYER TỪ IMAGE.HTML (SPIDER BRAIN) TRỰC TIẾP VÀO POST.HTML
+// =========================================================================
+const spiderRef = db.ref('spider_brain/projects');
+
+spiderRef.on('value', snap => {
+    let projects = snap.val();
+    if (!projects) return;
+    
+    // Nếu đang mở 1 bài viết và bài viết đó có thay đổi Canvas
+    if (currentPostId && projects[currentPostId]) {
+        let pagesData = projects[currentPostId].pages;
+        if (pagesData) {
+            applyLayersToPostImages(pagesData);
+        }
+    }
+});
+
+function applyLayersToPostImages(pagesData) {
+    // 1. Quét và Render lên Khung Ảnh Bìa
+    if (pagesData['cover']) {
+        let coverFrame = document.querySelector('#coverEditor .vb-image-frame');
+        if (coverFrame) renderLayersOnFrame(coverFrame, pagesData['cover'].layers);
+    }
+    
+    // 2. Quét và Render lên Khung Ảnh Nội dung
+    document.querySelectorAll('#postContent .vb-image-frame').forEach(frame => {
+        let img = frame.querySelector('img.vb-managed-image');
+        if (img && img.dataset.imageId && pagesData[img.dataset.imageId]) {
+            renderLayersOnFrame(frame, pagesData[img.dataset.imageId].layers);
+        }
+    });
+}
+
+function renderLayersOnFrame(frame, layers) {
+    // Dọn dẹp layer đồ họa cũ trước khi vẽ lại
+    frame.querySelectorAll('.canvas-layer-overlay').forEach(el => el.remove());
+    if(!layers || layers.length <= 1) return; // Bỏ qua layer gốc đầu tiên (chính là ảnh nền chụp từ bài viết)
+    
+    // Khung thiết kế mặc định trên image.html thường là 1080
+    let cWidth = 1080; 
+    let cHeight = 1080;
+    
+    layers.forEach((l, idx) => {
+        if(idx === 0) return; // Không cần render lại ảnh nền dưới cùng
+        
+        let div = document.createElement('div');
+        div.className = 'canvas-layer-overlay';
+        
+        // Quy đổi tọa độ và kích thước từ pixel (trên image.html) sang % (để bài viết Responsive)
+        let pctX = (l.x / cWidth) * 100;
+        let pctY = (l.y / cHeight) * 100;
+        let pctW = (l.width / cWidth) * 100;
+        let pctH = (l.height / cHeight) * 100;
+        
+        div.style.left = pctX + '%';
+        div.style.top = pctY + '%';
+        div.style.width = pctW + '%';
+        div.style.height = pctH + '%';
+        
+        // Lấy toàn bộ Scale, Góc xoay, Độ trong suốt đã lưu
+        div.style.transform = `rotate(${l.rotation||0}deg) scale(${l.scale||1})`;
+        div.style.opacity = l.opacity || 1;
+        div.style.zIndex = 10 + idx;
+        
+        // Vẽ định dạng dựa trên từng Elements
+        if(l.type === 'text') {
+            div.innerText = l.content || 'Văn bản';
+            div.style.color = l.color || '#000';
+            div.style.fontFamily = l.fontFamily || 'sans-serif';
+            // Cỡ chữ nội suy tương đối
+            let scaleFactor = frame.offsetWidth / cWidth;
+            div.style.fontSize = (l.fontSize * scaleFactor) + 'px';
+            div.style.fontWeight = l.fontWeight || 'normal';
+            div.style.fontStyle = l.fontStyle || 'normal';
+            div.style.textAlign = l.textAlign || 'left';
+            div.style.textDecoration = l.textDecoration || 'none';
+        } 
+        else if(l.type === 'html') {
+            div.innerHTML = `<div style="background:linear-gradient(135deg, ${l.htmlBg1||'#2947d3'}, ${l.htmlBg2||'#12bee7'}); color:${l.htmlColor||'#fff'}; padding:10px; width:100%; height:100%; box-sizing:border-box;"><strong>${l.title||''}</strong><br><span>${l.subtitle||''}</span></div>`;
+        } 
+        else if(l.type === 'shape') {
+            div.style.background = l.fill || '#2947d3';
+            if(l.shape === 'circle') div.style.borderRadius = '50%';
+        } 
+        else if(l.type === 'image') {
+            div.innerHTML = `<img src="${l.src}" style="width:100%; height:100%; object-fit:cover; border-radius:${l.imageBorder||0}px;">`;
+        } 
+        else if(l.type === 'star') {
+            div.innerHTML = `<svg viewBox="0 0 100 100" width="100%" height="100%"><path fill="${l.fill||'#ff2d32'}" d="M50 3 61 36 96 36 68 56 79 90 50 70 21 90 32 56 4 36 39 36Z"/></svg>`;
+        }
+        
+        frame.appendChild(div);
+    });
 }
 </script>
 
