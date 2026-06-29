@@ -225,18 +225,12 @@
           <h2>Dự án Bài Viết</h2>
           <button class="mini-btn primary" id="refreshProjectsBtn"><i class="fa-solid fa-sync"></i> Làm mới</button>
         </div>
-<div class="field" style="margin-bottom: 10px;">
+        <div class="field" style="margin-bottom: 15px;">
           <label>Chọn Bài Viết (Project)</label>
-          <div style="display: flex; gap: 5px;">
-              <select id="projectSelect" class="select" style="font-weight: bold; color: var(--blue); flex: 1;" onchange="loadProjectToCanvas(this.value)">
-                  <option value="">-- Chọn Project --</option>
-              </select>
-              <button class="mini-btn primary" onclick="createNewProject()" title="Tạo Project Mới"><i class="fa-solid fa-plus"></i></button>
-          </div>
+          <select id="projectSelect" class="select" style="font-weight: bold; color: var(--blue);">
+              <option value="">-- Chọn Project --</option>
+          </select>
         </div>
-        <button class="action-btn primary" style="width: 100%; margin-bottom: 15px;" onclick="saveDesignToPost()">
-            <i class="fa-solid fa-save"></i> Đồng bộ Canvas vào Bài Viết
-        </button>
         <div class="section-title"><span>Tổng hợp ảnh trong bài</span></div>
         <div class="media-grid" id="projectImagesGrid"></div>
       </section>
@@ -2790,7 +2784,341 @@ function bind(){
 })();
 
 try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.onmessage=e=>{const m=e.data;if(!m||m.clientId===state.clientId||m.type!=='doc-operation')return;state.applyingRemote=true;restore(m.after);state.applyingRemote=false;toast(`Đã đồng bộ: ${m.label||'thay đổi'}`)}}catch(e){}
+// ================= V23 PATCH: LOGIC PROJECT & SPIDER BRAIN =================
+const MKT_API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+let mktSysData = { sheets: {} };
+let currentProjectPost = null;
 
+const fbConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+if (!firebase.apps.length) firebase.initializeApp(fbConfig);
+const dbSpider = firebase.database();
+const spiderProjectsRef = dbSpider.ref('spider_brain/projects');
+
+async function fetchMktData() {
+    const btn = document.getElementById("refreshProjectsBtn");
+    if(btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang tải...';
+    try {
+        let cached = localStorage.getItem("MKT_DATA");
+        if (cached) {
+            mktSysData = JSON.parse(cached);
+            renderProjectList();
+        }
+        let res = await fetch(MKT_API_URL + "?t=" + new Date().getTime());
+        let json = await res.json();
+        if (json.success) {
+            mktSysData = json.data;
+            localStorage.setItem("MKT_DATA", JSON.stringify(mktSysData));
+            renderProjectList();
+        }
+    } catch(e) {
+        console.error("Lỗi lấy dữ liệu MKT:", e);
+        toast("Ngoại tuyến: Đang dùng dữ liệu Local");
+    }
+    if(btn) btn.innerHTML = '<i class="fa-solid fa-sync"></i> Làm mới';
+}
+
+function renderProjectList() {
+    const select = document.getElementById("projectSelect");
+    if(!select) return;
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">-- Chọn Project (ID Bài Viết) --</option>';
+    const sheet = mktSysData.sheets && mktSysData.sheets["Bài viết_hidden"];
+    if (!sheet) return;
+    
+    for (let i = 1; i < sheet.length; i++) {
+        let id = sheet[i][0];
+        let title = sheet[i][1] || id;
+        if (id) {
+            let opt = document.createElement("option");
+            opt.value = id;
+            opt.textContent = `[${id}] ${title.substring(0, 35)}...`;
+            select.appendChild(opt);
+        }
+    }
+    if (currentVal) select.value = currentVal;
+    
+    select.onchange = function(e) {
+        console.log("Đã chọn Project ID:", e.target.value);
+        loadProject(e.target.value);
+    };
+}
+
+// HÀM TRỢ THỦ: Rửa link Google Drive để lách luật CORS của Canvas
+function getSafeImageUrl(url) {
+    if (!url) return "";
+    if (url.includes("/api/drive-image")) return url;
+    
+    const patterns = [
+        /\/d\/([a-zA-Z0-9_-]{10,})/,
+        /[?&]id=([a-zA-Z0-9_-]{10,})/,
+        /\/thumbnail\?id=([a-zA-Z0-9_-]{10,})/
+    ];
+    for (const pattern of patterns) {
+        const m = url.match(pattern);
+        if (m && m[1]) return "/api/drive-image?id=" + m[1]; // Bọc Proxy API
+    }
+    return url; // Nếu không phải link Drive, giữ nguyên
+}
+
+function loadProject(postId) {
+    if (!postId) return;
+    
+    console.log("Bắt đầu nạp Project:", postId);
+    const sheet = mktSysData.sheets["Bài viết_hidden"];
+    let rowIdx = -1;
+    for (let i = 1; i < sheet.length; i++) {
+        if (sheet[i][0] === postId) { rowIdx = i; break; }
+    }
+    
+    if (rowIdx === -1) { 
+        toast("Không tìm thấy bài viết"); 
+        return; 
+    }
+    
+    currentProjectPost = {
+        rowIndex: rowIdx,
+        id: sheet[rowIdx][0],
+        title: sheet[rowIdx][1],
+        sapo: sheet[rowIdx][2],
+        coverUrl: sheet[rowIdx][3],
+        contentHtml: sheet[rowIdx][4],
+        coverMeta: sheet[rowIdx][5]
+    };
+
+    let imagesToProcess = [];
+    
+    // 1. Bóc tách Ảnh Bìa (Đã bọc Proxy)
+    if (currentProjectPost.coverUrl) {
+        let meta = {};
+        try { meta = JSON.parse(currentProjectPost.coverMeta || "{}"); } catch(e){}
+        imagesToProcess.push({
+            id: 'cover_' + postId,
+            name: 'Ảnh Bìa',
+            role: 'cover',
+            src: getSafeImageUrl(currentProjectPost.coverUrl), // <--- VÁ LỖI CẤM HIỂN THỊ
+            width: meta.frameState?.targetWidth || 1080,
+            height: meta.frameState?.targetHeight || 1080,
+            layers: meta.layers || [],
+            originalImageId: meta.imageId || 'cover'
+        });
+    }
+
+    // 2. Bóc tách Ảnh Nội Dung (Đã bọc Proxy)
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = currentProjectPost.contentHtml || "";
+    const imgs = tempDiv.querySelectorAll('img.vb-managed-image, img');
+    
+    imgs.forEach((img, index) => {
+        let src = img.getAttribute('src');
+        if(!src) return;
+        
+        src = getSafeImageUrl(src); // <--- VÁ LỖI CẤM HIỂN THỊ
+        
+        let imageId = img.getAttribute('data-image-id') || ('content_' + index);
+        let layers = [];
+        try { layers = JSON.parse(img.getAttribute('data-vb-layers') || "[]"); } catch(e){}
+        let w = img.width || 1080;
+        let h = img.height || 1080;
+        if(w === 0 || h === 0) { w = 1080; h = 1080; }
+
+        imagesToProcess.push({
+            id: imageId,
+            name: `Ảnh nội dung ${index + 1}`,
+            role: 'content',
+            src: src, 
+            width: w,
+            height: h,
+            layers: layers,
+            originalImageId: imageId,
+            imgElement: img
+        });
+    });
+
+    if(imagesToProcess.length === 0) {
+        toast("Bài viết này không có ảnh nào!");
+        return;
+    }
+    
+    // 3. KHỞI TẠO PAGE CANVAS MỚI
+    let generatedPages = [];
+
+    imagesToProcess.forEach((imgData) => {
+        let bgLayer = {
+            id: uid('layer'),
+            type: 'image',
+            name: 'Ảnh Gốc Bài Viết',
+            src: imgData.src, // Đã được mã hóa an toàn
+            x: 0, y: 0,
+            width: imgData.width, height: imgData.height,
+            rotation: 0, scale: 1, opacity: 1, visible: true,
+            lockMode: 'full', 
+            isBaseImage: true
+        };
+        
+        let parsedLayers = imgData.layers.map(l => ({...l, id: l.id || uid('layer')}));
+        
+        let newPage = {
+            id: imgData.id,
+            name: imgData.name, 
+            role: imgData.role,
+            originalImageId: imgData.originalImageId,
+            page: { width: imgData.width, height: imgData.height, background: '#ffffff' },
+            layers: [bgLayer, ...parsedLayers],
+            groups: {},
+            comments: []
+        };
+        generatedPages.push(newPage);
+        
+        // Kích hoạt lưu ngầm Database Realtime
+        spiderProjectsRef.child(postId).child(imgData.id).set({
+            role: imgData.role,
+            width: imgData.width,
+            height: imgData.height,
+            layers: parsedLayers,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+        });
+    });
+
+    // 4. ÁP DỤNG STATE BẰNG HÀM CHUẨN CỦA HỆ THỐNG
+    if (generatedPages.length > 0) {
+        restore({
+            pages: generatedPages,
+            currentPageId: generatedPages[0].id
+        });
+    }
+    
+    renderProjectImagesGrid(imagesToProcess);
+    toast(`Đã nạp ${imagesToProcess.length} ảnh từ bài viết!`);
+}
+
+function renderProjectImagesGrid(images) {
+    const grid = document.getElementById("projectImagesGrid");
+    if(!grid) return;
+    grid.innerHTML = "";
+    images.forEach(img => {
+        let card = document.createElement("div");
+        card.className = "media-card";
+        card.innerHTML = `<img src="${img.src}" style="height:80px; object-fit:contain; background:#f0f0f0;">
+                          <div class="media-name" style="text-align:center; padding:5px; font-weight:bold; color: var(--blue);">
+                            ${img.role === 'cover' ? 'Ảnh Bìa' : 'Ảnh Nội Dung'}
+                          </div>`;
+        card.style.cursor = "pointer";
+        card.onclick = () => {
+            switchPage(img.id); // Dùng hàm gốc của Editor để đổi tab
+        };
+        grid.appendChild(card);
+    });
+}
+
+document.addEventListener('click', e => {
+    if(e.target.closest('#refreshProjectsBtn')) fetchMktData();
+});
+
+const v23OldCommit = commit;
+commit = function(beforeState, label) {
+    v23OldCommit(beforeState, label);
+    if (currentProjectPost) {
+        scheduleProjectSync();
+    }
+};
+
+let syncProjectTimer = null;
+// Hàm chuyển đổi Layer Canvas thành Thẻ HTML & CSS tuyệt đối (Responsive %)
+function buildHtmlLayerOverlay(imgData) {
+    if(!imgData.layers || imgData.layers.length === 0) return "";
+    let html = `<div class="vb-spider-layers" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; container-type: size;">`;
+    
+    imgData.layers.forEach(layer => {
+        let leftPct = (layer.x / imgData.width) * 100;
+        let topPct = (layer.y / imgData.height) * 100;
+        let widthPct = (layer.width / imgData.width) * 100;
+        let heightPct = layer.height ? ((layer.height / imgData.height) * 100) : null;
+        
+        let style = `position: absolute; left: ${leftPct}%; top: ${topPct}%; box-sizing: border-box; `;
+        if(widthPct) style += `width: ${widthPct}%; `;
+        if(heightPct) style += `height: ${heightPct}%; `;
+        
+        let transforms = [];
+        if(layer.rotation) transforms.push(`rotate(${layer.rotation}deg)`);
+        if(layer.scale && layer.scale !== 1) transforms.push(`scale(${layer.scale})`);
+        if(transforms.length > 0) style += `transform: ${transforms.join(' ')}; transform-origin: top left; `;
+        if(layer.opacity !== undefined) style += `opacity: ${layer.opacity}; `;
+
+        if(layer.type === 'text') {
+            style += `color: ${layer.fill || '#000'}; font-family: '${layer.fontFamily || 'sans-serif'}'; font-size: ${(layer.fontSize / imgData.width * 100)}cqw; line-height: ${layer.lineHeight || 1.2}; text-align: ${layer.textAlign || 'left'}; white-space: pre-wrap;`;
+            html += `<div style="${style}">${(layer.text || '').replace(/\n/g, '<br>')}</div>`;
+        } else if(layer.type === 'image') {
+            style += `object-fit: contain;`;
+            html += `<img src="${layer.src}" style="${style}">`;
+        } else if(layer.type === 'shape') {
+            style += `background-color: ${layer.fill || '#000'};`;
+            html += `<div style="${style}"></div>`;
+        }
+    });
+    html += `</div>`;
+    return html;
+}
+
+let syncProjectTimer = null;
+function scheduleProjectSync() {
+    clearTimeout(syncProjectTimer);
+    syncProjectTimer = setTimeout(() => {
+        ensurePages();
+        syncCurrentPageDoc();
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = currentProjectPost.contentHtml || "";
+        let meta = {};
+        try { meta = JSON.parse(currentProjectPost.coverMeta || "{}"); } catch(e){}
+
+        state.pages.forEach(p => {
+            let customLayers = p.layers.filter(l => !l.isBaseImage);
+            let layerStr = JSON.stringify(customLayers);
+            
+            // Đẩy dữ liệu cấu trúc lên Realtime Database (KHÔNG dùng Base64 ảnh tĩnh)
+            let payload = {
+                role: p.role, width: p.page.width, height: p.page.height,
+                layers: customLayers, updatedAt: firebase.database.ServerValue.TIMESTAMP
+            };
+            spiderProjectsRef.child(currentProjectPost.id).child(p.id).update(payload);
+
+            if (p.role === 'cover') {
+                meta.layers = customLayers;
+                currentProjectPost.coverMeta = JSON.stringify(meta);
+            } else if (p.role === 'content') {
+                let img = tempDiv.querySelector(`img[data-image-id="${p.originalImageId}"]`);
+                if (img) {
+                    img.setAttribute('data-vb-layers', layerStr);
+                    let frame = img.closest('.vb-image-frame');
+                    if (frame) {
+                        frame.style.position = 'relative'; // Bắt buộc để bọc layer
+                        let oldLayer = frame.querySelector('.vb-spider-layers');
+                        if (oldLayer) oldLayer.remove();
+                        // Chèn khối Layer HTML vào ngay bên dưới thẻ <img gốc>
+                        let overlayHtml = buildHtmlLayerOverlay({ width: p.page.width, height: p.page.height, layers: customLayers });
+                        img.insertAdjacentHTML('afterend', overlayHtml);
+                    }
+                }
+            }
+        });
+        
+        currentProjectPost.contentHtml = tempDiv.innerHTML;
+        
+        let queue = [
+            { type: 'SYNC_CELL', row: currentProjectPost.rowIndex + 1, col: 5, val: currentProjectPost.contentHtml, tab: "Bài viết_hidden" },
+            { type: 'SYNC_CELL', row: currentProjectPost.rowIndex + 1, col: 6, val: currentProjectPost.coverMeta, tab: "Bài viết_hidden" }
+        ];
+        
+        fetch(MKT_API_URL, { method: "POST", body: JSON.stringify(queue), headers: { "Content-Type": "text/plain;charset=utf-8" }
+        }).then(res => res.json()).then(res => {
+            if(res.success) console.log(`[Spider Brain] Đã lưu HTML DOM Layers - Bài: ${currentProjectPost.id}`);
+        }).catch(err => console.error(err));
+        
+    }, 1500); 
+}
+
+fetchMktData();
+// ================= HẾT V23 PATCH =================
 ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
 })();
 // =========================================================================
@@ -2871,233 +3199,6 @@ allProjectsRef.on('value', snapshot => {
     }
     
 });
-// =========================================================================
-// 2. LOGIC PROJECT & BÓC TÁCH ẢNH THÀNH CANVAS PAGES
-// =========================================================================
-
-// Hiển thị danh sách Project vào Dropdown
-function renderProjectList() {
-    let select = document.getElementById("projectSelect");
-    let currentVal = select.value;
-    select.innerHTML = '<option value="">-- Chọn Project --</option>';
-    
-    let bvTab = sysData.sheets && sysData.sheets["Bài viết_hidden"];
-    if(!bvTab) return;
-
-    // Lặp ngược để bài mới nhất lên trên
-    for (let r = bvTab.length - 1; r >= 1; r--) {
-        let id = bvTab[r][0];
-        let title = bvTab[r][1] || "Bài viết không tiêu đề";
-        if(id) {
-            let opt = document.createElement("option");
-            opt.value = id;
-            opt.innerText = title;
-            select.appendChild(opt);
-        }
-    }
-    if(currentVal) select.value = currentVal;
-}
-
-// Hàm tạo Project mới trực tiếp từ Image
-function createNewProject() {
-    let newId = "POST_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
-    let title = prompt("Nhập tiêu đề Project mới:");
-    if(!title) return;
-
-    if (!sysData.sheets["Bài viết_hidden"]) return alert("Sheet Bài viết_hidden chưa được khởi tạo!");
-    
-    let bvTab = sysData.sheets["Bài viết_hidden"];
-    let targetRow = bvTab.length;
-    let rowData = [newId, title, "", "", "", "{}"];
-    
-    bvTab.push(rowData);
-    actionQueue.push({type:'STRUCTURAL', action:'insertRow', index: targetRow + 1, count: 1, tab: "Bài viết_hidden"});
-    for (let c = 1; c <= rowData.length; c++) {
-        actionQueue.push({type:'SYNC_CELL', row: targetRow + 1, col: c, val: rowData[c - 1], tab: "Bài viết_hidden"});
-    }
-    
-    localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
-    renderProjectList();
-    document.getElementById("projectSelect").value = newId;
-    loadProjectToCanvas(newId);
-    toast("Đã tạo Project mới!");
-}
-
-// Bóc tách ảnh và nạp vào Canvas
-function loadProjectToCanvas(postId, isBackgroundSync = false) {
-    if (!postId) return;
-    currentPostId = postId;
-    let bvTab = sysData.sheets["Bài viết_hidden"];
-    if (!bvTab) return;
-
-    let postRow = bvTab.find(row => row[0] === postId);
-    if (!postRow) return;
-
-    // Lấy dữ liệu
-    let coverUrl = postRow[3] || "";
-    let htmlContent = postRow[4] || "";
-    let coverMetaRaw = postRow[5] || "{}";
-
-    let tempDiv = document.createElement("div");
-    tempDiv.innerHTML = htmlContent;
-    let contentImages = Array.from(tempDiv.querySelectorAll("img"));
-
-    // Nếu là thao tác user click chọn, dọn dẹp canvas cũ
-    if(!isBackgroundSync) {
-        state.pages = [];
-        state.currentPageId = null;
-        document.getElementById("projectImagesGrid").innerHTML = "";
-    }
-
-    // 1. Xử lý Ảnh Bìa (Cover)
-    if (coverUrl) {
-        processImageIntoPage("Ảnh Bìa", coverUrl, coverMetaRaw, "cover", isBackgroundSync);
-    }
-
-    // 2. Xử lý Ảnh Nội Dung
-    contentImages.forEach((img, index) => {
-        let src = img.getAttribute("src") || "";
-        let metaRaw = img.dataset.vbMeta || "{}";
-        let layerDataRaw = img.dataset.canvasLayers || "[]"; // Dữ liệu layer lưu ẩn
-        if(src) {
-            processImageIntoPage(`Ảnh nội dung ${index + 1}`, src, metaRaw, "content", isBackgroundSync, layerDataRaw);
-        }
-    });
-
-    if(!isBackgroundSync && state.pages.length > 0) {
-        state.currentPageId = state.pages[0].id;
-        applyPageDocument(state.pages[0]);
-        renderAll();
-        toast("Đã nạp " + state.pages.length + " trang từ bài viết!");
-    } else if (!isBackgroundSync) {
-        toast("Project này chưa có ảnh nào!");
-        els.empty.classList.remove('hidden');
-    }
-}
-
-// Hàm lõi biến 1 URL ảnh thành 1 Page Canvas
-function processImageIntoPage(pageName, src, metaRaw, role, isBackgroundSync, layerDataRaw = "[]") {
-    let meta = {};
-    let savedLayers = [];
-    try { meta = JSON.parse(metaRaw); } catch(e){}
-    try { savedLayers = JSON.parse(layerDataRaw); } catch(e){}
-
-    // Nếu là background sync, chỉ cập nhật grid tổng hợp
-    if(isBackgroundSync) {
-        updateProjectImagesGrid(pageName, src);
-        return;
-    }
-
-    // Lấy kích thước ảnh từ metadata (được lưu bởi post.html qua frameState)
-    let w = 1080, h = 1080;
-    if(meta.frameState) {
-        w = parseInt(meta.frameState.targetWidth) || w;
-        h = parseInt(meta.frameState.targetHeight) || h;
-    }
-
-    let pageBase = { width: w, height: h, background: '#ffffff' };
-    
-    // Tạo layer ảnh nền (chính là bức ảnh lấy từ bài)
-    let bgLayerId = uid('layer');
-    let bgLayer = {
-        id: bgLayerId,
-        type: 'image',
-        name: 'Ảnh Gốc Bài Viết',
-        src: src,
-        x: 0, y: 0, width: w, height: h,
-        rotation: 0, scale: 1, opacity: 1, visible: true, lockMode: 'full', // Khóa cứng làm nền
-        filters: defaultFilters(), cropX: 50, cropY: 50,
-        _role: role // Đánh dấu để lưu ngược lại đúng vị trí
-    };
-
-    // Ghép layer nền với các layer text/shape đã lưu từ lần trước
-    let allLayers = [bgLayer, ...savedLayers];
-
-    let newPage = createPageDocument({
-        name: pageName,
-        page: pageBase,
-        layers: allLayers,
-        groups: {},
-        comments: [],
-        preview: src
-    });
-
-    // Lưu thẻ role vào page để lúc save định danh được
-    newPage._pageRole = role; 
-    state.pages.push(newPage);
-    updateProjectImagesGrid(pageName, src);
-}
-
-// Cập nhật tab "Tổng hợp ảnh trong bài"
-function updateProjectImagesGrid(name, src) {
-    let grid = document.getElementById("projectImagesGrid");
-    let html = `<div class="media-card">
-        <img src="${src}" alt="">
-        <div class="media-name">${escapeHtml(name)}</div>
-    </div>`;
-    // Tránh duplicate nếu render lại
-    if(!grid.innerHTML.includes(src)) grid.innerHTML += html;
-}
-// =========================================================================
-// 3. LOGIC LƯU NGƯỢC LAYER VỀ SHEET (ĐỒNG BỘ SANG POST.HTML)
-// =========================================================================
-
-function saveDesignToPost() {
-    if (!currentPostId) return toast("Vui lòng chọn Project trước khi lưu!");
-    
-    // Lưu lại trạng thái của page hiện tại đang mở
-    syncCurrentPageDoc();
-    
-    let bvTab = sysData.sheets["Bài viết_hidden"];
-    let rowIndex = bvTab.findIndex(row => row[0] === currentPostId);
-    if (rowIndex === -1) return toast("Lỗi: Không tìm thấy Project trong hệ thống!");
-
-    let coverHtml = ""; 
-    let postHtml = bvTab[rowIndex][4] || "";
-    let coverMetaRaw = bvTab[rowIndex][5] || "{}";
-    
-    let tempDiv = document.createElement("div");
-    tempDiv.innerHTML = postHtml;
-    let contentImgNodes = Array.from(tempDiv.querySelectorAll("img"));
-    let contentImageIndex = 0;
-
-    // Duyệt qua từng page trong Canvas để chép ngược Layer vào HTML
-    state.pages.forEach(page => {
-        // Lọc bỏ layer nền (layer chứa ảnh gốc khóa cứng)
-        let activeLayers = page.layers.filter(l => l._role === undefined);
-        let layersJson = JSON.stringify(activeLayers);
-
-        if(page._pageRole === "cover") {
-            // Nhét vào Metadata của ảnh bìa (vì ảnh bìa ko có thẻ img HTML ở ngoài cùng)
-            try {
-                let metaObj = JSON.parse(coverMetaRaw);
-                metaObj.canvasLayers = activeLayers;
-                coverMetaRaw = JSON.stringify(metaObj);
-            } catch(e) {}
-        } 
-        else if (page._pageRole === "content") {
-            // Nhét vào data attribute của thẻ <img> trong bài viết
-            if(contentImgNodes[contentImageIndex]) {
-                contentImgNodes[contentImageIndex].setAttribute("data-canvas-layers", layersJson);
-                contentImageIndex++;
-            }
-        }
-    });
-
-    // Cập nhật lại chuỗi HTML
-    let newPostHtml = tempDiv.innerHTML;
-    
-    // Ghi đè vào biến toàn cục và LocalStorage
-    bvTab[rowIndex][4] = newPostHtml;
-    bvTab[rowIndex][5] = coverMetaRaw;
-    localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
-
-    // Bơm lệnh lên Google Sheet
-    actionQueue.push({type:'SYNC_CELL', row: rowIndex + 1, col: 5, val: newPostHtml, tab: "Bài viết_hidden"});
-    actionQueue.push({type:'SYNC_CELL', row: rowIndex + 1, col: 6, val: coverMetaRaw, tab: "Bài viết_hidden"});
-    
-    toast("Đã đồng bộ thành công các Layer vào bài viết!");
-}
 </script>
 
 </body>
