@@ -2792,7 +2792,7 @@ let currentProjectPost = null;
 const fbConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" };
 if (!firebase.apps.length) firebase.initializeApp(fbConfig);
 const dbSpider = firebase.database();
-const allProjectsRef = dbSpider.ref('spider_brain/projects');
+const spiderProjectsRef = dbSpider.ref('spider_brain/projects');
 
 async function fetchMktData() {
     const btn = document.getElementById("refreshProjectsBtn");
@@ -2837,7 +2837,6 @@ function renderProjectList() {
     }
     if (currentVal) select.value = currentVal;
     
-    // GẮN SỰ KIỆN TRỰC TIẾP LÊN THẺ SELECT Ở ĐÂY
     select.onchange = function(e) {
         console.log("Đã chọn Project ID:", e.target.value);
         loadProject(e.target.value);
@@ -2845,10 +2844,7 @@ function renderProjectList() {
 }
 
 function loadProject(postId) {
-    if (!postId) {
-        console.log("Không có postId được truyền vào.");
-        return;
-    }
+    if (!postId) return;
     
     console.log("Bắt đầu nạp Project:", postId);
     const sheet = mktSysData.sheets["Bài viết_hidden"];
@@ -2859,7 +2855,6 @@ function loadProject(postId) {
     
     if (rowIdx === -1) { 
         toast("Không tìm thấy bài viết"); 
-        console.log("Không tìm thấy hàng nào chứa ID:", postId);
         return; 
     }
     
@@ -2875,7 +2870,7 @@ function loadProject(postId) {
 
     let imagesToProcess = [];
     
-    // Bóc tách Ảnh Bìa
+    // 1. Bóc tách Ảnh Bìa
     if (currentProjectPost.coverUrl) {
         let meta = {};
         try { meta = JSON.parse(currentProjectPost.coverMeta || "{}"); } catch(e){}
@@ -2891,7 +2886,7 @@ function loadProject(postId) {
         });
     }
 
-    // Bóc tách Ảnh Nội Dung
+    // 2. Bóc tách Ảnh Nội Dung
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = currentProjectPost.contentHtml || "";
     const imgs = tempDiv.querySelectorAll('img.vb-managed-image, img');
@@ -2919,12 +2914,13 @@ function loadProject(postId) {
         });
     });
 
-    console.log("Tìm thấy số lượng ảnh cần tạo page:", imagesToProcess.length);
+    if(imagesToProcess.length === 0) {
+        toast("Bài viết này không có ảnh nào!");
+        return;
+    }
     
-    // KHỞI TẠO PAGE CANVAS MỚI
-    state.pages = [];
-    state.currentPageId = null;
-    let oldSelectedIds = state.selectedIds; // Lưu lại để tránh lỗi DOM
+    // 3. KHỞI TẠO PAGE CANVAS MỚI
+    let generatedPages = [];
 
     imagesToProcess.forEach((imgData) => {
         let bgLayer = {
@@ -2943,7 +2939,7 @@ function loadProject(postId) {
         
         let newPage = {
             id: imgData.id,
-            name: imgData.name, // Đặt tên để hiện dưới Thumbnail
+            name: imgData.name, 
             role: imgData.role,
             originalImageId: imgData.originalImageId,
             page: { width: imgData.width, height: imgData.height, background: '#ffffff' },
@@ -2951,9 +2947,10 @@ function loadProject(postId) {
             groups: {},
             comments: []
         };
-        state.pages.push(newPage);
+        generatedPages.push(newPage);
         
-        allProjectsRef.child(postId).child(imgData.id).set({
+        // Kích hoạt lưu ngầm Database Realtime
+        spiderProjectsRef.child(postId).child(imgData.id).set({
             role: imgData.role,
             width: imgData.width,
             height: imgData.height,
@@ -2962,18 +2959,16 @@ function loadProject(postId) {
         });
     });
 
-    if (state.pages.length > 0) {
-        state.currentPageId = state.pages[0].id;
-        state.selectedIds = []; // Xóa chọn layer cũ để tránh lỗi xung đột canvas
-        restorePage(state.pages[0]);
+    // 4. ÁP DỤNG STATE BẰNG HÀM CHUẨN CỦA HỆ THỐNG
+    if (generatedPages.length > 0) {
+        restore({
+            pages: generatedPages,
+            currentPageId: generatedPages[0].id
+        });
     }
     
-    // Gọi hàm refresh danh sách Thumbnail ở dưới (của mã gốc Canvas)
-    if(typeof queuePagePreviewRefresh === 'function') queuePagePreviewRefresh();
-    
     renderProjectImagesGrid(imagesToProcess);
-    renderAll();
-    toast(`Đã nạp ${imagesToProcess.length} ảnh từ bài viết: ${currentProjectPost.title.substring(0, 20)}...`);
+    toast(`Đã nạp ${imagesToProcess.length} ảnh từ bài viết!`);
 }
 
 function renderProjectImagesGrid(images) {
@@ -2989,9 +2984,7 @@ function renderProjectImagesGrid(images) {
                           </div>`;
         card.style.cursor = "pointer";
         card.onclick = () => {
-            syncCurrentPageDoc();
-            switchPage(img.id);
-            renderAll();
+            switchPage(img.id); // Dùng hàm gốc của Editor để đổi tab
         };
         grid.appendChild(card);
     });
@@ -3025,7 +3018,7 @@ function scheduleProjectSync() {
             let customLayers = p.layers.filter(l => !l.isBaseImage);
             let layerStr = JSON.stringify(customLayers);
             
-            allProjectsRef.child(currentProjectPost.id).child(p.id).set({
+            spiderProjectsRef.child(currentProjectPost.id).child(p.id).set({
                 role: p.role,
                 width: p.page.width,
                 height: p.page.height,
@@ -3065,7 +3058,6 @@ function scheduleProjectSync() {
 }
 
 fetchMktData();
-// ================= HẾT V23 PATCH =================
 // ================= HẾT V23 PATCH =================
 ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
 })();
