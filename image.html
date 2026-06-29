@@ -207,31 +207,8 @@
   </section>
 
   <aside class="sidebar">
-
+    
     <nav class="sidebar-tabs" aria-label="Công cụ">
-      <div class="project-box" style="padding: 15px; border-bottom: 1px solid #e0e0e0; background: #ffffff; margin-bottom: 15px;">
-  <div class="field" style="margin-bottom: 12px;">
-    <label style="font-size: 12px; font-weight: 700; color: #01adee; display: block; margin-bottom: 6px;">
-      <i class="fa-solid fa-layer-group"></i> Chọn ID Bài Viết (Project)
-    </label>
-    <select id="projectSelector" style="width: 100%; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; font-size: 13px; background: #f9f9f9; outline: none;">
-      <option value="">-- Đang tải danh sách ID... --</option>
-    </select>
-  </div>
-  
-  <button id="newProjectBtn" style="width: 100%; padding: 8px; background: #01adee; color: #ffffff; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 6px;">
-    <i class="fa-solid fa-folder-plus"></i> Tạo Project Mới
-  </button>
-  
-  <div style="font-size: 12px; font-weight: 700; color: #333333; margin-bottom: 8px; border-top: 1px dashed #e0e0e0; padding-top: 10px;">
-    <i class="fa-solid fa-images"></i> Tổng Hợp Ảnh Hệ Thống
-  </div>
-  <div id="projectImagesMenu" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; max-height: 180px; overflow-y: auto; padding: 2px;">
-     <div class="blank-state" style="grid-column: span 2; font-size: 12px; color: #999; text-align: center; padding: 15px 0;">
-       Chưa chọn bài viết
-     </div>
-  </div>
-</div>
       <button class="tab-btn active" data-tab="customize"><i class="fa-solid fa-sliders"></i><span>Tùy chỉnh</span></button>
       <button class="tab-btn" data-tab="layers"><i class="fa-solid fa-layer-group"></i><span>Layer</span></button>
       <button class="tab-btn" data-tab="assets"><i class="fa-solid fa-shapes"></i><span>Tài nguyên</span></button>
@@ -2808,224 +2785,326 @@ allProjectsRef.on('value', snapshot => {
     if(state.currentProjectId && globalProjectsData[state.currentProjectId]) {
         syncCanvasWithProjectData(globalProjectsData[state.currentProjectId]);
     }
-});
-// =========================================================================
-// KHỞI TẠO ĐỒNG BỘ PROJECT & CƠ CHẾ NÃO NHỆN REALTIME (IMAGE.HTML)
-// =========================================================================
+    // ================= V23 PATCH: TÍCH HỢP QUẢN LÝ PROJECT VÀ ĐỒNG BỘ REALTIME =================
 
-// Đường dẫn nhận dữ liệu từ Apps Script (Dùng chung cổng với hệ thống bài viết)
-const PROJECT_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz_H_fEup0A5SgU8Psc3ZqD1v5C4hLhVdbyG8W1uCgY6I7OatS4KoxRInM_u5x3DCEF/exec"; 
-let localSheetCache = null;
-window.SpiderBrainCache = {}; // Lưu trữ ngầm toàn bộ dữ liệu giao diện các bài viết
+// 1. TẠO GIAO DIỆN TAB "DỰ ÁN" TỰ ĐỘNG
+// Đoạn này dùng DOM để tự chèn nút "Dự án" vào thanh công cụ bên trái mà không cần sửa HTML cứng.
+const projectTabBtn = document.createElement('button');
+projectTabBtn.className = 'tab-btn';
+projectTabBtn.dataset.tab = 'projects';
+projectTabBtn.innerHTML = '<i class="fa-solid fa-folder-tree"></i><span>Dự án</span>';
+document.querySelector('.sidebar-tabs').appendChild(projectTabBtn);
 
-// 1. Tự động lắng nghe và nạp dữ liệu ngầm cho TẤT CẢ Project từ Firebase (Cơ chế Não Nhện)
-const spiderBrainRef = db.ref('spider_brain/projects');
-spiderBrainRef.on('value', (snapshot) => {
-    const val = snapshot.val();
-    if (val) {
-        window.SpiderBrainCache = val;
-        console.log("Spider Brain: Đã đồng bộ ngầm toàn bộ dữ liệu giao diện các project.");
-    }
-});
+const projectPanel = document.createElement('section');
+projectPanel.className = 'tab-panel';
+projectPanel.dataset.panel = 'projects';
+projectPanel.innerHTML = `
+  <div class="panel-title-row">
+    <h2>Dự án Bài Viết</h2>
+    <button class="mini-btn primary" id="refreshProjectsBtn"><i class="fa-solid fa-sync"></i> Làm mới</button>
+  </div>
+  <div class="field" style="margin-bottom: 15px;">
+    <label>Chọn Bài Viết (Project)</label>
+    <select id="projectSelect" class="select" style="font-weight: bold; color: var(--blue);">
+        <option value="">-- Chọn Project --</option>
+    </select>
+  </div>
+  <div class="section-title"><span>Tổng hợp ảnh trong bài</span></div>
+  <div class="media-grid" id="projectImagesGrid"></div>
+`;
+document.querySelector('.sidebar-content').appendChild(projectPanel);
 
-// 2. Tải danh sách ID bài viết từ tab Bài viết_hidden của Sheet về Dropdown
-async function loadProjectListFromSheet() {
+// Lắng nghe sự kiện chuyển tab
+projectTabBtn.addEventListener('click', () => switchTab('projects'));
+
+
+// 2. BIẾN TOÀN CỤC VÀ KHỞI TẠO FIREBASE SPIDER BRAIN
+// Kết nối với Apps Script và mở nhánh spider_brain trên Firebase.
+const MKT_API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+let mktSysData = { sheets: {} };
+let currentProjectPost = null;
+
+const fbConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+if (!firebase.apps.length) firebase.initializeApp(fbConfig);
+const db = firebase.database();
+const allProjectsRef = db.ref('spider_brain/projects');
+
+
+// 3. HÀM TẢI DANH SÁCH BÀI VIẾT (LẤY TỪ CACHE HOẶC GOOGLE SHEET)
+async function fetchMktData() {
+    const btn = document.getElementById("refreshProjectsBtn");
+    if(btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang tải...';
     try {
-        const response = await fetch(PROJECT_SCRIPT_URL);
-        const json = await response.json();
-        if (json && json.sheets && json.sheets["Bài viết_hidden"]) {
-            localSheetCache = json.sheets["Bài viết_hidden"];
-            renderProjectDropdown();
+        let cached = localStorage.getItem("MKT_DATA");
+        if (cached) {
+            mktSysData = JSON.parse(cached);
+            renderProjectList();
         }
-    } catch (err) {
-        console.error("Lỗi khi tải danh sách bài viết từ Sheet:", err);
-        document.getElementById('projectSelector').innerHTML = '<option value="">Lỗi kết nối dữ liệu</option>';
+        let res = await fetch(MKT_API_URL + "?t=" + new Date().getTime());
+        let json = await res.json();
+        if (json.success) {
+            mktSysData = json.data;
+            localStorage.setItem("MKT_DATA", JSON.stringify(mktSysData));
+            renderProjectList();
+        }
+    } catch(e) {
+        console.error("Lỗi lấy dữ liệu MKT:", e);
+        toast("Ngoại tuyến: Đang dùng dữ liệu Local");
     }
+    if(btn) btn.innerHTML = '<i class="fa-solid fa-sync"></i> Làm mới';
 }
 
-function renderProjectDropdown() {
-    if (!localSheetCache) return;
-    const selector = document.getElementById('projectSelector');
-    selector.innerHTML = '<option value="">-- Chọn ID Bài Viết --</option>';
+// Trải danh sách ID bài viết vào thẻ <select>
+function renderProjectList() {
+    const select = document.getElementById("projectSelect");
+    if(!select) return;
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">-- Chọn Project (ID Bài Viết) --</option>';
+    const sheet = mktSysData.sheets && mktSysData.sheets["Bài viết_hidden"];
+    if (!sheet) return;
     
-    // Dòng 0 là tiêu đề, lấy dữ liệu từ dòng 1 trở đi
-    for (let i = 1; i < localSheetCache.length; i++) {
-        const row = localSheetCache[i];
-        const idPost = row[0]; // Cột đầu tiên luôn là ID Bài viết
-        if (idPost) {
-            selector.insertAdjacentHTML('beforeend', `<option value="${idPost}">${idPost}</option>`);
+    // Duyệt qua cột ID của Sheet (bỏ qua dòng 0 là Tiêu đề)
+    for (let i = 1; i < sheet.length; i++) {
+        let id = sheet[i][0];
+        let title = sheet[i][1] || id;
+        if (id) {
+            let opt = document.createElement("option");
+            opt.value = id;
+            opt.textContent = `[${id}] ${title.substring(0, 35)}...`;
+            select.appendChild(opt);
         }
     }
+    if (currentVal) select.value = currentVal;
 }
 
-// 3. Xử lý bóc tách ảnh, tự tạo Page Canvas tương ứng khi chọn ID bài viết
-document.getElementById('projectSelector').addEventListener('change', function(e) {
-    const selectedId = e.target.value;
-    if (!selectedId) return;
-    
-    // Tìm hàng dữ liệu tương ứng trong bộ nhớ cache của sheet
-    const headers = localSheetCache[0];
-    const coverIdx = headers.indexOf("Ảnh bìa") !== -1 ? headers.indexOf("Ảnh bìa") : 4;
-    const contentIdx = headers.indexOf("Nội Dung HTML") !== -1 ? headers.indexOf("Nội Dung HTML") : 5;
-    
-    const matchedRow = localSheetCache.find(r => r[0] === selectedId);
-    if (!matchedRow) return;
-    
-    const coverUrl = matchedRow[coverIdx];
-    const htmlBody = matchedRow[contentIdx] || "";
-    
-    // Trích xuất toàn bộ thẻ img bên trong nội dung HTML bằng DOM parser ảo
-    const extractedImages = [];
-    const parserDiv = document.createElement('div');
-    parserDiv.innerHTML = htmlBody;
-    parserDiv.querySelectorAll('img').forEach(img => {
-        if (img.src && !img.src.startsWith('data:')) {
-            extractedImages.push(img.src);
-        }
-    });
-    
-    // Tập hợp danh sách ảnh thật để nạp vào Menu Tổng Hợp Ảnh
-    const totalMediaList = [];
-    if (coverUrl && coverUrl.trim() !== "") {
-        totalMediaList.push({ type: 'cover', url: coverUrl, label: 'Ảnh Bìa Bài Viết' });
+
+// 4. THUẬT TOÁN BÓC TÁCH ẢNH VÀ NẠP VÀO CANVAS (TẠO PAGE)
+function loadProject(postId) {
+    if (!postId) return;
+    const sheet = mktSysData.sheets["Bài viết_hidden"];
+    let rowIdx = -1;
+    for (let i = 1; i < sheet.length; i++) {
+        if (sheet[i][0] === postId) { rowIdx = i; break; }
     }
-    extractedImages.forEach((src, index) => {
-        totalMediaList.push({ type: 'content', url: src, label: `Ảnh HTML Vị Trí ${index + 1}` });
-    });
+    if (rowIdx === -1) { toast("Không tìm thấy bài viết"); return; }
     
-    // Cập nhật giao diện danh sách ảnh thật ở sidebar
-    renderProjectImagesMenu(totalMediaList);
+    // Ghi nhớ thông tin Bài viết đang mở
+    currentProjectPost = {
+        rowIndex: rowIdx,
+        id: sheet[rowIdx][0],
+        title: sheet[rowIdx][1],
+        sapo: sheet[rowIdx][2],
+        coverUrl: sheet[rowIdx][3],
+        contentHtml: sheet[rowIdx][4],
+        coverMeta: sheet[rowIdx][5]
+    };
+
+    let imagesToProcess = [];
     
-    // Thiết lập hệ thống Page Canvas tương ứng số lượng ảnh
-    state.pages = [];
-    totalMediaList.forEach((media) => {
-        const pId = uid('page');
-        state.pages.push({
-            id: pId,
-            width: 1200,
-            height: 630, // Kích thước khung chuẩn mặc định
-            background: '#ffffff',
-            layers: [
-                {
-                    id: uid('layer'),
-                    type: 'image',
-                    src: media.url,
-                    x: 0, y: 0, 
-                    width: 1200, height: 630,
-                    rotation: 0, 
-                    scale: 1,
-                    filters: { contrast: 100, brightness: 100, saturate: 100 }, // Khởi tạo texture cấu hình
-                    lockMode: 'full', // Khóa nền để thao tác đè layer text/shape lên trên thuận tiện
-                    name: media.label
-                }
-            ]
+    // 4.1 Bóc tách Ảnh Bìa
+    if (currentProjectPost.coverUrl) {
+        let meta = {};
+        try { meta = JSON.parse(currentProjectPost.coverMeta || "{}"); } catch(e){}
+        imagesToProcess.push({
+            id: 'cover_' + postId,
+            role: 'cover',
+            src: currentProjectPost.coverUrl,
+            width: meta.frameState?.targetWidth || 1080,
+            height: meta.frameState?.targetHeight || 1080,
+            layers: meta.layers || [], // Khôi phục Layer nếu có
+            originalImageId: meta.imageId || 'cover'
+        });
+    }
+
+    // 4.2 Bóc tách Ảnh Nội Dung (DOM Parsing)
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = currentProjectPost.contentHtml || "";
+    const imgs = tempDiv.querySelectorAll('img.vb-managed-image, img');
+    
+    imgs.forEach((img, index) => {
+        let src = img.getAttribute('src');
+        if(!src) return;
+        let imageId = img.getAttribute('data-image-id') || ('content_' + index);
+        let layers = [];
+        
+        // Đọc data layer nhúng trong ảnh
+        try { layers = JSON.parse(img.getAttribute('data-vb-layers') || "[]"); } catch(e){}
+        
+        let w = img.width || 1080;
+        let h = img.height || 1080;
+        if(w === 0 || h === 0) { w = 1080; h = 1080; }
+
+        imagesToProcess.push({
+            id: imageId,
+            role: 'content',
+            src: src,
+            width: w,
+            height: h,
+            layers: layers,
+            originalImageId: imageId,
+            imgElement: img
         });
     });
-    
-    state.currentProjectId = selectedId;
+
+    // 4.3 Tạo Pages trong image.html từ danh sách Ảnh
+    state.pages = [];
+    state.currentPageId = null;
+
+    imagesToProcess.forEach((imgData) => {
+        // Ảnh gốc bị ép nằm ở dưới cùng và Khóa (Lock Full)
+        let bgLayer = {
+            id: uid('layer'),
+            type: 'image',
+            name: 'Ảnh Gốc Bài Viết',
+            src: imgData.src,
+            x: 0, y: 0,
+            width: imgData.width, height: imgData.height,
+            rotation: 0, scale: 1, opacity: 1, visible: true,
+            lockMode: 'full', 
+            isBaseImage: true // Cờ đánh dấu để phân biệt lúc lưu
+        };
+        
+        // Gắn ID chuẩn cho các layer con nếu trong quá khứ bị hụt
+        let parsedLayers = imgData.layers.map(l => ({...l, id: l.id || uid('layer')}));
+        
+        let newPage = {
+            id: imgData.id,
+            role: imgData.role,
+            originalImageId: imgData.originalImageId,
+            page: { width: imgData.width, height: imgData.height, background: '#ffffff' },
+            layers: [bgLayer, ...parsedLayers],
+            groups: {},
+            comments: []
+        };
+        state.pages.push(newPage);
+        
+        // [SPIDER BRAIN] - Kích hoạt lưu ngầm ngay lúc khởi tạo
+        allProjectsRef.child(postId).child(imgData.id).set({
+            role: imgData.role,
+            width: imgData.width,
+            height: imgData.height,
+            layers: parsedLayers,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+        });
+    });
+
+    // Chọn ảnh đầu tiên để hiển thị
     if (state.pages.length > 0) {
         state.currentPageId = state.pages[0].id;
+        restorePage(state.pages[0]);
     }
     
-    // Gọi các hàm render lõi của image.html để cập nhật màn hình thiết kế
-    if (typeof renderAll === 'function') renderAll();
-    if (typeof fitCanvas === 'function') fitCanvas();
-    
-    // Đẩy thông tin giao diện hiện tại lên Não Nhện Realtime
-    pushCurrentLayersToSpiderBrain();
+    renderProjectImagesGrid(imagesToProcess);
+    renderAll();
+    toast(`Đã nạp dự án: ${currentProjectPost.title.substring(0, 20)}...`);
+}
+
+// Trải lưới ảnh thu nhỏ vào Panel Project
+function renderProjectImagesGrid(images) {
+    const grid = document.getElementById("projectImagesGrid");
+    if(!grid) return;
+    grid.innerHTML = "";
+    images.forEach(img => {
+        let card = document.createElement("div");
+        card.className = "media-card";
+        card.innerHTML = `<img src="${img.src}" style="height:80px; object-fit:contain; background:#f0f0f0;">
+                          <div class="media-name" style="text-align:center; padding:5px; font-weight:bold; color: var(--blue);">
+                            ${img.role === 'cover' ? 'Ảnh Bìa' : 'Ảnh Nội Dung'}
+                          </div>`;
+        card.style.cursor = "pointer";
+        // Khi click vào Thumbnail -> Đổi Page Canvas
+        card.onclick = () => {
+            syncCurrentPageDoc();
+            switchPage(img.id);
+            renderAll();
+        };
+        grid.appendChild(card);
+    });
+}
+
+// Bắt sự kiện chọn Project từ giao diện
+document.addEventListener('change', e => {
+    if(e.target.id === "projectSelect") loadProject(e.target.value);
+});
+document.addEventListener('click', e => {
+    if(e.target.closest('#refreshProjectsBtn')) fetchMktData();
 });
 
-// Hàm hiển thị hình ảnh trực quan trong menu tổng hợp ảnh cũ và hiện tại
-function renderProjectImagesMenu(list) {
-    const container = document.getElementById('projectImagesMenu');
-    if (list.length === 0) {
-        container.innerHTML = '<div class="blank-state" style="grid-column: span 2; font-size: 12px; color: #999; text-align: center;">Bài viết chưa có hình ảnh nào</div>';
-        return;
+
+// 5. ĐỘNG CƠ LƯU ĐỒNG BỘ (HOOK VÀO HÀM COMMIT)
+// Bắt cóc hàm commit mặc định của hệ thống. Bất cứ khi nào bạn di chuyển vị trí Layer, 
+// kéo Scale, hay đổi màu, nó sẽ kích hoạt hàm lưu ngầm.
+const v23OldCommit = commit;
+commit = function(beforeState, label) {
+    v23OldCommit(beforeState, label); // Chạy hàm gốc để lưu History Undo/Redo
+    if (currentProjectPost) {
+        scheduleProjectSync();
     }
-    container.innerHTML = list.map(item => `
-        <div style="border: 1px solid #e0e0e0; border-radius: 4px; padding: 4px; background: #fff; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <img src="${item.url}" style="width: 100%; height: 50px; object-fit: cover; border-radius: 2px;" onerror="this.src='https://placehold.co/100x50?text=Lỗi+Ảnh'"/>
-            <div style="font-size: 9px; color: #666; margin-top: 3px; white-space: nowrap; overflow: hidden; text-transform: grayscale;">${item.label}</div>
-        </div>
-    `).join('');
-}
+};
 
-// 4. Đồng bộ Realtime trạng thái Layer (ID, Vị trí, Kích thước, Cấu hình Texture) lên Database ngầm
-function pushCurrentLayersToSpiderBrain() {
-    if (!state.currentProjectId) return;
-    
-    const payload = {
-        projectId: state.currentProjectId,
-        lastModified: Date.now(),
-        pages: state.pages.map(page => ({
-            id: page.id,
-            width: page.width,
-            height: page.height,
-            layers: page.layers.map(layer => ({
-                id: layer.id, // Định danh duy nhất cho từng layer (text, shape, frame, image)
-                type: layer.type,
-                name: layer.name || '',
-                x: layer.x,
-                y: layer.y,
-                width: layer.width,
-                height: layer.height,
-                rotation: layer.rotation || 0,
-                scale: layer.scale || 1,
-                filters: layer.filters || {}, // Lưu tùy chỉnh texture
-                content: layer.content || '',
-                src: layer.src || ''
-            }))
-        }))
-    };
-    
-    spiderBrainRef.child(state.currentProjectId).set(payload)
-    .catch(err => console.error("Lỗi cập nhật cấu trúc Não Nhện:", err));
-}
-
-// 5. Gắn cơ chế Auto-save ngầm vào hàm commit sự kiện của trình chỉnh sửa
-const originalCommitMethod = typeof commit === 'function' ? commit : null;
-if (originalCommitMethod) {
-    commit = function(before, label) {
-        originalCommitMethod(before, label); // Giữ nguyên chức năng quản lý lịch sử cũ
+let syncProjectTimer = null;
+function scheduleProjectSync() {
+    clearTimeout(syncProjectTimer);
+    // Debounce 2 giây: Nếu kéo thả liên tục thì khoan lưu, dừng tay 2 giây mới nén gửi đi.
+    syncProjectTimer = setTimeout(() => {
+        ensurePages();
+        syncCurrentPageDoc();
         
-        // Kích hoạt đồng bộ ngầm khi người dùng di chuyển hoặc sửa đổi layer
-        if (state.currentProjectId) {
-            clearTimeout(window.spiderDelayTimer);
-            window.spiderDelayTimer = setTimeout(() => {
-                pushCurrentLayersToSpiderBrain();
-            }, 400); // Trì hoãn 400ms để tối ưu hóa hiệu năng đường truyền dữ liệu
-        }
-    };
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = currentProjectPost.contentHtml || "";
+        let meta = {};
+        try { meta = JSON.parse(currentProjectPost.coverMeta || "{}"); } catch(e){}
+
+        state.pages.forEach(p => {
+            // Loại bỏ base ảnh gốc, chỉ lưu các Layer tự vẽ chồng lên
+            let customLayers = p.layers.filter(l => !l.isBaseImage);
+            let layerStr = JSON.stringify(customLayers);
+            
+            // 5.1 Bơm dữ liệu tươi lên Firebase (Tự hiển thị nếu có máy tính khác đang xem)
+            allProjectsRef.child(currentProjectPost.id).child(p.id).set({
+                role: p.role,
+                width: p.page.width,
+                height: p.page.height,
+                layers: customLayers,
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+            });
+
+            // 5.2 Nhúng dữ liệu Layer dạng Text vào HTML cấu trúc của bài viết
+            if (p.role === 'cover') {
+                meta.layers = customLayers;
+                currentProjectPost.coverMeta = JSON.stringify(meta);
+            } else if (p.role === 'content') {
+                let img = tempDiv.querySelector(`img[data-image-id="${p.originalImageId}"]`);
+                if (img) {
+                    img.setAttribute('data-vb-layers', layerStr);
+                }
+            }
+        });
+        
+        currentProjectPost.contentHtml = tempDiv.innerHTML;
+        
+        // 5.3 Đóng gói và Xả thẳng về Google Sheet (Bài viết_hidden)
+        let queue = [
+            { type: 'SYNC_CELL', row: currentProjectPost.rowIndex + 1, col: 5, val: currentProjectPost.contentHtml, tab: "Bài viết_hidden" },
+            { type: 'SYNC_CELL', row: currentProjectPost.rowIndex + 1, col: 6, val: currentProjectPost.coverMeta, tab: "Bài viết_hidden" }
+        ];
+        
+        fetch(MKT_API_URL, {
+            method: "POST",
+            body: JSON.stringify(queue),
+            headers: { "Content-Type": "text/plain;charset=utf-8" }
+        }).then(res => res.json()).then(res => {
+            if(res.success) {
+                console.log(`[Spider Brain] Cập nhật Layer về Sheet thành công - Bài viết: ${currentProjectPost.id}`);
+            }
+        }).catch(err => console.error("Lỗi đồng bộ Layer:", err));
+        
+    }, 2000); 
 }
 
-// Xử lý sự kiện khi click nút tạo project mới
-document.getElementById('newProjectBtn').addEventListener('click', function() {
-    const newId = prompt("Nhập ID Bài viết mới để khởi tạo Project:");
-    if (newId && newId.trim() !== "") {
-        const selector = document.getElementById('projectSelector');
-        const opt = document.createElement('option');
-        opt.value = newId.trim();
-        opt.textContent = newId.trim();
-        selector.appendChild(opt);
-        selector.value = newId.trim();
-        
-        // Tạo trang trắng ban đầu cho project mới
-        state.pages = [{
-            id: uid('page'),
-            width: 1200, height: 630,
-            background: '#ffffff',
-            layers: []
-        }];
-        state.currentProjectId = newId.trim();
-        state.currentPageId = state.pages[0].id;
-        if (typeof renderAll === 'function') renderAll();
-        renderProjectImagesMenu([]);
-        pushCurrentLayersToSpiderBrain();
-    }
+// Mồi gọi API tự động ở lần nạp đầu tiên
+fetchMktData();
 });
-
-// Tự động kích hoạt tải danh sách khi load trang image.html
-loadProjectListFromSheet();
 </script>
 
 </body>
