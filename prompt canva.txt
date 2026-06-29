@@ -1,0 +1,13 @@
+https://gemini.google.com/share/d/1wunaMtRg066ZxXb-PoQNB1S8noskwAOS?usp=sharing
+
+sửa image.html thêm phần chọn Project và tạo project mới 
+với danh sách project lấy từ bài viết_hidden, mỗi page cavas trong project đó là từng ảnh đang có trong Ảnh Bìa, Nội Dung HTML của id bài viết trong bài viết_hidden, thêm tab menu tổng hợp toàn bộ ảnh cũ và ảnh hiện tại trong mỗi id bài viết , 
+thêm chức năng tạo mới elements như shape svg , frame , html.
+lưu các elements đó về sheet Canva elements_hideen và cập nhật vào elements trên giao diện.
+thêm chức năng lưu url ảnh tải lên trong tab panel tải lên của image.html vào share drive https://drive.google.com/drive/folders/1JOMYxGCnoj4nhVaV37EDwPuq4dKcUiCL?usp=sharing và hiển thị lại bằng url googleuser.
+
+khi chọn các text, elements shape, frame, html image, đặt vào canvas thành layer image, layer text, layer shape, layer frame, layer image, thì từng layer đều phải có id riêng, mỗi layer đều phải được lưu vị trí , kích thước, tùy chỉnh tuxture và scale trong page cavas, và nội dung html trong post.html sẽ lưu thông tin những layer này để thay đổi cập nhật realtime cho các ảnh trong bài viết_hidden (giống như hiện tại đang lưu width, height, tỷ lệ, scale, metadata của các ảnh trong nội dung HTML).
+
+Dùng cơ chế não nhện và database realtime cho image.html để nạp dữ liệu giao diện ngầm cho từng project bài viết ngay cả khi không mở chọn project của bài viết đó.
+
+nói chi tiết từng dòng code, từng đoạn cần thay trong các file

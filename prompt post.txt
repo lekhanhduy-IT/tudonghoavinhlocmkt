@@ -1,0 +1,36 @@
+sửa post.html
+
+Hiện tại đang dùng cơ chế realtime, 
+
+sửa dụng camera DOM, để mọi thiết bị tài khoản truy cập đều thấy được thao tác của nhau, nhưng hiện tại nó bị một số vấn đề.
+
+1. 1 tài khoản google truy cập nhiều tab trong cùng một thiết bị hoặc 1 tài khoản truy cập nhiều thiết bị đều bị đẻ ra avatar riêng (tôi muốn 1 tài khoản bất kể truy cập từ đâu thì cũng chỉ có một avatar và 1 chuột realtime. 2 tài khoản cùng mở trên một máy phải là 2 chuột riêng)
+
+2. Khi một tài khoản đang thực hiện chỉnh sửa hoặc nhập mới nội dung vào giao diện thì tài khoản vào sau không sử dụng màn hình hiện tài đang chỉnh sửa mà lại mở bài viết theo kiểu tải mới dẫn đến bài viết bị đưa về nguyên trạng như lúc mới mở và các thao tác của tài khoản vào trước đều bị xóa sạch.
+
+
+Tôi muốn trang Post.html là một canvas tổng thể cho tất cả tài khoản google truy cập (không dùng theo thiết bị nữa mà là dựa theo thiết bị mà tài khoản đó truy cập vào, ví dụ 1 tài khoản truy cập từ nhiều tab trên một trình duyệt hoặc truy cập trên nhiều trình duyệt nhưng cùng một thiết bị hay 1 tài khoản truy cập trên nhiều thiết bị thì chỉ cần định danh tài khoản đó là 1 duy nhất để chỉ hiện một avatar và một con trỏ chuột cho tài khoản đó.)
+
+Tất cả tài khoản vào sau ở trong cùng một bài viết thì phải kế thừa màn hình canvas tổng hiện tại của các tài khoản trước đang chỉnh sửa chứ không mở bài viết theo kiểu tải mới. (tài khoản A vào trước thực hiện mở bài viết theo màn hình lần cuối trước khi tất cả tài khoản thoát hết khỏi bài viết và trạng thái bài viết phải là 'Chưa lưu'
+
+Sau đó tài khoản B vào sau thì sẽ thấy được tài khoản A đang chỉnh sửa giao diện chứ không phải mở giao diện gốc từ sheet, tài khoản B sẽ cùng thực hiện chỉnh sửa giao diện chung với tài khoản A, 
+Tiếp tục tài khoản C vào sau sẽ thấy tài khoản A và B đang chỉnh sửa giao diện và tiếp tục chỉnh sửa chung realtime với A và B.
+
+nếu tất cả các máy hoặc tài khoản đều thoát hết khỏi bài viết và thoát khỏi hệ thống hoàn toàn (đóng hết tab , đăng xuất hoặc là xóa cả lịch sử duyệt web) thì màn hình chỉnh sửa lần cuối đó phải được lưu lại trên data base realtime firebase để lần sau mở lại sẽ không bị mất dữ liệu đã chỉnh sửa.
+ dữ liệu kế hoạch _PLAN_DATA_ cũng phải mở theo đúng post ID, 
+
+nút lưu bài viết sẽ tự động lưu vào dữ liệu vào sheet khi không còn tài khoản nào ở trong bài viết
+
+Phải áp dụng cơ chế này cho tất cả
+        loadGoogleFontsFromSheet(sysData);
+        loadEmojisFromSheet(sysData);
+        loadTemplatesFromSheet(sysData);
+        prewarmPostImagesFromBrain(sysData);
+        renderImageLibraries();
+        và _PLAN_DATA_
+
+VỚI CƠ CHẾ NÀY MÀN HÌNH SẼ LÀ NƠI HIỆN THỊ DỮ LIỆU CHÍNH, KHÔNG THỰC HIỆN LẤY DỮ LIỆU TỪ SHEET HIỆN LÊN GIAO DIỆN NỮA, SHEET BÂY GIỜ CHỈ LÀ NƠI LƯU TRỮ.
+
+LƯU Ý CON TRỎ CHUỘT REALTIME PHẢI HIỆN ĐÚNG VỊ TRÍ TÀI KHOẢN A ĐNG NHẬP HOẶC ĐANG TRỎ NGAY CẢ KHI HAI MÀN HÌNH KHÁC KÍCH THƯỚC KHÁC ĐỘ ZOOM,
+
+AVATAR TẢI KHOẢN VÀO TRƯỚC PHẢI HIỆN NGAY KHI TÀI KHOẢN VÀO SAU TRUY CẬP. TRÁNH TRƯỜNG HỢP TÀI KHOẢN VÀO SAU CHỈ THẤY MỖI AVATAR CỦA MÌNH PHẢI LOAD LẠI TRANG MỚI THẤY ĐƯỢC AVATAR TÀI KHOẢN VÀO TRƯỚC.OpenAI Platform 

@@ -5657,7 +5657,18 @@ async function downloadActiveImageWithMetadata() {
             });
         };
     }
-
+// Bổ sung lắng nghe cập nhật Canva Sync từ image.html
+const imageProjectRef = db.ref('spider_brain/image_projects');
+imageProjectRef.on('child_changed', (snapshot) => {
+    const data = snapshot.val();
+    if (data && data.canvasSyncTimestamp && currentPostId === snapshot.key) {
+        console.log("Spider Brain: Nhận lệnh render lại ảnh từ Canva Mode");
+        // Gọi hàm tự động lấy Data mới nhất từ Google Sheets / Local
+        setTimeout(() => {
+            forceFetchData(); // Hàm của bạn đã viết sẵn để reload nội dung
+        }, 1500); // Chờ Apps Script ghi xong cell
+    }
+});
     // --- HÀM BẢO TOÀN VỊ TRÍ CON TRỎ (Caret Preservation) ---
     function getCaretCharacterOffsetWithin(el) {
         let caretOffset = 0;
