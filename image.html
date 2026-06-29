@@ -2843,6 +2843,23 @@ function renderProjectList() {
     };
 }
 
+// HÀM TRỢ THỦ: Rửa link Google Drive để lách luật CORS của Canvas
+function getSafeImageUrl(url) {
+    if (!url) return "";
+    if (url.includes("/api/drive-image")) return url;
+    
+    const patterns = [
+        /\/d\/([a-zA-Z0-9_-]{10,})/,
+        /[?&]id=([a-zA-Z0-9_-]{10,})/,
+        /\/thumbnail\?id=([a-zA-Z0-9_-]{10,})/
+    ];
+    for (const pattern of patterns) {
+        const m = url.match(pattern);
+        if (m && m[1]) return "/api/drive-image?id=" + m[1]; // Bọc Proxy API
+    }
+    return url; // Nếu không phải link Drive, giữ nguyên
+}
+
 function loadProject(postId) {
     if (!postId) return;
     
@@ -2870,7 +2887,7 @@ function loadProject(postId) {
 
     let imagesToProcess = [];
     
-    // 1. Bóc tách Ảnh Bìa
+    // 1. Bóc tách Ảnh Bìa (Đã bọc Proxy)
     if (currentProjectPost.coverUrl) {
         let meta = {};
         try { meta = JSON.parse(currentProjectPost.coverMeta || "{}"); } catch(e){}
@@ -2878,7 +2895,7 @@ function loadProject(postId) {
             id: 'cover_' + postId,
             name: 'Ảnh Bìa',
             role: 'cover',
-            src: currentProjectPost.coverUrl,
+            src: getSafeImageUrl(currentProjectPost.coverUrl), // <--- VÁ LỖI CẤM HIỂN THỊ
             width: meta.frameState?.targetWidth || 1080,
             height: meta.frameState?.targetHeight || 1080,
             layers: meta.layers || [],
@@ -2886,7 +2903,7 @@ function loadProject(postId) {
         });
     }
 
-    // 2. Bóc tách Ảnh Nội Dung
+    // 2. Bóc tách Ảnh Nội Dung (Đã bọc Proxy)
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = currentProjectPost.contentHtml || "";
     const imgs = tempDiv.querySelectorAll('img.vb-managed-image, img');
@@ -2894,6 +2911,9 @@ function loadProject(postId) {
     imgs.forEach((img, index) => {
         let src = img.getAttribute('src');
         if(!src) return;
+        
+        src = getSafeImageUrl(src); // <--- VÁ LỖI CẤM HIỂN THỊ
+        
         let imageId = img.getAttribute('data-image-id') || ('content_' + index);
         let layers = [];
         try { layers = JSON.parse(img.getAttribute('data-vb-layers') || "[]"); } catch(e){}
@@ -2905,7 +2925,7 @@ function loadProject(postId) {
             id: imageId,
             name: `Ảnh nội dung ${index + 1}`,
             role: 'content',
-            src: src,
+            src: src, 
             width: w,
             height: h,
             layers: layers,
@@ -2927,7 +2947,7 @@ function loadProject(postId) {
             id: uid('layer'),
             type: 'image',
             name: 'Ảnh Gốc Bài Viết',
-            src: imgData.src,
+            src: imgData.src, // Đã được mã hóa an toàn
             x: 0, y: 0,
             width: imgData.width, height: imgData.height,
             rotation: 0, scale: 1, opacity: 1, visible: true,
