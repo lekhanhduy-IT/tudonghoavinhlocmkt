@@ -5624,28 +5624,45 @@ spiderBrainProjectRef.on('value', snapshot => {
     if (!data) return;
     
     let hasVisualChanges = false;
+
+    // Helper tạo CSS Filter
+    function getCollabCssFilter(f) {
+        if (!f) return 'none';
+        const brightness = Math.min(250, Math.max(10, 100 + (f.exposure||0)*0.75 + (f.shadows||0)*0.18 + (f.highlights||0)*0.08));
+        const contrast = Math.min(250, Math.max(10, 100 + (f.contrast||0) + (f.clarity||0)*0.22 + (f.sharpen||0)*0.1 - (f.highlights||0)*0.06));
+        const sat = Math.min(300, Math.max(0, 100 + (f.saturation||0)));
+        const sepia = Math.abs(f.temperature||0) * 0.18;
+        const hue = (f.temperature||0) * 0.22 + (f.tint||0) * 0.36;
+        const blur = (f.denoise||0) * 0.008;
+        return `brightness(${brightness}%) contrast(${contrast}%) saturate(${sat}%) sepia(${sepia}%) hue-rotate(${hue}deg) blur(${blur}px)`;
+    }
     
     for (let imageId in data) {
         let imgData = data[imageId];
         let imgEl = document.querySelector(`img[data-image-id="${imageId}"]`);
         
         if (imgEl && imgData.layers) {
-            // 1. Cập nhật ngầm danh sách Layer
             imgEl.setAttribute('data-vb-layers', JSON.stringify(imgData.layers));
+
+            // [SỬA LỖI]: Áp dụng Texture cho ảnh gốc nền
+            if (imgData.baseFilters) {
+                imgEl.setAttribute('data-vb-base-filters', JSON.stringify(imgData.baseFilters));
+                imgEl.style.filter = getCollabCssFilter(imgData.baseFilters);
+            } else {
+                imgEl.removeAttribute('data-vb-base-filters');
+                imgEl.style.filter = 'none';
+            }
             
             let frame = imgEl.closest('.vb-image-frame');
             if (frame) {
-                // 2. Chỉnh Box Size chuẩn của Base
                 frame.dataset.targetWidth = imgData.width;
                 frame.dataset.targetHeight = imgData.height;
                 frame.style.aspectRatio = `${imgData.width} / ${imgData.height}`;
-                frame.style.position = 'relative'; // Anchor gốc cho lớp layer
+                frame.style.position = 'relative';
                 
-                // 3. Quét bỏ lớp Layer cũ (nếu có)
                 let oldLayer = frame.querySelector('.vb-spider-layers');
                 if (oldLayer) oldLayer.remove();
                 
-                // 4. Sinh ra lớp Layer HTML đè lên
                 if (imgData.layers.length > 0) {
                     let container = document.createElement('div');
                     container.className = 'vb-spider-layers';
@@ -5681,12 +5698,13 @@ spiderBrainProjectRef.on('value', snapshot => {
                         } else if (layer.type === 'image') {
                             el.src = layer.src;
                             el.style.objectFit = 'contain';
+                            // [SỬA LỖI]: Áp dụng Texture cho Layer ảnh con
+                            el.style.filter = getCollabCssFilter(layer.filters);
                         } else if (layer.type === 'shape') {
                             el.style.backgroundColor = layer.fill || '#000';
                         }
                         container.appendChild(el);
                     });
-                    // Chèn khối bọc các Layer HTML ngay sát sau bức ảnh gốc
                     imgEl.insertAdjacentElement('afterend', container);
                 }
                 hasVisualChanges = true;
@@ -5694,7 +5712,6 @@ spiderBrainProjectRef.on('value', snapshot => {
         }
     }
     
-    // Đánh dấu đỏ để người dùng biết đã có cập nhật và bấm Lưu bài
     if (hasVisualChanges && typeof markImageDirty === 'function') {
         markImageDirty(true);
     }

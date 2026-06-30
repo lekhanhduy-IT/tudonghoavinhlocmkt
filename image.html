@@ -2917,9 +2917,27 @@ function loadProject(postId) {
         let imageId = img.getAttribute('data-image-id') || ('content_' + index);
         let layers = [];
         try { layers = JSON.parse(img.getAttribute('data-vb-layers') || "[]"); } catch(e){}
-        let w = img.width || 1080;
-        let h = img.height || 1080;
-        if(w === 0 || h === 0) { w = 1080; h = 1080; }
+// Ưu tiên lấy kích thước thực từ data-target-width của khung bao
+let frame = img.closest('.vb-image-frame');
+let w = frame ? parseFloat(frame.getAttribute('data-target-width')) : 0;
+let h = frame ? parseFloat(frame.getAttribute('data-target-height')) : 0;
+
+// Fallback: Lấy từ metadata nếu khung bao chưa có
+if (!w || !h) {
+    try {
+        let meta = JSON.parse(img.getAttribute('data-vb-meta') || "{}");
+        if (meta.frameState) {
+            w = meta.frameState.targetWidth;
+            h = meta.frameState.targetHeight;
+        }
+    } catch(e) {}
+}
+
+// Nếu vẫn không có, fallback về 1080
+if (!w || !h || w === 0 || h === 0) {
+    w = img.width || 1080;
+    h = img.height || 1080;
+}
 
         imagesToProcess.push({
             id: imageId,
@@ -3025,6 +3043,18 @@ commit = function(beforeState, label) {
 
 // Hàm chuyển đổi Layer Canvas thành Thẻ HTML & CSS tuyệt đối (Responsive %)
 function buildHtmlLayerOverlay(imgData) {
+    // 1. Khai báo hàm helper dịch thông số filter sang CSS
+    function getExportCssFilter(f) {
+        if (!f) return 'none';
+        const brightness = Math.min(250, Math.max(10, 100 + (f.exposure||0)*0.75 + (f.shadows||0)*0.18 + (f.highlights||0)*0.08));
+        const contrast = Math.min(250, Math.max(10, 100 + (f.contrast||0) + (f.clarity||0)*0.22 + (f.sharpen||0)*0.1 - (f.highlights||0)*0.06));
+        const sat = Math.min(300, Math.max(0, 100 + (f.saturation||0)));
+        const sepia = Math.abs(f.temperature||0) * 0.18;
+        const hue = (f.temperature||0) * 0.22 + (f.tint||0) * 0.36;
+        const blur = (f.denoise||0) * 0.008;
+        return `brightness(${brightness}%) contrast(${contrast}%) saturate(${sat}%) sepia(${sepia}%) hue-rotate(${hue}deg) blur(${blur}px)`;
+    }
+
     if(!imgData.layers || imgData.layers.length === 0) return "";
     let html = `<div class="vb-spider-layers" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; container-type: size;">`;
     
@@ -3048,7 +3078,8 @@ function buildHtmlLayerOverlay(imgData) {
             style += `color: ${layer.fill || '#000'}; font-family: '${layer.fontFamily || 'sans-serif'}'; font-size: ${(layer.fontSize / imgData.width * 100)}cqw; line-height: ${layer.lineHeight || 1.2}; text-align: ${layer.textAlign || 'left'}; white-space: pre-wrap;`;
             html += `<div style="${style}">${(layer.text || '').replace(/\n/g, '<br>')}</div>`;
         } else if(layer.type === 'image') {
-            style += `object-fit: contain;`;
+            // [SỬA Ở ĐÂY]: Thêm CSS filter cho layer ảnh
+            style += `object-fit: contain; filter: ${getExportCssFilter(layer.filters)};`;
             html += `<img src="${layer.src}" style="${style}">`;
         } else if(layer.type === 'shape') {
             style += `background-color: ${layer.fill || '#000'};`;
@@ -3073,28 +3104,43 @@ function scheduleProjectSync() {
 
         state.pages.forEach(p => {
             let customLayers = p.layers.filter(l => !l.isBaseImage);
+            let baseLayer = p.layers.find(l => l.isBaseImage); // Lấy ảnh nền gốc
             let layerStr = JSON.stringify(customLayers);
             
-            // Đẩy dữ liệu cấu trúc lên Realtime Database (KHÔNG dùng Base64 ảnh tĩnh)
+            // Đẩy dữ liệu cấu trúc lên Realtime Database (Thêm baseFilters)
             let payload = {
                 role: p.role, width: p.page.width, height: p.page.height,
-                layers: customLayers, updatedAt: firebase.database.ServerValue.TIMESTAMP
+                layers: customLayers, 
+                baseFilters: baseLayer ? baseLayer.filters : null, // Truyền texture gốc
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
             };
             spiderProjectsRef.child(currentProjectPost.id).child(p.id).update(payload);
 
             if (p.role === 'cover') {
                 meta.layers = customLayers;
+                if(baseLayer) meta.baseFilters = baseLayer.filters;
                 currentProjectPost.coverMeta = JSON.stringify(meta);
             } else if (p.role === 'content') {
                 let img = tempDiv.querySelector(`img[data-image-id="${p.originalImageId}"]`);
                 if (img) {
                     img.setAttribute('data-vb-layers', layerStr);
+                    
+                    // Áp dụng bộ lọc cho thẻ img gốc
+                    if(baseLayer && baseLayer.filters) {
+                        img.setAttribute('data-vb-base-filters', JSON.stringify(baseLayer.filters));
+                        // Gọi helper để nhúng style cứng vào HTML
+                        const getInlineFilter = f => `brightness(${Math.min(250, Math.max(10, 100 + (f.exposure||0)*0.75 + (f.shadows||0)*0.18 + (f.highlights||0)*0.08))}%) contrast(${Math.min(250, Math.max(10, 100 + (f.contrast||0) + (f.clarity||0)*0.22 + (f.sharpen||0)*0.1 - (f.highlights||0)*0.06))}%) saturate(${Math.min(300, Math.max(0, 100 + (f.saturation||0)))}%) sepia(${Math.abs(f.temperature||0) * 0.18}%) hue-rotate(${(f.temperature||0) * 0.22 + (f.tint||0) * 0.36}deg) blur(${(f.denoise||0) * 0.008}px)`;
+                        img.style.filter = getInlineFilter(baseLayer.filters);
+                    } else {
+                        img.removeAttribute('data-vb-base-filters');
+                        img.style.filter = 'none';
+                    }
+
                     let frame = img.closest('.vb-image-frame');
                     if (frame) {
-                        frame.style.position = 'relative'; // Bắt buộc để bọc layer
+                        frame.style.position = 'relative'; 
                         let oldLayer = frame.querySelector('.vb-spider-layers');
                         if (oldLayer) oldLayer.remove();
-                        // Chèn khối Layer HTML vào ngay bên dưới thẻ <img gốc>
                         let overlayHtml = buildHtmlLayerOverlay({ width: p.page.width, height: p.page.height, layers: customLayers });
                         img.insertAdjacentHTML('afterend', overlayHtml);
                     }
