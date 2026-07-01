@@ -192,8 +192,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR
         let activeCanvasIndex = 0; 
 
 
-
-        // DÙNG PROXY CÔNG KHAI ĐỂ VƯỢT LỖI BẢO MẬT CANVAS (Không lo lỗi 404 nữa)
+// DÙNG PROXY CÔNG KHAI ĐỂ VƯỢT LỖI BẢO MẬT CANVAS
         function formatSecureUrl(url) {
             if (!url) return "";
             let driveId = extractDriveId(url);
