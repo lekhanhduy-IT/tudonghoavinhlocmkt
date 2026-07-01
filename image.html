@@ -184,22 +184,14 @@
     </div>
 
 <script>
-        const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
         const POST_IMAGE_SHARED_DRIVE_FOLDER_ID = "11ad-tiEWqSeJdm0kv_q-_b2x0qWD9b6b"; 
-        
-        // TỰ ĐỘNG ĐỊNH VỊ: Thay link Vercel thật của bạn vào đây để khi chạy thử ở máy tính vẫn không bị lỗi ảnh
-        const VERCEL_PRODUCTION_URL = "https://mkt-spider-system.vercel.app"; 
-
-        const PROXY_BASE = (window.location.hostname === "localhost" || window.location.protocol === "file:") 
-            ? VERCEL_PRODUCTION_URL 
-            : "";
-        const DRIVE_IMAGE_PROXY_ENDPOINT = PROXY_BASE + "/api/drive-image?id=";
         
         let systemData = null;
         let canvases = [];
         let activeCanvasIndex = 0; 
 
-        // Hàm vạn năng bóc tách ID từ mọi cấu trúc link Google Drive công khai/nội bộ
+        // Hàm bóc tách ID của Google Drive
         function extractDriveId(url) {
             if (!url) return "";
             if (url.includes("id=")) {
@@ -207,6 +199,17 @@
             }
             let match = url.match(/[-\w]{25,}/);
             return match ? match[0] : "";
+        }
+
+        // DÙNG PROXY CÔNG KHAI ĐỂ VƯỢT LỖI BẢO MẬT CANVAS (Không lo lỗi 404 nữa)
+        function formatSecureUrl(url) {
+            if (!url) return "";
+            let driveId = extractDriveId(url);
+            if (driveId) {
+                let rawDriveUrl = "https://drive.google.com/uc?id=" + driveId;
+                return "https://api.allorigins.win/raw?url=" + encodeURIComponent(rawDriveUrl);
+            }
+            return url; 
         }
 
         // Chuyển đổi link thường thành link an toàn để Canvas xử lý không dính lỗi CORS
