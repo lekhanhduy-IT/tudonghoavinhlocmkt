@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-    <script src="https://apis.google.com/js/api.js"></script>
+   
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <meta charset="UTF-8">
@@ -6451,25 +6451,30 @@ let pickerApiLoaded = false;
 gapi.load('picker', {'callback': () => { pickerApiLoaded = true; }});
 
 // Mở Giao diện Drive chỉ khóa trong thư mục của bạn
+// Thay thế hàm mở Drive chọn Layer bằng quy trình Tab phụ không lỗi
 function openLayerDrivePicker() {
     if (!vbActiveImage) return alert("Vui lòng chọn một ảnh nền trước khi thêm Layer!");
-    if (!pickerApiLoaded) return alert("Google Picker API chưa tải xong, vui lòng thử lại sau vài giây.");
+    
+    // Mở thẳng thư mục Shared Drive gốc của bạn trên một tab riêng cố định
+    window.open("https://drive.google.com/drive/folders/1JOMYxGCnoj4nhVaV37EDwPuq4dKcUiCL", "googleDriveLayerWindow");
+    
+    setTimeout(() => {
+        window.focus();
+    }, 10);
 
-    // Nếu chưa có OAuth token, bạn sẽ cần logic gapi.auth2 hoặc gapi.client
-    // Dưới đây là khung chuẩn của Picker
-    const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
-        .setParent(LAYER_FOLDER_ID)
-        .setIncludeFolders(true)
-        .setSelectFolderEnabled(false) // Chỉ cho chọn File, không cho chọn Folder
-        .setMimeTypes('image/png,image/jpeg,image/webp,image/svg+xml');
-
-    const picker = new google.picker.PickerBuilder()
-        .addView(view)
-        .setDeveloperKey(DEVELOPER_KEY)
-        .setCallback(pickerCallback)
-        .setTitle("Chọn ảnh Layer")
-        .build();
-    picker.setVisible(true);
+    // Hiển thị hộp thoại nhắc nhở thông minh ngay tại trang soạn thảo
+    vbShowPrompt("Thư mục Shared Drive chứa các Layer đã được mở ở Tab bên cạnh.<br>Hãy chọn thư mục con, tìm ảnh bạn muốn, <b>sao chép liên kết chia sẻ (Copy link)</b> của ảnh đó rồi dán vào đây:", url => {
+        if (url) {
+            // Hàm xử lý link tĩnh tráo đổi link tự động của bạn
+            const fileId = extractDriveFileId(url.trim());
+            if (fileId) {
+                const finalImgUrl = canonicalDriveImageUrl(fileId);
+                addLayerToActiveImage(finalImgUrl);
+            } else {
+                addLayerToActiveImage(url.trim());
+            }
+        }
+    });
 }
 
 function pickerCallback(data) {
