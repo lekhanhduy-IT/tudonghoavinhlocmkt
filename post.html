@@ -5359,7 +5359,15 @@ allImages.forEach((img, index) => {
 function serializeEditorContentForSheet() {
     const clone = document.getElementById("postContent").cloneNode(true);
     clone.querySelectorAll(".vb-image-frame").forEach(frame => frame.classList.remove("vb-image-active", "vb-crop-dragging"));
- clone.querySelectorAll(".vb-selected-cell").forEach(cell => cell.classList.remove("vb-selected-cell"));
+    clone.querySelectorAll(".vb-selected-cell").forEach(cell => cell.classList.remove("vb-selected-cell"));
+    
+    // --- VÀ LỖI LAYER: Xóa bỏ bộ nút điều khiển rác và trạng thái active trước khi lưu ---
+    clone.querySelectorAll(".vb-layer-item").forEach(layer => {
+        layer.classList.remove("active");
+        const controls = layer.querySelector(".vb-layer-controls");
+        if (controls) controls.remove();
+    });
+
     clone.querySelectorAll("img").forEach(img => {
         const driveUrl = img.dataset.driveUrl || normalizeDriveUrlForSheet(img.getAttribute("src") || "");
         img.setAttribute("src", driveUrl);
