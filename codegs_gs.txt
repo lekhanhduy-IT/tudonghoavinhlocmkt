@@ -3,6 +3,32 @@ const POST_IMAGE_ARCHIVE_FOLDER_ID = "11ad-tiEWqSeJdm0kv_q-_b2x0qWD9b6b";
 
 
 function doGet(e) {
+  // Thêm đoạn chặn xử lý này lên ĐẦU hàm doGet
+  if (e && e.parameter && e.parameter.action === 'get_canva_elements') {
+    try {
+      var folderId = "11ad-tiEWqSeJdm0kv_q-_b2x0qWD9b6b"; // Thư mục chứa Canva Elements của bạn
+      var folder = DriveApp.getFolderById(folderId);
+      var files = folder.getFiles();
+      var list = [];
+      
+      while (files.hasNext()) {
+        var file = files.next();
+        var mime = file.getMimeType();
+        // Chỉ lấy các tệp tin định dạng hình ảnh
+        if (mime.indexOf("image/") !== -1) {
+          list.push({
+            id: file.getId(),
+            name: file.getName(),
+            // Trả về link trực tiếp có quyền xem công khai công nghệ của Google
+            url: "https://drive.google.com/uc?id=" + file.getId()
+          });
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, files: list })).setMimeType(ContentService.MimeType.JSON);
+    } catch(err) {
+      return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.toString() })).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
   // Nếu có tham số ?action=get_admins, chỉ trả về danh sách email
   if (e && e.parameter && e.parameter.action === 'get_admins') {
     var props = PropertiesService.getScriptProperties();
@@ -30,9 +56,7 @@ function doPost(e) {
     else if (payload && payload.action === "UPLOAD_POST_IMAGES") {
       result = uploadPostImagesToSharedDrive(payload);
     }
-    else if (payload && payload.action === "UPLOAD_CANVA_IMAGE") {
-      result = uploadCanvaImageToDrive(payload);
-    }
+    
     else {
       result = { success: false, error: "Unsupported action" };
     }
@@ -372,44 +396,4 @@ function TEST_SHARED_DRIVE_WRITE() {
 }
 function testQuyenDayNay() {
   UrlFetchApp.fetch("https://google.com");
-}
-// =========================================================
-// LƯU ẢNH TRỰC TIẾP TỪ IMAGE.HTML VÀO DRIVE CỐ ĐỊNH
-// =========================================================
-function uploadCanvaImageToDrive(payload) {
-  // Thay đúng ID Shared Drive bạn yêu cầu
-  var FOLDER_ID = "1JOMYxGCnoj4nhVaV37EDwPuq4dKcUiCL"; 
-  var folder = DriveApp.getFolderById(FOLDER_ID);
-  
-  var blob = buildImageBlobFromSource_(payload.source, payload.fileName, payload.mimeType);
-  var file = folder.createFile(blob);
-  
-  try {
-    // Mở quyền truy cập để có thể xem trực tiếp qua URL googleusercontent
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  } catch(e) {}
-  
-  var fileId = file.getId();
-  return {
-    success: true,
-    fileId: fileId,
-    driveUrl: "https://drive.googleusercontent.com/uc?id=" + fileId + "&export=download"
-  };
-}
-
-// =========================================================
-// LƯU ELEMENT TÙY CHỈNH VÀO SHEET CANVA
-// =========================================================
-function saveCanvaElement(payload) {
-  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-  var sheet = ss.getSheetByName("Canva elements_hidden");
-  
-  // Tự động tạo Sheet nếu chưa tồn tại
-  if (!sheet) {
-    sheet = ss.insertSheet("Canva elements_hidden");
-    sheet.appendRow(["ID", "Type", "Name", "Content"]);
-  }
-  
-  sheet.appendRow([payload.id, payload.type, payload.name, payload.content]);
-  return { success: true };
 }

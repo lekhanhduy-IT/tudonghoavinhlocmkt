@@ -226,11 +226,15 @@
                 let res = await fetch(API_URL);
                 systemData = await res.json();
                 
-                let postSheet = null;
-                if (systemData.sheets) {
-                    postSheet = systemData.sheets["Bài viết_hidden"] || systemData.sheets["Bài viết"];
-                } else {
-                    postSheet = systemData["Bài viết_hidden"] || systemData["Bài viết"];
+let postSheet = null;
+                
+                // Lục tung đúng cái hộp 'data' mà file .gs đã bọc
+                if (systemData.data && systemData.data.sheets) {
+                    postSheet = systemData.data.sheets["Bài viết_hidden"];
+                } else if (systemData.sheets) {
+                    postSheet = systemData.sheets["Bài viết_hidden"];
+                } else if (systemData["Bài viết_hidden"]) {
+                    postSheet = systemData["Bài viết_hidden"];
                 }
                 
                 if (postSheet && postSheet.length > 1) {
