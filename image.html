@@ -191,6 +191,7 @@
         let canvases = [];
         let activeCanvasIndex = 0; 
 
+        // Hàm bóc ID ảnh Drive
         function extractDriveId(url) {
             if (!url) return "";
             if (url.includes("id=")) return new URLSearchParams(url.split('?')[1]).get('id') || "";
@@ -198,14 +199,17 @@
             return match ? match[0] : "";
         }
 
-        // HÀM PROXY MỚI: Chỉ can thiệp link Drive, bỏ qua ảnh Base64 tải từ máy tính
-        function formatSecureUrl(url) {
+        // HÀM ÉP LINK SANG DẠNG GOOGLEUSERCONTENT (LH3) SIÊU ĐỈNH CỦA BẠN
+        function getGoogleUserContentUrl(url) {
             if (!url) return "";
-            if (url.startsWith("data:")) return url; 
+            if (url.startsWith("data:") || url.includes("googleusercontent.com")) return url; 
             
             let driveId = extractDriveId(url);
-            let rawUrl = driveId ? "https://drive.google.com/uc?id=" + driveId : url;
-            return "https://corsproxy.io/?" + encodeURIComponent(rawUrl);
+            if (driveId) {
+                // Thêm sz=w2000 để Google trả về ảnh chất lượng cao (không bị mờ)
+                return "https://drive.google.com/thumbnail?id=" + driveId + "&sz=w2000";
+            }
+            return url; 
         }
 
         window.onload = async () => {
@@ -297,7 +301,7 @@
             renderUploadsTab(images); 
         });
 
-        // 1. VẼ CANVAS - BẮT BUỘC DÙNG PROXY
+        // 1. VẼ CANVAS 
         function renderProjectCanvases(imageUrls) {
             const container = document.getElementById("canvasArea");
             container.innerHTML = "";
@@ -324,20 +328,20 @@
                     preserveObjectStacking: true, selection: true
                 });
 
-                let secureUrl = formatSecureUrl(url);
-                let imgOptions = url.startsWith('data:') ? {} : { crossOrigin: 'anonymous' };
+                // Chuyển link sang dạng lh3.googleusercontent
+                let finalUrl = getGoogleUserContentUrl(url);
+                let imgOptions = finalUrl.startsWith('data:') ? {} : { crossOrigin: 'anonymous' };
 
-                fabric.Image.fromURL(secureUrl, function(img) {
-                    if(!img) {
-                        console.warn("Proxy 1 lỗi, tự động kích hoạt Proxy 2...");
-                        let backupUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://drive.google.com/uc?id=" + extractDriveId(url));
-                        fabric.Image.fromURL(backupUrl, function(backupImg) {
-                            if(!backupImg) return;
-                            setupCanvasBg(fabricCanvas, backupImg);
-                        }, { crossOrigin: 'anonymous' });
-                        return;
-                    }
-                    setupCanvasBg(fabricCanvas, img);
+                fabric.Image.fromURL(finalUrl, function(img) {
+                    if(!img) { console.error("Không load được ảnh:", finalUrl); return; }
+                    
+                    let scale = 1;
+                    if (img.width > 800) scale = 800 / img.width;
+                    fabricCanvas.setWidth(img.width * scale);
+                    fabricCanvas.setHeight(img.height * scale);
+                    img.set({ originX: 'left', originY: 'top', scaleX: scale, scaleY: scale });
+                    
+                    fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
                 }, imgOptions);
 
                 fabricCanvas.on('mouse:down', function() {
@@ -349,30 +353,21 @@
             activeCanvasIndex = 0; 
         }
 
-        function setupCanvasBg(fabricCanvas, img) {
-            let scale = 1;
-            if (img.width > 800) scale = 800 / img.width;
-            fabricCanvas.setWidth(img.width * scale);
-            fabricCanvas.setHeight(img.height * scale);
-            img.set({ originX: 'left', originY: 'top', scaleX: scale, scaleY: scale });
-            fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
-        }
-
-        // 2. TAB TẢI LÊN - HIỂN THỊ LINK GỐC (Tránh lỗi vỡ ảnh giao diện)
+        // 2. TAB TẢI LÊN 
         function renderUploadsTab(imageUrls) {
             const tab = document.getElementById("tab-uploads");
             tab.innerHTML = "";
             imageUrls.forEach(url => {
+                let finalUrl = getGoogleUserContentUrl(url);
                 let img = document.createElement("img");
-                let driveId = extractDriveId(url);
-                img.src = driveId ? "https://drive.google.com/uc?id=" + driveId : url; // Ảnh gốc
+                img.src = finalUrl; 
                 img.className = "asset-item";
-                img.onclick = () => addLayerToActiveCanvas(url); // Chỉ chạy proxy khi ấn chèn layer
+                img.onclick = () => addLayerToActiveCanvas(finalUrl); 
                 tab.appendChild(img);
             });
         }
 
-        // 3. TAB ELEMENTS - HIỂN THỊ LINK GỐC
+        // 3. TAB ELEMENTS 
         async function loadElementsTab() {
             try {
                 let res = await fetch(API_URL + "?action=get_canva_elements");
@@ -381,10 +376,11 @@
                     const tab = document.getElementById("tab-elements");
                     tab.innerHTML = "";
                     data.files.forEach(file => {
+                        let finalUrl = getGoogleUserContentUrl(file.url);
                         let img = document.createElement("img");
-                        img.src = file.url; // Ảnh gốc
+                        img.src = finalUrl; 
                         img.className = "asset-item";
-                        img.onclick = () => addLayerToActiveCanvas(file.url);
+                        img.onclick = () => addLayerToActiveCanvas(finalUrl);
                         tab.appendChild(img);
                     });
                 }
@@ -393,42 +389,29 @@
             }
         }
 
-        // 4. CHÈN LAYER LÊN CANVAS - KÍCH HOẠT PROXY
+        // 4. CHÈN LAYER LÊN CANVAS 
         function addLayerToActiveCanvas(rawUrl) {
             if (canvases.length === 0) {
                 alert("Hãy lựa chọn một bài viết trước!");
                 return;
             }
             let activeCanvas = canvases[activeCanvasIndex];
-            let secureUrl = formatSecureUrl(rawUrl);
+            let finalUrl = getGoogleUserContentUrl(rawUrl);
+            let imgOptions = finalUrl.startsWith('data:') ? {} : { crossOrigin: 'anonymous' };
             
-            // Xóa rào cản CORS với ảnh tải lên từ thiết bị (base64)
-            let imgOptions = secureUrl.startsWith('data:') ? {} : { crossOrigin: 'anonymous' };
-            
-            fabric.Image.fromURL(secureUrl, function(img) {
-                if(!img) {
-                     let backupUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://drive.google.com/uc?id=" + extractDriveId(rawUrl));
-                     fabric.Image.fromURL(backupUrl, function(backupImg) {
-                         if(!backupImg) return;
-                         setupLayer(activeCanvas, backupImg);
-                     }, { crossOrigin: 'anonymous' });
-                     return;
+            fabric.Image.fromURL(finalUrl, function(img) {
+                if(!img) return;
+                if (img.width > activeCanvas.width / 2) {
+                    img.scaleToWidth(activeCanvas.width / 2);
                 }
-                setupLayer(activeCanvas, img);
+                img.set({
+                    left: 50, top: 50, cornerColor: '#01adee', cornerStrokeColor: '#01adee', 
+                    borderColor: '#01adee', cornerSize: 8, transparentCorners: false
+                });
+                activeCanvas.add(img);
+                activeCanvas.setActiveObject(img);
+                activeCanvas.renderAll();
             }, imgOptions);
-        }
-
-        function setupLayer(activeCanvas, img) {
-            if (img.width > activeCanvas.width / 2) {
-                img.scaleToWidth(activeCanvas.width / 2);
-            }
-            img.set({
-                left: 50, top: 50, cornerColor: '#01adee', cornerStrokeColor: '#01adee', 
-                borderColor: '#01adee', cornerSize: 8, transparentCorners: false
-            });
-            activeCanvas.add(img);
-            activeCanvas.setActiveObject(img);
-            activeCanvas.renderAll();
         }
 
         // 5. NÚT UPLOAD TỪ MÁY TÍNH
@@ -439,7 +422,7 @@
             let reader = new FileReader();
             reader.onload = async function(f) {
                 let base64 = f.target.result;
-                addLayerToActiveCanvas(base64); // Chèn vào canvas siêu mượt
+                addLayerToActiveCanvas(base64); 
                 
                 let newAsset = document.createElement("img");
                 newAsset.src = base64;
