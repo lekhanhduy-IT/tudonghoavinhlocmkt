@@ -1090,17 +1090,18 @@
 </div>
 <div class="toolbar">
   <div style="display: flex; align-items: center; gap: 10px;">
-    <button class="tool-btn" onclick="togglePanelVB('left')"><i class="fas fa-bars"></i> Dữ liệu</button>
-    <span style="font-weight: bold; color: var(--blue); font-size: 14px; margin-left: 5px;"><i class="fas fa-edit"></i> Trình Soạn Thảo Blog</span>
+    <button class="tool-btn" onclick="togglePanelVB('left')">
+      <i class="fas fa-bars"></i> Dữ liệu </button>
+    <span style="font-weight: bold; color: var(--blue); font-size: 14px; margin-left: 5px;">
+      <i class="fas fa-edit"></i> Trình Soạn Thảo Blog </span>
   </div>
-
-  <div id="collabAvatarList" class="collab-avatars-bar">
-     </div>
-
+  <div id="collabAvatarList" class="collab-avatars-bar"></div>
   <div style="display: flex; align-items: center;">
     <span id="syncStatusVB" style="font-size: 11px; font-weight: bold; margin-right: 15px; color: #27ae60;">✅ Đã đồng bộ</span>
-    <button class="tool-btn" onclick="togglePanelVB('right')" style="margin-right: 10px;"><i class="fas fa-toolbox"></i> Công cụ</button>
-    <button class="tool-btn save-btn" onclick="savePostToSheet()"><i class="fas fa-save"></i> Lưu bài viết</button>
+    <button class="tool-btn" onclick="togglePanelVB('right')" style="margin-right: 10px;">
+      <i class="fas fa-toolbox"></i> Công cụ </button>
+    <button class="tool-btn save-btn" onclick="savePostToSheet()">
+      <i class="fas fa-save"></i> Lưu bài viết </button>
   </div>
 </div>
 <div class="workspace" id="workspaceArea">
@@ -1114,22 +1115,13 @@
     </div>
   </div>
   <div class="panel-resizer"></div>
-<div class="main-editor-area" id="mainEditorArea">
-
-  <div class="editor-container" id="editorContainer" style="position: relative;">
-
-    <div id="collab-cursors-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 99999; overflow: hidden;"></div>
+  <div class="main-editor-area" id="mainEditorArea">
+    <div class="editor-container" id="editorContainer" style="position: relative;">
+      <div id="collab-cursors-layer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 99999; overflow: hidden;"></div>
       <h1 class="rich-input" contenteditable="true" id="postTitle" data-placeholder="Nhập Tiêu đề bài viết tại đây..."></h1>
       <div class="rich-input" contenteditable="true" id="postSapo" data-placeholder="Nhập Sapo (Đoạn tóm tắt) tại đây..."></div>
       <div class="cover-area" id="coverArea">
-        <div
-          id="coverEditor"
-          class="cover-rich-editor"
-          contenteditable="true"
-          spellcheck="false"
-          data-placeholder="Dán ảnh bìa, thả ảnh hoặc dán URL ảnh bìa vào đây..."
-          aria-label="Ảnh bìa bài viết"
-        ></div>
+        <div id="coverEditor" class="cover-rich-editor" contenteditable="true" spellcheck="false" data-placeholder="Dán ảnh bìa, thả ảnh hoặc dán URL ảnh bìa vào đây..." aria-label="Ảnh bìa bài viết"></div>
       </div>
       <div class="rich-input" contenteditable="true" id="postContent" data-placeholder="Soạn thảo nội dung chi tiết bài viết..."></div>
     </div>
@@ -1187,13 +1179,11 @@
             <i class="far fa-smile"></i>
           </button>
           <button class="fmt-btn" onmousedown="event.preventDefault(); formatDoc('insertUnorderedList')" title="Danh sách dạng chấm (Bullet)">
-    <i class="fas fa-list-ul"></i>
-</button>
-
-<button class="fmt-btn" onmousedown="event.preventDefault(); insertHyperlink()" title="Gắn Link URL">
-    <i class="fas fa-link"></i>
-</button>
-
+            <i class="fas fa-list-ul"></i>
+          </button>
+          <button class="fmt-btn" onmousedown="event.preventDefault(); insertHyperlink()" title="Gắn Link URL">
+            <i class="fas fa-link"></i>
+          </button>
           <div class="tool-dropdown-wrapper">
             <button class="fmt-btn" onmousedown="event.preventDefault(); openToolPopup('popupNumList', this)" title="Number List">123 ▾</button>
             <div class="vb-mini-popup" id="popupNumList">
@@ -1243,8 +1233,7 @@
           </div>
           <div class="tool-dropdown-wrapper vb-image-dropdown">
             <button class="fmt-btn" onmousedown="event.preventDefault(); openImageToolPopup(this)" title="Chèn hình ảnh">
-              <i class="fas fa-image" style="color:#01adee;"></i> ▾
-            </button>
+              <i class="fas fa-image" style="color:#01adee;"></i> ▾ </button>
           </div>
         </div>
         <div class="tool-row">
@@ -1316,7 +1305,8 @@
         </div>
         <div class="tool-row" style="margin-top:10px;">
           <input type="text" id="newFontLink" class="tool-input" placeholder="Dán thẻ 
-														<link> của Google Font">
+														
+													<link> của Google Font">
         </div>
         <button class="tool-btn" style="width:100%; justify-content:center;" onclick="applyGoogleFontFromLink()">
           <i class="fas fa-font"></i> Nạp & Áp dụng Font </button>
@@ -1350,7 +1340,8 @@
     </div>
   </div>
   <button id="vbModeToggleBtn" class="vb-mode-btn" onclick="toggleVietbaiMode()">
-        <i class="fas fa-eye"></i> <span>Xem trước</span>
+    <i class="fas fa-eye"></i>
+    <span>Xem trước</span>
   </button>
 </div>
 <div class="popup-menu" id="emojiMenu">
@@ -1439,37 +1430,34 @@
     <input type="color" oninput="miniApplyCellBgRealtime(this.value)" style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
   </div>
   <div class="word-mini-divider"></div>
-        <button class="word-mini-btn" onmousedown="event.preventDefault(); formatDoc('removeFormat')" title="Xóa định dạng">
-            <i class="fas fa-eraser"></i>
-        </button>
+  <button class="word-mini-btn" onmousedown="event.preventDefault(); formatDoc('removeFormat')" title="Xóa định dạng">
+    <i class="fas fa-eraser"></i>
+  </button>
   <div class="tool-dropdown-wrapper vb-image-dropdown" style="width: auto;">
     <button class="word-mini-btn" type="button" title="Chèn hình ảnh" onclick="openImageToolPopup(this)">
-      <i class="fas fa-image" style="color:#01adee;"></i>▾
-    </button>
-<div class="vb-mini-popup" id="popupMiniImage" style="min-width: 220px; top:auto; bottom:100%; margin-bottom:5px;">
-<div class="popup-item" onmousedown="event.preventDefault(); chooseImageSource('upload')">
-  <i class="fas fa-upload" style="color:#01adee;"></i> Upload
-</div>
+      <i class="fas fa-image" style="color:#01adee;"></i>▾ </button>
+    <div class="vb-mini-popup" id="popupMiniImage" style="min-width: 220px; top:auto; bottom:100%; margin-bottom:5px;">
+      <div class="popup-item" onmousedown="event.preventDefault(); chooseImageSource('upload')">
+        <i class="fas fa-upload" style="color:#01adee;"></i> Upload
+      </div>
       <div class="popup-item" onclick="chooseImageSource('drive')">
         <i class="fab fa-google-drive" style="color:#34a853;"></i> Drive
       </div>
       <div class="popup-item" onclick="chooseImageSource('url')">
         <i class="fas fa-link" style="color:#db1010;"></i> URL
       </div>
-      
       <div style="height: 1px; background: #eee; margin: 5px 0;"></div>
       <div style="padding: 5px 10px; display: flex; flex-direction: column; gap: 5px;">
         <div style="font-size: 11px; font-weight: bold; color: var(--blue);">Thêm Thư viện:</div>
         <div style="display: flex; gap: 4px; align-items: center;">
-            <input type="text" id="vbLibName" placeholder="Tên..." class="tool-input" style="width: 35%;" onclick="event.stopPropagation()">
-            <input type="text" id="vbLibUrl" placeholder="Link..." class="tool-input" style="flex: 1;" onclick="event.stopPropagation()">
-            <button class="tool-btn" style="padding: 4px 6px;" onclick="saveImageLibrary(event)" title="Lưu thư viện">
-                <i class="fas fa-check" style="color: #27ae60;"></i>
-            </button>
+          <input type="text" id="vbLibName" placeholder="Tên..." class="tool-input" style="width: 35%;" onclick="event.stopPropagation()">
+          <input type="text" id="vbLibUrl" placeholder="Link..." class="tool-input" style="flex: 1;" onclick="event.stopPropagation()">
+          <button class="tool-btn" style="padding: 4px 6px;" onclick="saveImageLibrary(event)" title="Lưu thư viện">
+            <i class="fas fa-check" style="color: #27ae60;"></i>
+          </button>
         </div>
       </div>
       <div style="height: 1px; background: #eee; margin: 5px 0;"></div>
-      
       <div id="vbLibraryListContainer" style="max-height: 150px; overflow-y: auto;"></div>
     </div>
   </div>
@@ -1487,45 +1475,51 @@
       <div class="popup-item" onclick="miniApplyBorders('none')">
         <i class="fas fa-border-none" style="color:#999;"></i> Bỏ viền
       </div>
-    </div> 
+    </div>
   </div>
-
 </div>
 <!--wordMiniToolbar-->
 <input id="vbImageFileInput" type="file" accept="image/*" multiple hidden>
 <div class="modal-overlay" id="vbImagePopupOverlay" style="z-index:100120;">
   <div class="vb-image-popup-box" role="dialog" aria-modal="true" aria-labelledby="vbImagePopupTitle">
     <div class="vb-image-popup-head">
-      <span id="vbImagePopupTitle"><i class="fas fa-image"></i> Thông tin ảnh</span>
+      <span id="vbImagePopupTitle">
+        <i class="fas fa-image"></i> Thông tin ảnh </span>
       <div class="vb-image-head-actions">
         <button type="button" class="tool-btn" style="height: 26px; padding: 0 10px; margin-right: 5px; background: #eef9fd; border: 1px solid #01adee; color: #01adee;" onclick="openLayerDrivePicker()" title="Thêm Layer từ Drive">
-         <i class="fas fa-layer-group"></i> Thêm Layer
+          <i class="fas fa-layer-group"></i> Thêm Layer </button>
+        <button type="button" class="vb-image-head-icon-btn" id="vbImageUndoBtn" title="Hoàn tác (Ctrl+Z)" onclick="imageHistoryUndo()" disabled>
+          <i class="fas fa-undo"></i>
         </button>
-        <button type="button" class="vb-image-head-icon-btn" id="vbImageUndoBtn" title="Hoàn tác (Ctrl+Z)" onclick="imageHistoryUndo()" disabled><i class="fas fa-undo"></i></button>
-        <button type="button" class="vb-image-head-icon-btn" id="vbImageRedoBtn" title="Làm lại (Ctrl+Y)" onclick="imageHistoryRedo()" disabled><i class="fas fa-redo"></i></button>
-        <button type="button" class="vb-image-head-icon-btn" title="Đóng" onclick="closeImageProperties()"><i class="fas fa-times" style="color:var(--red);"></i></button>
+        <button type="button" class="vb-image-head-icon-btn" id="vbImageRedoBtn" title="Làm lại (Ctrl+Y)" onclick="imageHistoryRedo()" disabled>
+          <i class="fas fa-redo"></i>
+        </button>
+        <button type="button" class="vb-image-head-icon-btn" title="Đóng" onclick="closeImageProperties()">
+          <i class="fas fa-times" style="color:var(--red);"></i>
+        </button>
       </div>
     </div>
-    
     <div class="vb-image-popup-body">
-      
       <div class="vb-popup-left-preview">
         <div class="vb-preview-canvas">
-            <div class="vb-preview-white-box top"></div>
-            <div class="vb-preview-image-wrapper">
-                <div id="vbPreviewFrame" class="vb-preview-frame">
-                    <img id="vbPreviewImg" src="" draggable="false">
-                </div>
+          <div class="vb-preview-white-box top"></div>
+          <div class="vb-preview-image-wrapper">
+            <div id="vbPreviewFrame" class="vb-preview-frame">
+              <img id="vbPreviewImg" src="" draggable="false">
             </div>
-            <div class="vb-preview-white-box bottom"></div>
+          </div>
+          <div class="vb-preview-white-box bottom"></div>
         </div>
         <div class="vb-preview-nav">
-            <button class="vb-nav-btn" onclick="vbNavigatePopupImage(-1)"><i class="fas fa-chevron-left"></i></button>
-            <span id="vbPreviewCounter">Ảnh 1 / 1</span>
-            <button class="vb-nav-btn" onclick="vbNavigatePopupImage(1)"><i class="fas fa-chevron-right"></i></button>
+          <button class="vb-nav-btn" onclick="vbNavigatePopupImage(-1)">
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          <span id="vbPreviewCounter">Ảnh 1 / 1</span>
+          <button class="vb-nav-btn" onclick="vbNavigatePopupImage(1)">
+            <i class="fas fa-chevron-right"></i>
+          </button>
         </div>
       </div>
-
       <div class="vb-popup-right-form">
         <div class="vb-image-prop-grid">
           <div class="vb-image-field">
@@ -1545,60 +1539,97 @@
             </div>
           </div>
           <div class="vb-image-field">
-             <label>Scale (%)</label>
-             <div style="display:flex; align-items:center; gap:5px; border: .5px solid var(--gray-border); border-radius: 3px; background: #fff;">
-               <input type="number" min="1" max="100" id="vbScalePercent" placeholder="100" title="% chiều rộng so với bài viết" style="border:none; width:100%;">
-               <span style="padding-right:8px; color:#666; font-weight:bold;">%</span>
-             </div>
+            <label>Scale (%)</label>
+            <div style="display:flex; align-items:center; gap:5px; border: .5px solid var(--gray-border); border-radius: 3px; background: #fff;">
+              <input type="number" min="1" max="100" id="vbScalePercent" placeholder="100" title="% chiều rộng so với bài viết" style="border:none; width:100%;">
+              <span style="padding-right:8px; color:#666; font-weight:bold;">%</span>
+            </div>
           </div>
-          
           <div class="vb-image-field">
-             <label style="display:flex; align-items:center; gap:5px; cursor:pointer; color:var(--blue); font-size:12px;">
-                 <input type="checkbox" id="vbSyncAllCheckbox"> 
-                  Đồng bộ
-             </label>
+            <label style="display:flex; align-items:center; gap:5px; cursor:pointer; color:var(--blue); font-size:12px;">
+              <input type="checkbox" id="vbSyncAllCheckbox"> Đồng bộ </label>
           </div>
           <div class="vb-image-field full">
             <label>URL ảnh</label>
             <input type="text" id="vbImgUrl" placeholder="https:// hoặc data:image/...">
           </div>
-
         </div>
-
         <div style="font-size:12px;font-weight:700;color:var(--blue);margin:5px 0 6px;">Metadata ảnh</div>
         <div class="vb-metadata-sheet-wrap">
-           <table class="vb-metadata-table" id="vbMetadataTable" tabindex="0">
-              <thead>
-                <tr>
-                  <th class="vb-meta-left-head vb-meta-column-head" data-meta-col-select="0">
-                    <button type="button" id="vbMetaLabelLockBtn" class="vb-meta-lock-btn" onclick="event.preventDefault();event.stopPropagation();toggleMetadataLabelLock()" title="Mở khóa cột tiêu đề"><i class="fas fa-lock"></i></button>
-                    <span>Trường metadata</span>
-                  </th>
-                  <th class="vb-meta-column-head" data-meta-col-select="1">Giá trị</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="fileName">File name</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="fileName"></td></tr>
-                <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="altText">Alt text</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="altText"></td></tr>
-                <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="caption">Caption</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="caption"></td></tr>
-                <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="title">Title (IPTC)</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="title"></td></tr>
-                <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="description">Description (IPTC)</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="description"></td></tr>
-                <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="author">Author</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="author"></td></tr>
-                <tr><th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="copyright">Copy right</th><td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="copyright"></td></tr>
-              </tbody>
-            </table>
+          <table class="vb-metadata-table" id="vbMetadataTable" tabindex="0">
+            <thead>
+              <tr>
+                <th class="vb-meta-left-head vb-meta-column-head" data-meta-col-select="0">
+                  <button type="button" id="vbMetaLabelLockBtn" class="vb-meta-lock-btn" onclick="event.preventDefault();event.stopPropagation();toggleMetadataLabelLock()" title="Mở khóa cột tiêu đề">
+                    <i class="fas fa-lock"></i>
+                  </button>
+                  <span>Trường metadata</span>
+                </th>
+                <th class="vb-meta-column-head" data-meta-col-select="1">Giá trị</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="fileName">File name</th>
+                <td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="fileName"></td>
+              </tr>
+              <tr>
+                <th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="altText">Alt text</th>
+                <td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="altText"></td>
+              </tr>
+              <tr>
+                <th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="caption">Caption</th>
+                <td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="caption"></td>
+              </tr>
+              <tr>
+                <th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="title">Title (IPTC)</th>
+                <td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="title"></td>
+              </tr>
+              <tr>
+                <th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="description">Description (IPTC)</th>
+                <td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="description"></td>
+              </tr>
+              <tr>
+                <th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="author">Author</th>
+                <td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="author"></td>
+              </tr>
+              <tr>
+                <th class="vb-meta-cell vb-meta-label" tabindex="0" contenteditable="false" data-meta-label-key="copyright">Copy right</th>
+                <td class="vb-meta-cell vb-meta-value" tabindex="0" contenteditable="true" data-meta-key="copyright"></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
         <div class="vb-meta-help">Kéo chuột để chọn vùng ô...</div>
-
         <div class="vb-image-upload-status" id="vbImageUploadStatus"></div>
-
         <div class="vb-image-actions" style="margin-top: auto;">
-          <button class="tool-btn save-btn" onclick="applyImageProperties()"><i class="fas fa-check"></i> Cập nhật</button>
-          <button class="tool-btn" onclick="copyActiveImage(false)"><i class="fas fa-copy"></i> Sao chép</button>
-          <button class="tool-btn danger" onclick="deleteActiveImage()"><i class="fas fa-trash"></i> Xóa</button>
-          <button class="tool-btn" onclick="downloadActiveImageWithMetadata()"><i class="fas fa-download"></i> Tải xuống</button>
-          <button class="tool-btn" onclick="closeImageProperties()"><i class="fas fa-times"></i> Hủy</button>
+          <button class="tool-btn save-btn" onclick="applyImageProperties()">
+            <i class="fas fa-check"></i> Cập nhật </button>
+          <button class="tool-btn" onclick="copyActiveImage(false)">
+            <i class="fas fa-copy"></i> Sao chép </button>
+          <button class="tool-btn danger" onclick="deleteActiveImage()">
+            <i class="fas fa-trash"></i> Xóa </button>
+          <button class="tool-btn" onclick="downloadActiveImageWithMetadata()">
+            <i class="fas fa-download"></i> Tải xuống </button>
+          <button class="tool-btn" onclick="closeImageProperties()">
+            <i class="fas fa-times"></i> Hủy </button>
         </div>
+        <div id="vbLayerBrowserPanel" style="display: none; position: absolute; inset: 0; background: #ffffff; z-index: 100; flex-direction: column; padding: 15px; border-left: 1px solid #e0e0e0; box-sizing: border-box;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 2px solid #01adee; padding-bottom: 8px;">
+          <h3 style="margin: 0; color: #01adee; font-size: 15px; display: flex; align-items: center; gap: 6px;"><i class="fas fa-layer-group"></i> Duyệt Thư Mục Layer</h3>
+          <button type="button" onclick="closeLayerBrowserPanel()" style="background: none; border: none; cursor: pointer; color: #666; font-size: 16px; padding: 0 4px;"><i class="fas fa-times"></i></button>
+      </div>
+      
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; background: #f5f5f5; padding: 6px 10px; border-radius: 4px; font-size: 13px; box-sizing: border-box;">
+          <button type="button" id="vbLayerBackBtn" onclick="navigateLayerFolderUp()" style="display: none; align-items: center; gap: 4px; padding: 3px 8px; background: #ffffff; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; font-size: 12px; font-weight: bold;"><i class="fas fa-arrow-left"></i> Lui</button>
+          <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #555; flex: 1;">
+              <i class="fas fa-folder-open" style="color: #f39c12;"></i> <span id="vbLayerCurrentPath">Gốc</span>
+          </div>
+      </div>
+      
+      <div id="vbLayerBrowserContent" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding-right: 4px;">
+          </div>
+  </div>
       </div>
     </div>
   </div>
@@ -1765,7 +1796,6 @@
     </div>
   </div>
 </div>
-
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
 const POST_IMAGE_SHARED_DRIVE_FOLDER_ID = "11ad-tiEWqSeJdm0kv_q-_b2x0qWD9b6b";
@@ -6452,29 +6482,153 @@ gapi.load('picker', {'callback': () => { pickerApiLoaded = true; }});
 
 // Mở Giao diện Drive chỉ khóa trong thư mục của bạn
 // Thay thế hàm mở Drive chọn Layer bằng quy trình Tab phụ không lỗi
+/* =========================================================
+   HỆ THỐNG NATIVE DRIVE BROWSER ENGINE CHO LAYER PANEL
+========================================================= */
+const LAYER_ROOT_FOLDER_ID = "1JOMYxGCnoj4nhVaV37EDwPuq4dKcUiCL";
+let layerCurrentFolderId = LAYER_ROOT_FOLDER_ID;
+let layerParentFolderId = null;
+
+// Kích hoạt mở giao diện duyệt thư mục Layer đè lên vùng bên phải popup ảnh
 function openLayerDrivePicker() {
     if (!vbActiveImage) return alert("Vui lòng chọn một ảnh nền trước khi thêm Layer!");
     
-    // Mở thẳng thư mục Shared Drive gốc của bạn trên một tab riêng cố định
-    window.open("https://drive.google.com/drive/folders/1JOMYxGCnoj4nhVaV37EDwPuq4dKcUiCL", "googleDriveLayerWindow");
+    // Ép khối cha bên phải popup có position relative để lớp đè absolute căn chuẩn góc
+    const rightPanel = document.querySelector('.vb-image-popup-right');
+    if (rightPanel) {
+        rightPanel.style.position = 'relative';
+    }
     
-    setTimeout(() => {
-        window.focus();
-    }, 10);
+    const panel = document.getElementById('vbLayerBrowserPanel');
+    if (panel) {
+        panel.style.display = 'flex';
+        // Tải cây thư mục bắt đầu từ thư mục gốc được chỉ định
+        loadLayerFolder(LAYER_ROOT_FOLDER_ID);
+    }
+}
 
-    // Hiển thị hộp thoại nhắc nhở thông minh ngay tại trang soạn thảo
-    vbShowPrompt("Thư mục Shared Drive chứa các Layer đã được mở ở Tab bên cạnh.<br>Hãy chọn thư mục con, tìm ảnh bạn muốn, <b>sao chép liên kết chia sẻ (Copy link)</b> của ảnh đó rồi dán vào đây:", url => {
-        if (url) {
-            // Hàm xử lý link tĩnh tráo đổi link tự động của bạn
-            const fileId = extractDriveFileId(url.trim());
-            if (fileId) {
-                const finalImgUrl = canonicalDriveImageUrl(fileId);
-                addLayerToActiveImage(finalImgUrl);
-            } else {
-                addLayerToActiveImage(url.trim());
+// Đóng bảng duyệt, hiển thị lại bảng nhập kích thước và metadata mặc định
+function closeLayerBrowserPanel() {
+    const panel = document.getElementById('vbLayerBrowserPanel');
+    if (panel) panel.style.display = 'none';
+}
+
+// Gọi API quét dữ liệu từ Google Drive thông qua Apps Script và render HTML
+function loadLayerFolder(folderId) {
+    const contentContainer = document.getElementById('vbLayerBrowserContent');
+    const pathSpan = document.getElementById('vbLayerCurrentPath');
+    const backBtn = document.getElementById('vbLayerBackBtn');
+    
+    if (!contentContainer) return;
+    
+    // Hiển thị trạng thái đang tải dữ liệu trực quan
+    contentContainer.innerHTML = `
+        <div style="text-align: center; color: #888; padding: 40px 0; font-size: 13px;">
+            <i class="fas fa-spinner fa-spin" style="font-size: 22px; margin-bottom: 10px; color: #01adee;"></i><br>
+            Đang đọc dữ liệu từ Shared Drive...
+        </div>`;
+    
+    // Gọi API động theo cơ chế proxy của hệ thống Vercel hiện tại của bạn
+    let apiUrl = `/?action=list_layer_folder&folderId=${folderId}`;
+    
+    fetch(apiUrl)
+        .then(res => res.json())
+        .then(res => {
+            if (!res.success) {
+                contentContainer.innerHTML = `<div style="text-align: center; color: #db1010; padding: 20px 0; font-size: 13px;"><i class="fas fa-exclamation-circle"></i> Lỗi: ${res.error || 'Không thể đọc thư mục'}</div>`;
+                return;
             }
-        }
-    });
+            
+            const data = res.data;
+            layerCurrentFolderId = data.currentFolderId;
+            layerParentFolderId = data.parentFolderId;
+            
+            // Hiển thị tên thư mục đang đứng lên thanh điều hướng
+            pathSpan.textContent = data.currentFolderName;
+            
+            // Xử lý ẩn hiện nút Quay Lại (Nếu đang ở thư mục gốc thì không cho lùi ra ngoài nữa)
+            if (folderId === LAYER_ROOT_FOLDER_ID || !layerParentFolderId) {
+                backBtn.style.display = 'none';
+            } else {
+                backBtn.style.display = 'inline-flex';
+            }
+            
+            let html = '';
+            
+            // 1. Render danh sách các THƯ MỤC CON dạng thanh dài dễ bấm
+            if (data.folders && data.folders.length > 0) {
+                data.folders.forEach(f => {
+                    html += `
+                        <div onclick="loadLayerFolder('${f.id}')" style="display: flex; align-items: center; padding: 8px 10px; background: #ffffff; border: 1px solid #e0e0e0; border-radius: 4px; cursor: pointer; transition: all 0.2s; gap: 10px; box-sizing: border-box;" onmouseover="this.style.background='#f0f9ff'; this.style.borderColor='#01adee';" onmouseout="this.style.background='#ffffff'; this.style.borderColor='#e0e0e0';">
+                            <i class="fas fa-folder" style="color: #f39c12; font-size: 16px;"></i>
+                            <span style="font-size: 13px; color: #333; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${f.name}</span>
+                            <i class="fas fa-chevron-right" style="color: #ccc; font-size: 11px;"></i>
+                        </div>
+                    `;
+                });
+            }
+            
+            // 2. Render danh sách các FILE ẢNH LAYER dưới dạng Grid Lưới thu nhỏ (Thumbnail) trực quan
+            if (data.files && data.files.length > 0) {
+                html += `<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 5px; box-sizing: border-box;">`;
+                data.files.forEach(file => {
+                    // Chuyển đổi ID thành link hiển thị ảnh sạch sẽ
+                    let thumbnailSrc = `https://drive.google.com/uc?id=${file.id}&export=download`;
+                    if (typeof canonicalDriveImageUrl === 'function') {
+                        thumbnailSrc = canonicalDriveImageUrl(file.id);
+                    }
+                    
+                    html += `
+                        <div onclick="selectLayerFile('${file.id}')" style="background: #ffffff; border: 1px solid #e0e0e0; border-radius: 6px; padding: 6px; cursor: pointer; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 6px; box-sizing: border-box;" onmouseover="this.style.borderColor='#01adee'; this.style.boxShadow='0 2px 6px rgba(1,173,238,0.15)';" onmouseout="this.style.borderColor='#e0e0e0'; this.style.boxShadow='none';">
+                            <div style="width: 100%; aspect-ratio: 1/1; border-radius: 4px; overflow: hidden; background: #f9f9f9; display: flex; align-items: center; justify-content: center;">
+                                <img src="${thumbnailSrc}" style="max-width: 100%; max-height: 100%; object-fit: contain;" loading="lazy">
+                            </div>
+                            <span style="font-size: 11px; color: #555; text-align: center; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; box-sizing: border-box;" title="${file.name}">${file.name}</span>
+                        </div>
+                    `;
+                });
+                html += `</div>`;
+            }
+            
+            // Trường hợp thư mục trống hoàn toàn
+            if ((!data.folders || data.folders.length === 0) && (!data.files || data.files.length === 0)) {
+                html = `
+                    <div style="text-align: center; color: #999; padding: 50px 0; font-size: 13px;">
+                        <i class="fas fa-folder-open" style="font-size: 26px; color: #ccc; margin-bottom: 8px;"></i><br>
+                        Thư mục này không có thư mục con hoặc file ảnh hợp lệ.
+                    </div>`;
+            }
+            
+            contentContainer.innerHTML = html;
+        })
+        .catch(err => {
+            contentContainer.innerHTML = `<div style="text-align: center; color: #db1010; padding: 20px 0; font-size: 13px;"><i class="fas fa-exclamation-triangle"></i> Lỗi kết nối hệ thống Backend. Vui lòng kiểm tra lại.</div>`;
+            console.error("Layer browser interface error:", err);
+        });
+}
+
+// Thao tác click lùi lại cấp thư mục trước đó
+function navigateLayerFolderUp() {
+    if (layerParentFolderId && layerCurrentFolderId !== LAYER_ROOT_FOLDER_ID) {
+        loadLayerFolder(layerParentFolderId);
+    }
+}
+
+// Thao tác click chọn file ảnh -> Tiến hành gắn layer vào ảnh nền và tự động đóng panel duyệt
+function selectLayerFile(fileId) {
+    let finalImgUrl = `https://drive.google.com/uc?id=${fileId}&export=download`;
+    if (typeof canonicalDriveImageUrl === 'function') {
+        finalImgUrl = canonicalDriveImageUrl(fileId);
+    }
+    
+    if (typeof addLayerToActiveImage === 'function') {
+        // Gọi hàm lõi thêm Layer chồng lên ảnh nền bạn đã cài đặt trước đó
+        addLayerToActiveImage(finalImgUrl);
+        // Đóng panel duyệt để hiển thị lại thông số kích thước ảnh cho bạn tùy chỉnh
+        closeLayerBrowserPanel();
+    } else {
+        alert("Lỗi hệ thống: Không thể khởi chạy hàm chèn layer addLayerToActiveImage.");
+    }
 }
 
 function pickerCallback(data) {
