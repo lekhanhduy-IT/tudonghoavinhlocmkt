@@ -193,62 +193,84 @@
         let activeCanvasIndex = 0; 
 
         // 1. Tải danh sách bài viết khi mở trang (Hỗ trợ quét đa cấu trúc JSON)
+        // 1. Tải danh sách bài viết (Phiên bản rà soát lỗi & quét sâu)
         window.onload = async () => {
-            showLoader("Đang đồng bộ dữ liệu...");
+            showLoader("Đang kết nối API...");
             try {
                 let res = await fetch(API_URL);
-                systemData = await res.json();
-                
-                console.log("Dữ liệu tải về từ API:", systemData);
+                let textData = await res.text(); // Lấy dữ liệu thô trước để tránh lỗi sập JSON
 
-                if (!systemData) {
-                    alert("API trả về dữ liệu rỗng!");
+                let systemData;
+                try {
+                    systemData = JSON.parse(textData);
+                } catch(e) {
                     hideLoader();
+                    document.getElementById("canvasArea").innerHTML = `
+                        <div style="padding: 20px; border: 2px solid red; background: #fff; margin: 20px;">
+                            <h3 style="color: red;">🚨 Lỗi: API không trả về định dạng JSON!</h3>
+                            <p>Đây là dữ liệu thô API đang trả về (Có thể là lỗi từ Google Script):</p>
+                            <textarea style="width: 100%; height: 300px; margin-top: 10px;">${textData}</textarea>
+                        </div>`;
                     return;
                 }
 
-                // Thuật toán quét tìm dữ liệu bảng tính từ mọi cấu trúc phản hồi khả thi
-                let postSheet = null;
-                if (systemData.sheets && (systemData.sheets["Bài viết_hidden"] || systemData.sheets["Bài viết"])) {
-                    postSheet = systemData.sheets["Bài viết_hidden"] || systemData.sheets["Bài viết"];
-                } else if (systemData["Bài viết_hidden"] || systemData["Bài viết"]) {
-                    postSheet = systemData["Bài viết_hidden"] || systemData["Bài viết"];
-                } else if (systemData.data && (systemData.data["Bài viết_hidden"] || systemData.data["Bài viết"])) {
-                    postSheet = systemData.data["Bài viết_hidden"] || systemData.data["Bài viết"];
-                }
-
-                if (postSheet && postSheet.length > 1) {
-                    let select = document.getElementById("postSelector");
-                    select.innerHTML = '<option value="">-- Chọn ID Bài Viết (Project) --</option>';
-
-                    // Lưu trữ bảng dữ liệu đang hoạt động vào biến window để tái sử dụng
-                    window.activePostSheet = postSheet;
-
-                    for (let i = 1; i < postSheet.length; i++) {
-                        let row = postSheet[i];
-                        let id = row[0]; // Cột A: ID bài viết
-                        let title = row[1] || `Bài viết không tiêu đề (Dòng ${i + 1})`; // Cột B: Tiêu đề bài viết
-                        
-                        if (id) {
-                            let opt = document.createElement("option");
-                            opt.value = i; // Lưu vị trí dòng dữ liệu
-                            opt.text = `[ID: ${id}] - ${title}`;
-                            select.appendChild(opt);
+                // Hàm đệ quy: Lục tung mọi lớp của object để tìm tab "Bài viết_hidden"
+                function findSheetRecursively(obj, targetName) {
+                    if (!obj) return null;
+                    if (obj[targetName] && Array.isArray(obj[targetName])) return obj[targetName];
+                    
+                    if (!Array.isArray(obj) && typeof obj === 'object') {
+                        for (let key in obj) {
+                            if (obj[key] && typeof obj[key] === 'object') {
+                                let found = findSheetRecursively(obj[key], targetName);
+                                if (found) return found;
+                            }
                         }
                     }
-                    console.log(`Đã tải thành công ${postSheet.length - 1} bài viết.`);
-                } else {
-                    // Trích xuất các thuộc tính gốc có sẵn trong JSON để báo lỗi chuẩn xác
-                    let availableKeys = Object.keys(systemData).join(", ");
-                    alert(`Không tìm thấy cấu trúc tab 'Bài viết_hidden'!\nCác thuộc tính gốc nhận được từ API: [${availableKeys}].\nHãy nhấn F12 kiểm tra tab Console để xem chi tiết.`);
+                    return null;
+                }
+
+                // Thử tìm cả 2 tên đề phòng bạn gõ nhầm tên Sheet
+                let postSheet = findSheetRecursively(systemData, "Bài viết_hidden") || findSheetRecursively(systemData, "Bài viết");
+
+                if (!postSheet) {
+                    hideLoader();
+                    // IN THẲNG JSON RA MÀN HÌNH ĐỂ XEM BÊN TRONG CÓ GÌ
+                    document.getElementById("canvasArea").innerHTML = `
+                        <div style="padding: 20px; border: 2px solid orange; background: #fff; margin: 20px;">
+                            <h3 style="color: orange;">⚠️ Không tìm thấy mảng 'Bài viết_hidden' trong dữ liệu!</h3>
+                            <p>Dưới đây là toàn bộ cấu trúc JSON API đã trả về, hãy xem bên trong nó chứa những tên Sheet nào:</p>
+                            <textarea style="width: 100%; height: 400px; margin-top: 10px; font-family: monospace;">${JSON.stringify(systemData, null, 2)}</textarea>
+                        </div>`;
+                    return;
+                }
+
+                // Nếu quét thành công, đẩy vào dropdown
+                window.activePostSheet = postSheet;
+                let select = document.getElementById("postSelector");
+                select.innerHTML = '<option value="">-- Chọn ID Bài Viết (Project) --</option>';
+
+                let count = 0;
+                for (let i = 1; i < postSheet.length; i++) {
+                    let row = postSheet[i];
+                    let id = row[0]; // Cột A
+                    let title = row[1] || `(Không có tiêu đề - Dòng ${i + 1})`; // Cột B
+                    
+                    if (id) {
+                        let opt = document.createElement("option");
+                        opt.value = i; 
+                        opt.text = `[ID: ${id}] - ${title}`;
+                        select.appendChild(opt);
+                        count++;
+                    }
                 }
                 
-                // Tải danh sách Elements từ Drive
+                console.log(`✅ Đã nạp thành công ${count} ID Bài viết.`);
                 loadElementsTab(); 
 
             } catch (e) {
-                console.error("Lỗi xử lý API:", e);
-                alert("Lỗi kết nối hoặc xử lý cấu trúc dữ liệu! Hãy mở F12 để kiểm tra lỗi chi tiết.");
+                console.error("Lỗi:", e);
+                alert("Lỗi fetch API. Vui lòng kiểm tra Console.");
             }
             hideLoader();
         };
