@@ -193,34 +193,55 @@
         let activeCanvasIndex = 0; // Lưu vết người dùng đang thao tác trên canvas nào
 
         // 1. Tải danh sách bài viết khi mở trang
+        // 1. Tải danh sách bài viết khi mở trang
         window.onload = async () => {
             showLoader("Đang đồng bộ dữ liệu...");
             try {
                 let res = await fetch(API_URL);
                 systemData = await res.json();
                 
-                let postSheet = systemData.sheets && systemData.sheets["Bài viết_hidden"];
+                console.log("Dữ liệu tải về từ GAS:", systemData); // IN RA ĐỂ KIỂM TRA
+
+                if (!systemData || !systemData.sheets) {
+                    alert("Không tìm thấy thuộc tính 'sheets' từ API!");
+                    hideLoader();
+                    return;
+                }
+
+                // Dò tìm tên sheet (thử cả Bài viết_hidden và Bài viết)
+                let postSheet = systemData.sheets["Bài viết_hidden"] || systemData.sheets["Bài viết"];
+                
                 if(postSheet && postSheet.length > 1) {
                     let select = document.getElementById("postSelector");
+                    // Xóa tùy chọn cũ nếu có
+                    select.innerHTML = '<option value="">-- Chọn ID Bài Viết (Project) --</option>';
+
                     for(let i = 1; i < postSheet.length; i++) {
                         let row = postSheet[i];
-                        let id = row[0]; // Giả định Cột A là ID
-                        let title = row[1] || `Bài viết ${id}`; // Cột B là Tiêu đề
+                        
+                        // HIỆU CHỈNH CỘT: Sửa lại index nếu ID và Tiêu đề ở cột khác
+                        let id = row[0]; // Cột A
+                        let title = row[1]; // Cột B
+                        
                         if(id) {
                             let opt = document.createElement("option");
-                            opt.value = i; // Lưu index dòng để dễ truy xuất
-                            opt.text = `[${id}] - ${title}`;
+                            opt.value = i; 
+                            opt.text = `[${id}] - ${title || 'Chưa có tiêu đề'}`;
                             select.appendChild(opt);
                         }
                     }
+                    console.log(`Đã tải thành công ${postSheet.length - 1} bài viết.`);
+                } else {
+                    console.warn("Sheet Bài viết_hidden trống hoặc không tồn tại!");
+                    alert("Không tìm thấy dữ liệu trong sheet Bài viết_hidden!");
                 }
                 
-                // Tải list Elements từ Drive (Cần có function xử lý API tương ứng bên GAS)
+                // Tải list Elements từ Drive
                 loadElementsTab(); 
 
             } catch(e) {
-                console.error(e);
-                alert("Lỗi tải dữ liệu hệ thống!");
+                console.error("Lỗi quá trình tải API:", e);
+                alert("Lỗi tải dữ liệu hệ thống! Hãy nhấn F12 mở Console để xem chi tiết.");
             }
             hideLoader();
         };
