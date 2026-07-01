@@ -191,15 +191,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR
         let canvases = [];
         let activeCanvasIndex = 0; 
 
-        // Hàm bóc tách ID của Google Drive
-        function extractDriveId(url) {
-            if (!url) return "";
-            if (url.includes("id=")) {
-                return new URLSearchParams(url.split('?')[1]).get('id') || "";
-            }
-            let match = url.match(/[-\w]{25,}/);
-            return match ? match[0] : "";
-        }
+
 
         // DÙNG PROXY CÔNG KHAI ĐỂ VƯỢT LỖI BẢO MẬT CANVAS (Không lo lỗi 404 nữa)
         function formatSecureUrl(url) {
