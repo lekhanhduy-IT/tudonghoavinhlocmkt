@@ -184,45 +184,37 @@
     </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+        const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
         const POST_IMAGE_SHARED_DRIVE_FOLDER_ID = "11ad-tiEWqSeJdm0kv_q-_b2x0qWD9b6b"; 
         
         let systemData = null;
         let canvases = [];
         let activeCanvasIndex = 0; 
 
-
-// DÙNG PROXY CÔNG KHAI ĐỂ VƯỢT LỖI BẢO MẬT CANVAS
-        function formatSecureUrl(url) {
+        function extractDriveId(url) {
             if (!url) return "";
-            let driveId = extractDriveId(url);
-            if (driveId) {
-                let rawDriveUrl = "https://drive.google.com/uc?id=" + driveId;
-                return "https://api.allorigins.win/raw?url=" + encodeURIComponent(rawDriveUrl);
-            }
-            return url; 
+            if (url.includes("id=")) return new URLSearchParams(url.split('?')[1]).get('id') || "";
+            let match = url.match(/[-\w]{25,}/);
+            return match ? match[0] : "";
         }
 
-        // Chuyển đổi link thường thành link an toàn để Canvas xử lý không dính lỗi CORS
+        // HÀM PROXY MỚI: Chỉ can thiệp link Drive, bỏ qua ảnh Base64 tải từ máy tính
         function formatSecureUrl(url) {
             if (!url) return "";
+            if (url.startsWith("data:")) return url; 
+            
             let driveId = extractDriveId(url);
-            if (driveId) {
-                return DRIVE_IMAGE_PROXY_ENDPOINT + driveId;
-            }
-            return url; // Nếu là link ảnh ngoài (postimg, imgur...), giữ nguyên
+            let rawUrl = driveId ? "https://drive.google.com/uc?id=" + driveId : url;
+            return "https://corsproxy.io/?" + encodeURIComponent(rawUrl);
         }
 
-        // 1. Tải danh sách bài viết
         window.onload = async () => {
             showLoader("Đang đồng bộ dữ liệu hệ thống...");
             try {
                 let res = await fetch(API_URL);
                 systemData = await res.json();
                 
-let postSheet = null;
-                
-                // Lục tung đúng cái hộp 'data' mà file .gs đã bọc
+                let postSheet = null;
                 if (systemData.data && systemData.data.sheets) {
                     postSheet = systemData.data.sheets["Bài viết_hidden"];
                 } else if (systemData.sheets) {
@@ -238,8 +230,8 @@ let postSheet = null;
 
                     for (let i = 1; i < postSheet.length; i++) {
                         let row = postSheet[i];
-                        let id = row[0]; // Cột A
-                        let title = row[1] || `Bài viết dòng ${i + 1}`; // Cột B
+                        let id = row[0]; 
+                        let title = row[1] || `Bài viết dòng ${i + 1}`; 
                         if (id) {
                             let opt = document.createElement("option");
                             opt.value = i; 
@@ -251,26 +243,22 @@ let postSheet = null;
                     alert("Không tìm thấy dữ liệu tab 'Bài viết_hidden'!");
                 }
                 
-                // Kích hoạt nạp Elements từ Drive thông qua hàm API vừa viết ở bước 1
                 loadElementsTab(); 
 
             } catch (e) {
                 console.error(e);
-                alert("Lỗi nạp cấu trúc API hệ thống!");
+                alert("Lỗi kết nối API!");
             }
             hideLoader();
         };
 
-        // 2. Chuyển đổi Tab Sidebar
         function switchTab(tabName) {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            
             event.currentTarget.classList.add('active');
             document.getElementById(`tab-${tabName}`).classList.add('active');
         }
 
-        // 3. Xử lý khi chọn bài viết
         document.getElementById("postSelector").addEventListener("change", function() {
             let rowIndex = this.value;
             if (!rowIndex || !window.activePostSheet) {
@@ -282,7 +270,6 @@ let postSheet = null;
             let coverImgUrl = "";
             let htmlContent = "";
 
-            // Quét tự động định vị cột chứa HTML và Ảnh Bìa
             for (let j = 1; j < row.length; j++) {
                 let val = String(row[j] || "").trim();
                 if (val.includes("<img") || val.includes("<p")) {
@@ -307,10 +294,10 @@ let postSheet = null;
 
             images = [...new Set(images)];
             renderProjectCanvases(images);
-            renderUploadsTab(images);
+            renderUploadsTab(images); 
         });
 
-        // 4. Khởi tạo và vẽ các trang Canvas bằng cấu hình Bảo mật CORS
+        // 1. VẼ CANVAS - BẮT BUỘC DÙNG PROXY
         function renderProjectCanvases(imageUrls) {
             const container = document.getElementById("canvasArea");
             container.innerHTML = "";
@@ -324,73 +311,68 @@ let postSheet = null;
             imageUrls.forEach((url, index) => {
                 let wrapper = document.createElement("div");
                 wrapper.className = "canvas-wrapper";
-                
                 let label = document.createElement("div");
                 label.className = "canvas-label";
                 label.innerText = `Page ${index + 1}`;
-                
                 let canvasEl = document.createElement("canvas");
                 canvasEl.id = `fabric-canvas-${index}`;
-                
                 wrapper.appendChild(label);
                 wrapper.appendChild(canvasEl);
                 container.appendChild(wrapper);
 
                 let fabricCanvas = new fabric.Canvas(canvasEl.id, {
-                    preserveObjectStacking: true,
-                    selection: true
+                    preserveObjectStacking: true, selection: true
                 });
 
                 let secureUrl = formatSecureUrl(url);
+                let imgOptions = url.startsWith('data:') ? {} : { crossOrigin: 'anonymous' };
 
                 fabric.Image.fromURL(secureUrl, function(img) {
                     if(!img) {
-                        console.error("Không thể dựng ảnh nền canvas:", secureUrl);
+                        console.warn("Proxy 1 lỗi, tự động kích hoạt Proxy 2...");
+                        let backupUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://drive.google.com/uc?id=" + extractDriveId(url));
+                        fabric.Image.fromURL(backupUrl, function(backupImg) {
+                            if(!backupImg) return;
+                            setupCanvasBg(fabricCanvas, backupImg);
+                        }, { crossOrigin: 'anonymous' });
                         return;
                     }
-                    let scale = 1;
-                    if (img.width > 800) scale = 800 / img.width;
-
-                    fabricCanvas.setWidth(img.width * scale);
-                    fabricCanvas.setHeight(img.height * scale);
-
-                    img.set({
-                        originX: 'left',
-                        originY: 'top',
-                        scaleX: scale,
-                        scaleY: scale
-                    });
-                    
-                    fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
-                }, { crossOrigin: 'anonymous' }); // Bắt buộc kích hoạt thuộc tính ẩn danh giải quyết CORS
+                    setupCanvasBg(fabricCanvas, img);
+                }, imgOptions);
 
                 fabricCanvas.on('mouse:down', function() {
                     activeCanvasIndex = index;
-                    canvases.forEach((c, i) => {
-                        if (i !== index) { c.discardActiveObject(); c.requestRenderAll(); }
-                    });
+                    canvases.forEach((c, i) => { if (i !== index) { c.discardActiveObject(); c.requestRenderAll(); } });
                 });
-
                 canvases.push(fabricCanvas);
             });
             activeCanvasIndex = 0; 
         }
 
-        // 5. Kết xuất ảnh ra mục Tải Lên (Sử dụng hàm chuyển đổi an toàn)
+        function setupCanvasBg(fabricCanvas, img) {
+            let scale = 1;
+            if (img.width > 800) scale = 800 / img.width;
+            fabricCanvas.setWidth(img.width * scale);
+            fabricCanvas.setHeight(img.height * scale);
+            img.set({ originX: 'left', originY: 'top', scaleX: scale, scaleY: scale });
+            fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
+        }
+
+        // 2. TAB TẢI LÊN - HIỂN THỊ LINK GỐC (Tránh lỗi vỡ ảnh giao diện)
         function renderUploadsTab(imageUrls) {
             const tab = document.getElementById("tab-uploads");
             tab.innerHTML = "";
             imageUrls.forEach(url => {
-                let secureUrl = formatSecureUrl(url);
                 let img = document.createElement("img");
-                img.src = secureUrl;
+                let driveId = extractDriveId(url);
+                img.src = driveId ? "https://drive.google.com/uc?id=" + driveId : url; // Ảnh gốc
                 img.className = "asset-item";
-                img.onclick = () => addLayerToActiveCanvas(secureUrl);
+                img.onclick = () => addLayerToActiveCanvas(url); // Chỉ chạy proxy khi ấn chèn layer
                 tab.appendChild(img);
             });
         }
 
-        // 6. Tải danh sách Elements từ thư mục Drive về
+        // 3. TAB ELEMENTS - HIỂN THỊ LINK GỐC
         async function loadElementsTab() {
             try {
                 let res = await fetch(API_URL + "?action=get_canva_elements");
@@ -399,11 +381,10 @@ let postSheet = null;
                     const tab = document.getElementById("tab-elements");
                     tab.innerHTML = "";
                     data.files.forEach(file => {
-                        let secureUrl = formatSecureUrl(file.url);
                         let img = document.createElement("img");
-                        img.src = secureUrl;
+                        img.src = file.url; // Ảnh gốc
                         img.className = "asset-item";
-                        img.onclick = () => addLayerToActiveCanvas(secureUrl);
+                        img.onclick = () => addLayerToActiveCanvas(file.url);
                         tab.appendChild(img);
                     });
                 }
@@ -412,35 +393,45 @@ let postSheet = null;
             }
         }
 
-        // 7. Thêm Layer ảnh lên Canvas hoạt động
-        function addLayerToActiveCanvas(imageUrl) {
+        // 4. CHÈN LAYER LÊN CANVAS - KÍCH HOẠT PROXY
+        function addLayerToActiveCanvas(rawUrl) {
             if (canvases.length === 0) {
                 alert("Hãy lựa chọn một bài viết trước!");
                 return;
             }
             let activeCanvas = canvases[activeCanvasIndex];
+            let secureUrl = formatSecureUrl(rawUrl);
             
-            fabric.Image.fromURL(imageUrl, function(img) {
-                if(!img) return;
-                if (img.width > activeCanvas.width / 2) {
-                    img.scaleToWidth(activeCanvas.width / 2);
+            // Xóa rào cản CORS với ảnh tải lên từ thiết bị (base64)
+            let imgOptions = secureUrl.startsWith('data:') ? {} : { crossOrigin: 'anonymous' };
+            
+            fabric.Image.fromURL(secureUrl, function(img) {
+                if(!img) {
+                     let backupUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://drive.google.com/uc?id=" + extractDriveId(rawUrl));
+                     fabric.Image.fromURL(backupUrl, function(backupImg) {
+                         if(!backupImg) return;
+                         setupLayer(activeCanvas, backupImg);
+                     }, { crossOrigin: 'anonymous' });
+                     return;
                 }
-                img.set({
-                    left: 50,
-                    top: 50,
-                    cornerColor: '#01adee',
-                    cornerStrokeColor: '#01adee',
-                    borderColor: '#01adee',
-                    cornerSize: 8,
-                    transparentCorners: false
-                });
-                activeCanvas.add(img);
-                activeCanvas.setActiveObject(img);
-                activeCanvas.renderAll();
-            }, { crossOrigin: 'anonymous' });
+                setupLayer(activeCanvas, img);
+            }, imgOptions);
         }
 
-        // 8. Tải ảnh thủ công từ máy tính lên
+        function setupLayer(activeCanvas, img) {
+            if (img.width > activeCanvas.width / 2) {
+                img.scaleToWidth(activeCanvas.width / 2);
+            }
+            img.set({
+                left: 50, top: 50, cornerColor: '#01adee', cornerStrokeColor: '#01adee', 
+                borderColor: '#01adee', cornerSize: 8, transparentCorners: false
+            });
+            activeCanvas.add(img);
+            activeCanvas.setActiveObject(img);
+            activeCanvas.renderAll();
+        }
+
+        // 5. NÚT UPLOAD TỪ MÁY TÍNH
         document.getElementById("fileUploadInput").addEventListener("change", function(e) {
             let file = e.target.files[0];
             if (!file) return;
@@ -448,7 +439,7 @@ let postSheet = null;
             let reader = new FileReader();
             reader.onload = async function(f) {
                 let base64 = f.target.result;
-                addLayerToActiveCanvas(base64); 
+                addLayerToActiveCanvas(base64); // Chèn vào canvas siêu mượt
                 
                 let newAsset = document.createElement("img");
                 newAsset.src = base64;
@@ -474,7 +465,7 @@ let postSheet = null;
             this.value = '';
         });
 
-        // 9. Phím tắt Delete xóa đối tượng layer
+        // 6. XOÁ LAYER BẰNG BÀN PHÍM
         window.addEventListener('keydown', function(e) {
             if (e.key === 'Delete' || e.key === 'Backspace') {
                 if (canvases.length > 0 && activeCanvasIndex !== null) {
@@ -489,11 +480,8 @@ let postSheet = null;
             }
         });
 
-        function showLoader(txt) { 
-            document.getElementById("loader").style.display = "flex"; 
-            if (txt) document.getElementById("loader-text").innerText = txt;
-        }
+        function showLoader(txt) { document.getElementById("loader").style.display = "flex"; if (txt) document.getElementById("loader-text").innerText = txt; }
         function hideLoader() { document.getElementById("loader").style.display = "none"; }
-    </script>
+</script>
   </body>
 </html>
