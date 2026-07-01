@@ -1991,7 +1991,7 @@ const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
                 let coverMetadata = {};
                 try { coverMetadata = bvTab[r][5] ? JSON.parse(bvTab[r][5]) : {}; } catch(e) {}
 
-if (coverDriveUrl) {
+       if (coverDriveUrl) {
                     const coverImg = createManagedImage(coverDriveUrl, "cover", coverMetadata);
                     coverImg.dataset.archivedDrive = "1";
                     
@@ -2038,6 +2038,7 @@ let tempDiv = document.createElement('div');
 
                 hydrateManagedImages(document.getElementById("postContent"), "content");
                 hydrateManagedImages(coverEditor, "cover");
+                hydrateLayers(document.getElementById("postContent"));
                 isVBDirty = false;
                 setTimeout(globalHeadingSyncTrigger, 500);
                 break;
@@ -6627,6 +6628,34 @@ function initLayerPhysics(layer, container) {
         if (!layer.contains(e.target) && !e.target.closest('.tool-btn')) {
             layer.classList.remove('active');
         }
+    });
+}
+// Hàm quét và hồi sinh tính năng kéo thả cho các Layer cũ vừa nạp từ Sheet
+function hydrateLayers(root) {
+    if (!root) return;
+    root.querySelectorAll('.vb-layer-container').forEach(container => {
+        container.setAttribute('contenteditable', 'false');
+        container.querySelectorAll('.vb-layer-item').forEach(layer => {
+            layer.classList.remove('active');
+            
+            // Tự động xây dựng lại bộ nút điều khiển (vì đã bị hàm xóa sạch khi lưu bài)
+            let controls = layer.querySelector('.vb-layer-controls');
+            if (!controls) {
+                controls = document.createElement('div');
+                controls.className = 'vb-layer-controls';
+                controls.innerHTML = `
+                    <div class="layer-btn-del" title="Xóa"><i class="fas fa-times"></i></div>
+                    <div class="layer-btn-rotate" title="Xoay"><i class="fas fa-sync-alt"></i></div>
+                    <div class="layer-btn-resize" title="Thu phóng"></div>
+                `;
+                layer.appendChild(controls);
+            }
+            
+            // Trói lại mạch vật lý kéo thả cho layer này
+            if (typeof initLayerPhysics === 'function') {
+                initLayerPhysics(layer, container);
+            }
+        });
     });
 }
 </script>
