@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="light" />
@@ -154,6 +156,7 @@
 <body>
 <div class="app" id="app">
   <section class="editor-column">
+    
     <div class="viewer-toolbar" id="viewerToolbar">
       <div class="toolbar-group">
         <button class="btn btn-primary" id="uploadBtn"><i class="fa-solid fa-cloud-arrow-up"></i><span class="label">Tải ảnh</span></button>
@@ -204,7 +207,9 @@
   </section>
 
   <aside class="sidebar">
+    
     <nav class="sidebar-tabs" aria-label="Công cụ">
+      <button class="tab-btn" data-tab="projects"><i class="fa-solid fa-folder-tree"></i><span>Dự án</span></button>
       <button class="tab-btn active" data-tab="customize"><i class="fa-solid fa-sliders"></i><span>Tùy chỉnh</span></button>
       <button class="tab-btn" data-tab="layers"><i class="fa-solid fa-layer-group"></i><span>Layer</span></button>
       <button class="tab-btn" data-tab="assets"><i class="fa-solid fa-shapes"></i><span>Tài nguyên</span></button>
@@ -214,6 +219,22 @@
       <button class="tab-btn" data-tab="templates"><i class="fa-regular fa-object-group"></i><span>Mẫu</span></button>
     </nav>
     <div class="sidebar-content">
+      <div class="sidebar-content">
+      <section class="tab-panel" data-panel="projects">
+        <div class="panel-title-row">
+          <h2>Dự án Bài Viết</h2>
+          <button class="mini-btn primary" id="refreshProjectsBtn"><i class="fa-solid fa-sync"></i> Làm mới</button>
+        </div>
+        <div class="field" style="margin-bottom: 15px;">
+          <label>Chọn Bài Viết (Project)</label>
+          <select id="projectSelect" class="select" style="font-weight: bold; color: var(--blue);">
+              <option value="">-- Chọn Project --</option>
+          </select>
+        </div>
+        <div class="section-title"><span>Tổng hợp ảnh trong bài</span></div>
+        <div class="media-grid" id="projectImagesGrid"></div>
+      </section>
+      <section class="tab-panel active" data-panel="customize">
       <section class="tab-panel active" data-panel="customize">
         <div class="panel-title-row"><h2>Chẩn đoán ảnh</h2><span class="small-pill">Smart Scan</span></div>
         <div class="score-card"><div class="score-ring" id="scoreRing"><strong id="scoreValue">—</strong></div><div class="score-copy"><strong id="scoreTitle">Chưa chọn ảnh</strong><span id="scoreSubtitle">Chọn một layer ảnh để phân tích</span></div></div>
@@ -2763,8 +2784,467 @@ function bind(){
 })();
 
 try{state.channel=new BroadcastChannel('smart-design-editor-v1');state.channel.onmessage=e=>{const m=e.data;if(!m||m.clientId===state.clientId||m.type!=='doc-operation')return;state.applyingRemote=true;restore(m.after);state.applyingRemote=false;toast(`Đã đồng bộ: ${m.label||'thay đổi'}`)}}catch(e){}
+// ================= V23 PATCH: LOGIC PROJECT & SPIDER BRAIN =================
+const MKT_API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+let mktSysData = { sheets: {} };
+let currentProjectPost = null;
+
+const fbConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+if (!firebase.apps.length) firebase.initializeApp(fbConfig);
+const dbSpider = firebase.database();
+const spiderProjectsRef = dbSpider.ref('spider_brain/projects');
+
+async function fetchMktData() {
+    const btn = document.getElementById("refreshProjectsBtn");
+    if(btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang tải...';
+    try {
+        let cached = localStorage.getItem("MKT_DATA");
+        if (cached) {
+            mktSysData = JSON.parse(cached);
+            renderProjectList();
+        }
+        let res = await fetch(MKT_API_URL + "?t=" + new Date().getTime());
+        let json = await res.json();
+        if (json.success) {
+            mktSysData = json.data;
+            localStorage.setItem("MKT_DATA", JSON.stringify(mktSysData));
+            renderProjectList();
+        }
+    } catch(e) {
+        console.error("Lỗi lấy dữ liệu MKT:", e);
+        toast("Ngoại tuyến: Đang dùng dữ liệu Local");
+    }
+    if(btn) btn.innerHTML = '<i class="fa-solid fa-sync"></i> Làm mới';
+}
+
+function renderProjectList() {
+    const select = document.getElementById("projectSelect");
+    if(!select) return;
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">-- Chọn Project (ID Bài Viết) --</option>';
+    const sheet = mktSysData.sheets && mktSysData.sheets["Bài viết_hidden"];
+    if (!sheet) return;
+    
+    for (let i = 1; i < sheet.length; i++) {
+        let id = sheet[i][0];
+        let title = sheet[i][1] || id;
+        if (id) {
+            let opt = document.createElement("option");
+            opt.value = id;
+            opt.textContent = `[${id}] ${title.substring(0, 35)}...`;
+            select.appendChild(opt);
+        }
+    }
+    if (currentVal) select.value = currentVal;
+    
+    select.onchange = function(e) {
+        console.log("Đã chọn Project ID:", e.target.value);
+        loadProject(e.target.value);
+    };
+}
+
+// HÀM TRỢ THỦ: Rửa link Google Drive để lách luật CORS của Canvas
+function getSafeImageUrl(url) {
+    if (!url) return "";
+    if (url.includes("/api/drive-image")) return url;
+    
+    const patterns = [
+        /\/d\/([a-zA-Z0-9_-]{10,})/,
+        /[?&]id=([a-zA-Z0-9_-]{10,})/,
+        /\/thumbnail\?id=([a-zA-Z0-9_-]{10,})/
+    ];
+    for (const pattern of patterns) {
+        const m = url.match(pattern);
+        if (m && m[1]) return "/api/drive-image?id=" + m[1]; // Bọc Proxy API
+    }
+    return url; // Nếu không phải link Drive, giữ nguyên
+}
+
+function loadProject(postId) {
+    if (!postId) return;
+    
+    console.log("Bắt đầu nạp Project:", postId);
+    const sheet = mktSysData.sheets["Bài viết_hidden"];
+    let rowIdx = -1;
+    for (let i = 1; i < sheet.length; i++) {
+        if (sheet[i][0] === postId) { rowIdx = i; break; }
+    }
+    
+    if (rowIdx === -1) { 
+        toast("Không tìm thấy bài viết"); 
+        return; 
+    }
+    
+    currentProjectPost = {
+        rowIndex: rowIdx,
+        id: sheet[rowIdx][0],
+        title: sheet[rowIdx][1],
+        sapo: sheet[rowIdx][2],
+        coverUrl: sheet[rowIdx][3],
+        contentHtml: sheet[rowIdx][4],
+        coverMeta: sheet[rowIdx][5]
+    };
+
+    let imagesToProcess = [];
+    
+    // 1. Bóc tách Ảnh Bìa (Đã bọc Proxy)
+    if (currentProjectPost.coverUrl) {
+        let meta = {};
+        try { meta = JSON.parse(currentProjectPost.coverMeta || "{}"); } catch(e){}
+        imagesToProcess.push({
+            id: 'cover_' + postId,
+            name: 'Ảnh Bìa',
+            role: 'cover',
+            src: getSafeImageUrl(currentProjectPost.coverUrl), // <--- VÁ LỖI CẤM HIỂN THỊ
+            width: meta.frameState?.targetWidth || 1080,
+            height: meta.frameState?.targetHeight || 1080,
+            layers: meta.layers || [],
+            originalImageId: meta.imageId || 'cover'
+        });
+    }
+
+    // 2. Bóc tách Ảnh Nội Dung (Đã bọc Proxy)
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = currentProjectPost.contentHtml || "";
+    const imgs = tempDiv.querySelectorAll('img.vb-managed-image, img');
+    
+    imgs.forEach((img, index) => {
+        let src = img.getAttribute('src');
+        if(!src) return;
+        
+        src = getSafeImageUrl(src); // <--- VÁ LỖI CẤM HIỂN THỊ
+        
+        let imageId = img.getAttribute('data-image-id') || ('content_' + index);
+        let layers = [];
+        try { layers = JSON.parse(img.getAttribute('data-vb-layers') || "[]"); } catch(e){}
+// Ưu tiên lấy kích thước thực từ data-target-width của khung bao
+let frame = img.closest('.vb-image-frame');
+let w = frame ? parseFloat(frame.getAttribute('data-target-width')) : 0;
+let h = frame ? parseFloat(frame.getAttribute('data-target-height')) : 0;
+
+// Fallback: Lấy từ metadata nếu khung bao chưa có
+if (!w || !h) {
+    try {
+        let meta = JSON.parse(img.getAttribute('data-vb-meta') || "{}");
+        if (meta.frameState) {
+            w = meta.frameState.targetWidth;
+            h = meta.frameState.targetHeight;
+        }
+    } catch(e) {}
+}
+
+// Nếu vẫn không có, fallback về 1080
+if (!w || !h || w === 0 || h === 0) {
+    w = img.width || 1080;
+    h = img.height || 1080;
+}
+
+        imagesToProcess.push({
+            id: imageId,
+            name: `Ảnh nội dung ${index + 1}`,
+            role: 'content',
+            src: src, 
+            width: w,
+            height: h,
+            layers: layers,
+            originalImageId: imageId,
+            imgElement: img
+        });
+    });
+
+    if(imagesToProcess.length === 0) {
+        toast("Bài viết này không có ảnh nào!");
+        return;
+    }
+    
+    // 3. KHỞI TẠO PAGE CANVAS MỚI
+    let generatedPages = [];
+
+    imagesToProcess.forEach((imgData) => {
+        let bgLayer = {
+            id: uid('layer'),
+            type: 'image',
+            name: 'Ảnh Gốc Bài Viết',
+            src: imgData.src, // Đã được mã hóa an toàn
+            x: 0, y: 0,
+            width: imgData.width, height: imgData.height,
+            rotation: 0, scale: 1, opacity: 1, visible: true,
+            lockMode: 'full', 
+            isBaseImage: true
+        };
+        
+        let parsedLayers = imgData.layers.map(l => ({...l, id: l.id || uid('layer')}));
+        
+        let newPage = {
+            id: imgData.id,
+            name: imgData.name, 
+            role: imgData.role,
+            originalImageId: imgData.originalImageId,
+            page: { width: imgData.width, height: imgData.height, background: '#ffffff' },
+            layers: [bgLayer, ...parsedLayers],
+            groups: {},
+            comments: []
+        };
+        generatedPages.push(newPage);
+        
+        // Kích hoạt lưu ngầm Database Realtime
+        spiderProjectsRef.child(postId).child(imgData.id).set({
+            role: imgData.role,
+            width: imgData.width,
+            height: imgData.height,
+            layers: parsedLayers,
+            updatedAt: firebase.database.ServerValue.TIMESTAMP
+        });
+    });
+
+    // 4. ÁP DỤNG STATE BẰNG HÀM CHUẨN CỦA HỆ THỐNG
+    if (generatedPages.length > 0) {
+        restore({
+            pages: generatedPages,
+            currentPageId: generatedPages[0].id
+        });
+    }
+    
+    renderProjectImagesGrid(imagesToProcess);
+    toast(`Đã nạp ${imagesToProcess.length} ảnh từ bài viết!`);
+}
+
+function renderProjectImagesGrid(images) {
+    const grid = document.getElementById("projectImagesGrid");
+    if(!grid) return;
+    grid.innerHTML = "";
+    images.forEach(img => {
+        let card = document.createElement("div");
+        card.className = "media-card";
+        card.innerHTML = `<img src="${img.src}" style="height:80px; object-fit:contain; background:#f0f0f0;">
+                          <div class="media-name" style="text-align:center; padding:5px; font-weight:bold; color: var(--blue);">
+                            ${img.role === 'cover' ? 'Ảnh Bìa' : 'Ảnh Nội Dung'}
+                          </div>`;
+        card.style.cursor = "pointer";
+        card.onclick = () => {
+            switchPage(img.id); // Dùng hàm gốc của Editor để đổi tab
+        };
+        grid.appendChild(card);
+    });
+}
+
+document.addEventListener('click', e => {
+    if(e.target.closest('#refreshProjectsBtn')) fetchMktData();
+});
+
+const v23OldCommit = commit;
+commit = function(beforeState, label) {
+    v23OldCommit(beforeState, label);
+    if (currentProjectPost) {
+        scheduleProjectSync();
+    }
+};
+
+
+// Hàm chuyển đổi Layer Canvas thành Thẻ HTML & CSS tuyệt đối (Responsive %)
+function buildHtmlLayerOverlay(imgData) {
+    // 1. Khai báo hàm helper dịch thông số filter sang CSS
+    function getExportCssFilter(f) {
+        if (!f) return 'none';
+        const brightness = Math.min(250, Math.max(10, 100 + (f.exposure||0)*0.75 + (f.shadows||0)*0.18 + (f.highlights||0)*0.08));
+        const contrast = Math.min(250, Math.max(10, 100 + (f.contrast||0) + (f.clarity||0)*0.22 + (f.sharpen||0)*0.1 - (f.highlights||0)*0.06));
+        const sat = Math.min(300, Math.max(0, 100 + (f.saturation||0)));
+        const sepia = Math.abs(f.temperature||0) * 0.18;
+        const hue = (f.temperature||0) * 0.22 + (f.tint||0) * 0.36;
+        const blur = (f.denoise||0) * 0.008;
+        return `brightness(${brightness}%) contrast(${contrast}%) saturate(${sat}%) sepia(${sepia}%) hue-rotate(${hue}deg) blur(${blur}px)`;
+    }
+
+    if(!imgData.layers || imgData.layers.length === 0) return "";
+    let html = `<div class="vb-spider-layers" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; container-type: size;">`;
+    
+    imgData.layers.forEach(layer => {
+        let leftPct = (layer.x / imgData.width) * 100;
+        let topPct = (layer.y / imgData.height) * 100;
+        let widthPct = (layer.width / imgData.width) * 100;
+        let heightPct = layer.height ? ((layer.height / imgData.height) * 100) : null;
+        
+        let style = `position: absolute; left: ${leftPct}%; top: ${topPct}%; box-sizing: border-box; `;
+        if(widthPct) style += `width: ${widthPct}%; `;
+        if(heightPct) style += `height: ${heightPct}%; `;
+        
+        let transforms = [];
+        if(layer.rotation) transforms.push(`rotate(${layer.rotation}deg)`);
+        if(layer.scale && layer.scale !== 1) transforms.push(`scale(${layer.scale})`);
+        if(transforms.length > 0) style += `transform: ${transforms.join(' ')}; transform-origin: top left; `;
+        if(layer.opacity !== undefined) style += `opacity: ${layer.opacity}; `;
+
+        if(layer.type === 'text') {
+            style += `color: ${layer.fill || '#000'}; font-family: '${layer.fontFamily || 'sans-serif'}'; font-size: ${(layer.fontSize / imgData.width * 100)}cqw; line-height: ${layer.lineHeight || 1.2}; text-align: ${layer.textAlign || 'left'}; white-space: pre-wrap;`;
+            html += `<div style="${style}">${(layer.text || '').replace(/\n/g, '<br>')}</div>`;
+        } else if(layer.type === 'image') {
+            // [SỬA Ở ĐÂY]: Thêm CSS filter cho layer ảnh
+            style += `object-fit: contain; filter: ${getExportCssFilter(layer.filters)};`;
+            html += `<img src="${layer.src}" style="${style}">`;
+        } else if(layer.type === 'shape') {
+            style += `background-color: ${layer.fill || '#000'};`;
+            html += `<div style="${style}"></div>`;
+        }
+    });
+    html += `</div>`;
+    return html;
+}
+
+let syncProjectTimer = null;
+function scheduleProjectSync() {
+    clearTimeout(syncProjectTimer);
+    syncProjectTimer = setTimeout(() => {
+        ensurePages();
+        syncCurrentPageDoc();
+        
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = currentProjectPost.contentHtml || "";
+        let meta = {};
+        try { meta = JSON.parse(currentProjectPost.coverMeta || "{}"); } catch(e){}
+
+        state.pages.forEach(p => {
+            let customLayers = p.layers.filter(l => !l.isBaseImage);
+            let baseLayer = p.layers.find(l => l.isBaseImage); // Lấy ảnh nền gốc
+            let layerStr = JSON.stringify(customLayers);
+            
+            // Đẩy dữ liệu cấu trúc lên Realtime Database (Thêm baseFilters)
+            let payload = {
+                role: p.role, width: p.page.width, height: p.page.height,
+                layers: customLayers, 
+                baseFilters: baseLayer ? baseLayer.filters : null, // Truyền texture gốc
+                updatedAt: firebase.database.ServerValue.TIMESTAMP
+            };
+            spiderProjectsRef.child(currentProjectPost.id).child(p.id).update(payload);
+
+            if (p.role === 'cover') {
+                meta.layers = customLayers;
+                if(baseLayer) meta.baseFilters = baseLayer.filters;
+                currentProjectPost.coverMeta = JSON.stringify(meta);
+            } else if (p.role === 'content') {
+                let img = tempDiv.querySelector(`img[data-image-id="${p.originalImageId}"]`);
+                if (img) {
+                    img.setAttribute('data-vb-layers', layerStr);
+                    
+                    // Áp dụng bộ lọc cho thẻ img gốc
+                    if(baseLayer && baseLayer.filters) {
+                        img.setAttribute('data-vb-base-filters', JSON.stringify(baseLayer.filters));
+                        // Gọi helper để nhúng style cứng vào HTML
+                        const getInlineFilter = f => `brightness(${Math.min(250, Math.max(10, 100 + (f.exposure||0)*0.75 + (f.shadows||0)*0.18 + (f.highlights||0)*0.08))}%) contrast(${Math.min(250, Math.max(10, 100 + (f.contrast||0) + (f.clarity||0)*0.22 + (f.sharpen||0)*0.1 - (f.highlights||0)*0.06))}%) saturate(${Math.min(300, Math.max(0, 100 + (f.saturation||0)))}%) sepia(${Math.abs(f.temperature||0) * 0.18}%) hue-rotate(${(f.temperature||0) * 0.22 + (f.tint||0) * 0.36}deg) blur(${(f.denoise||0) * 0.008}px)`;
+                        img.style.filter = getInlineFilter(baseLayer.filters);
+                    } else {
+                        img.removeAttribute('data-vb-base-filters');
+                        img.style.filter = 'none';
+                    }
+
+                    let frame = img.closest('.vb-image-frame');
+                    if (frame) {
+                        frame.style.position = 'relative'; 
+                        let oldLayer = frame.querySelector('.vb-spider-layers');
+                        if (oldLayer) oldLayer.remove();
+                        let overlayHtml = buildHtmlLayerOverlay({ width: p.page.width, height: p.page.height, layers: customLayers });
+                        img.insertAdjacentHTML('afterend', overlayHtml);
+                    }
+                }
+            }
+        });
+        
+        currentProjectPost.contentHtml = tempDiv.innerHTML;
+        
+        let queue = [
+            { type: 'SYNC_CELL', row: currentProjectPost.rowIndex + 1, col: 5, val: currentProjectPost.contentHtml, tab: "Bài viết_hidden" },
+            { type: 'SYNC_CELL', row: currentProjectPost.rowIndex + 1, col: 6, val: currentProjectPost.coverMeta, tab: "Bài viết_hidden" }
+        ];
+        
+        fetch(MKT_API_URL, { method: "POST", body: JSON.stringify(queue), headers: { "Content-Type": "text/plain;charset=utf-8" }
+        }).then(res => res.json()).then(res => {
+            if(res.success) console.log(`[Spider Brain] Đã lưu HTML DOM Layers - Bài: ${currentProjectPost.id}`);
+        }).catch(err => console.error(err));
+        
+    }, 1500); 
+}
+
+fetchMktData();
+// ================= HẾT V23 PATCH =================
 ensurePages();bind();renderAll();setTimeout(fitCanvas,50);
 })();
+// =========================================================================
+// 1. HỆ THỐNG ĐỒNG BỘ DỮ LIỆU & QUEUE (KẾ THỪA TỪ PLAN.HTML)
+// =========================================================================
+const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+let sysData = {};
+let actionQueue = [];
+let isProcessingQueue = false;
+let currentSyncToken = 0;
+let currentPostId = null; // ID Project đang mở
+
+// Tự động tải dữ liệu từ LocalStorage khi mở trình duyệt
+function loadLocalData() {
+    let cached = localStorage.getItem("MKT_DATA");
+    if (cached) {
+        try {
+            sysData = JSON.parse(cached);
+            currentSyncToken = sysData.syncToken || 0;
+            renderProjectList();
+        } catch(e) { console.error("Lỗi parse MKT_DATA", e); }
+    }
+}
+
+// Bơm dữ liệu lên Google Sheet ngầm
+async function processQueueAndSync() {
+    if(isProcessingQueue || actionQueue.length === 0) return; 
+    isProcessingQueue = true;
+    let batch = [...actionQueue]; 
+    actionQueue = []; 
+    try {
+        let res = await fetch(API_URL, { method: "POST", body: JSON.stringify(batch), headers: { "Content-Type": "text/plain;charset=utf-8" } });
+        let json = await res.json();
+        if (!json.success) { 
+            actionQueue = batch.concat(actionQueue); 
+        } else {
+            currentSyncToken = json.syncToken;
+            localStorage.setItem("MKT_DATA", JSON.stringify(sysData));
+        }
+    } catch(e) { 
+        actionQueue = batch.concat(actionQueue); 
+    }
+    isProcessingQueue = false;
+}
+setInterval(processQueueAndSync, 4000); // Chạy ngầm 4s/lần
+
+// Lắng nghe thay đổi từ Tab khác (post.html, plan.html)
+window.addEventListener('storage', function(e) {
+    if (e.key === "MKT_DATA") {
+        try {
+            let newData = JSON.parse(e.newValue);
+            if (newData && newData.sheets) {
+                sysData = newData;
+                renderProjectList();
+                if(currentPostId) loadProjectToCanvas(currentPostId, true); // Nạp lại ngầm
+            }
+        } catch(err) {}
+    }
+});
+
+// Gọi khởi tạo
+loadLocalData();
+// Khởi tạo Firebase
+const firebaseConfig = { databaseURL: "https://vinh-loc-mkt-vercel-app-default-rtdb.asia-southeast1.firebasedatabase.app/" };
+if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// Lắng nghe dữ liệu ngầm cho TẤT CẢ project (Spider Brain)
+const allProjectsRef = db.ref('spider_brain/projects');
+let globalProjectsData = {};
+
+allProjectsRef.on('value', snapshot => {
+    globalProjectsData = snapshot.val() || {};
+    updateProjectDropdown(); // Cập nhật lại UI chọn Project
+    // Nếu có project đang mở, tự động nạp lại layers
+    if(state.currentProjectId && globalProjectsData[state.currentProjectId]) {
+        syncCanvasWithProjectData(globalProjectsData[state.currentProjectId]);
+    }
+    
+});
 </script>
 
 </body>
