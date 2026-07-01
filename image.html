@@ -183,65 +183,72 @@
         </div>
     </div>
 
-    <script>
+<script>
         const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
         const POST_IMAGE_SHARED_DRIVE_FOLDER_ID = "11ad-tiEWqSeJdm0kv_q-_b2x0qWD9b6b"; // Nơi lưu layer Elements
         const DRIVE_IMAGE_PROXY_ENDPOINT = "/api/drive-image?id=";
         
         let systemData = null;
         let canvases = [];
-        let activeCanvasIndex = 0; // Lưu vết người dùng đang thao tác trên canvas nào
+        let activeCanvasIndex = 0; 
 
-        // 1. Tải danh sách bài viết khi mở trang
-        // 1. Tải danh sách bài viết khi mở trang
+        // 1. Tải danh sách bài viết khi mở trang (Hỗ trợ quét đa cấu trúc JSON)
         window.onload = async () => {
             showLoader("Đang đồng bộ dữ liệu...");
             try {
                 let res = await fetch(API_URL);
                 systemData = await res.json();
                 
-                console.log("Dữ liệu tải về từ GAS:", systemData); // IN RA ĐỂ KIỂM TRA
+                console.log("Dữ liệu tải về từ API:", systemData);
 
-                if (!systemData || !systemData.sheets) {
-                    alert("Không tìm thấy thuộc tính 'sheets' từ API!");
+                if (!systemData) {
+                    alert("API trả về dữ liệu rỗng!");
                     hideLoader();
                     return;
                 }
 
-                // Dò tìm tên sheet (thử cả Bài viết_hidden và Bài viết)
-                let postSheet = systemData.sheets["Bài viết_hidden"] || systemData.sheets["Bài viết"];
-                
-                if(postSheet && postSheet.length > 1) {
+                // Thuật toán quét tìm dữ liệu bảng tính từ mọi cấu trúc phản hồi khả thi
+                let postSheet = null;
+                if (systemData.sheets && (systemData.sheets["Bài viết_hidden"] || systemData.sheets["Bài viết"])) {
+                    postSheet = systemData.sheets["Bài viết_hidden"] || systemData.sheets["Bài viết"];
+                } else if (systemData["Bài viết_hidden"] || systemData["Bài viết"]) {
+                    postSheet = systemData["Bài viết_hidden"] || systemData["Bài viết"];
+                } else if (systemData.data && (systemData.data["Bài viết_hidden"] || systemData.data["Bài viết"])) {
+                    postSheet = systemData.data["Bài viết_hidden"] || systemData.data["Bài viết"];
+                }
+
+                if (postSheet && postSheet.length > 1) {
                     let select = document.getElementById("postSelector");
-                    // Xóa tùy chọn cũ nếu có
                     select.innerHTML = '<option value="">-- Chọn ID Bài Viết (Project) --</option>';
 
-                    for(let i = 1; i < postSheet.length; i++) {
+                    // Lưu trữ bảng dữ liệu đang hoạt động vào biến window để tái sử dụng
+                    window.activePostSheet = postSheet;
+
+                    for (let i = 1; i < postSheet.length; i++) {
                         let row = postSheet[i];
+                        let id = row[0]; // Cột A: ID bài viết
+                        let title = row[1] || `Bài viết không tiêu đề (Dòng ${i + 1})`; // Cột B: Tiêu đề bài viết
                         
-                        // HIỆU CHỈNH CỘT: Sửa lại index nếu ID và Tiêu đề ở cột khác
-                        let id = row[0]; // Cột A
-                        let title = row[1]; // Cột B
-                        
-                        if(id) {
+                        if (id) {
                             let opt = document.createElement("option");
-                            opt.value = i; 
-                            opt.text = `[${id}] - ${title || 'Chưa có tiêu đề'}`;
+                            opt.value = i; // Lưu vị trí dòng dữ liệu
+                            opt.text = `[ID: ${id}] - ${title}`;
                             select.appendChild(opt);
                         }
                     }
                     console.log(`Đã tải thành công ${postSheet.length - 1} bài viết.`);
                 } else {
-                    console.warn("Sheet Bài viết_hidden trống hoặc không tồn tại!");
-                    alert("Không tìm thấy dữ liệu trong sheet Bài viết_hidden!");
+                    // Trích xuất các thuộc tính gốc có sẵn trong JSON để báo lỗi chuẩn xác
+                    let availableKeys = Object.keys(systemData).join(", ");
+                    alert(`Không tìm thấy cấu trúc tab 'Bài viết_hidden'!\nCác thuộc tính gốc nhận được từ API: [${availableKeys}].\nHãy nhấn F12 kiểm tra tab Console để xem chi tiết.`);
                 }
                 
-                // Tải list Elements từ Drive
+                // Tải danh sách Elements từ Drive
                 loadElementsTab(); 
 
-            } catch(e) {
-                console.error("Lỗi quá trình tải API:", e);
-                alert("Lỗi tải dữ liệu hệ thống! Hãy nhấn F12 mở Console để xem chi tiết.");
+            } catch (e) {
+                console.error("Lỗi xử lý API:", e);
+                alert("Lỗi kết nối hoặc xử lý cấu trúc dữ liệu! Hãy mở F12 để kiểm tra lỗi chi tiết.");
             }
             hideLoader();
         };
@@ -255,43 +262,58 @@
             document.getElementById(`tab-${tabName}`).classList.add('active');
         }
 
-        // 3. Xử lý khi chọn ID Bài Viết
+        // 3. Xử lý khi chọn ID Bài Viết (Tự động quét thông minh tìm cột chứa Ảnh và HTML)
         document.getElementById("postSelector").addEventListener("change", function() {
             let rowIndex = this.value;
-            if(!rowIndex) {
+            if (!rowIndex || !window.activePostSheet) {
                 document.getElementById("canvasArea").innerHTML = "";
                 return;
             }
             
-            let row = systemData.sheets["Bài viết_hidden"][rowIndex];
-            // Giả định: Cột F (index 5) là link ảnh bìa, Cột G (index 6) là Nội dung HTML
-            let coverImgUrl = row[5] || ""; 
-            let htmlContent = row[6] || "";
+            let row = window.activePostSheet[rowIndex];
+            
+            let coverImgUrl = "";
+            let htmlContent = "";
+
+            // Duyệt quét toàn bộ các ô trong hàng để tự định vị cột nội dung linh hoạt
+            for (let j = 1; j < row.length; j++) {
+                let cellVal = String(row[j] || "").trim();
+                if (cellVal.includes("<img") || cellVal.includes("<p") || cellVal.includes("<div")) {
+                    htmlContent = cellVal;
+                } else if ((cellVal.startsWith("http") || cellVal.includes("drive.google.com")) && 
+                           (cellVal.match(/\.(jpeg|jpg|gif|png|webp)/i) || cellVal.includes("id=") || cellVal.includes("d/"))) {
+                    if (!coverImgUrl) coverImgUrl = cellVal; 
+                }
+            }
+
+            // Phương án dự phòng cố định nếu quét động không tìm ra dữ liệu
+            if (!coverImgUrl && row[5]) coverImgUrl = row[5]; // Mặc định cột F cũ
+            if (!htmlContent && row[6]) htmlContent = row[6];   // Mặc định cột G cũ
 
             let images = [];
-            if(coverImgUrl) images.push(coverImgUrl);
+            if (coverImgUrl) images.push(coverImgUrl);
 
-            // Bóc tách toàn bộ thẻ <img src="..."> trong nội dung HTML
+            // Bóc tách các liên kết ảnh nhúng trong mã HTML bài viết
             let imgRegex = /<img[^>]+src="([^">]+)"/g;
             let match;
             while ((match = imgRegex.exec(htmlContent)) !== null) {
                 images.push(match[1]);
             }
 
-            // Loại bỏ trùng lặp và render
+            // Khử trùng danh sách ảnh và dựng giao diện
             images = [...new Set(images)];
             renderProjectCanvases(images);
             renderUploadsTab(images);
         });
 
-        // 4. Render các trang Canvas
+        // 4. Khởi tạo các trang Canvas thiết kế độc lập
         function renderProjectCanvases(imageUrls) {
             const container = document.getElementById("canvasArea");
             container.innerHTML = "";
             canvases = [];
 
-            if(imageUrls.length === 0) {
-                container.innerHTML = "<p>Không tìm thấy ảnh nào trong bài viết này.</p>";
+            if (imageUrls.length === 0) {
+                container.innerHTML = "<p style='padding:20px; color:#666;'>Không tìm thấy hình ảnh nào thuộc bài viết này.</p>";
                 return;
             }
 
@@ -310,24 +332,20 @@
                 wrapper.appendChild(canvasEl);
                 container.appendChild(wrapper);
 
-                // Khởi tạo Fabric
                 let fabricCanvas = new fabric.Canvas(canvasEl.id, {
-                    preserveObjectStacking: true, // Giữ nguyên thứ tự layer khi click
+                    preserveObjectStacking: true,
                     selection: true
                 });
 
-                // Xử lý CORS và Proxy nếu là link Drive
                 let finalUrl = url;
-                if(url.includes('drive.google.com') && url.includes('id=')) {
+                if (url.includes('drive.google.com') && url.includes('id=')) {
                     let fileId = new URLSearchParams(url.split('?')[1]).get('id');
-                    if(fileId) finalUrl = DRIVE_IMAGE_PROXY_ENDPOINT + fileId;
+                    if (fileId) finalUrl = DRIVE_IMAGE_PROXY_ENDPOINT + fileId;
                 }
 
-                // Gắn ảnh gốc làm Background của Canvas (giữ đúng tỷ lệ ảnh)
                 fabric.Image.fromURL(finalUrl, function(img) {
-                    // Thiết lập kích thước canvas theo kích thước ảnh gốc hoặc thu nhỏ nếu quá lớn
                     let scale = 1;
-                    if(img.width > 800) scale = 800 / img.width;
+                    if (img.width > 800) scale = 800 / img.width;
 
                     fabricCanvas.setWidth(img.width * scale);
                     fabricCanvas.setHeight(img.height * scale);
@@ -342,29 +360,27 @@
                     fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
                 }, { crossOrigin: 'anonymous' });
 
-                // Theo dõi thao tác để biết người dùng đang làm việc trên Canvas nào
                 fabricCanvas.on('mouse:down', function() {
                     activeCanvasIndex = index;
-                    // Bỏ chọn ở các canvas khác
                     canvases.forEach((c, i) => {
-                        if(i !== index) { c.discardActiveObject(); c.requestRenderAll(); }
+                        if (i !== index) { c.discardActiveObject(); c.requestRenderAll(); }
                     });
                 });
 
                 canvases.push(fabricCanvas);
             });
-            activeCanvasIndex = 0; // Mặc định focus trang 1
+            activeCanvasIndex = 0; 
         }
 
-        // 5. Render Sidebar Uploads (Các ảnh trong bài)
+        // 5. Kết xuất danh sách ảnh trong Tab Tải Lên (Ảnh thuộc bài viết)
         function renderUploadsTab(imageUrls) {
             const tab = document.getElementById("tab-uploads");
             tab.innerHTML = "";
             imageUrls.forEach(url => {
                 let finalUrl = url;
-                if(url.includes('drive.google.com') && url.includes('id=')) {
+                if (url.includes('drive.google.com') && url.includes('id=')) {
                     let fileId = new URLSearchParams(url.split('?')[1]).get('id');
-                    if(fileId) finalUrl = DRIVE_IMAGE_PROXY_ENDPOINT + fileId;
+                    if (fileId) finalUrl = DRIVE_IMAGE_PROXY_ENDPOINT + fileId;
                 }
 
                 let img = document.createElement("img");
@@ -375,49 +391,48 @@
             });
         }
 
-        // 6. Xử lý tải Element (Canva) từ backend về
+        // 6. Tải danh sách các Elements (Canva) từ hệ thống lưu trữ đám mây
         async function loadElementsTab() {
-            // Lưu ý: Cần thêm block xử lý action=get_canva_elements vào file .gs để liệt kê file trong thư mục ID: 11ad-tiEWqSeJdm0kv_q-_b2x0qWD9b6b
             try {
                 let res = await fetch(API_URL + "?action=get_canva_elements");
                 let data = await res.json();
-                if(data.success && data.files) {
+                if (data.success && data.files) {
                     const tab = document.getElementById("tab-elements");
                     tab.innerHTML = "";
                     data.files.forEach(file => {
                         let img = document.createElement("img");
-                        img.src = file.url; // Proxy hoặc base64
+                        img.src = file.url;
                         img.className = "asset-item";
                         img.onclick = () => addLayerToActiveCanvas(file.url);
                         tab.appendChild(img);
                     });
                 }
-            } catch(e) {
-                console.log("Chưa có API liệt kê Elements", e);
+            } catch (e) {
+                console.log("Sử dụng chế độ nạp Elements động qua hành động tải lên.");
             }
         }
 
-        // 7. Thêm Layer lên Canvas đang hoạt động
+        // 7. Chèn một Layer ảnh lên Canvas đang được tương tác
         function addLayerToActiveCanvas(imageUrl) {
-            if(canvases.length === 0) {
-                alert("Vui lòng chọn bài viết trước!");
+            if (canvases.length === 0) {
+                alert("Vui lòng chọn một dự án bài viết trước!");
                 return;
             }
             
             let activeCanvas = canvases[activeCanvasIndex];
             
             fabric.Image.fromURL(imageUrl, function(img) {
-                // Thu nhỏ layer nếu nó lớn hơn canvas
                 if (img.width > activeCanvas.width / 2) {
                     img.scaleToWidth(activeCanvas.width / 2);
                 }
                 
                 img.set({
-                    left: 20,
-                    top: 20,
-                    cornerColor: 'blue',
-                    cornerStrokeColor: 'blue',
-                    borderColor: 'blue',
+                    left: 40,
+                    top: 40,
+                    cornerColor: '#01adee',
+                    cornerStrokeColor: '#01adee',
+                    borderColor: '#01adee',
+                    cornerSize: 10,
                     transparentCorners: false
                 });
 
@@ -427,25 +442,24 @@
             }, { crossOrigin: 'anonymous' });
         }
 
-        // 8. Tải ảnh mới từ Local PC -> Làm Layer -> Lưu vào Drive Canva
+        // 8. Đọc tệp tin từ thiết bị cục bộ -> Đưa vào canvas làm layer -> Đồng bộ lưu trữ
         document.getElementById("fileUploadInput").addEventListener("change", function(e) {
             let file = e.target.files[0];
-            if(!file) return;
+            if (!file) return;
 
-            // Đọc base64 để xử lý add vào Canvas tức thời
             let reader = new FileReader();
             reader.onload = async function(f) {
                 let base64 = f.target.result;
-                addLayerToActiveCanvas(base64); // Chèn vào canvas ngay lập tức
+                addLayerToActiveCanvas(base64); 
                 
-                // Đưa ảnh vào Sidebar Elements
                 let newAsset = document.createElement("img");
                 newAsset.src = base64;
                 newAsset.className = "asset-item";
                 newAsset.onclick = () => addLayerToActiveCanvas(base64);
-                document.getElementById("tab-elements").prepend(newAsset);
                 
-                // Bắn API lên Google Script để lưu vĩnh viễn vào POST_IMAGE_SHARED_DRIVE_FOLDER_ID
+                let tabElements = document.getElementById("tab-elements");
+                if (tabElements) tabElements.prepend(newAsset);
+                
                 try {
                     let fileData = base64.split(',')[1];
                     let payload = {
@@ -460,23 +474,19 @@
                         method: "POST",
                         body: JSON.stringify(payload)
                     }); 
-                    // Chạy ngầm không cần cản trở UI
-                } catch(err) { console.error("Lỗi upload Drive:", err); }
+                } catch(err) { console.error("Lỗi đồng bộ lên bộ nhớ đám mây:", err); }
             };
             reader.readAsDataURL(file);
-            
-            // Xóa value để có thể up lại cùng 1 file
             this.value = '';
         });
 
-        // 9. Bắt sự kiện phím tắt (Xóa layer bằng nút Delete / Backspace)
+        // 9. Lắng nghe phím chức năng hệ thống (Xóa layer được chọn)
         window.addEventListener('keydown', function(e) {
-            if(e.key === 'Delete' || e.key === 'Backspace') {
-                if(canvases.length > 0 && activeCanvasIndex !== null) {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (canvases.length > 0 && activeCanvasIndex !== null) {
                     let activeCanvas = canvases[activeCanvasIndex];
                     let activeObject = activeCanvas.getActiveObject();
-                    // Không xóa khi đang focus vào thẻ input/textarea
-                    if(activeObject && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+                    if (activeObject && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
                         activeCanvas.remove(activeObject);
                         activeCanvas.discardActiveObject();
                         activeCanvas.requestRenderAll();
@@ -485,12 +495,12 @@
             }
         });
 
-        // Utils
+        // Hỗ trợ hiển thị/ẩn thanh trạng thái chờ dữ liệu
         function showLoader(txt) { 
             document.getElementById("loader").style.display = "flex"; 
-            if(txt) document.getElementById("loader-text").innerText = txt;
+            if (txt) document.getElementById("loader-text").innerText = txt;
         }
         function hideLoader() { document.getElementById("loader").style.display = "none"; }
     </script>
-</body>
+  </body>
 </html>
