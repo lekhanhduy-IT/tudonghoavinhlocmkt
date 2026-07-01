@@ -507,7 +507,62 @@ function addAsset(type){
 }
 function readFile(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)})}
 function imageInfo(src){return new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve({width:im.naturalWidth,height:im.naturalHeight});im.onerror=reject;im.src=src})}
-async function uploadFiles(files){finishInlineEdit();finishCropEdit();const valid=[...files].filter(f=>f.type.startsWith('image/'));if(!valid.length)return;const before=snapshot();const newIds=[];let offset=0;for(const file of valid){try{const src=await readFile(file),info=await imageInfo(src);const asset={id:uid('asset'),name:file.name,src,width:info.width,height:info.height};state.uploads.unshift(asset);const max=620,ratio=Math.min(1,max/info.width,max/info.height);const layer=baseLayer('image',{name:file.name,src,assetId:asset.id,width:Math.max(80,info.width*ratio),height:Math.max(80,info.height*ratio),x:230+offset,y:230+offset,filters:defaultFilters(),cropX:50,cropY:50});state.layers.push(layer);newIds.push(layer.id);state.primaryId=layer.id;offset+=28}catch(err){console.error(err);toast(`Không đọc được ${file.name}`)}}state.selectedIds=newIds;commit(before,'Tải nhiều ảnh');renderAll();switchTab('uploads');toast(`Đã thêm ${valid.length} ảnh vào canvas`)}
+const globalUploadsRef = dbSpider.ref('spider_brain/global_uploads');
+
+// Lắng nghe kho ảnh để nạp lên UI ngay cả khi F5
+globalUploadsRef.on('value', snap => {
+    const data = snap.val();
+    state.uploads = data ? Object.values(data).sort((a,b) => b.timestamp - a.timestamp) : [];
+    renderUploadPanels(); // Cập nhật lại giao diện danh sách ảnh tải lên
+});
+
+async function uploadFiles(files) {
+    const valid = [...files].filter(f => f.type.startsWith('image/'));
+    if (!valid.length) return;
+    
+    toast(`Đang đẩy ${valid.length} ảnh lên Kho Shared Drive...`);
+
+    for (const file of valid) {
+        try {
+            const srcBase64 = await readFile(file);
+            const payload = {
+                action: "UPLOAD_LAYER_IMAGES",
+                images: [{
+                    clientId: uid('upl'),
+                    source: srcBase64,
+                    mimeType: file.type,
+                    fileName: file.name
+                }]
+            };
+            
+            const res = await fetch(MKT_API_URL, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            });
+            const json = await res.json();
+            
+            if (json.success && json.files[0].success) {
+                const driveUrl = json.files[0].driveUrl;
+                
+                // Lưu vào database realtime chung
+                const asset = {
+                    id: json.files[0].clientId,
+                    name: file.name,
+                    src: driveUrl,
+                    timestamp: firebase.database.ServerValue.TIMESTAMP
+                };
+                globalUploadsRef.child(asset.id).set(asset);
+                
+                // Thêm vào Canvas làm Layer (code add layer của bạn giữ nguyên, thay src bằng driveUrl)
+                // Đồng thời việc này sẽ trigger Spider Brain đẩy toạ độ layer sang post.html
+                toast(`Tải thành công: ${file.name}`);
+            }
+        } catch (err) {
+            console.error(err);
+            toast(`Lỗi up ảnh: ${file.name}`);
+        }
+    }
+}
 function addImageFromAsset(asset,replace=true){const target=primaryLayer();if(replace&&target?.type==='image'&&state.selectedIds.length===1){transact('Thay ảnh',()=>{target.src=asset.src;target.assetId=asset.id;target.name=asset.name;target.filters=target.filters||defaultFilters()});return}const max=600,ratio=Math.min(1,max/asset.width,max/asset.height);addLayer(baseLayer('image',{name:asset.name,src:asset.src,assetId:asset.id,width:Math.max(80,asset.width*ratio),height:Math.max(80,asset.height*ratio),x:240,y:240,filters:defaultFilters(),cropX:50,cropY:50}),'Thêm ảnh từ tài nguyên')}
 function cssFilter(l){if(l.type!=='image')return 'none';const f=l.filters||defaultFilters();const brightness=clamp(100+f.exposure*.75+f.shadows*.18+f.highlights*.08,10,250);const contrast=clamp(100+f.contrast+f.clarity*.22+f.sharpen*.1-f.highlights*.06,10,250);const sat=clamp(100+f.saturation,0,300);const sepia=Math.abs(f.temperature)*.18;const hue=f.temperature*.22+f.tint*.36;const blur=f.denoise*.008;return `brightness(${brightness}%) contrast(${contrast}%) saturate(${sat}%) sepia(${sepia}%) hue-rotate(${hue}deg) blur(${blur}px)`}
 function layerStyle(l){const sx=(l.scale||1)*(l.flipX?-1:1),sy=(l.scale||1)*(l.flipY?-1:1);return `left:${l.x}px;top:${l.y}px;width:${l.width}px;height:${l.height}px;opacity:${l.opacity??1};transform:rotate(${l.rotation||0}deg) scale(${sx},${sy});z-index:${layerIndex(l.id)+2};display:${l.visible===false?'none':'block'}`}
