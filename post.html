@@ -3500,50 +3500,158 @@ window.applyHeadingTemplateStyle = function(templateHtml) {
 };
 
 window.applyTableTemplateStyle = function(templateHtml) {
-    let cells = TableEditor.getSelectedCells(); if (cells.length === 0) return; let originalTable = cells[0].closest('table');
-    let tempContainer = document.createElement('div'); tempContainer.style.position = 'absolute'; tempContainer.style.left = '-9999px'; tempContainer.style.visibility = 'hidden'; tempContainer.innerHTML = templateHtml; document.body.appendChild(tempContainer);
-    let editor = document.getElementById('postContent');
-    tempContainer.querySelectorAll('style, link').forEach(s => { if (!Array.from(editor.querySelectorAll('style, link')).some(ex => ex.outerHTML.trim() === s.outerHTML.trim())) editor.insertBefore(s.cloneNode(true), editor.firstChild); });
-    let sourceTable = tempContainer.querySelector('table'); if (!sourceTable) { document.body.removeChild(tempContainer); return; }
+    // 1. Tự động tìm bảng mục tiêu từ vùng bôi đen (Hỗ trợ cả TableEditor và bôi đen thông thường)
+    let cells = TableEditor.getSelectedCells();
+    let originalTable = null;
+    if (cells.length > 0) {
+        originalTable = cells[0].closest('table');
+    } else {
+        let sel = window.getSelection();
+        if (sel.rangeCount > 0) {
+            let node = sel.anchorNode;
+            if (node.nodeType === 3) node = node.parentNode;
+            originalTable = node?.closest('table');
+        }
+    }
+    
+    if (!originalTable) {
+        vbShowAlert("Vui lòng click hoặc bôi đen vào bên trong một bảng cần đổi mẫu!");
+        return;
+    }
 
+    // 2. Tạo container ẩn để phân tích cấu trúc CSS của bảng mẫu
+    let tempContainer = document.createElement('div');
+    tempContainer.style.position = 'absolute';
+    tempContainer.style.left = '-9999px';
+    tempContainer.style.visibility = 'hidden';
+    tempContainer.innerHTML = templateHtml;
+    document.body.appendChild(tempContainer);
+
+    let editor = document.getElementById('postContent');
+    tempContainer.querySelectorAll('style, link').forEach(s => {
+        if (!Array.from(editor.querySelectorAll('style, link')).some(ex => ex.outerHTML.trim() === s.outerHTML.trim())) {
+            editor.insertBefore(s.cloneNode(true), editor.firstChild);
+        }
+    });
+
+    let sourceTable = tempContainer.querySelector('table');
+    if (!sourceTable) {
+        document.body.removeChild(tempContainer);
+        return;
+    }
+
+    // 3. Clone bảng gốc để BẢO TOÀN 100% chữ, số hàng/cột, ô Mega & Spill (rowspan/colspan)
     let targetTable = originalTable.cloneNode(true);
     targetTable.querySelectorAll('colgroup, col').forEach(cg => cg.remove());
-    targetTable.querySelectorAll('td, th').forEach(cell => { cell.style.width = ''; cell.style.minWidth = ''; cell.style.maxWidth = ''; cell.removeAttribute('width'); cell.classList.remove('vb-selected-cell'); });
+    targetTable.querySelectorAll('td, th').forEach(cell => {
+        cell.style.width = ''; cell.style.minWidth = ''; cell.style.maxWidth = '';
+        cell.removeAttribute('width');
+        cell.classList.remove('vb-selected-cell');
+    });
 
-    let sourceRows = Array.from(sourceTable.rows), isColMismatch = (sourceRows.length > 0 && sourceRows[0].cells.length !== (targetTable.rows[0]?.cells.length || 0));
-    let computedTable = window.getComputedStyle(sourceTable); Array.from(sourceTable.attributes).forEach(attr => targetTable.setAttribute(attr.name, attr.value)); targetTable.style.tableLayout = 'auto'; targetTable.style.width = '100%';
-    if (isColMismatch) { targetTable.removeAttribute('class'); targetTable.style.margin = computedTable.margin; targetTable.style.borderCollapse = computedTable.borderCollapse; }
-    
+    let sourceRows = Array.from(sourceTable.rows);
+    let computedTable = window.getComputedStyle(sourceTable);
+
+    // Kế thừa phong cách tổng thể của bảng
+    Array.from(sourceTable.attributes).forEach(attr => targetTable.setAttribute(attr.name, attr.value));
+    targetTable.style.tableLayout = 'auto';
+    targetTable.style.width = '100%';
+    targetTable.style.borderCollapse = computedTable.borderCollapse || 'collapse';
+    if (computedTable.margin) targetTable.style.margin = computedTable.margin;
+
+    // 4. Thuật toán ánh xạ phong cách thông minh (Header -> Body -> Alternate Row)
     if (sourceRows.length > 0) {
-        let headerStyleRow = sourceRows[0], bodyStyleRow = sourceRows.length > 1 ? sourceRows[1] : sourceRows[0], altStyleRow = sourceRows.length > 2 ? sourceRows[2] : bodyStyleRow;
+        let headerStyleRow = sourceRows[0];
+        let bodyStyleRow = sourceRows.length > 1 ? sourceRows[1] : sourceRows[0];
+        let altStyleRow = sourceRows.length > 2 ? sourceRows[2] : bodyStyleRow;
+
         let targetRows = Array.from(targetTable.rows);
         for (let i = 0; i < targetRows.length; i++) {
-            let tRow = targetRows[i], sRow = (i === 0 && sourceRows.length > 1 && tRow.querySelector('th')) ? headerStyleRow : ((i % 2 !== 0) ? bodyStyleRow : altStyleRow);
-            Array.from(sRow.attributes).forEach(attr => tRow.setAttribute(attr.name, attr.value)); if (isColMismatch) tRow.removeAttribute('class');
-            let sCells = Array.from(sRow.cells), tCells = Array.from(tRow.cells);
+            let tRow = targetRows[i];
+            // Hàng đầu tiên lấy phong cách Header, các hàng sau xen kẽ chẵn/lẻ
+            let sRow = (i === 0) ? headerStyleRow : ((i % 2 !== 0) ? bodyStyleRow : altStyleRow);
+
+            Array.from(sRow.attributes).forEach(attr => tRow.setAttribute(attr.name, attr.value));
+
+            let sCells = Array.from(sRow.cells);
+            let tCells = Array.from(tRow.cells);
+
             for (let j = 0; j < tCells.length; j++) {
-                let tCell = tCells[j], sCell = sCells[j % sCells.length]; 
+                let tCell = tCells[j];
+                // Phép chia lấy dư (modulo) giúp lặp lại phong cách cột nếu bảng bôi đen nhiều cột hơn mẫu
+                let sCell = sCells[j % sCells.length]; 
+
                 if (sCell) {
-                    let rSpan = tCell.getAttribute('rowspan'), cSpan = tCell.getAttribute('colspan');
-                    if (tCell.tagName !== sCell.tagName) { let newCell = document.createElement(sCell.tagName); newCell.innerHTML = tCell.innerHTML; tRow.replaceChild(newCell, tCell); tCell = newCell; }
-                    if (!isColMismatch && sCell.className) tCell.className = sCell.className; else tCell.removeAttribute('class');
-                    let computedS = window.getComputedStyle(sCell); tCell.style.cssText = sCell.style.cssText; tCell.style.width = ''; tCell.style.minWidth = ''; tCell.style.maxWidth = ''; tCell.removeAttribute('width');
-                    if (computedS.backgroundColor !== 'rgba(0,0,0,0)' && computedS.backgroundColor !== 'transparent') tCell.style.backgroundColor = computedS.backgroundColor;
-                    if (computedS.color) tCell.style.color = computedS.color; if (computedS.borderTop && computedS.borderTop !== 'none') tCell.style.borderTop = computedS.borderTop;
-                    if (computedS.borderRight && computedS.borderRight !== 'none') tCell.style.borderRight = computedS.borderRight; if (computedS.borderBottom && computedS.borderBottom !== 'none') tCell.style.borderBottom = computedS.borderBottom;
-                    if (computedS.borderLeft && computedS.borderLeft !== 'none') tCell.style.borderLeft = computedS.borderLeft; if (computedS.fontWeight && computedS.fontWeight !== '400' && computedS.fontWeight !== 'normal') tCell.style.fontWeight = computedS.fontWeight;
-                    if (computedS.padding) tCell.style.padding = computedS.padding; if (computedS.textAlign && computedS.textAlign !== 'start') tCell.style.textAlign = computedS.textAlign; if (computedS.verticalAlign) tCell.style.verticalAlign = computedS.verticalAlign;
-                    if (rSpan) tCell.setAttribute('rowspan', rSpan); if (cSpan) tCell.setAttribute('colspan', cSpan); tCell.removeAttribute('bgcolor'); tCell.removeAttribute('background');
-                    tCell.querySelectorAll('*').forEach(el => { el.style.backgroundColor = ''; el.style.color = ''; el.style.borderColor = ''; el.removeAttribute('bgcolor'); el.removeAttribute('color'); if(el.tagName === 'FONT') { el.removeAttribute('color'); el.removeAttribute('face'); } });
+                    let rSpan = tCell.getAttribute('rowspan');
+                    let cSpan = tCell.getAttribute('colspan');
+
+                    // Chuyển đổi nhịp nhàng giữa thẻ <td> và <th> theo đúng mẫu
+                    if (tCell.tagName !== sCell.tagName) {
+                        let newCell = document.createElement(sCell.tagName);
+                        newCell.innerHTML = tCell.innerHTML;
+                        tRow.replaceChild(newCell, tCell);
+                        tCell = newCell;
+                    }
+
+                    if (sCell.className) tCell.className = sCell.className;
+                    else tCell.removeAttribute('class');
+
+                    let computedS = window.getComputedStyle(sCell);
+                    tCell.style.cssText = sCell.style.cssText;
+                    tCell.style.width = ''; tCell.style.minWidth = ''; tCell.style.maxWidth = '';
+                    tCell.removeAttribute('width');
+
+                    if (computedS.backgroundColor !== 'rgba(0, 0, 0, 0)' && computedS.backgroundColor !== 'transparent') tCell.style.backgroundColor = computedS.backgroundColor;
+                    if (computedS.color) tCell.style.color = computedS.color;
+                    if (computedS.borderTop && computedS.borderTop !== 'none') tCell.style.borderTop = computedS.borderTop;
+                    if (computedS.borderRight && computedS.borderRight !== 'none') tCell.style.borderRight = computedS.borderRight;
+                    if (computedS.borderBottom && computedS.borderBottom !== 'none') tCell.style.borderBottom = computedS.borderBottom;
+                    if (computedS.borderLeft && computedS.borderLeft !== 'none') tCell.style.borderLeft = computedS.borderLeft;
+                    if (computedS.fontWeight && computedS.fontWeight !== '400' && computedS.fontWeight !== 'normal') tCell.style.fontWeight = computedS.fontWeight;
+                    if (computedS.padding) tCell.style.padding = computedS.padding;
+                    if (computedS.textAlign && computedS.textAlign !== 'start') tCell.style.textAlign = computedS.textAlign;
+                    if (computedS.verticalAlign) tCell.style.verticalAlign = computedS.verticalAlign;
+
+                    // Giữ nguyên các thuộc tính gộp ô (mega / spill)
+                    if (rSpan) tCell.setAttribute('rowspan', rSpan);
+                    if (cSpan) tCell.setAttribute('colspan', cSpan);
+                    tCell.removeAttribute('bgcolor'); tCell.removeAttribute('background');
+
+                    // Dọn dẹp màu sắc inline bị sót lại trong nội dung chữ cũ
+                    tCell.querySelectorAll('*').forEach(el => {
+                        el.style.backgroundColor = ''; el.style.color = ''; el.style.borderColor = '';
+                        el.removeAttribute('bgcolor'); el.removeAttribute('color');
+                        if (el.tagName === 'FONT') { el.removeAttribute('color'); el.removeAttribute('face'); }
+                    });
                 }
             }
         }
     }
-    let currentWrapper = originalTable.parentElement, nodeToReplace = originalTable;
-    let hasOldWrapper = (currentWrapper && currentWrapper.id !== 'postContent' && currentWrapper.tagName === 'DIV' && (currentWrapper.className.includes('template') || currentWrapper.className.includes('vl-')));
-    if (hasOldWrapper) nodeToReplace = currentWrapper; window.getSelection().removeAllRanges(); nodeToReplace.outerHTML = targetTable.outerHTML; document.body.removeChild(tempContainer); TableEditor.hideMenus();
-};
 
+    document.body.removeChild(tempContainer);
+    editor.focus();
+
+    // 5. THAY THẾ BẢNG BẰNG EXECCOMMAND ĐỂ HỖ TRỢ HOÀN TÁC (CTRL + Z / CTRL + Y)
+    let nodeToReplace = originalTable;
+    let currentWrapper = originalTable.parentElement;
+    if (currentWrapper && currentWrapper.id !== 'postContent' && currentWrapper.tagName === 'DIV' && (currentWrapper.className.includes('template') || currentWrapper.className.includes('vl-'))) {
+        nodeToReplace = currentWrapper;
+    }
+
+    let range = document.createRange();
+    range.selectNode(nodeToReplace);
+    let sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    // Sử dụng insertHTML thay vì outerHTML để ghi thao tác vào lịch sử Undo của trình duyệt
+    document.execCommand('insertHTML', false, targetTable.outerHTML);
+
+    if (typeof TableEditor !== 'undefined' && typeof TableEditor.hideMenus === 'function') {
+        TableEditor.hideMenus();
+    }
+    closeAllToolPopups();
+};
 let isVbPreviewing = false;
 
 function toggleVietbaiMode() {
