@@ -13,7 +13,6 @@
             --gray-light: #f4f6f8;
             --gray-border: #e0e0e0;
             --text-main: #333333;
-            --zoom: 1; 
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; user-select: none; }
         body { background: #e8ecef; color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -42,26 +41,24 @@
         /* ================= WORKSPACE CHÍNH ================= */
         .workspace { display: flex; flex: 1; overflow: hidden; position: relative; }
         
-        /* SCROLL ÁP DỤNG Ở ĐÂY - CHỨA TOÀN BỘ ZOOM CONTENT */
+        /* KHU VỰC CUỘN CHỨA CANVAS: LUÔN CÁCH BIÊN 20PX */
         #workspaceScroll {
             flex: 1; overflow: auto; background: #e8ecef; position: relative;
+            padding: 20px; /* Cách mép màn hình 20px */
         }
 
-        /* KHUNG CHỨA CÁC PAGE ĐƯỢC ZOOM */
+        /* BỘ KHUNG HIỂN THỊ CÁC PAGE: ĐẢM BẢO GAP 20PX */
         #zoomContent {
-            transform-origin: top center; transition: transform 0.1s ease;
-            padding: 20px; /* Cách mép màn hình 20px */
-            display: flex; flex-direction: column; align-items: center; gap: 20px; /* Các page cách nhau 20px */
+            display: flex; flex-direction: column; align-items: center; gap: 20px; /* Các page cách nhau đúng 20px */
             min-height: 100%;
         }
-
         #zoomContent.view-grid {
             display: grid;
             grid-template-columns: repeat(var(--grid-cols, 3), auto);
             justify-content: center; align-items: start; align-content: start;
         }
 
-        /* STRIP THUMBNAIL CHO CHẾ ĐỘ NGANG */
+        /* STRIP THUMBNAIL (DÙNG KHI CHẾ ĐỘ TRƯỢT NGANG) */
         #horizStrip {
             height: 150px; width: 100%; background: var(--white); border-top: 1px solid var(--gray-border);
             display: none; gap: 15px; padding: 15px; overflow-x: auto; flex-shrink: 0; align-items: flex-start;
@@ -69,26 +66,30 @@
         .horiz-thumb-wrapper { display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; }
         .horiz-thumb-item { 
             border: 2px solid var(--gray-border); border-radius: 6px; cursor: pointer; 
-            height: 90px; aspect-ratio: 1/1; position: relative; background: #fff; overflow: hidden;
-            display: flex; justify-content: center; align-items: center;
+            height: 90px; width: 90px; background: #fff; overflow: hidden; position: relative;
+            box-sizing: border-box;
         }
         .horiz-thumb-item.active { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(1,173,238,0.3); }
-        .thumb-canvas-inner { position: absolute; pointer-events: none; }
         .horiz-thumb-label { font-size: 11px; font-weight: bold; color: #555; }
 
-        /* ================= PAGE CONTAINER CHUẨN ================= */
+        /* ================= PAGE CONTAINER (NỀN TẢNG CHUẨN) ================= */
+        /* Wrapper giữ không gian thật cho Flex/Grid ko bị xô lệch */
+        .page-wrapper {
+            position: relative; flex-shrink: 0;
+        }
+        /* Container mới là thứ bị phóng to thu nhỏ */
         .page-container {
             background: #ffffff; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 4px;
-            display: flex; flex-direction: column; overflow: hidden; position: relative;
-            flex-shrink: 0; /* Không bao giờ bị ép bẹp */
+            position: absolute; top: 0; left: 0; display: flex; flex-direction: column; overflow: hidden;
+            transform-origin: top left; 
         }
         .page-toolbar {
             height: 30px; background: #2f3640; color: #fff; display: flex; align-items: center;
-            justify-content: space-between; padding: 0 10px; font-size: 12px; flex-shrink: 0;
-            pointer-events: none; 
+            justify-content: space-between; padding: 0 10px; font-size: 12px; flex-shrink: 0; pointer-events: none; 
         }
         .canvas-frame {
-            position: relative; overflow: hidden; background: #ffffff; width: 100%; height: 100%;
+            flex: 1; /* Fix sập khung canvas: Ép chiếm toàn bộ chiều cao còn lại */
+            position: relative; overflow: hidden; background: #ffffff; width: 100%; 
         }
 
         /* ================= LAYER TƯƠNG TÁC ================= */
@@ -99,18 +100,17 @@
         .layer-content { width: 100%; height: 100%; pointer-events: none; display: flex; overflow: hidden; }
         .layer-content img, .layer-content svg { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
         
-        /* Chỉ hiện viền và nút khi có class .selected */
         .canvas-layer.selected { outline: 1.5px solid var(--blue); outline-offset: 0; }
         .canvas-layer:not(.selected) .layer-handle { display: none !important; }
         
         .layer-handle { position: absolute; z-index: 10; display: flex; align-items: center; justify-content: center; }
         
         /* 4 GÓC: Thu phóng giữ tỷ lệ */
-        .layer-handle.corner { width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 1.5px solid var(--blue); }
-        .layer-handle.tl { top: -6px; left: -6px; cursor: nwse-resize; }
-        .layer-handle.tr { top: -6px; right: -6px; cursor: nesw-resize; }
-        .layer-handle.bl { bottom: -6px; left: -6px; cursor: nesw-resize; }
-        .layer-handle.br { bottom: -6px; right: -6px; cursor: nwse-resize; }
+        .layer-handle.corner { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 1.5px solid var(--blue); }
+        .layer-handle.tl { top: -7px; left: -7px; cursor: nwse-resize; }
+        .layer-handle.tr { top: -7px; right: -7px; cursor: nesw-resize; }
+        .layer-handle.bl { bottom: -7px; left: -7px; cursor: nesw-resize; }
+        .layer-handle.br { bottom: -7px; right: -7px; cursor: nwse-resize; }
 
         /* 4 CẠNH: Cắt xén (Crop) */
         .layer-handle.edge { background: #fff; border: 1.5px solid var(--blue); border-radius: 4px; }
@@ -127,10 +127,10 @@
         }
         .layer-handle.rot i { font-size: 11px; pointer-events: none; color: var(--text-main); }
 
-        /* Mini Menu */
+        /* Mini Menu Layer */
         .layer-mini-menu {
             position: absolute; top: -45px; right: 0; background: #2f3640; border-radius: 6px; 
-            display: flex; gap: 4px; padding: 4px; z-index: 20; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            display: flex; gap: 4px; padding: 4px; z-index: 20; box-shadow: 0 4px 10px rgba(0,0,0,0.2); white-space: nowrap;
         }
         .layer-mini-menu button { background: transparent; border: none; color: #fff; font-size: 12px; padding: 4px 8px; cursor: pointer; border-radius: 3px; }
         .layer-mini-menu button:hover { background: var(--blue); }
@@ -322,7 +322,7 @@
             fetchResourceData();
             initAdvancedPinchToZoom();
 
-            // CLICK RA NGOÀI ĐỂ BỎ CHỌN LAYER VÀ CONTEXT MENU
+            // CLICK RA NGOÀI ĐỂ BỎ CHỌN LAYER VÀ MENU
             document.getElementById("workspaceScroll").addEventListener("mousedown", (e) => {
                 if(!e.target.closest(".canvas-layer") && !e.target.closest(".context-menu")) {
                     deselectAllLayers();
@@ -348,6 +348,8 @@
                     menu.style.top = e.clientY + "px";
                 }
             });
+
+            window.addEventListener('resize', applyLayoutScaling);
         });
 
         function showLoader(text) { document.getElementById("loaderText").innerText = text; document.getElementById("loader").style.display = "flex"; }
@@ -385,7 +387,6 @@
             hideContextMenu();
             renderAllPages();
         }
-
 
         /* ================= QUẢN LÝ MENU & SIDEBAR ================= */
         function toggleSidebarPanel(forceOpen) {
@@ -452,7 +453,7 @@
             });
         }
 
-        /* ================= LOAD HÌNH ẢNH & CANVAS ================= */
+        /* ================= LOAD HÌNH ẢNH MỚI VÀO CANVAS ================= */
         async function loadProjectImages(folderId) {
             if (!folderId) return;
             showLoader("Đang nạp ảnh Project...");
@@ -463,11 +464,11 @@
                 let json = await res.json();
                 if (json.success && json.images) {
                     for (let img of json.images) {
+                        // CHUẨN XÁC: SỬ DỤNG THUMBNAIL ĐỂ TRÁNH LỖI CORS 100%
                         let thumbUrl = `https://drive.google.com/thumbnail?id=${img.id}&sz=w1000`;
-                        await createPageFromImage(img.name, thumbUrl);
+                        createPageFromImage(img.name, thumbUrl);
                     }
                 }
-                renderAllPages();
             } finally { hideLoader(); }
         }
 
@@ -475,68 +476,34 @@
             Array.from(input.files).forEach(file => {
                 let reader = new FileReader();
                 reader.onload = async (e) => {
-                    await createPageFromImage(file.name, e.target.result);
-                    renderAllPages();
+                    createPageFromImage(file.name, e.target.result);
                 };
                 reader.readAsDataURL(file);
             });
         }
 
+        // BỎ QUA VIỆC TÍNH KÍCH THƯỚC QUA JS ĐỂ CHỐNG TREO - RENDER TRỰC TIẾP
         function createPageFromImage(title, url) {
-            return new Promise(resolve => {
-                let canvasW = 800; 
-                let canvasH = 800;
-                
-                let page = { id: "p_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5), title, width: canvasW, height: canvasH, layers: [] };
-                pagesData.push(page);
-                addAssetToUploadTab(url);
+            let canvasW = 800; 
+            let canvasH = 800;
+            let pageId = "p_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
+            let page = { id: pageId, title: title, width: canvasW, height: canvasH, layers: [] };
+            pagesData.push(page);
+            
+            addAssetToUploadTab(url);
 
-                let img = new Image();
-                let isResolved = false;
-                
-                let timeout = setTimeout(() => {
-                    if(!isResolved) {
-                        isResolved = true;
-                        let layerW = canvasW * 0.8;
-                        let layerH = canvasH * 0.8;
-                        addLayerToPage(pagesData.length - 1, `<img src="${url}">`, layerW, layerH, (canvasW-layerW)/2, (canvasH-layerH)/2);
-                        resolve();
-                    }
-                }, 4000);
+            // Gán cứng tỷ lệ ảnh mặc định chiếm 80% Canvas ban đầu, trình duyệt sẽ tự Object-fit vừa vặn
+            let layerW = 640; 
+            let layerH = 640; 
+            let startX = (canvasW - layerW) / 2;
+            let startY = (canvasH - layerH) / 2;
+            
+            let content = `<img src="${url}" style="width:100%; height:100%; object-fit:cover; pointer-events:none;">`;
+            
+            let layerObj = { id: "l_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5), content, w: layerW, h: layerH, x: startX, y: startY, rot: 0 };
+            page.layers.push(layerObj);
 
-                img.onload = () => {
-                    if(isResolved) return;
-                    isResolved = true;
-                    clearTimeout(timeout);
-                    
-                    let imgRatio = img.naturalWidth / img.naturalHeight;
-                    let layerW = canvasW * 0.8; 
-                    let layerH = layerW / imgRatio;
-                    
-                    if (layerH > canvasH * 0.8) {
-                        layerH = canvasH * 0.8;
-                        layerW = layerH * imgRatio;
-                    }
-                    
-                    let startX = (canvasW - layerW) / 2;
-                    let startY = (canvasH - layerH) / 2;
-
-                    addLayerToPage(pagesData.length - 1, `<img src="${url}">`, layerW, layerH, startX, startY);
-                    resolve();
-                };
-                
-                img.onerror = () => { 
-                    if(isResolved) return;
-                    isResolved = true;
-                    clearTimeout(timeout);
-                    let layerW = canvasW * 0.8;
-                    let layerH = canvasH * 0.8;
-                    addLayerToPage(pagesData.length - 1, `<img src="${url}">`, layerW, layerH, (canvasW-layerW)/2, (canvasH-layerH)/2);
-                    resolve(); 
-                };
-                
-                img.src = url;
-            });
+            renderAllPages();
         }
 
         function addAssetToUploadTab(url) {
@@ -544,32 +511,36 @@
             let div = document.createElement("div");
             div.className = "asset-item";
             div.innerHTML = `<img src="${url}">`;
-            div.onclick = () => addLayerToActivePage(`<img src="${url}">`);
+            div.onclick = () => addLayerToActivePage(`<img src="${url}" style="width:100%; height:100%; object-fit:cover; pointer-events:none;">`);
             grid.appendChild(div);
         }
 
-        /* ================= RENDER CANVAS & VIEW MODES ================= */
+        /* ================= RENDER CANVAS VÀ TÍNH KÍCH THƯỚC CHUẨN XÁC ================= */
         function renderAllPages() {
             let zoomContent = document.getElementById("zoomContent");
+            let horizStrip = document.getElementById("horizStrip");
+            
             zoomContent.innerHTML = "";
             
             if (pagesData.length === 0) {
                 zoomContent.innerHTML = `<div style="color:#999; margin:auto; padding-top:50px;">Chưa có trang canvas nào.</div>`;
-                document.getElementById("horizStrip").style.display = 'none';
+                horizStrip.style.display = 'none';
                 return;
             }
 
             if (currentViewMode === 'horizontal') {
-                document.getElementById("horizStrip").style.display = 'flex';
+                horizStrip.style.display = 'flex';
                 let activePage = pagesData[activePageIndex] || pagesData[0];
                 zoomContent.appendChild(createPageDOM(activePage, activePageIndex));
                 renderThumbnailsStrip();
             } else {
-                document.getElementById("horizStrip").style.display = 'none';
+                horizStrip.style.display = 'none';
                 pagesData.forEach((page, idx) => {
                     zoomContent.appendChild(createPageDOM(page, idx));
                 });
             }
+            
+            applyLayoutScaling();
         }
 
         function createPageDOM(page, idx) {
@@ -577,15 +548,19 @@
             wrapper.className = "page-wrapper";
             wrapper.id = `wrapper_${page.id}`;
             
+            // Lấy kích thước thật
+            let w = page.width;
+            let totalH = page.height + 30; // 30px cho toolbar
+            
+            wrapper.style.width = `${w}px`;
+            wrapper.style.height = `${totalH}px`;
+            
             let pEl = document.createElement("div");
             pEl.className = "page-container";
             pEl.dataset.pageIndex = idx;
             pEl.onclick = () => activePageIndex = idx;
-            
-            let totalHeight = page.height + 30; // 30px cho toolbar
-            
-            pEl.style.width = `${page.width}px`;
-            pEl.style.height = `${totalHeight}px`;
+            pEl.style.width = `${w}px`;
+            pEl.style.height = `${totalH}px`;
 
             pEl.innerHTML = `
                 <div class="page-toolbar"><span>Trang ${idx+1}: ${page.title}</span><span>${page.width}x${page.height}</span></div>
@@ -600,15 +575,10 @@
             });
             
             wrapper.appendChild(pEl);
-            
-            // Ép wrapper mở không gian vật lý theo tỷ lệ zoom
-            wrapper.style.width = `${page.width}px`;
-            wrapper.style.height = `${totalHeight}px`;
-
             return wrapper;
         }
 
-        /* STRIP THUMBNAIL (SỬ DỤNG DOM CLONE ĐỂ TRÁNH LỖI HTML TEXT) */
+        /* STRIP THUMBNAIL (ĐỒNG BỘ REALTIME TỪ TRỰC TIẾP TỪ DỮ LIỆU) */
         function renderThumbnailsStrip() {
             let strip = document.getElementById("horizStrip");
             strip.innerHTML = "";
@@ -637,33 +607,69 @@
             syncAllThumbnails();
         }
 
-        /* ĐỒNG BỘ NỘI DUNG TỪ CANVAS LỚN XUỐNG THUMBNAIL THÔNG QUA DOM CLONE */
+        /* HÀM KẾT XUẤT THUMBNAIL TỪ DATA CHUẨN XÁC 100% VÀ KHÔNG BỊ TRẮNG */
         function syncAllThumbnails() {
             if (currentViewMode !== 'horizontal') return;
             pagesData.forEach((p, idx) => {
                 let thumbInner = document.getElementById(`thumb_canvas_${idx}`);
-                let sourceFrame = document.getElementById(`frame_${p.id}`);
+                if (!thumbInner) return;
                 
-                if (thumbInner && sourceFrame) {
-                    thumbInner.innerHTML = ""; // Xóa nội dung cũ
-                    let clone = sourceFrame.cloneNode(true);
-                    
-                    // Xóa các elements thừa (nút resize, menu) khỏi bản clone
-                    clone.querySelectorAll('.layer-handle, .layer-mini-menu').forEach(el => el.remove());
-                    clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
-                    
-                    // Tính tỷ lệ thu nhỏ vào khung 80x80px
-                    let scale = 80 / p.width;
-                    thumbInner.style.transform = `scale(${scale})`;
-                    thumbInner.style.transformOrigin = 'top left';
-                    thumbInner.style.width = `${p.width}px`;
-                    thumbInner.style.height = `${p.height}px`;
-                    
-                    // Bê toàn bộ ruột của bản Clone đổ vào thumbnail
-                    while (clone.firstChild) {
-                        thumbInner.appendChild(clone.firstChild);
-                    }
-                }
+                // Thu nhỏ tỷ lệ vào khung vuông 90px
+                let scaleW = 90 / p.width;
+                let scaleH = 90 / p.height;
+                let scale = Math.min(scaleW, scaleH);
+                
+                // Canh giữa ảnh trong thumbnail
+                let offsetX = (90 - (p.width * scale)) / 2;
+                let offsetY = (90 - (p.height * scale)) / 2;
+                
+                // Dựng HTML từ Data (tránh đụng tới DOM của Main Canvas)
+                let html = `<div style="position: absolute; top: ${offsetY}px; left: ${offsetX}px; width: ${p.width}px; height: ${p.height}px; transform: scale(${scale}); transform-origin: top left; background: #fff; overflow: hidden;">`;
+                p.layers.forEach(l => {
+                    html += `<div style="position:absolute; left:${l.x}px; top:${l.y}px; width:${l.w}px; height:${l.h}px; transform:rotate(${l.rot||0}deg); display:flex; justify-content:center; align-items:center; overflow:hidden;">
+                                ${l.content}
+                             </div>`;
+                });
+                html += `</div>`;
+                thumbInner.innerHTML = html;
+            });
+        }
+
+
+        /* THUẬT TOÁN ZOOM BẢO ĐẢM KHOẢNG CÁCH GAP LÀ 20PX */
+        function applyLayoutScaling() {
+            let zoomContent = document.getElementById("zoomContent");
+            if(!zoomContent) return;
+
+            let scale = currentZoom;
+            
+            // Xử lý tính toán Scale khi ở chế độ GRID
+            if(currentViewMode === 'grid') {
+                let cols = parseInt(document.getElementById("gridColSlider").value) || 3;
+                let gap = 20;
+                let padding = 40; 
+                let availableWidth = document.getElementById("workspaceScroll").clientWidth - padding - (gap * (cols - 1));
+                scale = availableWidth / cols / (pagesData[0]?.width || 800);
+                
+                // Cập nhật lại số liệu hiển thị
+                currentZoom = scale;
+                document.getElementById("zoomDisplay").innerText = Math.round(currentZoom * 100) + "%";
+            }
+
+            pagesData.forEach((p, idx) => {
+                let wrapper = document.getElementById(`wrapper_${p.id}`);
+                let container = wrapper?.querySelector('.page-container');
+                if(!wrapper || !container) return; // Bỏ qua nếu ko tìm thấy
+
+                let totalH = p.height + 30; // 30px cho toolbar
+
+                // Gán scale cho Container
+                container.style.transform = `scale(${scale})`;
+                
+                // Ép KÍCH THƯỚC VẬT LÝ của Wrapper bằng đúng kích thước Scale
+                // Đây là mấu chốt để các trang không bao giờ đè lên nhau, luôn cách nhau đúng 20px
+                wrapper.style.width = `${p.width * scale}px`;
+                wrapper.style.height = `${totalH * scale}px`;
             });
         }
 
@@ -760,7 +766,6 @@
             let startY = e.clientY;
             let origX = dom.offsetLeft;
             let origY = dom.offsetTop;
-            // ScaleFactor lúc này là currentZoom của vùng zoomContent
             let scaleFactor = currentZoom;
 
             function onMove(ev) {
@@ -939,48 +944,24 @@
                 let availableWidth = document.getElementById("workspaceScroll").clientWidth - 40 - (20 * (cols - 1));
                 let pageW = pagesData[0]?.width || 800;
                 currentZoom = (availableWidth / cols) / pageW;
-                applyGlobalZoom();
+                document.getElementById("zoomDisplay").innerText = Math.round(currentZoom * 100) + "%";
             } else {
                 currentZoom = 1;
-                applyGlobalZoom();
+                document.getElementById("zoomDisplay").innerText = "100%";
             }
             renderAllPages();
         }
 
         function setGridColumns(cols) { 
             document.getElementById("zoomContent").style.setProperty('--grid-cols', cols); 
-            let availableWidth = document.getElementById("workspaceScroll").clientWidth - 40 - (20 * (cols - 1));
-            let pageW = pagesData[0]?.width || 800;
-            currentZoom = (availableWidth / cols) / pageW;
-            applyGlobalZoom();
+            applyLayoutScaling();
         }
 
         function manualZoom(delta) {
             if(currentViewMode === 'grid') return;
             currentZoom = Math.max(0.1, Math.min(3, currentZoom + delta));
-            applyGlobalZoom();
-        }
-
-        function applyGlobalZoom() {
-            // ÁP DỤNG ZOOM CHO VÙNG CHỨA MÀ VẪN GIỮ NGUYÊN KHOẢNG CÁCH GAP
-            document.getElementById("zoomContent").style.transform = `scale(${currentZoom})`;
             document.getElementById("zoomDisplay").innerText = Math.round(currentZoom * 100) + "%";
-            
-            // Xử lý giữ tỷ lệ cho vùng cuộn
-            let pWidth = pagesData[0]?.width || 800;
-            let pHeight = pagesData[0]?.height || 800;
-            
-            document.querySelectorAll('.page-wrapper').forEach((wrapper, idx) => {
-                // Điều chỉnh không gian vật lý của thẻ bọc bên ngoài
-                let h = pagesData[idx].height + 30;
-                let w = pagesData[idx].width;
-                wrapper.style.width = `${w}px`;
-                wrapper.style.height = `${h}px`;
-                
-                // Mấu chốt: Bù trừ không gian thừa do Transform Origin Top Center
-                wrapper.style.marginBottom = `${(h * currentZoom) - h}px`;
-                wrapper.style.marginRight = `${(w * currentZoom) - w}px`;
-            });
+            applyLayoutScaling();
         }
 
         /* XỬ LÝ PINCH TO ZOOM NÂNG CAO */
@@ -1021,7 +1002,8 @@
                     } else {
                         let zoomFactor = dist / initialDist;
                         currentZoom = Math.max(0.1, Math.min(3, initialZoom * zoomFactor));
-                        applyGlobalZoom();
+                        document.getElementById("zoomDisplay").innerText = Math.round(currentZoom * 100) + "%";
+                        applyLayoutScaling();
                     }
                 }
             }, {passive: false});
