@@ -2,469 +2,539 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trình chỉnh sửa ảnh - MKT System</title>
-    <link rel="icon" href="https://i.postimg.cc/xCjmFrb4/Untitled-design.png">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Trình Chỉnh Sửa Hình Ảnh (Canva Clone)</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <style>
         :root { 
-            --white: #ffffff; 
-            --blue: #01adee; 
-            --gray-light: #f3f4f6; 
-            --gray-border: #e0e0e0; 
-            --text-main: #333333; 
+            --white: #ffffff; --blue: #01adee; --red: #db1010; 
+            --gray-light: #f4f6f8; --gray-border: #e0e0e0; --text-main: #333333; 
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
-        body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: var(--gray-light); color: var(--text-main); }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; user-select: none; }
+        body { background: var(--gray-light); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* TOOLBAR */
+        .toolbar { height: 55px; background: var(--white); border-bottom: 1px solid var(--gray-border); display: flex; align-items: center; padding: 0 20px; justify-content: space-between; z-index: 100; flex-shrink: 0; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+        .tool-group { display: flex; align-items: center; gap: 10px; }
+        .tool-btn { background: var(--white); border: 1px solid var(--gray-border); color: var(--text-main); padding: 6px 15px; cursor: pointer; font-size: 13px; font-weight: bold; border-radius: 4px; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; outline: none; }
+        .tool-btn:hover { background: var(--gray-light); border-color: var(--blue); color: var(--blue); }
+        .tool-btn.primary { background: var(--blue); color: var(--white); border-color: var(--blue); }
+        .tool-select { padding: 6px 10px; border: 1px solid var(--gray-border); border-radius: 4px; font-size: 13px; outline: none; min-width: 150px; }
+
+        /* WORKSPACE & SIDEBAR */
+        .main-container { display: flex; flex: 1; overflow: hidden; }
         
-        /* Header Toolbar */
-        .header {
-            height: 60px;
-            background: var(--white);
-            border-bottom: 1px solid var(--gray-border);
-            display: flex;
-            align-items: center;
-            padding: 0 20px;
-            justify-content: space-between;
-            flex-shrink: 0;
-        }
-        .project-selector select {
-            padding: 8px 12px;
-            border: 1px solid var(--gray-border);
-            border-radius: 4px;
-            outline: none;
-            min-width: 250px;
-        }
-        .header-actions button {
-            background: var(--blue);
-            color: var(--white);
-            border: none;
-            padding: 8px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .header-actions button:hover { opacity: 0.9; }
-
-        /* Main Workspace */
-        .workspace {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-        }
-
-        /* Canvas Area (Chứa các page) */
-        .canvas-area {
-            flex: 1;
-            padding: 30px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 40px;
-        }
-        .canvas-wrapper {
-            background: var(--white);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-            position: relative;
-        }
-        .canvas-label {
-            position: absolute;
-            top: -25px;
-            left: 0;
-            font-size: 14px;
-            font-weight: 600;
-            color: #555;
-        }
-
-        /* Sidebar Right (Menu) */
-        .sidebar {
-            width: 320px;
-            background: var(--white);
-            border-left: 1px solid var(--gray-border);
-            display: flex;
-            flex-direction: column;
-        }
-        .tabs {
-            display: flex;
-            border-bottom: 1px solid var(--gray-border);
-        }
-        .tab-btn {
-            flex: 1;
-            padding: 15px 0;
-            text-align: center;
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-weight: 600;
-            color: #777;
-        }
-        .tab-btn.active {
-            color: var(--blue);
-            border-bottom: 2px solid var(--blue);
-        }
-        .tab-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 15px;
-            display: none;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            align-content: start;
-        }
-        .tab-content.active {
-            display: grid;
-        }
-        .asset-item {
-            width: 100%;
-            aspect-ratio: 1;
-            object-fit: cover;
-            border-radius: 4px;
-            cursor: pointer;
-            border: 1px solid var(--gray-border);
-            transition: transform 0.2s;
-        }
-        .asset-item:hover {
-            transform: scale(1.05);
-            border-color: var(--blue);
-        }
+        .workspace { flex: 1; background: #e9ecef; position: relative; overflow: auto; display: flex; flex-direction: column; align-items: center; padding: 40px; touch-action: none; }
+        .workspace-scaler { transform-origin: top center; transition: transform 0.1s; display: flex; flex-direction: column; gap: 40px; align-items: center; width: 100%; }
         
-        /* Loading Overlay */
-        #loader {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.8);
-            display: none; justify-content: center; align-items: center;
-            z-index: 9999; flex-direction: column;
-        }
-        .spinner {
-            width: 40px; height: 40px;
-            border: 4px solid var(--gray-border); border-top: 4px solid var(--blue);
-            border-radius: 50%; animation: spin 1s linear infinite;
-        }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* CANVAS PAGE */
+        .cv-page { background: var(--white); box-shadow: 0 4px 20px rgba(0,0,0,0.08); position: relative; overflow: hidden; margin: 0 auto; transition: box-shadow 0.2s; }
+        .cv-page.active-page { box-shadow: 0 0 0 2px var(--blue), 0 8px 30px rgba(1, 173, 238, 0.2); }
+        .cv-page-label { position: absolute; top: -25px; left: 0; font-size: 12px; color: #777; font-weight: bold; }
+        
+        /* LAYERS */
+        .cv-layer { position: absolute; cursor: move; transform-origin: center center; }
+        .cv-layer img, .cv-layer svg { width: 100%; height: 100%; display: block; pointer-events: none; }
+        
+        /* BOUNDING BOX (SELECTION) */
+        .cv-selection { position: absolute; border: 1.5px solid var(--blue); pointer-events: none; z-index: 9999; display: none; }
+        .cv-handle { position: absolute; width: 10px; height: 10px; background: var(--white); border: 1.5px solid var(--blue); border-radius: 50%; pointer-events: auto; }
+        .cv-handle.nw { top: -5px; left: -5px; cursor: nwse-resize; }
+        .cv-handle.ne { top: -5px; right: -5px; cursor: nesw-resize; }
+        .cv-handle.sw { bottom: -5px; left: -5px; cursor: nesw-resize; }
+        .cv-handle.se { bottom: -5px; right: -5px; cursor: nwse-resize; }
+        .cv-handle.rotate { top: -25px; left: calc(50% - 5px); cursor: crosshair; }
+        
+        /* MINI CONTEXT MENU */
+        .cv-mini-menu { position: absolute; top: -45px; left: 50%; transform: translateX(-50%); background: #222; color: #fff; padding: 5px; border-radius: 6px; display: flex; gap: 5px; pointer-events: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+        .cv-mini-btn { background: transparent; border: none; color: #fff; padding: 5px 8px; cursor: pointer; border-radius: 4px; font-size: 12px; }
+        .cv-mini-btn:hover { background: rgba(255,255,255,0.2); }
+
+        /* RIGHT SIDEBAR */
+        .sidebar { width: 320px; background: var(--white); border-left: 1px solid var(--gray-border); display: flex; flex-direction: column; z-index: 50; }
+        .sb-tabs { display: flex; border-bottom: 1px solid var(--gray-border); background: var(--gray-light); }
+        .sb-tab { flex: 1; text-align: center; padding: 12px 0; cursor: pointer; font-size: 12px; font-weight: bold; color: #666; border-bottom: 2px solid transparent; }
+        .sb-tab.active { color: var(--blue); border-bottom-color: var(--blue); background: var(--white); }
+        
+        .sb-content { flex: 1; overflow-y: auto; padding: 15px; display: none; }
+        .sb-content.active { display: block; }
+        
+        /* RESOURCE SUB-TABS */
+        .sub-tabs { display: flex; gap: 5px; margin-bottom: 15px; }
+        .sub-tab { padding: 5px 10px; font-size: 11px; cursor: pointer; border-radius: 15px; background: #eee; color: #555; }
+        .sub-tab.active { background: var(--blue); color: #fff; }
+        
+        .grid-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+        .grid-item { border: 1px solid var(--gray-border); border-radius: 6px; padding: 5px; cursor: pointer; transition: 0.2s; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; background: #fdfdfd; overflow: hidden; }
+        .grid-item:hover { border-color: var(--blue); box-shadow: 0 2px 8px rgba(1,173,238,0.2); transform: translateY(-2px); }
+        .grid-item img, .grid-item svg { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+        .input-group { margin-bottom: 15px; display: none; }
+        .input-group.active { display: block; }
+        textarea.sb-input { width: 100%; height: 80px; padding: 8px; border: 1px solid var(--gray-border); border-radius: 4px; resize: none; font-family: monospace; font-size: 11px; margin-bottom: 5px; }
+
+        /* LOADER */
+        #loader { position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; color: var(--blue); display: none; }
     </style>
 </head>
 <body>
 
-    <div id="loader">
-        <div class="spinner"></div>
-        <p style="margin-top:10px; font-weight:bold; color:var(--blue);" id="loader-text">Đang tải dữ liệu...</p>
-    </div>
+    <div id="loader"><i class="fas fa-spinner fa-spin fa-3x" style="margin-bottom: 10px;"></i> Đang xử lý...</div>
 
-    <div class="header">
-        <div class="project-selector">
-            <select id="postSelector">
-                <option value="">-- Chọn ID Bài Viết (Project) --</option>
+    <div class="toolbar">
+        <div class="tool-group">
+            <span style="font-weight: 900; color: var(--blue); margin-right: 10px;"><i class="fas fa-paint-brush"></i> STUDIO</span>
+            <select id="projectSelect" class="tool-select" onchange="loadProject(this.value)">
+                <option value="">-- Chọn Project (Thư mục) --</option>
             </select>
-        </div>
-        <div class="header-actions">
-            <button onclick="document.getElementById('fileUploadInput').click()">
+            <button class="tool-btn primary" onclick="document.getElementById('localUpload').click()">
                 <i class="fas fa-upload"></i> Tải ảnh lên
             </button>
-            <input type="file" id="fileUploadInput" accept="image/*" style="display: none;">
+            <input type="file" id="localUpload" accept="image/*" multiple style="display:none" onchange="handleLocalUpload(event)">
+        </div>
+        <div class="tool-group">
+            <span style="font-size: 12px; color: #777;">Thu phóng: <span id="zoomLabel">100%</span></span>
+            <button class="tool-btn" onclick="resizeCanvasPrompt()"><i class="fas fa-compress-arrows-alt"></i> Đổi kích cỡ (Resize)</button>
         </div>
     </div>
 
-    <div class="workspace">
-        <div class="canvas-area" id="canvasArea">
+    <div class="main-container">
+        <div class="workspace" id="workspace">
+            <div class="workspace-scaler" id="wsScaler">
+                <div style="color: #999; margin-top: 100px;">Vui lòng chọn Project từ thanh công cụ để bắt đầu.</div>
             </div>
+            
+            <div id="selectionBox" class="cv-selection">
+                <div class="cv-mini-menu">
+                    <button class="cv-mini-btn" onclick="layerAction('copy')" title="Sao chép"><i class="fas fa-copy"></i></button>
+                    <button class="cv-mini-btn" onclick="layerAction('cut')" title="Cắt"><i class="fas fa-cut"></i></button>
+                    <button class="cv-mini-btn" onclick="layerAction('delete')" title="Xóa"><i class="fas fa-trash" style="color:#ff4d4f;"></i></button>
+                </div>
+                <div class="cv-handle nw" data-dir="nw"></div>
+                <div class="cv-handle ne" data-dir="ne"></div>
+                <div class="cv-handle sw" data-dir="sw"></div>
+                <div class="cv-handle se" data-dir="se"></div>
+                <div class="cv-handle rotate" data-dir="rotate"><i class="fas fa-sync-alt" style="position:absolute; top:-18px; left:-4px; color:var(--blue); font-size:12px; pointer-events:none;"></i></div>
+            </div>
+        </div>
 
         <div class="sidebar">
-            <div class="tabs">
-                <button class="tab-btn active" onclick="switchTab('uploads')">Tải lên</button>
-                <button class="tab-btn" onclick="switchTab('elements')">Elements</button>
+            <div class="sb-tabs">
+                <div class="sb-tab active" onclick="switchMainTab('uploads')">DỰ ÁN HIỆN TẠI</div>
+                <div class="sb-tab" onclick="switchMainTab('resources')">TÀI NGUYÊN</div>
             </div>
-            <div class="tab-content active" id="tab-uploads"></div>
-            <div class="tab-content" id="tab-elements"></div>
+            
+            <div id="tab-uploads" class="sb-content active">
+                <div style="font-size: 11px; margin-bottom: 10px; color: #777;">Ảnh trong thư mục Project:</div>
+                <div class="grid-list" id="projectImagesGrid"></div>
+            </div>
+
+            <div id="tab-resources" class="sb-content">
+                <div class="sub-tabs">
+                    <div class="sub-tab active" onclick="switchSubTab('res-img')">Ảnh</div>
+                    <div class="sub-tab" onclick="switchSubTab('res-shape')">Shape</div>
+                    <div class="sub-tab" onclick="switchSubTab('res-frame')">Frame</div>
+                </div>
+
+                <div id="view-res-img" class="input-group active">
+                    <button class="tool-btn" style="width:100%; justify-content:center; margin-bottom:10px;" onclick="document.getElementById('resUpload').click()">
+                        <i class="fas fa-cloud-upload-alt"></i> Tải lên kho Tài nguyên
+                    </button>
+                    <input type="file" id="resUpload" accept="image/*" style="display:none" onchange="uploadToGlobalResources(event)">
+                    <div class="grid-list" id="globalImagesGrid"></div>
+                </div>
+
+                <div id="view-res-shape" class="input-group">
+                    <textarea id="svgShapeInput" class="sb-input" placeholder="Dán mã SVG Shape vào đây..."></textarea>
+                    <button class="tool-btn primary" style="width:100%; justify-content:center;" onclick="saveSvgToSheet('Shape', 'svgShapeInput')">Lưu Shape</button>
+                    <div class="grid-list" id="shapesGrid" style="margin-top:15px;"></div>
+                </div>
+
+                <div id="view-res-frame" class="input-group">
+                    <textarea id="svgFrameInput" class="sb-input" placeholder="Dán mã SVG Frame vào đây..."></textarea>
+                    <button class="tool-btn primary" style="width:100%; justify-content:center;" onclick="saveSvgToSheet('Frame', 'svgFrameInput')">Lưu Frame</button>
+                    <div class="grid-list" id="framesGrid" style="margin-top:15px;"></div>
+                </div>
+            </div>
         </div>
     </div>
 
 <script>
-        const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
-        const POST_IMAGE_SHARED_DRIVE_FOLDER_ID = "11ad-tiEWqSeJdm0kv_q-_b2x0qWD9b6b"; 
+const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+
+// --- TRẠNG THÁI ỨNG DỤNG ---
+let currentFolderId = null;
+let pages = [];
+let activePage = null;
+let activeLayer = null;
+let zoomLevel = 1.0;
+let clipboardLayer = null;
+
+// Khởi tạo
+window.onload = () => {
+    fetchProjects();
+    fetchGlobalResources();
+    fetchShapesAndFrames();
+    initWorkspaceEvents();
+    initInteractEvents();
+};
+
+function showLoader(show) { document.getElementById('loader').style.display = show ? 'flex' : 'none'; }
+
+// --- GIAO TIẾP API MÔ PHỎNG (Yêu cầu Backend Code) ---
+async function apiCall(action, payload = {}) {
+    payload.action = action;
+    try {
+        let res = await fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+        });
+        return await res.json();
+    } catch (e) {
+        console.error(e);
+        return { success: false, error: e.message };
+    }
+}
+
+// Lấy danh sách Project (Thư mục con)
+async function fetchProjects() {
+    let res = await apiCall("CANVA_GET_PROJECTS");
+    if(res.success) {
+        let sel = document.getElementById("projectSelect");
+        sel.innerHTML = '<option value="">-- Chọn Project --</option>';
+        res.folders.forEach(f => {
+            sel.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+        });
+    }
+}
+
+// Tải Project
+async function loadProject(folderId) {
+    if(!folderId) return;
+    currentFolderId = folderId;
+    showLoader(true);
+    let res = await apiCall("CANVA_GET_PROJECT_IMAGES", { folderId: folderId });
+    showLoader(false);
+    
+    document.getElementById("wsScaler").innerHTML = "";
+    document.getElementById("projectImagesGrid").innerHTML = "";
+    pages = [];
+    
+    if(res.success && res.images.length > 0) {
+        res.images.forEach((img, index) => {
+            // Render lên Sidebar
+            addToSidebarGrid("projectImagesGrid", img.url, "image");
+            // Tạo Page
+            createCanvasPage(img, index + 1);
+        });
+    } else {
+        document.getElementById("wsScaler").innerHTML = "<div style='margin-top:50px'>Thư mục trống. Hãy tải ảnh lên.</div>";
+    }
+}
+
+// Lấy tài nguyên Global
+async function fetchGlobalResources() {
+    let res = await apiCall("CANVA_GET_GLOBAL_IMAGES");
+    if(res.success) {
+        let grid = document.getElementById("globalImagesGrid");
+        grid.innerHTML = "";
+        res.images.forEach(img => addToSidebarGrid("globalImagesGrid", img.url, "image"));
+    }
+}
+
+async function fetchShapesAndFrames() {
+    let res = await apiCall("CANVA_GET_SHEET_DATA");
+    if(res.success) {
+        document.getElementById("shapesGrid").innerHTML = "";
+        document.getElementById("framesGrid").innerHTML = "";
+        res.data.forEach(item => {
+            if(item.type === 'Shape') addToSidebarGrid("shapesGrid", item.svg, "svg");
+            if(item.type === 'Frame') addToSidebarGrid("framesGrid", item.svg, "svg");
+        });
+    }
+}
+
+// --- LOGIC CANVAS ĐƠN GIẢN ---
+
+function createCanvasPage(imgData, index) {
+    let scaler = document.getElementById("wsScaler");
+    
+    let pageWrap = document.createElement("div");
+    pageWrap.style.position = "relative";
+    pageWrap.innerHTML = `<div class="cv-page-label">Page ${index} - ${imgData.width}x${imgData.height}</div>`;
+    
+    let page = document.createElement("div");
+    page.className = "cv-page";
+    page.id = "page_" + Date.now() + Math.random().toString(36).substr(2,5);
+    page.style.width = imgData.width + "px";
+    page.style.height = imgData.height + "px";
+    
+    // Auto scale to fit screen initially
+    let screenW = document.getElementById("workspace").clientWidth - 80;
+    if(imgData.width > screenW) {
+        page.style.transform = `scale(${screenW / imgData.width})`;
+        page.style.transformOrigin = "top left";
+        pageWrap.style.width = screenW + "px";
+        pageWrap.style.height = (imgData.height * (screenW / imgData.width)) + "px";
+    } else {
+        pageWrap.style.width = imgData.width + "px";
+        pageWrap.style.height = imgData.height + "px";
+    }
+
+    page.addEventListener("mousedown", () => {
+        document.querySelectorAll(".cv-page").forEach(p => p.classList.remove("active-page"));
+        page.classList.add("active-page");
+        activePage = page;
+    });
+
+    pageWrap.appendChild(page);
+    scaler.appendChild(pageWrap);
+    
+    // Add Base Image as Layer 1
+    addLayerToPage(page, imgData.url, "image", imgData.width, imgData.height, 0, 0);
+}
+
+function addLayerToPage(page, content, type, w = 200, h = 200, x = 50, y = 50) {
+    let layer = document.createElement("div");
+    layer.className = "cv-layer";
+    layer.id = "layer_" + Date.now();
+    layer.style.width = w + "px";
+    layer.style.height = h + "px";
+    layer.style.left = x + "px";
+    layer.style.top = y + "px";
+    layer.style.transform = "rotate(0deg)";
+    layer.dataset.angle = 0;
+    
+    if(type === "image") {
+        layer.innerHTML = `<img src="${content}" draggable="false">`;
+    } else if(type === "svg") {
+        layer.innerHTML = content;
+    }
+
+    layer.addEventListener("mousedown", (e) => {
+        e.stopPropagation();
+        selectLayer(layer);
+    });
+
+    page.appendChild(layer);
+    return layer;
+}
+
+// Bắt sự kiện click Sidebar để chèn vào Page
+function addToSidebarGrid(gridId, content, type) {
+    let grid = document.getElementById(gridId);
+    let item = document.createElement("div");
+    item.className = "grid-item";
+    if(type === "image") item.innerHTML = `<img src="${content}">`;
+    else item.innerHTML = content;
+
+    item.onclick = () => {
+        if(!activePage) { alert("Vui lòng click chọn 1 Page Canvas trước khi chèn!"); return; }
+        addLayerToPage(activePage, content, type);
+    };
+    grid.appendChild(item);
+}
+
+// --- HỆ THỐNG KÉO THẢ & CHỌN LAYER ---
+let isDragging = false;
+let dragAction = null; // 'move', 'resize', 'rotate'
+let startX, startY, startRect, startAngle;
+
+function selectLayer(layer) {
+    activeLayer = layer;
+    activePage = layer.parentElement;
+    document.querySelectorAll(".cv-page").forEach(p => p.classList.remove("active-page"));
+    activePage.classList.add("active-page");
+
+    updateSelectionBox();
+}
+
+function updateSelectionBox() {
+    if(!activeLayer) return;
+    let box = document.getElementById("selectionBox");
+    activePage.appendChild(box); // Move box into active page
+    box.style.display = "block";
+    
+    box.style.width = activeLayer.style.width;
+    box.style.height = activeLayer.style.height;
+    box.style.left = activeLayer.style.left;
+    box.style.top = activeLayer.style.top;
+    box.style.transform = activeLayer.style.transform;
+}
+
+function initInteractEvents() {
+    let ws = document.getElementById("workspace");
+    
+    ws.addEventListener("mousedown", (e) => {
+        if(e.target.closest(".cv-handle")) {
+            isDragging = true;
+            dragAction = e.target.dataset.dir === 'rotate' ? 'rotate' : 'resize';
+            startX = e.clientX; startY = e.clientY;
+            startRect = { w: parseFloat(activeLayer.style.width), h: parseFloat(activeLayer.style.height), x: parseFloat(activeLayer.style.left), y: parseFloat(activeLayer.style.top) };
+            startAngle = parseFloat(activeLayer.dataset.angle) || 0;
+            e.stopPropagation();
+        } else if (e.target.closest(".cv-layer")) {
+            isDragging = true;
+            dragAction = 'move';
+            startX = e.clientX; startY = e.clientY;
+            startRect = { x: parseFloat(activeLayer.style.left), y: parseFloat(activeLayer.style.top) };
+        } else if (!e.target.closest(".cv-mini-menu") && !e.target.closest(".cv-page-label")) {
+            activeLayer = null;
+            document.getElementById("selectionBox").style.display = "none";
+        }
+    });
+
+    window.addEventListener("mousemove", (e) => {
+        if(!isDragging || !activeLayer) return;
         
-        let systemData = null;
-        let canvases = [];
-        let activeCanvasIndex = 0; 
+        let dx = (e.clientX - startX) / zoomLevel;
+        let dy = (e.clientY - startY) / zoomLevel;
 
-        // Hàm bóc ID ảnh Drive
-        function extractDriveId(url) {
-            if (!url) return "";
-            if (url.includes("id=")) return new URLSearchParams(url.split('?')[1]).get('id') || "";
-            let match = url.match(/[-\w]{25,}/);
-            return match ? match[0] : "";
+        if(dragAction === 'move') {
+            activeLayer.style.left = (startRect.x + dx) + "px";
+            activeLayer.style.top = (startRect.y + dy) + "px";
+        } 
+        else if (dragAction === 'resize') {
+            // Đơn giản hóa: Chỉ kéo giãn góc Đông Nam (SE) để giữ tỷ lệ
+            let ratio = startRect.w / startRect.h;
+            let newW = Math.max(20, startRect.w + dx);
+            let newH = newW / ratio;
+            activeLayer.style.width = newW + "px";
+            activeLayer.style.height = newH + "px";
         }
-
-        // HÀM ÉP LINK SANG DẠNG GOOGLEUSERCONTENT (LH3) SIÊU ĐỈNH CỦA BẠN
-        function getGoogleUserContentUrl(url) {
-            if (!url) return "";
-            if (url.startsWith("data:") || url.includes("googleusercontent.com")) return url; 
-            
-            let driveId = extractDriveId(url);
-            if (driveId) {
-                // Thêm sz=w2000 để Google trả về ảnh chất lượng cao (không bị mờ)
-                return "https://drive.google.com/thumbnail?id=" + driveId + "&sz=w2000";
-            }
-            return url; 
+        else if (dragAction === 'rotate') {
+            let rect = activeLayer.getBoundingClientRect();
+            let cx = rect.left + rect.width/2;
+            let cy = rect.top + rect.height/2;
+            let angle = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+            angle += 90; // Offset
+            activeLayer.style.transform = `rotate(${angle}deg)`;
+            activeLayer.dataset.angle = angle;
         }
+        updateSelectionBox();
+    });
 
-        window.onload = async () => {
-            showLoader("Đang đồng bộ dữ liệu hệ thống...");
-            try {
-                let res = await fetch(API_URL);
-                systemData = await res.json();
-                
-                let postSheet = null;
-                if (systemData.data && systemData.data.sheets) {
-                    postSheet = systemData.data.sheets["Bài viết_hidden"];
-                } else if (systemData.sheets) {
-                    postSheet = systemData.sheets["Bài viết_hidden"];
-                } else if (systemData["Bài viết_hidden"]) {
-                    postSheet = systemData["Bài viết_hidden"];
-                }
-                
-                if (postSheet && postSheet.length > 1) {
-                    let select = document.getElementById("postSelector");
-                    select.innerHTML = '<option value="">-- Chọn ID Bài Viết (Project) --</option>';
-                    window.activePostSheet = postSheet;
+    window.addEventListener("mouseup", () => { isDragging = false; dragAction = null; });
+}
 
-                    for (let i = 1; i < postSheet.length; i++) {
-                        let row = postSheet[i];
-                        let id = row[0]; 
-                        let title = row[1] || `Bài viết dòng ${i + 1}`; 
-                        if (id) {
-                            let opt = document.createElement("option");
-                            opt.value = i; 
-                            opt.text = `[ID: ${id}] - ${title}`;
-                            select.appendChild(opt);
-                        }
-                    }
-                } else {
-                    alert("Không tìm thấy dữ liệu tab 'Bài viết_hidden'!");
-                }
-                
-                loadElementsTab(); 
+// Mini Menu Actions
+function layerAction(action) {
+    if(!activeLayer) return;
+    if(action === 'delete') {
+        activeLayer.remove();
+        activeLayer = null;
+        document.getElementById("selectionBox").style.display = "none";
+    } else if (action === 'copy') {
+        clipboardLayer = activeLayer.cloneNode(true);
+    } else if (action === 'cut') {
+        clipboardLayer = activeLayer.cloneNode(true);
+        activeLayer.remove();
+        document.getElementById("selectionBox").style.display = "none";
+    }
+}
 
-            } catch (e) {
-                console.error(e);
-                alert("Lỗi kết nối API!");
-            }
-            hideLoader();
-        };
+document.addEventListener("keydown", (e) => {
+    if(e.ctrlKey && e.key === 'v' && clipboardLayer && activePage) {
+        let newLayer = clipboardLayer.cloneNode(true);
+        newLayer.id = "layer_" + Date.now();
+        newLayer.style.left = (parseFloat(newLayer.style.left) + 20) + "px";
+        newLayer.style.top = (parseFloat(newLayer.style.top) + 20) + "px";
+        newLayer.addEventListener("mousedown", (ev) => { ev.stopPropagation(); selectLayer(newLayer); });
+        activePage.appendChild(newLayer);
+        selectLayer(newLayer);
+    }
+    if((e.key === 'Delete' || e.key === 'Backspace') && activeLayer) layerAction('delete');
+});
 
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            event.currentTarget.classList.add('active');
-            document.getElementById(`tab-${tabName}`).classList.add('active');
+// --- ZOOM & PAN (Workspace) ---
+function initWorkspaceEvents() {
+    let ws = document.getElementById("workspace");
+    let scaler = document.getElementById("wsScaler");
+
+    ws.addEventListener("wheel", (e) => {
+        if(e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            let delta = e.deltaY > 0 ? -0.1 : 0.1;
+            zoomLevel = Math.max(0.2, Math.min(zoomLevel + delta, 3));
+            scaler.style.transform = `scale(${zoomLevel})`;
+            document.getElementById("zoomLabel").innerText = Math.round(zoomLevel * 100) + "%";
+            updateSelectionBox(); // Cập nhật lại border
         }
+    }, {passive: false});
+}
 
-        document.getElementById("postSelector").addEventListener("change", function() {
-            let rowIndex = this.value;
-            if (!rowIndex || !window.activePostSheet) {
-                document.getElementById("canvasArea").innerHTML = "";
-                return;
-            }
-            
-            let row = window.activePostSheet[rowIndex];
-            let coverImgUrl = "";
-            let htmlContent = "";
+// --- TẢI ẢNH LÊN ---
+function handleLocalUpload(e) {
+    if(!currentFolderId) { alert("Vui lòng chọn Project trước!"); return; }
+    let file = e.target.files[0];
+    if(!file) return;
+    
+    let reader = new FileReader();
+    reader.onload = async (ev) => {
+        let dataUrl = ev.target.result;
+        addToSidebarGrid("projectImagesGrid", dataUrl, "image");
+        if(activePage) addLayerToPage(activePage, dataUrl, "image");
+        
+        // Gọi API ẩn lưu vào Drive
+        apiCall("CANVA_UPLOAD_IMAGE", { folderId: currentFolderId, filename: file.name, base64: dataUrl.split(',')[1], mime: file.type });
+    };
+    reader.readAsDataURL(file);
+}
 
-            for (let j = 1; j < row.length; j++) {
-                let val = String(row[j] || "").trim();
-                if (val.includes("<img") || val.includes("<p")) {
-                    htmlContent = val;
-                } else if ((val.startsWith("http") || val.includes("drive.google.com")) && 
-                           (val.match(/\.(jpeg|jpg|gif|png|webp)/i) || val.includes("id=") || val.includes("d/"))) {
-                    if (!coverImgUrl) coverImgUrl = val;
-                }
-            }
+function uploadToGlobalResources(e) {
+    let file = e.target.files[0];
+    if(!file) return;
+    let reader = new FileReader();
+    reader.onload = async (ev) => {
+        let dataUrl = ev.target.result;
+        addToSidebarGrid("globalImagesGrid", dataUrl, "image");
+        apiCall("CANVA_UPLOAD_GLOBAL_IMAGE", { filename: file.name, base64: dataUrl.split(',')[1], mime: file.type });
+    };
+    reader.readAsDataURL(file);
+}
 
-            if (!coverImgUrl && row[5]) coverImgUrl = row[5];
-            if (!htmlContent && row[6]) htmlContent = row[6];
+async function saveSvgToSheet(type, inputId) {
+    let svgCode = document.getElementById(inputId).value.trim();
+    if(!svgCode || !svgCode.startsWith("<svg")) { alert("Mã SVG không hợp lệ!"); return; }
+    
+    addToSidebarGrid(type === 'Shape' ? "shapesGrid" : "framesGrid", svgCode, "svg");
+    document.getElementById(inputId).value = "";
+    
+    apiCall("CANVA_SAVE_SVG", { type: type, svg: svgCode });
+}
 
-            let images = [];
-            if (coverImgUrl) images.push(coverImgUrl);
+// --- UI SIDEBAR TABS ---
+function switchMainTab(tab) {
+    document.querySelectorAll('.sb-tab').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.sb-content').forEach(el => el.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+}
 
-            let imgRegex = /<img[^>]+src="([^">]+)"/g;
-            let match;
-            while ((match = imgRegex.exec(htmlContent)) !== null) {
-                images.push(match[1]);
-            }
+function switchSubTab(tab) {
+    document.querySelectorAll('.sub-tab').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.input-group').forEach(el => el.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('view-' + tab).classList.add('active');
+}
 
-            images = [...new Set(images)];
-            renderProjectCanvases(images);
-            renderUploadsTab(images); 
-        });
-
-        // 1. VẼ CANVAS 
-        function renderProjectCanvases(imageUrls) {
-            const container = document.getElementById("canvasArea");
-            container.innerHTML = "";
-            canvases = [];
-
-            if (imageUrls.length === 0) {
-                container.innerHTML = "<p style='color:#666;'>Bài viết không có hình ảnh nào để thiết kế.</p>";
-                return;
-            }
-
-            imageUrls.forEach((url, index) => {
-                let wrapper = document.createElement("div");
-                wrapper.className = "canvas-wrapper";
-                let label = document.createElement("div");
-                label.className = "canvas-label";
-                label.innerText = `Page ${index + 1}`;
-                let canvasEl = document.createElement("canvas");
-                canvasEl.id = `fabric-canvas-${index}`;
-                wrapper.appendChild(label);
-                wrapper.appendChild(canvasEl);
-                container.appendChild(wrapper);
-
-                let fabricCanvas = new fabric.Canvas(canvasEl.id, {
-                    preserveObjectStacking: true, selection: true
-                });
-
-                // Chuyển link sang dạng lh3.googleusercontent
-                let finalUrl = getGoogleUserContentUrl(url);
-                let imgOptions = finalUrl.startsWith('data:') ? {} : { crossOrigin: 'anonymous' };
-
-                fabric.Image.fromURL(finalUrl, function(img) {
-                    if(!img) { console.error("Không load được ảnh:", finalUrl); return; }
-                    
-                    let scale = 1;
-                    if (img.width > 800) scale = 800 / img.width;
-                    fabricCanvas.setWidth(img.width * scale);
-                    fabricCanvas.setHeight(img.height * scale);
-                    img.set({ originX: 'left', originY: 'top', scaleX: scale, scaleY: scale });
-                    
-                    fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas));
-                }, imgOptions);
-
-                fabricCanvas.on('mouse:down', function() {
-                    activeCanvasIndex = index;
-                    canvases.forEach((c, i) => { if (i !== index) { c.discardActiveObject(); c.requestRenderAll(); } });
-                });
-                canvases.push(fabricCanvas);
-            });
-            activeCanvasIndex = 0; 
+function resizeCanvasPrompt() {
+    if(!activePage) { alert("Chọn một Page để đổi kích thước"); return; }
+    let curW = parseFloat(activePage.style.width);
+    let curH = parseFloat(activePage.style.height);
+    let dims = prompt("Nhập kích thước (Rộng,Cao) px. Cú pháp: W,H", `${curW},${curH}`);
+    if(dims) {
+        let parts = dims.split(',');
+        if(parts.length === 2) {
+            activePage.style.width = parts[0].trim() + "px";
+            activePage.style.height = parts[1].trim() + "px";
+            activePage.parentElement.style.width = parts[0].trim() + "px";
+            activePage.parentElement.style.height = parts[1].trim() + "px";
+            activePage.parentElement.querySelector('.cv-page-label').innerText = `Page - ${parts[0]}x${parts[1]}`;
+            updateSelectionBox();
         }
-
-        // 2. TAB TẢI LÊN 
-        function renderUploadsTab(imageUrls) {
-            const tab = document.getElementById("tab-uploads");
-            tab.innerHTML = "";
-            imageUrls.forEach(url => {
-                let finalUrl = getGoogleUserContentUrl(url);
-                let img = document.createElement("img");
-                img.src = finalUrl; 
-                img.className = "asset-item";
-                img.onclick = () => addLayerToActiveCanvas(finalUrl); 
-                tab.appendChild(img);
-            });
-        }
-
-        // 3. TAB ELEMENTS 
-        async function loadElementsTab() {
-            try {
-                let res = await fetch(API_URL + "?action=get_canva_elements");
-                let data = await res.json();
-                if (data.success && data.files) {
-                    const tab = document.getElementById("tab-elements");
-                    tab.innerHTML = "";
-                    data.files.forEach(file => {
-                        let finalUrl = getGoogleUserContentUrl(file.url);
-                        let img = document.createElement("img");
-                        img.src = finalUrl; 
-                        img.className = "asset-item";
-                        img.onclick = () => addLayerToActiveCanvas(finalUrl);
-                        tab.appendChild(img);
-                    });
-                }
-            } catch (e) {
-                console.error("Lỗi đồng bộ tab Elements:", e);
-            }
-        }
-
-        // 4. CHÈN LAYER LÊN CANVAS 
-        function addLayerToActiveCanvas(rawUrl) {
-            if (canvases.length === 0) {
-                alert("Hãy lựa chọn một bài viết trước!");
-                return;
-            }
-            let activeCanvas = canvases[activeCanvasIndex];
-            let finalUrl = getGoogleUserContentUrl(rawUrl);
-            let imgOptions = finalUrl.startsWith('data:') ? {} : { crossOrigin: 'anonymous' };
-            
-            fabric.Image.fromURL(finalUrl, function(img) {
-                if(!img) return;
-                if (img.width > activeCanvas.width / 2) {
-                    img.scaleToWidth(activeCanvas.width / 2);
-                }
-                img.set({
-                    left: 50, top: 50, cornerColor: '#01adee', cornerStrokeColor: '#01adee', 
-                    borderColor: '#01adee', cornerSize: 8, transparentCorners: false
-                });
-                activeCanvas.add(img);
-                activeCanvas.setActiveObject(img);
-                activeCanvas.renderAll();
-            }, imgOptions);
-        }
-
-        // 5. NÚT UPLOAD TỪ MÁY TÍNH
-        document.getElementById("fileUploadInput").addEventListener("change", function(e) {
-            let file = e.target.files[0];
-            if (!file) return;
-
-            let reader = new FileReader();
-            reader.onload = async function(f) {
-                let base64 = f.target.result;
-                addLayerToActiveCanvas(base64); 
-                
-                let newAsset = document.createElement("img");
-                newAsset.src = base64;
-                newAsset.className = "asset-item";
-                newAsset.onclick = () => addLayerToActiveCanvas(base64);
-                
-                let tabElements = document.getElementById("tab-elements");
-                if (tabElements) tabElements.prepend(newAsset);
-                
-                try {
-                    let fileData = base64.split(',')[1];
-                    let payload = {
-                        action: 'upload_canva_element',
-                        fileName: file.name,
-                        mimeType: file.type,
-                        fileData: fileData,
-                        folderId: POST_IMAGE_SHARED_DRIVE_FOLDER_ID
-                    };
-                    fetch(API_URL, { method: "POST", body: JSON.stringify(payload) }); 
-                } catch(err) { console.error("Lỗi đẩy file lên Drive:", err); }
-            };
-            reader.readAsDataURL(file);
-            this.value = '';
-        });
-
-        // 6. XOÁ LAYER BẰNG BÀN PHÍM
-        window.addEventListener('keydown', function(e) {
-            if (e.key === 'Delete' || e.key === 'Backspace') {
-                if (canvases.length > 0 && activeCanvasIndex !== null) {
-                    let activeCanvas = canvases[activeCanvasIndex];
-                    let activeObject = activeCanvas.getActiveObject();
-                    if (activeObject && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
-                        activeCanvas.remove(activeObject);
-                        activeCanvas.discardActiveObject();
-                        activeCanvas.requestRenderAll();
-                    }
-                }
-            }
-        });
-
-        function showLoader(txt) { document.getElementById("loader").style.display = "flex"; if (txt) document.getElementById("loader-text").innerText = txt; }
-        function hideLoader() { document.getElementById("loader").style.display = "none"; }
+    }
+}
 </script>
-  </body>
+</body>
 </html>
