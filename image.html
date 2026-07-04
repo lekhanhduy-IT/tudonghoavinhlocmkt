@@ -9,7 +9,6 @@
         :root {
             --white: #ffffff;
             --blue: #01adee;
-            --blue-dark: #007bb5;
             --red: #db1010;
             --gray-light: #f4f6f8;
             --gray-border: #e0e0e0;
@@ -46,7 +45,8 @@
         /* VÙNG CANVAS TRUNG TÂM */
         .canvas-area {
             flex: 1; height: 100%; overflow: auto; position: relative;
-            padding: 40px; display: flex; flex-direction: column; align-items: center; gap: 40px;
+            /* Luôn đảm bảo khoảng cách 20px */
+            padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 20px;
         }
 
         /* CHẾ ĐỘ HIỂN THỊ CANVAS */
@@ -54,70 +54,81 @@
         .canvas-area.view-grid {
             display: grid;
             grid-template-columns: repeat(var(--grid-cols, 3), 1fr);
-            gap: 30px; align-items: start; justify-content: start; padding: 30px; align-content: start;
+            gap: 20px; align-items: start; justify-content: center; align-content: start;
         }
-        .canvas-area.view-horizontal { display: flex; flex-direction: column; padding: 15px; gap: 15px; }
         
-        .horiz-main-stage { flex: 1; width: 100%; display: flex; justify-content: center; align-items: center; overflow: auto; min-height: 300px; }
-        .horiz-thumbs-strip { height: 160px; width: 100%; background: var(--white); border-top: 1px solid var(--gray-border); display: flex; gap: 15px; padding: 15px; overflow-x: auto; flex-shrink: 0; align-items: flex-start; }
+        .horiz-main-stage { flex: 1; width: 100%; display: flex; justify-content: center; align-items: flex-start; padding-top: 20px; overflow: auto; min-height: 300px; }
+        .horiz-thumbs-strip { height: 150px; width: 100%; background: var(--white); border-top: 1px solid var(--gray-border); display: flex; gap: 15px; padding: 15px; overflow-x: auto; flex-shrink: 0; align-items: flex-start; }
         
-        .horiz-thumb-wrapper { display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100%; }
+        .horiz-thumb-wrapper { display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; }
         .horiz-thumb-item { 
             border: 2px solid var(--gray-border); border-radius: 6px; cursor: pointer; 
-            height: 100px; aspect-ratio: 1/1; position: relative; background: #fff; overflow: hidden;
+            height: 90px; aspect-ratio: 1/1; position: relative; background: #fff; overflow: hidden;
             display: flex; justify-content: center; align-items: center;
         }
         .horiz-thumb-item.active { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(1,173,238,0.3); }
-        .thumb-canvas-inner { position: absolute; }
+        .thumb-canvas-inner { position: absolute; pointer-events: none; }
         .horiz-thumb-label { font-size: 11px; font-weight: bold; color: #555; }
 
-        /* KHUNG PAGE CANVAS CÓ THỂ ZOOM */
+        /* KHUNG PAGE CANVAS - BỌC WRAPPER ĐỂ SCALE MÀ KHÔNG LÀM HỎNG LAYOUT GRID/GAP */
         .page-wrapper {
-            transition: transform 0.1s;
-            transform-origin: top center;
-            transform: scale(var(--zoom));
+            position: relative;
+            /* Width/Height sẽ được set bằng JS tùy theo tỷ lệ zoom */
         }
         .page-container {
-            background: #ffffff; box-shadow: 0 8px 24px rgba(0,0,0,0.15); border-radius: 4px;
-            position: relative; display: flex; flex-direction: column; overflow: hidden;
+            background: #ffffff; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 4px;
+            position: absolute; top: 0; left: 0; display: flex; flex-direction: column; overflow: hidden;
+            transform-origin: top left; /* Để scale thu nhỏ/phóng to khớp vào wrapper */
         }
         .page-toolbar {
-            height: 32px; background: #2f3640; color: #fff; display: flex; align-items: center;
-            justify-content: space-between; padding: 0 10px; font-size: 11px; flex-shrink: 0;
+            height: 30px; background: #2f3640; color: #fff; display: flex; align-items: center;
+            justify-content: space-between; padding: 0 10px; font-size: 12px; flex-shrink: 0;
+            pointer-events: none; /* Tránh cản chuột khi thao tác */
         }
+        /* Bỏ nền caro, dùng nền trắng */
         .canvas-frame {
-            position: relative; overflow: hidden; background: #ffffff;
+            position: relative; overflow: hidden; background: #ffffff; width: 100%; height: 100%;
         }
 
         /* LAYER TRONG CANVAS */
         .canvas-layer {
             position: absolute; cursor: move; transform-origin: center center;
-            /* Đảm bảo Layer luôn bo sát nội dung bên trong */
             display: flex; justify-content: center; align-items: center;
         }
-        .layer-content { width: 100%; height: 100%; pointer-events: none; display: flex; }
-        .layer-content img, .layer-content svg { width: 100%; height: 100%; object-fit: fill; display: block; pointer-events: none;}
+        .layer-content { width: 100%; height: 100%; pointer-events: none; display: flex; overflow: hidden;}
+        .layer-content img, .layer-content svg { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none;}
         
-        .canvas-layer.selected { outline: 2px solid var(--blue); }
+        /* Viền bao layer: Nét liền màu xanh */
+        .canvas-layer.selected { outline: 1.5px solid var(--blue); }
+        
+        /* CÁC NÚT ĐIỀU KHIỂN LAYER */
         .layer-handle {
-            position: absolute; width: 12px; height: 12px; background: var(--white); border: 2px solid var(--blue);
-            border-radius: 50%; z-index: 10; display: none;
+            position: absolute; background: var(--white); border: 1.5px solid var(--blue);
+            z-index: 10; display: none;
         }
-        .canvas-layer.selected .layer-handle { display: block; }
+        .canvas-layer.selected .layer-handle { display: flex; align-items: center; justify-content: center; }
+        
+        /* 4 Góc: Giữ tỷ lệ (Resize) */
+        .layer-handle.corner { width: 12px; height: 12px; border-radius: 50%; }
         .layer-handle.tl { top: -6px; left: -6px; cursor: nwse-resize; }
         .layer-handle.tr { top: -6px; right: -6px; cursor: nesw-resize; }
         .layer-handle.bl { bottom: -6px; left: -6px; cursor: nesw-resize; }
         .layer-handle.br { bottom: -6px; right: -6px; cursor: nwse-resize; }
-        
-        /* NÚT XOAY LAYER */
+
+        /* 4 Cạnh: Cắt xén (Crop) - Hình hạt đậu */
+        .layer-handle.edge { background: var(--white); border-radius: 6px; }
+        .layer-handle.tc { top: -6px; left: 50%; transform: translateX(-50%); width: 24px; height: 8px; cursor: ns-resize; }
+        .layer-handle.bc { bottom: -6px; left: 50%; transform: translateX(-50%); width: 24px; height: 8px; cursor: ns-resize; }
+        .layer-handle.lc { top: 50%; left: -6px; transform: translateY(-50%); width: 8px; height: 24px; cursor: ew-resize; }
+        .layer-handle.rc { top: 50%; right: -6px; transform: translateY(-50%); width: 8px; height: 24px; cursor: ew-resize; }
+
+        /* Nút xoay 360 */
         .layer-handle.rot {
-            top: -30px; left: 50%; transform: translateX(-50%); cursor: grab;
-            width: 24px; height: 24px; border-radius: 50%; background: var(--white);
-            color: var(--text-main); display: none; align-items: center; justify-content: center;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.2); border: 1px solid var(--gray-border);
+            top: -35px; left: 50%; transform: translateX(-50%); cursor: grab;
+            width: 24px; height: 24px; border-radius: 50%; 
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
         }
-        .layer-handle.rot i { font-size: 12px; pointer-events: none; }
-        .canvas-layer.selected .layer-handle.rot { display: flex; }
+        .layer-handle.rot i { font-size: 11px; pointer-events: none; color: var(--text-main); }
 
         /* MINI POPUP MENU LAYER */
         .layer-mini-menu {
@@ -130,6 +141,16 @@
             cursor: pointer; border-radius: 3px;
         }
         .layer-mini-menu button:hover { background: var(--blue); }
+
+        /* MENU CHUỘT PHẢI (CONTEXT MENU) */
+        .context-menu {
+            position: fixed; background: #fff; border: 1px solid var(--gray-border); border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 9999; display: none; flex-direction: column;
+            padding: 5px 0; min-width: 160px; font-size: 13px; color: var(--text-main);
+        }
+        .context-menu-item { padding: 8px 15px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+        .context-menu-item:hover { background: var(--gray-light); color: var(--blue); }
+        .context-menu-item i { width: 14px; text-align: center; }
 
         /* RIGHT SIDEBAR DỌC */
         .right-sidebar-container {
@@ -220,8 +241,18 @@
     </div>
 
     <div class="workspace" id="mainWorkspace">
-        <div class="canvas-area view-vertical" id="canvasArea">
-            <div style="color: #999; margin: auto; padding-top: 50px;">Vui lòng chọn Project hoặc Tải ảnh lên để bắt đầu.</div>
+        
+        <div id="workspaceArea" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+            <div class="canvas-area view-vertical" id="canvasArea">
+                <div style="color: #999; margin: auto; padding-top: 50px;">Vui lòng chọn Project hoặc Tải ảnh lên để bắt đầu.</div>
+            </div>
+        </div>
+
+        <div id="contextMenu" class="context-menu">
+            <div class="context-menu-item" onclick="ctxCopyPage()"><i class="fas fa-copy"></i> Sao chép Page</div>
+            <div class="context-menu-item" onclick="ctxPasteLayer()"><i class="fas fa-paste"></i> Dán Layer vào đây</div>
+            <hr style="border:0; border-top:1px solid #eee; margin: 4px 0;">
+            <div class="context-menu-item" style="color:var(--red)" onclick="ctxDeletePage()"><i class="fas fa-trash"></i> Xóa Page</div>
         </div>
 
         <div class="right-sidebar-container">
@@ -307,6 +338,7 @@
         let layerClipboard = null;
         let currentViewMode = 'vertical';
         let currentZoom = 1;
+        let ctxMenuTargetPage = -1;
 
         window.addEventListener("DOMContentLoaded", () => {
             fetchSubFolders();
@@ -315,14 +347,32 @@
 
             // CLICK RA NGOÀI BỎ CHỌN LAYER
             document.getElementById("mainWorkspace").addEventListener("mousedown", (e) => {
-                if(!e.target.closest(".canvas-layer")) deselectAllLayers();
+                if(!e.target.closest(".canvas-layer") && !e.target.closest(".context-menu")) {
+                    deselectAllLayers();
+                    hideContextMenu();
+                }
             });
             document.getElementById("mainWorkspace").addEventListener("touchstart", (e) => {
-                if(!e.target.closest(".canvas-layer")) deselectAllLayers();
+                if(!e.target.closest(".canvas-layer") && !e.target.closest(".context-menu")) {
+                    deselectAllLayers();
+                    hideContextMenu();
+                }
             }, {passive: true});
 
-            // Lắng nghe sự thay đổi kích thước cửa sổ để vẽ lại Lưới
-            window.addEventListener('resize', updateGridScale);
+            // CHUỘT PHẢI CONTEXT MENU
+            document.getElementById("canvasArea").addEventListener("contextmenu", (e) => {
+                let pageEl = e.target.closest(".page-container");
+                if(pageEl) {
+                    e.preventDefault();
+                    ctxMenuTargetPage = parseInt(pageEl.dataset.pageIndex);
+                    let menu = document.getElementById("contextMenu");
+                    menu.style.display = "flex";
+                    menu.style.left = e.clientX + "px";
+                    menu.style.top = e.clientY + "px";
+                }
+            });
+
+            window.addEventListener('resize', applyLayoutScaling);
         });
 
         function showLoader(text) { document.getElementById("loaderText").innerText = text; document.getElementById("loader").style.display = "flex"; }
@@ -336,6 +386,36 @@
             });
             selectedLayer = null;
         }
+
+        /* ================= MENU CHUỘT PHẢI ================= */
+        function hideContextMenu() { document.getElementById("contextMenu").style.display = "none"; }
+        function ctxCopyPage() {
+            if(ctxMenuTargetPage === -1) return;
+            let pageToCopy = pagesData[ctxMenuTargetPage];
+            let newPage = JSON.parse(JSON.stringify(pageToCopy)); // Deep copy cơ bản
+            newPage.id = Date.now() + Math.random();
+            // Cần tái tạo lại DOM layer vì stringify đánh mất DOM
+            newPage.layers = pageToCopy.layers.map(l => ({ ...l, id: Date.now() + Math.random(), dom: null }));
+            pagesData.splice(ctxMenuTargetPage + 1, 0, newPage);
+            
+            hideContextMenu();
+            activePageIndex = ctxMenuTargetPage + 1;
+            renderAllPages();
+        }
+        function ctxPasteLayer() {
+            if (layerClipboard && ctxMenuTargetPage !== -1) {
+                addLayerToPage(ctxMenuTargetPage, layerClipboard.content, layerClipboard.w, layerClipboard.h);
+            }
+            hideContextMenu();
+        }
+        function ctxDeletePage() {
+            if(ctxMenuTargetPage === -1) return;
+            pagesData.splice(ctxMenuTargetPage, 1);
+            if(activePageIndex >= pagesData.length) activePageIndex = Math.max(0, pagesData.length - 1);
+            hideContextMenu();
+            renderAllPages();
+        }
+
 
         /* ================= QUẢN LÝ MENU & SIDEBAR ================= */
         function toggleSidebarPanel(forceOpen) {
@@ -455,7 +535,7 @@
                     let startX = (canvasW - layerW) / 2;
                     let startY = (canvasH - layerH) / 2;
 
-                    addLayerToPage(pagesData.length - 1, `<img src="${url}">`, startX, startY, layerW, layerH);
+                    addLayerToPage(pagesData.length - 1, `<img src="${url}">`, layerW, layerH, startX, startY);
                     resolve();
                 };
                 img.onerror = () => { console.error("Không thể tải ảnh: ", url); resolve(); };
@@ -474,59 +554,77 @@
 
         /* ================= RENDER CANVAS & VIEW MODES ================= */
         function renderAllPages() {
+            let workspaceArea = document.getElementById("workspaceArea");
             let area = document.getElementById("canvasArea");
+            
+            // Dọn dẹp DOM cũ
+            if(document.querySelector('.horiz-thumbs-strip')) {
+                document.querySelector('.horiz-thumbs-strip').remove();
+            }
             area.innerHTML = "";
+            
             if (pagesData.length === 0) {
                 area.innerHTML = `<div style="color:#999; margin:auto; padding-top:50px;">Chưa có trang canvas nào.</div>`;
                 return;
             }
 
             if (currentViewMode === 'horizontal') {
-                renderHorizontalMode(area);
-            } else if (currentViewMode === 'grid') {
-                pagesData.forEach((page, idx) => {
-                    let pEl = createPageDOM(page, idx);
-                    area.appendChild(pEl);
-                });
-                updateGridScale(); // Tự tính toán scale để nhét vừa cột
+                renderHorizontalMode(workspaceArea, area);
             } else {
                 pagesData.forEach((page, idx) => {
                     let pEl = createPageDOM(page, idx);
                     area.appendChild(pEl);
                 });
             }
+            
+            applyLayoutScaling();
         }
 
         function createPageDOM(page, idx) {
             let wrapper = document.createElement("div");
             wrapper.className = "page-wrapper";
             wrapper.id = `wrapper_${page.id}`;
-            // Chỉ apply zoom bằng biến CSS khi ở chế độ cuộn dọc
-            if (currentViewMode === 'vertical') {
-                wrapper.style.transform = `scale(var(--zoom))`;
-            }
             
             let pEl = document.createElement("div");
             pEl.className = "page-container";
+            pEl.dataset.pageIndex = idx;
             pEl.onclick = () => activePageIndex = idx;
+            
+            // Để chừa Toolbar 30px, tính tổng Height
+            let totalHeight = page.height + 30; 
+            
+            pEl.style.width = `${page.width}px`;
+            pEl.style.height = `${totalHeight}px`;
+
             pEl.innerHTML = `
                 <div class="page-toolbar"><span>Trang ${idx+1}: ${page.title}</span><span>${page.width}x${page.height}</span></div>
-                <div class="canvas-frame" style="width:${page.width}px; height:${page.height}px;" id="frame_${page.id}"></div>
+                <div class="canvas-frame" id="frame_${page.id}"></div>
             `;
+            
             let frame = pEl.querySelector(".canvas-frame");
-            page.layers.forEach(layer => frame.appendChild(layer.dom));
+            // Render lại các layer từ data (nếu đã tạo dom trước đó)
+            page.layers.forEach(layer => {
+                if(!layer.dom) {
+                    // Nếu copy page chưa tạo dom, tạo lại
+                    layer.dom = createLayerDOM(idx, layer.content, layer.w, layer.h, layer.x, layer.y, layer.rot);
+                    layer.dom.id = layer.id;
+                }
+                frame.appendChild(layer.dom);
+            });
             
             wrapper.appendChild(pEl);
             return wrapper;
         }
 
-        function renderHorizontalMode(area) {
-            let mainStage = document.createElement("div"); mainStage.className = "horiz-main-stage";
-            let strip = document.createElement("div"); strip.className = "horiz-thumbs-strip";
+        function renderHorizontalMode(workspaceArea, area) {
+            area.className = "horiz-main-stage";
             
             let activePage = pagesData[activePageIndex] || pagesData[0];
-            mainStage.appendChild(createPageDOM(activePage, activePageIndex));
+            area.appendChild(createPageDOM(activePage, activePageIndex));
 
+            let strip = document.createElement("div"); 
+            strip.className = "horiz-thumbs-strip";
+            
             pagesData.forEach((p, idx) => {
                 let thumbWrap = document.createElement("div");
                 thumbWrap.className = "horiz-thumb-wrapper";
@@ -548,10 +646,9 @@
                 thumbWrap.appendChild(label);
                 strip.appendChild(thumbWrap);
             });
-            area.appendChild(mainStage); 
-            area.appendChild(strip);
             
-            // Render bản xem trước vào thumbnail
+            workspaceArea.appendChild(strip);
+            
             setTimeout(() => { pagesData.forEach((p, i) => syncThumbnail(i)); }, 50);
         }
 
@@ -575,29 +672,38 @@
             }
         }
 
-        /* TÍNH TOÁN SCALE CHO LƯỚI GRID ĐỂ KHÔNG BỊ TRÀN */
-        function updateGridScale() {
-            if(currentViewMode !== 'grid') return;
+        /* LOGIC TÍNH KÍCH THƯỚC TRẢ VỀ GAP CHUẨN 20px */
+        function applyLayoutScaling() {
             let area = document.getElementById("canvasArea");
-            let cols = parseInt(getComputedStyle(area).getPropertyValue('--grid-cols')) || 3;
-            let gap = 30;
-            let padding = 60; // 30px padding left + 30px right
-            
-            let availableWidth = area.clientWidth - padding - (gap * (cols - 1));
-            let cellWidth = availableWidth / cols;
+            if(!area) return;
 
-            pagesData.forEach(p => {
+            pagesData.forEach((p, idx) => {
                 let wrapper = document.getElementById(`wrapper_${p.id}`);
-                if(wrapper) {
-                    let scale = cellWidth / p.width;
-                    wrapper.style.transform = `scale(${scale})`;
-                    wrapper.style.transformOrigin = "top left";
-                    // Thu gọn không gian dư thừa do scale
-                    wrapper.style.marginBottom = `-${p.height * (1 - scale)}px`;
-                    wrapper.style.marginRight = `-${p.width * (1 - scale)}px`;
+                let container = wrapper?.querySelector('.page-container');
+                if(!wrapper || !container) return;
+
+                let scale = currentZoom;
+                let totalH = p.height + 30; // Bao gồm toolbar
+
+                if(currentViewMode === 'grid') {
+                    let cols = parseInt(getComputedStyle(area).getPropertyValue('--grid-cols')) || 3;
+                    let gap = 20;
+                    let padding = 40; 
+                    let availableWidth = area.clientWidth - padding - (gap * (cols - 1));
+                    scale = availableWidth / cols / p.width;
                 }
+
+                // Cập nhật transform cho thẻ container bên trong
+                container.style.transform = `scale(${scale})`;
+                
+                // Mấu chốt: Cập nhật width/height vật lý cho thẻ wrapper để chừa đúng khoảng cách 20px
+                wrapper.style.width = `${p.width * scale}px`;
+                wrapper.style.height = `${totalH * scale}px`;
             });
+            
+            // Xóa background lưới khỏi area, trả về cho body xử lý
         }
+
 
         /* ================= TƯƠNG TÁC LỚP LAYER ================= */
         function addLayerToActivePage(content) {
@@ -605,22 +711,25 @@
             let page = pagesData[activePageIndex];
             let defW = page.width * 0.4;
             let defH = page.height * 0.4;
-            addLayerToPage(activePageIndex, content, (page.width-defW)/2, (page.height-defH)/2, defW, defH);
-            syncThumbnail(activePageIndex);
+            let x = (page.width - defW) / 2;
+            let y = (page.height - defH) / 2;
+            addLayerToPage(activePageIndex, content, defW, defH, x, y);
         }
 
-        function addLayerToPage(pageIdx, content, x, y, w, h) {
-            let page = pagesData[pageIdx];
+        function createLayerDOM(pageIdx, content, w, h, x, y, rot=0) {
             let layerDom = document.createElement("div");
             layerDom.className = "canvas-layer";
             layerDom.style.left = `${x}px`; layerDom.style.top = `${y}px`;
             layerDom.style.width = `${w}px`; layerDom.style.height = `${h}px`;
-            layerDom.dataset.rotation = 0;
+            layerDom.style.transform = `rotate(${rot}deg)`;
+            layerDom.dataset.rotation = rot;
             
             layerDom.innerHTML = `
                 <div class="layer-content">${content}</div>
-                <div class="layer-handle tl" data-handle="tl"></div><div class="layer-handle tr" data-handle="tr"></div>
-                <div class="layer-handle bl" data-handle="bl"></div><div class="layer-handle br" data-handle="br"></div>
+                <div class="layer-handle corner tl" data-handle="tl"></div><div class="layer-handle corner tr" data-handle="tr"></div>
+                <div class="layer-handle corner bl" data-handle="bl"></div><div class="layer-handle corner br" data-handle="br"></div>
+                <div class="layer-handle edge tc" data-handle="tc"></div><div class="layer-handle edge bc" data-handle="bc"></div>
+                <div class="layer-handle edge lc" data-handle="lc"></div><div class="layer-handle edge rc" data-handle="rc"></div>
                 <div class="layer-handle rot" data-handle="rot"><i class="fas fa-sync-alt"></i></div>
                 <div class="layer-mini-menu" style="display:none;">
                     <button onclick="copyLayer()"><i class="fas fa-copy"></i></button>
@@ -628,13 +737,21 @@
                     <button onclick="deleteLayer(this)"><i class="fas fa-trash"></i></button>
                 </div>
             `;
+            return layerDom;
+        }
 
-            let layerObj = { id: Date.now(), dom: layerDom, content };
+        function addLayerToPage(pageIdx, content, w, h, x=0, y=0) {
+            let page = pagesData[pageIdx];
+            let layerDom = createLayerDOM(pageIdx, content, w, h, x, y);
+            
+            let layerObj = { id: Date.now(), dom: layerDom, content, w, h, x, y, rot:0 };
+            layerDom.id = layerObj.id;
             page.layers.push(layerObj);
 
             let frame = document.getElementById(`frame_${page.id}`);
             if (frame) frame.appendChild(layerDom);
             makeLayerInteractive(layerDom, pageIdx, layerObj);
+            syncThumbnail(pageIdx);
         }
 
         function makeLayerInteractive(dom, pageIdx, layerObj) {
@@ -644,9 +761,10 @@
                 activePageIndex = pageIdx;
 
                 let handle = e.target.getAttribute("data-handle");
-                if (handle === 'rot') startRotate(e, dom);
-                else if (handle) startResize(e, dom, handle);
-                else startMove(e, dom);
+                if (handle === 'rot') startRotate(e, dom, layerObj);
+                else if (handle && handle.length === 2 && handle.includes("c")) startCrop(e, dom, handle, layerObj);
+                else if (handle) startResize(e, dom, handle, layerObj);
+                else startMove(e, dom, layerObj);
             });
             dom.addEventListener("touchstart", (e) => {
                 if(e.touches.length === 1) {
@@ -654,58 +772,97 @@
                     selectLayer(dom);
                     activePageIndex = pageIdx;
                     let handle = e.target.getAttribute("data-handle");
-                    if (handle === 'rot') startRotate(e.touches[0], dom, true);
-                    else if (handle) startResize(e.touches[0], dom, handle, true);
-                    else startMove(e.touches[0], dom, true);
+                    if (handle === 'rot') startRotate(e.touches[0], dom, layerObj, true);
+                    else if (handle && handle.length === 2 && handle.includes("c")) startCrop(e.touches[0], dom, handle, layerObj, true);
+                    else if (handle) startResize(e.touches[0], dom, handle, layerObj, true);
+                    else startMove(e.touches[0], dom, layerObj, true);
                 }
             }, {passive: false});
         }
 
-        function selectLayer(dom) {
-            deselectAllLayers();
-            dom.classList.add("selected");
-            dom.querySelector(".layer-mini-menu").style.display = "flex";
-            selectedLayer = dom;
+        /* LẤY SCALE THỰC TẾ CỦA CONTAINER */
+        function getContainerScale(dom) {
+            let container = dom.closest('.page-container');
+            if(!container) return 1;
+            let match = container.style.transform.match(/scale\(([^)]+)\)/);
+            return match ? parseFloat(match[1]) : 1;
         }
 
         /* LOGIC KÉO DI CHUYỂN */
-        function startMove(e, dom, isTouch=false) {
+        function startMove(e, dom, layerObj, isTouch=false) {
             let startX = e.clientX;
             let startY = e.clientY;
-            let origLeft = dom.offsetLeft;
-            let origTop = dom.offsetTop;
-            
-            // Cần lấy scale hiện tại của Grid hoặc Vertical
-            let scaleFactor = currentViewMode === 'vertical' ? currentZoom : 
-                              (currentViewMode === 'grid' ? getGridScaleFactor(dom) : 1);
+            let origX = dom.offsetLeft;
+            let origY = dom.offsetTop;
+            let scaleFactor = getContainerScale(dom);
 
             function onMove(ev) {
                 let clientX = isTouch ? ev.touches[0].clientX : ev.clientX;
                 let clientY = isTouch ? ev.touches[0].clientY : ev.clientY;
                 let dx = (clientX - startX) / scaleFactor;
                 let dy = (clientY - startY) / scaleFactor;
-                dom.style.left = `${origLeft + dx}px`;
-                dom.style.top = `${origTop + dy}px`;
+                
+                layerObj.x = origX + dx;
+                layerObj.y = origY + dy;
+                dom.style.left = `${layerObj.x}px`;
+                dom.style.top = `${layerObj.y}px`;
+                syncThumbnail(activePageIndex);
             }
             function onUp() { 
                 window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
                 window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
-                syncThumbnail(activePageIndex);
             }
             window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
             window.addEventListener(isTouch?"touchend":"mouseup", onUp);
         }
 
-        /* LOGIC THAY ĐỔI KÍCH THƯỚC */
-        function startResize(e, dom, handle, isTouch=false) {
+        /* LOGIC THAY ĐỔI KÍCH THƯỚC (GIỮ TỶ LỆ KHI KÉO GÓC) */
+        function startResize(e, dom, handle, layerObj, isTouch=false) {
             let startX = e.clientX, startY = e.clientY;
             let origX = dom.offsetLeft, origY = dom.offsetTop;
             let origW = dom.offsetWidth, origH = dom.offsetHeight;
+            let ratio = origW / origH;
+            
             let anchorX = (handle.includes("l")) ? origX + origW : origX;
             let anchorY = (handle.includes("t")) ? origY + origH : origY;
-            
-            let scaleFactor = currentViewMode === 'vertical' ? currentZoom : 
-                              (currentViewMode === 'grid' ? getGridScaleFactor(dom) : 1);
+            let scaleFactor = getContainerScale(dom);
+
+            function onMove(ev) {
+                let clientX = isTouch ? ev.touches[0].clientX : ev.clientX;
+                let clientY = isTouch ? ev.touches[0].clientY : ev.clientY;
+                
+                let dx = (clientX - startX) / scaleFactor; 
+                // Fix chiều ngang, tính chiều dọc theo tỷ lệ để không méo
+                let newW, newH, newX, newY;
+
+                if (handle === 'br') { newW = origW + dx; newH = newW / ratio; newX = origX; newY = origY; }
+                else if (handle === 'bl') { newW = origW - dx; newH = newW / ratio; newX = anchorX - newW; newY = origY; }
+                else if (handle === 'tr') { newW = origW + dx; newH = newW / ratio; newX = origX; newY = anchorY - newH; }
+                else if (handle === 'tl') { newW = origW - dx; newH = newW / ratio; newX = anchorX - newW; newY = anchorY - newH; }
+
+                if (newW > 20 && newH > 20) { 
+                    layerObj.w = newW; layerObj.h = newH; layerObj.x = newX; layerObj.y = newY;
+                    dom.style.width = `${newW}px`; dom.style.height = `${newH}px`;
+                    dom.style.left = `${newX}px`; dom.style.top = `${newY}px`;
+                    syncThumbnail(activePageIndex);
+                }
+            }
+            function onUp() { 
+                window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
+                window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
+            }
+            window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
+            window.addEventListener(isTouch?"touchend":"mouseup", onUp);
+        }
+
+        /* LOGIC CẮT XÉN (CROP QUA 4 CẠNH BÊN) */
+        function startCrop(e, dom, handle, layerObj, isTouch=false) {
+            let startX = e.clientX, startY = e.clientY;
+            let origX = dom.offsetLeft, origY = dom.offsetTop;
+            let origW = dom.offsetWidth, origH = dom.offsetHeight;
+            let anchorX = (handle === "lc") ? origX + origW : origX;
+            let anchorY = (handle === "tc") ? origY + origH : origY;
+            let scaleFactor = getContainerScale(dom);
 
             function onMove(ev) {
                 let clientX = isTouch ? ev.touches[0].clientX : ev.clientX;
@@ -714,27 +871,31 @@
                 let dx = (clientX - startX) / scaleFactor; 
                 let dy = (clientY - startY) / scaleFactor;
                 
-                let newW, newH, newX, newY;
+                let newW = origW, newH = origH, newX = origX, newY = origY;
 
-                if (handle === 'br') { newW = origW + dx; newH = origH + dy; newX = origX; newY = origY; }
-                else if (handle === 'bl') { newW = origW - dx; newH = origH + dy; newX = anchorX - newW; newY = origY; }
-                else if (handle === 'tr') { newW = origW + dx; newH = origH - dy; newX = origX; newY = anchorY - newH; }
-                else if (handle === 'tl') { newW = origW - dx; newH = origH - dy; newX = anchorX - newW; newY = anchorY - newH; }
+                if (handle === 'rc') { newW = origW + dx; }
+                else if (handle === 'lc') { newW = origW - dx; newX = anchorX - newW; }
+                else if (handle === 'bc') { newH = origH + dy; }
+                else if (handle === 'tc') { newH = origH - dy; newY = anchorY - newH; }
 
-                if (newW > 20) { dom.style.width = `${newW}px`; dom.style.left = `${newX}px`; }
-                if (newH > 20) { dom.style.height = `${newH}px`; dom.style.top = `${newY}px`; }
+                if (newW > 20 && newH > 20) { 
+                    layerObj.w = newW; layerObj.h = newH; layerObj.x = newX; layerObj.y = newY;
+                    dom.style.width = `${newW}px`; dom.style.height = `${newH}px`;
+                    dom.style.left = `${newX}px`; dom.style.top = `${newY}px`;
+                    syncThumbnail(activePageIndex);
+                }
             }
             function onUp() { 
                 window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
                 window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
-                syncThumbnail(activePageIndex);
             }
             window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
             window.addEventListener(isTouch?"touchend":"mouseup", onUp);
         }
 
+
         /* LOGIC XOAY LAYER (ROTATION) */
-        function startRotate(e, dom, isTouch=false) {
+        function startRotate(e, dom, layerObj, isTouch=false) {
             let rect = dom.getBoundingClientRect();
             let centerX = rect.left + rect.width / 2;
             let centerY = rect.top + rect.height / 2;
@@ -744,33 +905,37 @@
                 let clientY = isTouch ? ev.touches[0].clientY : ev.clientY;
                 
                 let radians = Math.atan2(clientY - centerY, clientX - centerX);
-                let degrees = (radians * (180 / Math.PI)) + 90; // Cộng 90 vì handle nằm ở TOP
+                let degrees = (radians * (180 / Math.PI)) + 90; 
                 
+                layerObj.rot = degrees;
                 dom.dataset.rotation = degrees;
                 dom.style.transform = `rotate(${degrees}deg)`;
+                syncThumbnail(activePageIndex);
             }
             function onUp() { 
                 window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
                 window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
-                syncThumbnail(activePageIndex);
             }
             window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
             window.addEventListener(isTouch?"touchend":"mouseup", onUp);
         }
 
-        function getGridScaleFactor(dom) {
-            let wrapper = dom.closest('.page-wrapper');
-            if(!wrapper) return 1;
-            // Bóc tách giá trị scale từ thuộc tính transform
-            let transform = wrapper.style.transform;
-            let match = transform.match(/scale\(([^)]+)\)/);
-            return match ? parseFloat(match[1]) : 1;
+        function copyLayer() { 
+            if (selectedLayer) {
+                let obj = pagesData[activePageIndex].layers.find(l => l.id == selectedLayer.id);
+                if(obj) layerClipboard = JSON.parse(JSON.stringify(obj)); 
+            }
         }
-
-        function copyLayer() { if (selectedLayer) layerClipboard = selectedLayer.querySelector(".layer-content").innerHTML; }
-        function pasteLayer() { if (layerClipboard) addLayerToActivePage(layerClipboard); }
+        function pasteLayer() { 
+            if (layerClipboard) {
+                addLayerToPage(activePageIndex, layerClipboard.content, layerClipboard.w, layerClipboard.h, layerClipboard.x + 20, layerClipboard.y + 20);
+            } 
+        }
         function deleteLayer(btn) { 
-            btn.closest(".canvas-layer").remove(); 
+            let layerDom = btn.closest(".canvas-layer");
+            let p = pagesData[activePageIndex];
+            p.layers = p.layers.filter(l => l.id != layerDom.id);
+            layerDom.remove(); 
             syncThumbnail(activePageIndex); 
         }
 
@@ -798,14 +963,6 @@
         function setViewMode(mode) {
             currentViewMode = mode;
             let area = document.getElementById("canvasArea");
-            
-            // Xóa transform inline nếu rời khỏi Grid
-            if(mode !== 'grid') {
-                document.querySelectorAll(".page-wrapper").forEach(w => {
-                    w.style.transform = `scale(var(--zoom))`;
-                    w.style.margin = '0';
-                });
-            }
 
             area.className = `canvas-area view-${mode}`;
             document.querySelectorAll("#viewModeGroup .tool-btn").forEach(b => b.classList.remove("active"));
@@ -816,28 +973,24 @@
 
         function setGridColumns(cols) { 
             document.getElementById("canvasArea").style.setProperty('--grid-cols', cols); 
-            updateGridScale();
+            applyLayoutScaling();
         }
 
         function manualZoom(delta) {
-            if(currentViewMode === 'grid') return; // Lưới dùng zoom bằng chỉnh cột
+            if(currentViewMode === 'grid') return;
             currentZoom = Math.max(0.1, Math.min(3, currentZoom + delta));
-            applyGlobalZoom();
-        }
-
-        function applyGlobalZoom() {
-            document.documentElement.style.setProperty('--zoom', currentZoom);
             document.getElementById("zoomDisplay").innerText = Math.round(currentZoom * 100) + "%";
+            applyLayoutScaling();
         }
 
-        /* XỬ LÝ PINCH TO ZOOM NÂNG CAO (CHO CANVAS VÀ GRID) */
+        /* XỬ LÝ PINCH TO ZOOM NÂNG CAO */
         function initAdvancedPinchToZoom() {
             let initialDist = null;
             let initialZoom = 1;
             let initialCols = 3;
-            let canvasArea = document.getElementById("canvasArea");
+            let workspaceArea = document.getElementById("workspaceArea");
 
-            canvasArea.addEventListener('wheel', (e) => {
+            workspaceArea.addEventListener('wheel', (e) => {
                 if(e.ctrlKey) {
                     e.preventDefault();
                     if(currentViewMode === 'grid') return;
@@ -846,7 +999,7 @@
                 }
             }, {passive: false});
 
-            canvasArea.addEventListener('touchstart', e => {
+            workspaceArea.addEventListener('touchstart', e => {
                 if (e.touches.length === 2) {
                     e.preventDefault();
                     initialDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
@@ -855,7 +1008,7 @@
                 }
             }, {passive: false});
 
-            canvasArea.addEventListener('touchmove', e => {
+            workspaceArea.addEventListener('touchmove', e => {
                 if (initialDist && e.touches.length === 2) {
                     e.preventDefault();
                     let dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
@@ -868,12 +1021,13 @@
                     } else {
                         let zoomFactor = dist / initialDist;
                         currentZoom = Math.max(0.1, Math.min(3, initialZoom * zoomFactor));
-                        applyGlobalZoom();
+                        document.getElementById("zoomDisplay").innerText = Math.round(currentZoom * 100) + "%";
+                        applyLayoutScaling();
                     }
                 }
             }, {passive: false});
 
-            canvasArea.addEventListener('touchend', () => { initialDist = null; });
+            workspaceArea.addEventListener('touchend', () => { initialDist = null; });
         }
 
         /* ================= GỬI DATA VỀ APPS SCRIPT ================= */
