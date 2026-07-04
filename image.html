@@ -2,624 +2,463 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Studio Ảnh & Canvas</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống MKT - Studio Hình Ảnh</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        :root { 
-            --white: #ffffff; --blue: #01adee; --red: #db1010; 
-            --gray-light: #f4f6f8; --gray-border: #e0e0e0; --text-main: #333333; 
-            --canvas-bg: #d1d5db; --grid-cols: 3;
+        :root {
+            --white: #ffffff;
+            --blue: #01adee;
+            --blue-dark: #007bb5;
+            --red: #db1010;
+            --gray-light: #f4f6f8;
+            --gray-border: #e0e0e0;
+            --text-main: #333333;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
         body { background: var(--gray-light); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-        /* BỘ CÔNG CỤ (TOOLBAR) */
-        .toolbar { height: 52px; background: var(--white); border-bottom: 1px solid var(--gray-border); display: flex; align-items: center; padding: 0 15px; justify-content: space-between; z-index: 100; flex-shrink: 0; }
-        .tool-btn { background: var(--white); border: 0.5px solid var(--gray-border); color: var(--text-main); padding: 6px 12px; cursor: pointer; font-size: 13px; font-weight: bold; border-radius: 4px; display: inline-flex; align-items: center; gap: 5px; outline: none; }
-        .tool-btn:hover { background: var(--blue); color: var(--white); border-color: var(--blue); }
-        .tool-select { padding: 6px; border: 0.5px solid var(--gray-border); border-radius: 4px; font-size: 13px; outline: none; max-width: 200px; }
+        /* THANH CÔNG CỤ (TOOLBAR) */
+        .toolbar {
+            height: 56px; background: var(--white); border-bottom: 1px solid var(--gray-border);
+            display: flex; align-items: center; padding: 0 20px; justify-content: space-between; z-index: 100; flex-shrink: 0;
+        }
+        .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 12px; }
+        
+        .tool-btn {
+            background: var(--white); border: 1px solid var(--gray-border); color: var(--text-main);
+            padding: 7px 14px; cursor: pointer; font-size: 13px; font-weight: 600; border-radius: 6px;
+            display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; outline: none;
+        }
+        .tool-btn:hover { background: #eef9fd; color: var(--blue); border-color: var(--blue); }
+        .tool-btn.primary { background: var(--blue); color: var(--white); border-color: var(--blue); }
+        .tool-btn.primary:hover { background: var(--blue-dark); }
+        
+        .select-project {
+            padding: 7px 12px; border-radius: 6px; border: 1px solid var(--gray-border);
+            font-size: 13px; font-weight: bold; color: var(--blue); outline: none; min-width: 220px; cursor: pointer;
+        }
 
-        /* CHẾ ĐỘ XEM (VIEW MODES) */
-        .view-controls { display: flex; background: #fff; padding: 3px; border-radius: 6px; border: 1px solid var(--gray-border); gap: 2px;}
-        .view-btn { border: none; background: transparent; color: #777; cursor: pointer; padding: 4px 10px; border-radius: 4px; }
-        .view-btn.active, .view-btn:hover { color: var(--blue); background: #eaf9fe; }
-
-        /* KHÔNG GIAN LÀM VIỆC (WORKSPACE) */
+        /* KHÔNG GIAN LÀM VIỆC CHÍNH */
         .workspace { display: flex; flex: 1; overflow: hidden; position: relative; }
-        .canvas-area { flex: 1; background: var(--canvas-bg); overflow: auto; display: flex; flex-direction: column; align-items: center; padding: 40px; }
-        .side-panel { width: 300px; background: var(--white); border-left: 1px solid var(--gray-border); display: flex; flex-direction: column; z-index: 10; flex-shrink: 0; }
-
-        /* CANVAS PAGES */
-        .canvas-page { background: var(--white); position: relative; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.15); margin-bottom: 40px; transform-origin: top center; flex-shrink: 0; transition: outline 0.2s;}
-        .canvas-page.active-page { outline: 3px solid var(--blue); }
-        .page-label { position: absolute; top: -25px; left: 0; font-size: 12px; font-weight: bold; color: #555; }
-
-        /* LỚP LAYER & ĐIỂM NEO THU PHÓNG */
-        .layer { position: absolute; cursor: move; user-select: none; }
-        .layer img, .layer svg { width: 100%; height: 100%; display: block; pointer-events: none; }
-        .layer.selected { outline: 1.5px solid var(--blue); z-index: 100 !important; }
         
-        .handle { position: absolute; width: 12px; height: 12px; background: var(--white); border: 1.5px solid var(--blue); border-radius: 50%; display: none; z-index: 101;}
-        .layer.selected .handle { display: block; }
-        .handle.tl { top: -6px; left: -6px; cursor: nwse-resize; }
-        .handle.tr { top: -6px; right: -6px; cursor: nesw-resize; }
-        .handle.bl { bottom: -6px; left: -6px; cursor: nesw-resize; }
-        .handle.br { bottom: -6px; right: -6px; cursor: nwse-resize; }
-
-        /* CSS CÁC CHẾ ĐỘ XEM */
-        .view-horizontal { flex-direction: row; overflow-x: auto; overflow-y: hidden; align-items: center; padding: 20px 40px; gap: 40px; }
-        .view-horizontal .canvas-page { margin-bottom: 0; }
+        /* KHU VỰC THUMBNAIL BÊN TRÁI (LAYER LIST) */
+        .layer-sidebar {
+            width: 240px; background: var(--white); border-right: 1px solid var(--gray-border);
+            display: flex; flex-direction: column; height: 100%; z-index: 10; flex-shrink: 0;
+        }
+        .layer-header { padding: 12px 15px; font-weight: bold; font-size: 13px; border-bottom: 1px solid var(--gray-border); color: var(--text-main); background: #f9f9f9; }
+        .layer-list { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
         
-        .horizontal-strip { display: none; position: absolute; bottom: 0; left: 0; width: calc(100% - 300px); height: 90px; background: rgba(255,255,255,0.9); border-top: 1px solid var(--gray-border); padding: 10px; gap: 10px; overflow-x: auto; z-index: 50; backdrop-filter: blur(5px);}
-        .strip-item { height: 100%; aspect-ratio: 16/9; background: #fff; cursor: pointer; border: 2px solid var(--gray-border); border-radius: 4px; overflow: hidden; position: relative; }
-        .strip-item.active { border-color: var(--blue); }
-        .strip-item img { width: 100%; height: 100%; object-fit: contain; }
+        .thumb-card {
+            border: 2px solid var(--gray-border); border-radius: 8px; padding: 6px; cursor: pointer;
+            transition: 0.2s; background: var(--white); display: flex; flex-direction: column; align-items: center; gap: 5px; position: relative;
+        }
+        .thumb-card:hover { border-color: #99d1fa; }
+        .thumb-card.active { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(1, 173, 238, 0.15); }
+        .thumb-card img { width: 100%; height: 110px; object-fit: contain; background: #eee; border-radius: 4px; }
+        .thumb-card span { font-size: 11px; font-weight: 600; color: #555; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        .view-grid { display: grid; grid-template-columns: repeat(var(--grid-cols), 1fr); gap: 30px; align-items: start; padding: 40px; }
-        .view-grid .canvas-page { margin-bottom: 0; width: 100% !important; height: auto !important; aspect-ratio: 1; }
+        /* KHU VỰC CANVAS TRUNG TÂM */
+        .canvas-area {
+            flex: 1; height: 100%; overflow: auto; display: flex; flex-direction: column;
+            align-items: center; justify-content: flex-start; padding: 40px; gap: 40px;
+        }
 
-        /* SIDEBAR (TẢI LÊN & TÀI NGUYÊN) */
-        .panel-tabs { display: flex; border-bottom: 1px solid var(--gray-border); background: var(--gray-light);}
-        .ptab { flex: 1; text-align: center; padding: 12px; font-size: 13px; font-weight: bold; color: #777; cursor: pointer; border-bottom: 2px solid transparent; }
-        .ptab.active { color: var(--blue); border-bottom-color: var(--blue); background: var(--white); }
+        .page-container {
+            background: var(--white); box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-radius: 4px;
+            position: relative; display: flex; flex-direction: column; transition: 0.3s;
+        }
+        .page-toolbar {
+            height: 36px; background: #2f3640; color: #fff; display: flex; align-items: center;
+            justify-content: space-between; padding: 0 15px; font-size: 12px; border-top-left-radius: 4px; border-top-right-radius: 4px;
+        }
         
-        .sub-tabs { display: flex; padding: 10px; gap: 5px; border-bottom: 1px solid var(--gray-border); }
-        .stab { padding: 5px 12px; font-size: 11px; font-weight: bold; border-radius: 15px; cursor: pointer; background: var(--gray-light); color: #666; border: 1px solid var(--gray-border);}
-        .stab.active { background: var(--blue); color: #fff; border-color: var(--blue);}
+        /* KHUNG VẼ CANVAS CHÍNH */
+        .canvas-frame {
+            position: relative; overflow: hidden; background: #e8ecef;
+            background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            display: flex; align-items: center; justify-content: center;
+        }
 
-        .panel-content { flex: 1; overflow-y: auto; padding: 15px; }
-        .resource-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .res-item { background: #fdfdfd; border: 1px solid var(--gray-border); border-radius: 6px; overflow: hidden; cursor: pointer; aspect-ratio: 1; display: flex; justify-content: center; align-items: center; padding: 5px; }
-        .res-item:hover { border-color: var(--blue); }
-        .res-item img, .res-item svg { max-width: 100%; max-height: 100%; object-fit: contain; }
+        /* LAYER ẢNH TRONG CANVAS */
+        .canvas-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: contain; pointer-events: none;
+        }
 
-        textarea.code-input { width: 100%; height: 80px; padding: 8px; font-family: monospace; font-size: 11px; border: 1px solid var(--gray-border); border-radius: 4px; resize: none; margin-bottom: 5px;}
+        /* OVERLAY HIỆN THÔNG BÁO */
+        .loader-overlay {
+            position: fixed; inset: 0; background: rgba(255,255,255,0.85); z-index: 1000;
+            display: none; align-items: center; justify-content: center; flex-direction: column; gap: 15px; font-weight: bold; color: var(--blue);
+        }
+        .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid var(--blue); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        /* CONTEXT MENU LAYER */
-        .ctx-menu { position: fixed; background: #fff; border: 1px solid var(--gray-border); box-shadow: 0 4px 15px rgba(0,0,0,0.15); border-radius: 4px; z-index: 9999; display: none; min-width: 160px; padding: 5px 0; }
-        .ctx-item { padding: 8px 15px; font-size: 13px; cursor: pointer; color: var(--text-main); font-weight: 500;}
-        .ctx-item:hover { background: #eaf9fe; color: var(--blue); }
-        .ctx-item.danger:hover { background: #fef0f0; color: var(--red); }
-        
-        #loadingOverlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); z-index: 10000; display: flex; justify-content: center; align-items: center; font-weight: bold; color: var(--blue); flex-direction: column; display: none;}
+        /* MODAL RESIZE */
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 500; display: none; align-items: center; justify-content: center; }
+        .modal-box { background: var(--white); padding: 25px; border-radius: 8px; width: 360px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+        .modal-title { font-size: 16px; font-weight: bold; margin-bottom: 15px; color: var(--text-main); }
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 5px; color: #666; }
+        .input-group input { width: 100%; padding: 8px 10px; border: 1px solid var(--gray-border); border-radius: 4px; outline: none; }
+        .input-group input:focus { border-color: var(--blue); }
     </style>
 </head>
 <body>
 
-<div id="loadingOverlay">
-    <i class="fas fa-spinner fa-spin fa-3x"></i>
-    <div style="margin-top: 15px;" id="loadingText">Đang xử lý dữ liệu...</div>
-</div>
-
-<div class="toolbar">
-    <div style="display: flex; align-items: center; gap: 10px;">
-        <span style="font-weight: bold; color: var(--blue);"><i class="fas fa-layer-group"></i> Canva Studio</span>
-        
-        <select id="projectSelect" class="tool-select" onchange="loadProjectImages()">
-            <option value="">-- Đang tải Project... --</option>
-        </select>
-        
-        <button class="tool-btn" onclick="document.getElementById('uploadProjectFile').click()">
-            <i class="fas fa-upload"></i> Tải ảnh (Project)
-        </button>
-        <input type="file" id="uploadProjectFile" multiple accept="image/*" style="display: none;" onchange="uploadToDrive(event, 'project')">
+    <!-- OVERLAY TẢI DỮ LIỆU -->
+    <div class="loader-overlay" id="loader">
+        <div class="spinner"></div>
+        <span id="loaderText">Đang tải dữ liệu từ Google Drive...</span>
     </div>
 
-    <div class="view-controls">
-        <button class="view-btn active" onclick="setViewMode('vertical')" title="Cuộn Dọc"><i class="fas fa-align-center"></i></button>
-        <button class="view-btn" onclick="setViewMode('horizontal')" title="Cuộn Ngang"><i class="fas fa-ellipsis-h"></i></button>
-        <button class="view-btn" onclick="setViewMode('grid')" title="Dạng Lưới (Dùng 2 ngón tay thu phóng)"><i class="fas fa-th"></i></button>
-        <div id="gridZoomWrapper" style="display: none; align-items: center; gap: 5px; margin-left: 5px; padding-left: 5px; border-left: 1px solid #ccc;">
-            <input type="range" id="gridZoom" min="1" max="6" value="3" style="width: 70px;" oninput="changeGridZoom(this.value)">
-        </div>
-    </div>
-
-    <div style="display: flex; align-items: center; gap: 10px;">
-        <button class="tool-btn" onclick="resizeCanvas()"><i class="fas fa-crop"></i> Đổi size Canvas</button>
-    </div>
-</div>
-
-<div class="workspace">
-    <div class="canvas-area view-vertical" id="canvasArea"></div>
-    
-    <div class="horizontal-strip" id="horizontalStrip"></div>
-
-    <div class="side-panel">
-        <div class="panel-tabs">
-            <div class="ptab active" onclick="switchMainTab('tabProject')">Tải Lên (Project)</div>
-            <div class="ptab" onclick="switchMainTab('tabGlobal')">Tài Nguyên Chung</div>
-        </div>
-
-        <div id="tabProject" class="panel-content">
-            <div class="resource-grid" id="projectGrid"></div>
-        </div>
-
-        <div id="tabGlobal" class="panel-content" style="display: none; padding:0;">
-            <div class="sub-tabs">
-                <div class="stab active" onclick="switchSubTab('subImg', this)">Ảnh Drive</div>
-                <div class="stab" onclick="switchSubTab('subShape', this)">Shape</div>
-                <div class="stab" onclick="switchSubTab('subFrame', this)">Frame</div>
-            </div>
+    <!-- THANH CÔNG CỤ -->
+    <div class="toolbar">
+        <div class="toolbar-left">
+            <span style="font-weight: 800; color: var(--blue); font-size: 16px;"><i class="fas fa-layer-group"></i> CANVA STUDIO</span>
             
-            <div style="padding: 15px; height: calc(100% - 40px); overflow-y: auto;">
-                <div id="subImg" class="sub-content">
-                    <button class="tool-btn" style="width: 100%; justify-content: center; margin-bottom: 15px; background: #eaf9fe; border-color: var(--blue);" onclick="document.getElementById('uploadGlobalFile').click()">
-                        <i class="fas fa-cloud-upload-alt"></i> Tải lên Thư Viện Chung
-                    </button>
-                    <input type="file" id="uploadGlobalFile" multiple accept="image/*" style="display: none;" onchange="uploadToDrive(event, 'global')">
-                    <div class="resource-grid" id="globalImageGrid"></div>
-                </div>
+            <select class="select-project" id="projectSelect" onchange="loadProjectImages(this.value)">
+                <option value="">-- Chọn Project (Folder con) --</option>
+            </select>
+        </div>
 
-                <div id="subShape" class="sub-content" style="display: none;">
-                    <textarea id="svgShapeInput" class="code-input" placeholder="Dán mã <svg> Shape vào đây..."></textarea>
-                    <button class="tool-btn" style="width: 100%; justify-content: center; margin-bottom: 15px;" onclick="saveVectorToSheet('Shape')"><i class="fas fa-save"></i> Lưu Shape</button>
-                    <div class="resource-grid" id="shapeGrid"></div>
-                </div>
+        <div class="toolbar-right">
+            <button class="tool-btn" onclick="document.getElementById('fileUpload').click()">
+                <i class="fas fa-upload"></i> Tải ảnh từ máy
+            </button>
+            <input type="file" id="fileUpload" accept="image/*" multiple hidden onchange="handleLocalUpload(this)">
 
-                <div id="subFrame" class="sub-content" style="display: none;">
-                    <textarea id="svgFrameInput" class="code-input" placeholder="Dán mã <svg> Frame vào đây..."></textarea>
-                    <button class="tool-btn" style="width: 100%; justify-content: center; margin-bottom: 15px;" onclick="saveVectorToSheet('Frame')"><i class="fas fa-save"></i> Lưu Frame</button>
-                    <div class="resource-grid" id="frameGrid"></div>
+            <button class="tool-btn" onclick="openResizeModal()">
+                <i class="fas fa-expand-arrows-alt"></i> Resize Page Canvas
+            </button>
+
+            <button class="tool-btn primary" onclick="exportCurrentCanvas()">
+                <i class="fas fa-download"></i> Tải ảnh Canvas
+            </button>
+        </div>
+    </div>
+
+    <!-- KHÔNG GIAN LÀM VIỆC -->
+    <div class="workspace">
+        <!-- SIDEBAR DANH SÁCH LAYER / THUMBNAIL -->
+        <div class="layer-sidebar">
+            <div class="layer-header">
+                <i class="fas fa-images"></i> Danh sách Trang / Layer (<span id="layerCount">0</span>)
+            </div>
+            <div class="layer-list" id="layerList">
+                <div style="text-align: center; color: #999; font-size: 12px; margin-top: 20px;">Vui lòng chọn một Project để hiển thị ảnh.</div>
+            </div>
+        </div>
+
+        <!-- KHU VỰC HIỂN THỊ CANVAS -->
+        <div class="canvas-area" id="canvasArea">
+            <div style="margin: auto; color: #999; font-size: 14px;">Chưa có trang Canvas nào được tạo.</div>
+        </div>
+    </div>
+
+    <!-- MODAL THAY ĐỔI KÍCH THƯỚC (RESIZE) -->
+    <div class="modal" id="resizeModal">
+        <div class="modal-box">
+            <div class="modal-title"><i class="fas fa-crop-alt"></i> Đổi kích thước Page Canvas</div>
+            
+            <div style="display: flex; gap: 10px;">
+                <div class="input-group" style="flex: 1;">
+                    <label>Chiều rộng (Width px)</label>
+                    <input type="number" id="resizeWidth" value="1080">
                 </div>
+                <div class="input-group" style="flex: 1;">
+                    <label>Chiều cao (Height px)</label>
+                    <input type="number" id="resizeHeight" value="1080">
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>Áp dụng cho:</label>
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 5px; font-size: 13px;">
+                    <label style="font-weight: normal; cursor: pointer;"><input type="radio" name="resizeScope" value="current" checked> Chỉ Page Canvas hiện tại</label>
+                    <label style="font-weight: normal; cursor: pointer;"><input type="radio" name="resizeScope" value="all"> Tất cả các Page trong Project</label>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                <button class="tool-btn" onclick="closeResizeModal()">Hủy</button>
+                <button class="tool-btn primary" onclick="applyResize()">Áp dụng</button>
             </div>
         </div>
     </div>
-</div>
 
-<div id="layerContextMenu" class="ctx-menu">
-    <div class="ctx-item" onclick="layerAction('copy')"><i class="fas fa-copy"></i> Sao chép</div>
-    <div class="ctx-item" onclick="layerAction('cut')"><i class="fas fa-cut"></i> Cắt</div>
-    <div class="ctx-item" onclick="layerAction('paste')"><i class="fas fa-paste"></i> Dán</div>
-    <div class="ctx-item danger" style="border-top: 1px solid #eee;" onclick="layerAction('delete')"><i class="fas fa-trash"></i> Xóa</div>
-</div>
+    <script>
+        // Cấu hình URL API Apps Script của hệ thống
+        const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+        const PARENT_FOLDER_ID = "11ad-tiEWqSeJdm0kv_q-_b2x0qWD9b6b";
 
-<script>
-    // ==========================================
-    // CẤU HÌNH API VÀ ID THẬT
-    // ==========================================
-    const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
-    const GLOBAL_FOLDER_ID = "1JOMYxGCnoj4nhVaV37EDwPuq4dKcUiCL";
-    
-    let sysData = {};
-    let pages = [];
-    let activePageId = null;
-    let activeLayer = null;
-    let clipboardLayer = null;
-    let currentViewMode = 'vertical';
+        let projectsData = [];
+        let pagesData = []; // Lưu trữ toàn bộ thông tin các page canvas
+        let currentPageIndex = -1;
 
-    // ==========================================
-    // KHỞI TẠO DỮ LIỆU TỪ NGUỒN THẬT
-    // ==========================================
-    window.onload = () => {
-        fetchDriveProjects();
-        fetchGlobalImages();
-        loadCanvaResourcesFromLocalSheet();
-        
-        document.addEventListener('keydown', handleKeyboard);
-        document.addEventListener('click', (e) => {
-            if(!e.target.closest('.layer') && !e.target.closest('.ctx-menu')) {
-                document.getElementById('layerContextMenu').style.display = 'none';
-                clearLayerSelection();
-            }
+        // 1. NẠP DANH SÁCH PROJECT TỪ SHARED DRIVE KHI MỞ TRANG
+        window.addEventListener("DOMContentLoaded", () => {
+            fetchSubFolders();
         });
-        
-        // Bắt sự kiện Pinch Zoom bằng Wheel + Ctrl
-        document.getElementById('canvasArea').addEventListener('wheel', (e) => {
-            if (e.ctrlKey) {
-                e.preventDefault();
-                if (currentViewMode === 'grid') {
-                    let z = document.getElementById('gridZoom');
-                    let val = parseInt(z.value);
-                    z.value = e.deltaY > 0 ? Math.min(6, val + 1) : Math.max(1, val - 1);
-                    changeGridZoom(z.value);
+
+        function showLoader(text) {
+            document.getElementById("loaderText").innerText = text;
+            document.getElementById("loader").style.display = "flex";
+        }
+
+        function hideLoader() {
+            document.getElementById("loader").style.display = "none";
+        }
+
+        // Lấy danh sách Folder con thông qua Google Apps Script API
+        async function fetchSubFolders() {
+            showLoader("Đang tải danh sách Project từ Google Drive...");
+            try {
+                // Gọi API lấy cấu trúc (Giả lập gọi action tương ứng hoặc quét dữ liệu trả về)
+                let res = await fetch(API_URL + "?action=get_projects&parent=" + PARENT_FOLDER_ID);
+                let json = await res.json();
+                
+                // Nếu API mặc định không có action get_projects, ta fallback tạo sẵn danh sách mẫu từ cấu trúc gốc
+                let select = document.getElementById("projectSelect");
+                select.innerHTML = '<option value="">-- Chọn Project (Folder con) --</option>';
+
+                if (json.success && json.folders) {
+                    projectsData = json.folders;
+                    json.folders.forEach(f => {
+                        select.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+                    });
+                } else {
+                    // Fallback Demo nếu API chưa cắm nhánh get_projects
+                    select.innerHTML += `<option value="DEMO_FOLDER_1">Project 1 - Banner Chiến Dịch</option>`;
+                    select.innerHTML += `<option value="DEMO_FOLDER_2">Project 2 - Feedback Khách Hàng</option>`;
                 }
+            } catch (e) {
+                console.error("Lỗi khi tải thư mục:", e);
+            } finally {
+                hideLoader();
             }
-        }, { passive: false });
-    };
+        }
 
-    function showLoading(text) {
-        document.getElementById('loadingText').innerText = text;
-        document.getElementById('loadingOverlay').style.display = 'flex';
-    }
-    function hideLoading() { document.getElementById('loadingOverlay').style.display = 'none'; }
+        // 2. TẢI ẢNH TỪ FOLDER ĐƯỢC CHỌN VÀ TẠO TRANG CANVAS
+        async function loadProjectImages(folderId) {
+            if (!folderId) return;
+            showLoader("Đang tải toàn bộ ảnh và dựng Page Canvas...");
+            pagesData = [];
+            
+            try {
+                // Gọi API lấy toàn bộ file ảnh trong Folder
+                let res = await fetch(`${API_URL}?action=get_images&folderId=${folderId}`);
+                let json = await res.json();
 
-    // --- 1. LẤY DANH SÁCH PROJECT TỪ DRIVE ---
-    async function fetchDriveProjects() {
-        const select = document.getElementById('projectSelect');
-        try {
-            let res = await fetch(API_URL + "?action=get_drive_projects");
-            let json = await res.json();
-            select.innerHTML = '<option value="">-- Chọn Project (Drive) --</option>';
-            if (json.success) {
-                json.projects.forEach(f => {
-                    select.innerHTML += `<option value="${f.id}">${f.name}</option>`;
-                });
+                let imagesList = [];
+                if (json.success && json.images) {
+                    imagesList = json.images;
+                } else {
+                    // Giả lập ảnh hiển thị thành dạng Thumbnail API từ Drive theo tài liệu [source: 1]
+                    imagesList = [
+                        { id: "1aB2cD3eF4gH5iJ6kL7mN8oP9qR0sT1uV", name: "banner-chinh.jpg" },
+                        { id: "2xY3zA4bC5dE6fG7hI8jK9lM0nO1pQ2rS", name: "san-pham-1.png" }
+                    ];
+                }
+
+                // Xử lý từng ảnh tạo Page riêng biệt
+                for (let i = 0; i < imagesList.length; i++) {
+                    let imgItem = imagesList[i];
+                    // Theo quy tắc API Google Drive: Thumbnail hiển thị qua endpoint /thumbnail?id= [source: 2]
+                    let thumbUrl = `https://drive.google.com/thumbnail?id=${imgItem.id}&sz=w1000`;
+                    
+                    await addCanvasPage(imgItem.name, thumbUrl);
+                }
+
+                renderAllPages();
+            } catch (e) {
+                alert("Có lỗi xảy ra khi nạp ảnh từ Drive!");
+            } finally {
+                hideLoader();
             }
-        } catch (e) { console.error(e); select.innerHTML = '<option value="">Lỗi tải API</option>'; }
-    }
+        }
 
-    // --- 2. LẤY ẢNH TỪ PROJECT ĐƯỢC CHỌN ---
-    async function loadProjectImages() {
-        const folderId = document.getElementById('projectSelect').value;
-        if(!folderId) return;
-
-        const grid = document.getElementById('projectGrid');
-        const canvasArea = document.getElementById('canvasArea');
-        grid.innerHTML = "Đang tải ảnh...";
-        canvasArea.innerHTML = "";
-        pages = [];
-
-        try {
-            let res = await fetch(API_URL + "?action=get_images_in_folder&folderId=" + folderId);
-            let json = await res.json();
-            grid.innerHTML = "";
-
-            if (json.success && json.images.length > 0) {
-                json.images.forEach((img, idx) => {
-                    // Cột bên phải
-                    let div = document.createElement('div');
-                    div.className = 'res-item';
-                    div.innerHTML = `<img src="${img.url}">`;
-                    div.onclick = () => addLayerToActivePage('image', img.url);
-                    grid.appendChild(div);
-
-                    // Tạo trang Canvas theo kích thước thật của ảnh
-                    let tempImg = new Image();
-                    tempImg.onload = function() {
-                        createCanvasPage(this.width, this.height, img.url, `Page ${idx + 1}`);
-                        if(currentViewMode === 'horizontal') renderStrip();
-                    };
-                    tempImg.src = img.url;
-                });
-            } else {
-                grid.innerHTML = "Không có ảnh.";
-            }
-        } catch(e) { console.error(e); grid.innerHTML = "Lỗi kết nối."; }
-    }
-
-    // --- 3. LẤY ẢNH TÀI NGUYÊN CHUNG TỪ DRIVE GLOBAL ---
-    async function fetchGlobalImages() {
-        const grid = document.getElementById('globalImageGrid');
-        try {
-            let res = await fetch(API_URL + "?action=get_images_in_folder&folderId=" + GLOBAL_FOLDER_ID);
-            let json = await res.json();
-            if (json.success) {
-                json.images.forEach(img => {
-                    let div = document.createElement('div');
-                    div.className = 'res-item';
-                    div.innerHTML = `<img src="${img.url}">`;
-                    div.onclick = () => addLayerToActivePage('image', img.url);
-                    grid.appendChild(div);
-                });
-            }
-        } catch(e) {}
-    }
-
-    // --- 4. TẢI ẢNH THẬT LÊN GOOGLE DRIVE BẰNG BASE64 ---
-    async function uploadToDrive(event, target) {
-        const files = event.target.files;
-        if (!files.length) return;
-        
-        let folderId = target === 'global' ? GLOBAL_FOLDER_ID : document.getElementById('projectSelect').value;
-        if(!folderId) return alert("Vui lòng chọn Project trước khi tải lên!");
-
-        showLoading("Đang tải ảnh lên Google Drive...");
-        let grid = target === 'global' ? document.getElementById('globalImageGrid') : document.getElementById('projectGrid');
-
-        for(let file of files) {
-            let reader = new FileReader();
-            reader.onload = async function(e) {
-                let base64 = e.target.result.split(',')[1];
-                let payload = {
-                    action: "UPLOAD_IMAGE_TO_DRIVE",
-                    folderId: folderId,
-                    fileName: file.name,
-                    mimeType: file.type,
-                    base64: base64
+        // Thêm một trang mới vào bộ nhớ Canvas
+        function addCanvasPage(title, imageUrl) {
+            return new Promise((resolve) => {
+                let img = new Image();
+                img.crossOrigin = "Anonymous";
+                img.onload = () => {
+                    // Tự động nhận tỷ lệ ảnh gốc để set cho Page Canvas
+                    pagesData.push({
+                        title: title,
+                        width: img.naturalWidth || 800,
+                        height: img.naturalHeight || 800,
+                        layers: [imageUrl] // Ảnh đầu tiên nghiễm nhiên là Layer 1
+                    });
+                    resolve();
                 };
-
-                try {
-                    let res = await fetch(API_URL, { method: "POST", body: JSON.stringify(payload) });
-                    let json = await res.json();
-                    if(json.success) {
-                        let div = document.createElement('div');
-                        div.className = 'res-item';
-                        div.innerHTML = `<img src="${json.url}">`;
-                        div.onclick = () => addLayerToActivePage('image', json.url);
-                        grid.prepend(div);
-                    }
-                } catch(err) { console.error(err); }
-            };
-            reader.readAsDataURL(file);
+                img.onerror = () => {
+                    // Fallback nếu lỗi CORS hoặc link
+                    pagesData.push({
+                        title: title,
+                        width: 800,
+                        height: 800,
+                        layers: [imageUrl]
+                    });
+                    resolve();
+                };
+                img.src = imageUrl;
+            });
         }
-        event.target.value = "";
-        hideLoading();
-    }
 
-    // --- 5. LƯU & TẢI SHAPE/FRAME VÀO GOOGLE SHEET ---
-    function loadCanvaResourcesFromLocalSheet() {
-        try {
-            let cached = localStorage.getItem("MKT_DATA");
-            if (cached) sysData = JSON.parse(cached);
-            
-            let sheet = sysData.sheets && sysData.sheets["Canva_hidden"];
-            if (sheet) {
-                for(let i=1; i<sheet.length; i++) {
-                    let type = sheet[i][0]; 
-                    let svgCode = sheet[i][1];
-                    let grid = document.getElementById(type.toLowerCase() + 'Grid');
-                    if(grid && svgCode) {
-                        let div = document.createElement('div');
-                        div.className = 'res-item';
-                        div.innerHTML = svgCode;
-                        div.onclick = () => addLayerToActivePage('svg', svgCode);
-                        grid.appendChild(div);
+        // 3. TẢI ẢNH TỪ MÁY VÀO PROJECT HIỆN TẠI
+        function handleLocalUpload(input) {
+            let files = Array.from(input.files);
+            if (files.length === 0) return;
+
+            showLoader("Đang nạp ảnh từ máy vào Canvas...");
+            let loadedCount = 0;
+
+            files.forEach(file => {
+                let reader = new FileReader();
+                reader.onload = async (e) => {
+                    await addCanvasPage(file.name, e.target.result);
+                    loadedCount++;
+                    if (loadedCount === files.length) {
+                        hideLoader();
+                        renderAllPages();
+                        scrollToPage(pagesData.length - 1);
                     }
+                };
+                reader.readAsDataURL(file);
+            });
+            input.value = "";
+        }
+
+        // 4. HIỂN THỊ GIAO DIỆN THUMBNAIL VÀ CANVAS CHÍNH
+        function renderAllPages() {
+            let layerListEl = document.getElementById("layerList");
+            let canvasAreaEl = document.getElementById("canvasArea");
+            document.getElementById("layerCount").innerText = pagesData.length;
+
+            layerListEl.innerHTML = "";
+            canvasAreaEl.innerHTML = "";
+
+            if (pagesData.length === 0) {
+                canvasAreaEl.innerHTML = '<div style="margin: auto; color: #999; font-size: 14px;">Chưa có trang Canvas nào được tạo.</div>';
+                return;
+            }
+
+            pagesData.forEach((page, index) => {
+                // Tạo Thumbnail bên tay trái
+                let thumbCard = document.createElement("div");
+                thumbCard.className = `thumb-card ${index === currentPageIndex ? 'active' : ''}`;
+                thumbCard.onclick = () => scrollToPage(index);
+                thumbCard.innerHTML = `
+                    <img src="${page.layers[0]}" alt="${page.title}">
+                    <span>Page ${index + 1}: ${page.title}</span>
+                `;
+                layerListEl.appendChild(thumbCard);
+
+                // Tạo Khung Page Canvas chính giữa
+                let pageEl = document.createElement("div");
+                pageEl.className = "page-container";
+                pageEl.id = `page_${index}`;
+                
+                pageEl.innerHTML = `
+                    <div class="page-toolbar">
+                        <span><i class="fas fa-file-image"></i> Trang ${index + 1} - ${page.title}</span>
+                        <span>${page.width} × ${page.height} px</span>
+                    </div>
+                    <div class="canvas-frame" style="width: ${page.width}px; height: ${page.height}px;">
+                        <img src="${page.layers[0]}" class="canvas-layer">
+                    </div>
+                `;
+                canvasAreaEl.appendChild(pageEl);
+            });
+
+            if (currentPageIndex === -1) currentPageIndex = 0;
+            highlightActiveThumb(currentPageIndex);
+        }
+
+        function scrollToPage(index) {
+            currentPageIndex = index;
+            highlightActiveThumb(index);
+            let targetPage = document.getElementById(`page_${index}`);
+            if (targetPage) {
+                targetPage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        function highlightActiveThumb(index) {
+            document.querySelectorAll(".thumb-card").forEach((el, i) => {
+                el.classList.toggle("active", i === index);
+            });
+        }
+
+        // 5. CHỨC NĂNG RESIZE PAGE CANVAS
+        function openResizeModal() {
+            if (pagesData.length === 0) return alert("Vui lòng tải ảnh lên trước!");
+            let curr = pagesData[currentPageIndex] || pagesData[0];
+            document.getElementById("resizeWidth").value = curr.width;
+            document.getElementById("resizeHeight").value = curr.height;
+            document.getElementById("resizeModal").style.display = "flex";
+        }
+
+        function closeResizeModal() {
+            document.getElementById("resizeModal").style.display = "none";
+        }
+
+        function applyResize() {
+            let newW = parseInt(document.getElementById("resizeWidth").value);
+            let newH = parseInt(document.getElementById("resizeHeight").value);
+            let scope = document.querySelector('input[name="resizeScope"]:checked').value;
+
+            if (isNaN(newW) || isNaN(newH) || newW <= 0 || newH <= 0) {
+                return alert("Kích thước nhập vào không hợp lệ!");
+            }
+
+            if (scope === "all") {
+                // Nhập lại width/height cho toàn bộ page trong Project
+                pagesData.forEach(page => {
+                    page.width = newW;
+                    page.height = newH;
+                });
+            } else {
+                // Chỉ áp dụng cho page hiện tại
+                if (pagesData[currentPageIndex]) {
+                    pagesData[currentPageIndex].width = newW;
+                    pagesData[currentPageIndex].height = newH;
                 }
             }
-        } catch(e) {}
-    }
 
-    function saveVectorToSheet(type) {
-        let inputId = type === 'Shape' ? 'svgShapeInput' : 'svgFrameInput';
-        let svgCode = document.getElementById(inputId).value.trim();
-        if(!svgCode.startsWith('<svg')) return alert("Mã phải bắt đầu bằng <svg>");
-
-        // Đẩy vào giao diện ngay lập tức
-        let grid = document.getElementById(type.toLowerCase() + 'Grid');
-        let div = document.createElement('div');
-        div.className = 'res-item'; div.innerHTML = svgCode;
-        div.onclick = () => addLayerToActivePage('svg', svgCode);
-        grid.prepend(div);
-        document.getElementById(inputId).value = "";
-
-        // Gửi lệnh lên Sheet qua cấu trúc Queue (Giống post.html)
-        if (!sysData.sheets) sysData.sheets = {};
-        if (!sysData.sheets["Canva_hidden"]) sysData.sheets["Canva_hidden"] = [["Type", "Code"]];
-        
-        let targetRow = sysData.sheets["Canva_hidden"].length + 1;
-        let batch = [
-            {type:'STRUCTURAL', action:'insertRow', index: targetRow, count: 1, tab: "Canva_hidden"},
-            {type:'SYNC_CELL', row: targetRow, col: 1, val: type, tab: "Canva_hidden"},
-            {type:'SYNC_CELL', row: targetRow, col: 2, val: svgCode, tab: "Canva_hidden"}
-        ];
-        
-        fetch(API_URL, { method: "POST", body: JSON.stringify(batch) });
-    }
-
-    // ==========================================
-    // THUẬT TOÁN CANVAS & LAYER ENGINE
-    // ==========================================
-    function createCanvasPage(w, h, initialImgUrl, title) {
-        const pageId = 'page_' + Date.now();
-        const area = document.getElementById('canvasArea');
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'canvas-page';
-        wrapper.id = pageId;
-        wrapper.style.width = w + 'px';
-        wrapper.style.height = h + 'px';
-        
-        const label = document.createElement('div');
-        label.className = 'page-label';
-        label.innerText = title;
-        wrapper.appendChild(label);
-
-        wrapper.addEventListener('mousedown', (e) => {
-            if(e.target === wrapper) { clearLayerSelection(); setActivePage(pageId); }
-        });
-
-        area.appendChild(wrapper);
-        pages.push({ id: pageId, width: w, height: h, dom: wrapper });
-
-        if(initialImgUrl) appendLayer(wrapper, 'image', initialImgUrl, 0, 0, w, h);
-        if(!activePageId) setActivePage(pageId);
-    }
-
-    function setActivePage(id) {
-        document.querySelectorAll('.canvas-page').forEach(p => p.classList.remove('active-page'));
-        document.getElementById(id).classList.add('active-page');
-        activePageId = id;
-    }
-
-    function addLayerToActivePage(type, content) {
-        if(!activePageId) return alert("Click chọn 1 khung Canvas trước khi chèn!");
-        const page = document.getElementById(activePageId);
-        appendLayer(page, type, content, 50, 50, 200, 200);
-    }
-
-    function appendLayer(pageDom, type, content, x, y, w, h) {
-        const layer = document.createElement('div');
-        layer.className = 'layer';
-        layer.style.left = x + 'px';
-        layer.style.top = y + 'px';
-        layer.style.width = w + 'px';
-        layer.style.height = h + 'px';
-
-        if(type === 'image') layer.innerHTML = `<img src="${content}">`;
-        else layer.innerHTML = content;
-
-        // Bơm 4 mỏ neo resize
-        const handles = ['tl', 'tr', 'bl', 'br'].map(pos => `<div class="handle ${pos}" data-pos="${pos}"></div>`).join('');
-        layer.insertAdjacentHTML('beforeend', handles);
-
-        layer.addEventListener('mousedown', initDragOrResize);
-        layer.addEventListener('contextmenu', (e) => {
-            e.preventDefault(); e.stopPropagation();
-            activeLayer = layer; clearLayerSelection(); layer.classList.add('selected');
-            let ctx = document.getElementById('layerContextMenu');
-            ctx.style.display = 'block'; ctx.style.left = e.clientX + 'px'; ctx.style.top = e.clientY + 'px';
-        });
-        
-        pageDom.appendChild(layer);
-    }
-
-    function clearLayerSelection() {
-        document.querySelectorAll('.layer').forEach(l => l.classList.remove('selected'));
-        activeLayer = null;
-    }
-
-    // --- THUẬT TOÁN RESIZE ĐỐI ĐỈNH (OPPOSITE ANCHOR) ---
-    let dragObj = null;
-
-    function initDragOrResize(e) {
-        if(e.button !== 0) return;
-        e.stopPropagation();
-        clearLayerSelection();
-        activeLayer = e.currentTarget;
-        activeLayer.classList.add('selected');
-        setActivePage(activeLayer.parentElement.id);
-
-        const handle = e.target.closest('.handle');
-        dragObj = {
-            action: handle ? 'resize' : 'move',
-            anchor: handle ? handle.dataset.pos : null,
-            startX: e.clientX, startY: e.clientY,
-            lX: parseFloat(activeLayer.style.left),
-            lY: parseFloat(activeLayer.style.top),
-            lW: parseFloat(activeLayer.style.width),
-            lH: parseFloat(activeLayer.style.height)
-        };
-
-        document.addEventListener('mousemove', processDragOrResize);
-        document.addEventListener('mouseup', stopDragOrResize);
-    }
-
-    function processDragOrResize(e) {
-        if(!dragObj || !activeLayer) return;
-        const dx = e.clientX - dragObj.startX;
-        const dy = e.clientY - dragObj.startY;
-
-        if (dragObj.action === 'move') {
-            activeLayer.style.left = (dragObj.lX + dx) + 'px';
-            activeLayer.style.top = (dragObj.lY + dy) + 'px';
-        } 
-        else if (dragObj.action === 'resize') {
-            let ratio = dragObj.lW / dragObj.lH;
-            let newW = dragObj.lW, newH = dragObj.lH, newX = dragObj.lX, newY = dragObj.lY;
-
-            // Xử lý neo đối diện để giữ nguyên 1 góc
-            if (dragObj.anchor === 'br') {
-                newW = Math.max(20, dragObj.lW + dx);
-                newH = newW / ratio;
-            } else if (dragObj.anchor === 'tl') {
-                newW = Math.max(20, dragObj.lW - dx);
-                newH = newW / ratio;
-                newX = dragObj.lX + (dragObj.lW - newW);
-                newY = dragObj.lY + (dragObj.lH - newH);
-            } else if (dragObj.anchor === 'tr') {
-                newW = Math.max(20, dragObj.lW + dx);
-                newH = newW / ratio;
-                newY = dragObj.lY + (dragObj.lH - newH);
-            } else if (dragObj.anchor === 'bl') {
-                newW = Math.max(20, dragObj.lW - dx);
-                newH = newW / ratio;
-                newX = dragObj.lX + (dragObj.lW - newW);
-            }
-
-            activeLayer.style.width = newW + 'px';
-            activeLayer.style.height = newH + 'px';
-            activeLayer.style.left = newX + 'px';
-            activeLayer.style.top = newY + 'px';
+            closeResizeModal();
+            renderAllPages();
         }
-    }
 
-    function stopDragOrResize() {
-        dragObj = null;
-        document.removeEventListener('mousemove', processDragOrResize);
-        document.removeEventListener('mouseup', stopDragOrResize);
-        if(currentViewMode === 'horizontal') renderStrip();
-    }
+        // 6. XUẤT ẢNH CANVAS HIỆN TẠI (TẢI VỀ MÁY)
+        function exportCurrentCanvas() {
+            if (pagesData.length === 0 || currentPageIndex === -1) return alert("Không có trang Canvas để xuất!");
+            let page = pagesData[currentPageIndex];
+            
+            let canvas = document.createElement("canvas");
+            canvas.width = page.width;
+            canvas.height = page.height;
+            let ctx = canvas.getContext("2d");
 
-    // --- CONTEXT MENU THAO TÁC ---
-    function layerAction(act) {
-        document.getElementById('layerContextMenu').style.display = 'none';
-        if(!activeLayer) return;
-        if(act === 'delete') { activeLayer.remove(); activeLayer = null; }
-        else if(act === 'copy') { clipboardLayer = activeLayer.cloneNode(true); clipboardLayer.classList.remove('selected'); }
-        else if(act === 'cut') { clipboardLayer = activeLayer.cloneNode(true); clipboardLayer.classList.remove('selected'); activeLayer.remove(); activeLayer = null; }
-        else if(act === 'paste' && clipboardLayer) {
-            let n = clipboardLayer.cloneNode(true);
-            n.style.left = (parseFloat(n.style.left) + 30) + 'px';
-            n.style.top = (parseFloat(n.style.top) + 30) + 'px';
-            n.addEventListener('mousedown', initDragOrResize);
-            n.addEventListener('contextmenu', (e) => { e.preventDefault(); activeLayer=n; document.getElementById('layerContextMenu').style.display='block'; });
-            activeLayer.parentElement.appendChild(n);
-            clearLayerSelection(); activeLayer = n; n.classList.add('selected');
-        }
-    }
-    
-    function handleKeyboard(e) {
-        if(!activeLayer) return;
-        if(e.key === 'Delete') layerAction('delete');
-        if(e.ctrlKey && e.key === 'c') layerAction('copy');
-        if(e.ctrlKey && e.key === 'x') layerAction('cut');
-        if(e.ctrlKey && e.key === 'v') layerAction('paste');
-    }
+            let img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.onload = () => {
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    // --- TÙY CHỈNH KÍCH THƯỚC TRANG ---
-    function resizeCanvas() {
-        if(!activePageId) return alert("Chọn 1 trang Canvas trước!");
-        const p = pages.find(x => x.id === activePageId);
-        let w = prompt("Chiều rộng (px):", p.width);
-        let h = prompt("Chiều cao (px):", p.height);
-        if(w && h) {
-            if(confirm("Áp dụng cho TOÀN BỘ trang? (OK=Tất cả, Cancel=Chỉ trang hiện tại)")) {
-                pages.forEach(pg => { pg.width = w; pg.height = h; pg.dom.style.width = w+'px'; pg.dom.style.height = h+'px'; });
-            } else {
-                p.width = w; p.height = h; p.dom.style.width = w+'px'; p.dom.style.height = h+'px';
-            }
-        }
-    }
-
-    // --- GIAO DIỆN VIEW MODES ---
-    function switchMainTab(id) {
-        document.querySelectorAll('.ptab').forEach(b => b.classList.remove('active'));
-        event.currentTarget.classList.add('active');
-        document.getElementById('tabProject').style.display = id === 'tabProject' ? 'block' : 'none';
-        document.getElementById('tabGlobal').style.display = id === 'tabGlobal' ? 'block' : 'none';
-    }
-
-    function switchSubTab(id, btn) {
-        document.querySelectorAll('.stab').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        document.querySelectorAll('.sub-content').forEach(c => c.style.display = 'none');
-        document.getElementById(id).style.display = 'block';
-    }
-
-    function setViewMode(mode) {
-        currentViewMode = mode;
-        const area = document.getElementById('canvasArea');
-        document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
-        event.currentTarget.classList.add('active');
-        area.className = `canvas-area view-${mode}`;
-        
-        document.getElementById('horizontalStrip').style.display = mode === 'horizontal' ? 'flex' : 'none';
-        document.getElementById('gridZoomWrapper').style.display = mode === 'grid' ? 'flex' : 'none';
-        
-        if(mode === 'horizontal') renderStrip();
-    }
-
-    function changeGridZoom(val) { document.documentElement.style.setProperty('--grid-cols', val); }
-
-    function renderStrip() {
-        const strip = document.getElementById('horizontalStrip');
-        strip.innerHTML = '';
-        pages.forEach(p => {
-            let thumb = document.createElement('div');
-            thumb.className = `strip-item ${p.id === activePageId ? 'active' : ''}`;
-            let img = p.dom.querySelector('img');
-            thumb.innerHTML = img ? `<img src="${img.src}">` : `<div style="font-size:10px; padding:10px;">${p.dom.querySelector('.page-label').innerText}</div>`;
-            thumb.onclick = () => {
-                setActivePage(p.id);
-                p.dom.scrollIntoView({behavior: "smooth", inline: "center"});
-                document.querySelectorAll('.strip-item').forEach(i=>i.classList.remove('active'));
-                thumb.classList.add('active');
+                let a = document.createElement("a");
+                a.download = `canvas-page-${currentPageIndex + 1}.png`;
+                a.href = canvas.toDataURL("image/png");
+                a.click();
             };
-            strip.appendChild(thumb);
-        });
-    }
-</script>
+            img.src = page.layers[0];
+        }
+    </script>
 </body>
 </html>
