@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>Canva Studio - Hệ Thống MKT</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -14,7 +14,6 @@
             --gray-light: #f4f6f8;
             --gray-border: #e0e0e0;
             --text-main: #333333;
-            --zoom: 1; /* Biến toàn cục để thu phóng Canvas */
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; user-select: none; }
         body { background: var(--gray-light); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -47,6 +46,7 @@
         .canvas-area {
             flex: 1; height: 100%; overflow: auto; position: relative;
             padding: 30px; display: flex; flex-direction: column; align-items: center; gap: 40px;
+            touch-action: pan-x pan-y;
         }
 
         /* CHẾ ĐỘ HIỂN THỊ CANVAS */
@@ -54,29 +54,23 @@
         .canvas-area.view-grid {
             display: grid;
             grid-template-columns: repeat(var(--grid-cols, 3), 1fr);
-            gap: 20px; align-items: start; justify-content: center; padding: 20px;
+            gap: 20px; align-items: start; justify-content: center;
         }
         .canvas-area.view-horizontal { display: flex; flex-direction: column; padding: 15px; gap: 15px; }
-        
         .horiz-main-stage { flex: 1; width: 100%; display: flex; justify-content: center; align-items: center; overflow: auto; min-height: 300px; }
         .horiz-thumbs-strip { height: 130px; width: 100%; background: var(--white); border-top: 1px solid var(--gray-border); display: flex; gap: 12px; padding: 10px; overflow-x: auto; flex-shrink: 0; }
-        .horiz-thumb-item { border: 2px solid var(--gray-border); border-radius: 6px; cursor: pointer; height: 100%; aspect-ratio: 1/1; overflow: hidden; position: relative; background:#fff;}
+        .horiz-thumb-item { border: 2px solid var(--gray-border); border-radius: 6px; cursor: pointer; height: 100%; aspect-ratio: 1/1; overflow: hidden; position: relative; }
         .horiz-thumb-item.active { border-color: var(--blue); }
         .horiz-thumb-item img { width: 100%; height: 100%; object-fit: contain; }
 
-        /* KHUNG PAGE CANVAS CÓ THỂ ZOOM */
-        .page-wrapper {
-            transition: transform 0.1s;
-            transform-origin: top center;
-            transform: scale(var(--zoom));
-        }
+        /* KHUNG PAGE CANVAS */
         .page-container {
             background: var(--white); box-shadow: 0 8px 24px rgba(0,0,0,0.08); border-radius: 4px;
-            position: relative; display: flex; flex-direction: column; overflow: hidden;
+            position: relative; display: flex; flex-direction: column; transition: transform 0.1s;
         }
         .page-toolbar {
             height: 32px; background: #2f3640; color: #fff; display: flex; align-items: center;
-            justify-content: space-between; padding: 0 10px; font-size: 11px;
+            justify-content: space-between; padding: 0 10px; font-size: 11px; border-top-left-radius: 4px; border-top-right-radius: 4px;
         }
         .canvas-frame {
             position: relative; overflow: hidden; background: #e8ecef;
@@ -87,16 +81,16 @@
         /* LAYER TRONG CANVAS */
         .canvas-layer {
             position: absolute; cursor: move; transform-origin: center center;
+            user-select: none;
         }
-        .layer-content { width: 100%; height: 100%; pointer-events: none; }
-        .layer-content img, .layer-content svg { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .canvas-layer img, .canvas-layer svg { width: 100%; height: 100%; display: block; pointer-events: none; }
         
+        /* VIỀN THU PHÓNG LAYER ĐANG CHỌN */
         .canvas-layer.selected { outline: 2px dashed var(--blue); }
         .layer-handle {
             position: absolute; width: 12px; height: 12px; background: var(--white); border: 2px solid var(--blue);
-            border-radius: 50%; z-index: 10; display: none;
+            border-radius: 50%; z-index: 10;
         }
-        .canvas-layer.selected .layer-handle { display: block; }
         .layer-handle.tl { top: -6px; left: -6px; cursor: nwse-resize; }
         .layer-handle.tr { top: -6px; right: -6px; cursor: nesw-resize; }
         .layer-handle.bl { bottom: -6px; left: -6px; cursor: nesw-resize; }
@@ -114,42 +108,23 @@
         }
         .layer-mini-menu button:hover { background: var(--blue); }
 
-        /* TÁI CẤU TRÚC RIGHT SIDEBAR: THANH MENU DỌC MỚI */
-        .right-sidebar-container {
-            display: flex; height: 100%; z-index: 50; flex-shrink: 0;
-            border-left: 1px solid var(--gray-border); background: var(--white);
+        /* SIDEBAR PHẢI (TAB MENU) */
+        .right-sidebar {
+            width: 300px; background: var(--white); border-left: 1px solid var(--gray-border);
+            display: flex; flex-direction: column; height: 100%; z-index: 50; flex-shrink: 0;
         }
-        
-        .sidebar-panel {
-            width: 300px; background: var(--white); display: flex; flex-direction: column;
-            transition: width 0.2s ease, padding 0.2s ease; overflow: hidden;
+        .sidebar-tabs { display: flex; border-bottom: 1px solid var(--gray-border); background: #f9f9f9; }
+        .tab-btn {
+            flex: 1; padding: 12px; text-align: center; font-size: 13px; font-weight: bold; cursor: pointer;
+            border-bottom: 2px solid transparent; color: #666;
         }
-        .sidebar-panel.collapsed { width: 0; padding: 0; border: none; opacity: 0; pointer-events: none;}
-
-        .sidebar-icon-strip {
-            width: 60px; background: #f9f9f9; border-left: 1px solid var(--gray-border);
-            display: flex; flex-direction: column; align-items: center; padding-top: 10px; gap: 15px;
-        }
-
-        .icon-tab {
-            width: 45px; height: 45px; border-radius: 8px; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; cursor: pointer; color: #666; font-size: 18px; transition: 0.2s;
-        }
-        .icon-tab span { font-size: 9px; font-weight: bold; margin-top: 3px; }
-        .icon-tab:hover, .icon-tab.active { background: #eef9fd; color: var(--blue); }
-
-        .sidebar-panel-header {
-            padding: 15px; border-bottom: 1px solid var(--gray-border);
-            font-weight: bold; font-size: 14px; display: flex; justify-content: space-between; align-items: center;
-        }
-        .close-panel-btn { cursor: pointer; color: #999; font-size: 14px; padding: 5px; }
-        .close-panel-btn:hover { color: var(--red); }
-
+        .tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); background: var(--white); }
         .tab-content { flex: 1; overflow-y: auto; padding: 15px; display: none; }
         .tab-content.active { display: flex; flex-direction: column; gap: 15px; }
 
+        /* TAB CON TÀI NGUYÊN */
         .sub-tabs { display: flex; gap: 5px; border-bottom: 1px solid var(--gray-border); padding-bottom: 8px; }
-        .sub-tab-btn { font-size: 11px; padding: 5px 10px; border-radius: 4px; cursor: pointer; background: var(--gray-light); font-weight: 600; flex: 1; text-align: center; }
+        .sub-tab-btn { font-size: 11px; padding: 5px 10px; border-radius: 4px; cursor: pointer; background: var(--gray-light); font-weight: 600; }
         .sub-tab-btn.active { background: var(--blue); color: #fff; }
         .sub-content { display: none; flex-direction: column; gap: 10px; }
         .sub-content.active { display: flex; }
@@ -157,9 +132,10 @@
         /* GRID THUMBNAIL TRONG TAB */
         .asset-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
         .asset-item { border: 1px solid var(--gray-border); border-radius: 6px; padding: 6px; cursor: pointer; text-align: center; background: #fff; aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .asset-item:hover { border-color: var(--blue); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        .asset-item:hover { border-color: var(--blue); }
+        .asset-item img, .asset-item svg { max-width: 100%; max-height: 100%; object-fit: contain; pointer-events: none; }
 
-        /* MODAL & LOADER */
+        /* MODAL RESIZE & LOADER */
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 500; display: none; align-items: center; justify-content: center; }
         .modal-box { background: var(--white); padding: 20px; border-radius: 8px; width: 340px; }
         .loader-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.85); z-index: 1000; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 10px; font-weight: bold; color: var(--blue); }
@@ -174,107 +150,93 @@
         <span id="loaderText">Đang tải dữ liệu...</span>
     </div>
 
+    <!-- TOOLBAR -->
     <div class="toolbar">
         <div class="toolbar-left">
             <select class="select-project" id="projectSelect" onchange="loadProjectImages(this.value)">
                 <option value="">-- Chọn Project (Folder con) --</option>
             </select>
-            <button class="tool-btn" onclick="document.getElementById('localUpload').click()"><i class="fas fa-upload"></i> Từ máy</button>
+            <button class="tool-btn" onclick="document.getElementById('localUpload').click()"><i class="fas fa-upload"></i> Tải ảnh từ máy</button>
             <input type="file" id="localUpload" accept="image/*" multiple hidden onchange="handleLocalUpload(this)">
             <button class="tool-btn" onclick="openResizeModal()"><i class="fas fa-expand-arrows-alt"></i> Resize Page</button>
         </div>
 
         <div class="toolbar-right">
-            <div style="display: flex; align-items: center; gap: 5px; margin-right: 15px; font-size: 12px; font-weight: bold;">
-                <button class="tool-btn" onclick="manualZoom(-0.1)" title="Thu nhỏ"><i class="fas fa-search-minus"></i></button>
-                <span id="zoomDisplay" style="min-width: 40px; text-align: center;">100%</span>
-                <button class="tool-btn" onclick="manualZoom(0.1)" title="Phóng to"><i class="fas fa-search-plus"></i></button>
-            </div>
-
             <div style="display: flex; border: 1px solid var(--gray-border); border-radius: 6px; overflow: hidden;" id="viewModeGroup">
-                <button class="tool-btn active" onclick="setViewMode('vertical')" title="Cuộn Dọc"><i class="fas fa-list"></i></button>
-                <button class="tool-btn" onclick="setViewMode('horizontal')" title="Trượt Ngang"><i class="fas fa-columns"></i></button>
-                <button class="tool-btn" onclick="setViewMode('grid')" title="Lưới Tổng Quan"><i class="fas fa-th"></i></button>
+                <button class="tool-btn active" onclick="setViewMode('vertical')" title="Dọc"><i class="fas fa-list"></i></button>
+                <button class="tool-btn" onclick="setViewMode('horizontal')" title="Ngang"><i class="fas fa-columns"></i></button>
+                <button class="tool-btn" onclick="setViewMode('grid')" title="Lưới"><i class="fas fa-th"></i></button>
             </div>
-            
-            <div id="gridZoomBar" style="display: none; align-items: center; gap: 5px; font-size: 11px; margin-left: 10px;">
+            <!-- Thanh zoom cột cho lưới -->
+            <div id="gridZoomBar" style="display: none; align-items: center; gap: 5px; font-size: 11px;">
                 <span>Cột:</span>
                 <input type="range" min="1" max="6" value="3" id="gridColSlider" oninput="setGridColumns(this.value)">
             </div>
         </div>
     </div>
 
+    <!-- WORKSPACE -->
     <div class="workspace">
         <div class="canvas-area view-vertical" id="canvasArea">
-            <div style="color: #999; margin: auto; padding-top: 50px;">Vui lòng chọn Project hoặc Tải ảnh lên để bắt đầu.</div>
+            <div style="color: #999; margin: auto;">Vui lòng chọn Project hoặc Tải ảnh lên để bắt đầu.</div>
         </div>
 
-        <div class="right-sidebar-container">
-            <div class="sidebar-panel" id="sidebarPanel">
-                <div class="sidebar-panel-header">
-                    <span id="panelTitle">Tải lên</span>
-                    <i class="fas fa-chevron-right close-panel-btn" onclick="toggleSidebarPanel(false)" title="Đóng panel"></i>
-                </div>
-
-                <div class="tab-content active" id="tab-upload">
-                    <div style="font-size: 11px; color: #666; margin-bottom: 5px;">Ảnh từ Project & Máy tính:</div>
-                    <div class="asset-grid" id="uploadAssetGrid"></div>
-                </div>
-
-                <div class="tab-content" id="tab-resource">
-                    <div class="sub-tabs">
-                        <div class="sub-tab-btn active" onclick="switchSubTab('res-img', this)">Ảnh Drive</div>
-                        <div class="sub-tab-btn" onclick="switchSubTab('res-shape', this)">Shape</div>
-                        <div class="sub-tab-btn" onclick="switchSubTab('res-frame', this)">Frame</div>
-                    </div>
-
-                    <div class="sub-content active" id="sub-res-img">
-                        <button class="tool-btn primary" style="justify-content: center;" onclick="document.getElementById('resUpload').click()"><i class="fas fa-cloud-upload-alt"></i> Tải ảnh lên Drive</button>
-                        <input type="file" id="resUpload" accept="image/*" multiple hidden onchange="handleResourceUpload(this)">
-                        <div class="asset-grid" id="resourceImgGrid"></div>
-                    </div>
-
-                    <div class="sub-content" id="sub-res-shape">
-                        <textarea id="shapeSvgInput" rows="3" placeholder="Nhập mã HTML/SVG Shape..." style="width:100%; font-size:11px; padding:5px; border-radius:4px; border:1px solid #ccc;"></textarea>
-                        <button class="tool-btn primary" onclick="saveCanvaHidden('Shape', document.getElementById('shapeSvgInput').value)">Lưu & Cập nhật Shape</button>
-                        <div class="asset-grid" id="resourceShapeGrid"></div>
-                    </div>
-
-                    <div class="sub-content" id="sub-res-frame">
-                        <textarea id="frameSvgInput" rows="3" placeholder="Nhập mã HTML/SVG Frame..." style="width:100%; font-size:11px; padding:5px; border-radius:4px; border:1px solid #ccc;"></textarea>
-                        <button class="tool-btn primary" onclick="saveCanvaHidden('Frame', document.getElementById('frameSvgInput').value)">Lưu & Cập nhật Frame</button>
-                        <div class="asset-grid" id="resourceFrameGrid"></div>
-                    </div>
-                </div>
+        <!-- RIGHT TAB MENU -->
+        <div class="right-sidebar">
+            <div class="sidebar-tabs">
+                <div class="tab-btn active" onclick="switchMainTab('upload', this)">Tải lên</div>
+                <div class="tab-btn" onclick="switchMainTab('resource', this)">Tài nguyên</div>
             </div>
 
-            <div class="sidebar-icon-strip">
-                <div class="icon-tab active" onclick="switchMainTab('upload', 'Tải lên', this)">
-                    <i class="fas fa-cloud-upload-alt"></i>
-                    <span>Tải lên</span>
+            <!-- Tab 1: Tải lên -->
+            <div class="tab-content active" id="tab-upload">
+                <div style="font-size: 12px; color: #666;">Danh sách ảnh trong Project & Ảnh từ máy tính:</div>
+                <div class="asset-grid" id="uploadAssetGrid"></div>
+            </div>
+
+            <!-- Tab 2: Tài nguyên -->
+            <div class="tab-content" id="tab-resource">
+                <div class="sub-tabs">
+                    <div class="sub-tab-btn active" onclick="switchSubTab('res-img', this)">Ảnh</div>
+                    <div class="sub-tab-btn" onclick="switchSubTab('res-shape', this)">Shape</div>
+                    <div class="sub-tab-btn" onclick="switchSubTab('res-frame', this)">Frame</div>
                 </div>
-                <div class="icon-tab" onclick="switchMainTab('resource', 'Tài nguyên', this)">
-                    <i class="fas fa-shapes"></i>
-                    <span>Tài nguyên</span>
+
+                <!-- Sub 1: Ảnh -->
+                <div class="sub-content active" id="sub-res-img">
+                    <button class="tool-btn primary" style="justify-content: center;" onclick="document.getElementById('resUpload').click()"><i class="fas fa-cloud-upload-alt"></i> Tải ảnh lên Shared Drive</button>
+                    <input type="file" id="resUpload" accept="image/*" multiple hidden onchange="handleResourceUpload(this)">
+                    <div class="asset-grid" id="resourceImgGrid"></div>
                 </div>
-                <div style="flex-grow:1;"></div>
-                <div class="icon-tab" style="margin-bottom:15px;" onclick="toggleSidebarPanel(true)" id="btnOpenPanel" style="display:none;">
-                    <i class="fas fa-chevron-left"></i>
+
+                <!-- Sub 2: Shape -->
+                <div class="sub-content" id="sub-res-shape">
+                    <textarea id="shapeSvgInput" rows="3" placeholder="Nhập mã HTML/SVG Shape..." style="width:100%; font-size:11px; padding:5px;"></textarea>
+                    <button class="tool-btn primary" onclick="saveCanvaHidden('Shape', document.getElementById('shapeSvgInput').value)">Lưu & Render Shape</button>
+                    <div class="asset-grid" id="resourceShapeGrid"></div>
+                </div>
+
+                <!-- Sub 3: Frame -->
+                <div class="sub-content" id="sub-res-frame">
+                    <textarea id="frameSvgInput" rows="3" placeholder="Nhập mã HTML/SVG Frame..." style="width:100%; font-size:11px; padding:5px;"></textarea>
+                    <button class="tool-btn primary" onclick="saveCanvaHidden('Frame', document.getElementById('frameSvgInput').value)">Lưu & Render Frame</button>
+                    <div class="asset-grid" id="resourceFrameGrid"></div>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- MODAL RESIZE -->
     <div class="modal" id="resizeModal">
         <div class="modal-box">
-            <h4 style="margin-bottom: 12px; font-size: 14px;">Cài đặt kích thước Canvas</h4>
+            <h4 style="margin-bottom: 12px; font-size: 14px;">Resize Page Canvas</h4>
             <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-                <input type="number" id="resizeW" placeholder="Width (px)" style="flex:1; padding:6px; border-radius:4px; border:1px solid #ccc;">
-                <input type="number" id="resizeH" placeholder="Height (px)" style="flex:1; padding:6px; border-radius:4px; border:1px solid #ccc;">
+                <input type="number" id="resizeW" placeholder="Width (px)" style="flex:1; padding:6px;">
+                <input type="number" id="resizeH" placeholder="Height (px)" style="flex:1; padding:6px;">
             </div>
             <div style="font-size: 12px; margin-bottom: 15px;">
-                <label><input type="radio" name="rScope" value="current" checked> Chỉ thay đổi Page hiện tại</label><br>
-                <label><input type="radio" name="rScope" value="all"> Thay đổi Tất cả Page</label>
+                <label><input type="radio" name="rScope" value="current" checked> Page hiện tại</label><br>
+                <label><input type="radio" name="rScope" value="all"> Tất cả Page trong Project</label>
             </div>
             <div style="display: flex; justify-content: flex-end; gap: 8px;">
                 <button class="tool-btn" onclick="document.getElementById('resizeModal').style.display='none'">Hủy</button>
@@ -285,57 +247,24 @@
 
     <script>
         const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
+        const RESOURCE_DRIVE_FOLDER = "1JOMYxGCnoj4nhVaV37EDwPuq4dKcUiCL?usp=sharing";
         
-        let pagesData = []; 
+        let pagesData = []; // Danh sách các page { id, title, width, height, layers: [] }
         let activePageIndex = 0;
         let selectedLayer = null;
         let layerClipboard = null;
         let currentViewMode = 'vertical';
-        let currentZoom = 1;
 
         window.addEventListener("DOMContentLoaded", () => {
             fetchSubFolders();
             fetchResourceData();
-            initAdvancedPinchToZoom();
+            initPinchToZoom();
         });
 
         function showLoader(text) { document.getElementById("loaderText").innerText = text; document.getElementById("loader").style.display = "flex"; }
         function hideLoader() { document.getElementById("loader").style.display = "none"; }
 
-        /* ================= QUẢN LÝ MENU & SIDEBAR ================= */
-        function toggleSidebarPanel(forceOpen) {
-            const panel = document.getElementById("sidebarPanel");
-            if(forceOpen || panel.classList.contains("collapsed")) {
-                panel.classList.remove("collapsed");
-                document.getElementById("btnOpenPanel").style.display = "none";
-            } else {
-                panel.classList.add("collapsed");
-                document.getElementById("btnOpenPanel").style.display = "flex";
-            }
-        }
-
-        function switchMainTab(tabId, title, btn) {
-            // Đảm bảo panel đang mở
-            toggleSidebarPanel(true);
-            document.getElementById("panelTitle").innerText = title;
-
-            // Xóa active cũ
-            document.querySelectorAll(".sidebar-icon-strip .icon-tab").forEach(b => b.classList.remove("active"));
-            document.querySelectorAll(".sidebar-panel .tab-content").forEach(c => c.classList.remove("active"));
-            
-            // Set active mới
-            btn.classList.add("active"); 
-            document.getElementById(`tab-${tabId}`).classList.add("active");
-        }
-
-        function switchSubTab(subId, btn) {
-            document.querySelectorAll(".sub-tabs .sub-tab-btn").forEach(b => b.classList.remove("active"));
-            document.querySelectorAll("#tab-resource .sub-content").forEach(c => c.classList.remove("active"));
-            btn.classList.add("active"); 
-            document.getElementById(`sub-${subId}`).classList.add("active");
-        }
-
-        /* ================= TẢI DỮ LIỆU TỪ SHEET & DRIVE ================= */
+        /* ================= 1. NẠP DỮ LIỆU DRIVE & SHEET ================= */
         async function fetchSubFolders() {
             try {
                 let res = await fetch(`${API_URL}?action=get_projects`);
@@ -365,15 +294,13 @@
             (list || []).forEach(item => {
                 let div = document.createElement("div");
                 div.className = "asset-item";
-                // Nếu là img dùng URL, nếu là SVG dùng nội dung code
-                let content = type === 'img' ? `<img src="https://drive.google.com/uc?id=${item.id}&export=view">` : item.code;
-                div.innerHTML = content;
-                div.onclick = () => addLayerToActivePage(content);
+                div.innerHTML = type === 'img' ? `<img src="${item.url}">` : item.code;
+                div.onclick = () => addLayerToActivePage(type === 'img' ? `<img src="${item.url}">` : item.code);
                 el.appendChild(div);
             });
         }
 
-        /* ================= LOAD HÌNH ẢNH & CANVAS ================= */
+        /* ================= 2. QUẢN LÝ PAGE CANVAS & TAB TẢI LÊN ================= */
         async function loadProjectImages(folderId) {
             if (!folderId) return;
             showLoader("Đang nạp ảnh Project...");
@@ -383,8 +310,8 @@
                 let json = await res.json();
                 if (json.success && json.images) {
                     for (let img of json.images) {
-                        let viewUrl = `https://drive.google.com/uc?id=${img.id}&export=view`;
-                        await createPageFromImage(img.name, viewUrl);
+                        let thumbUrl = `https://drive.google.com/thumbnail?id=${img.id}&sz=w1000`;
+                        await createPageFromImage(img.name, thumbUrl);
                     }
                 }
                 renderAllPages();
@@ -406,29 +333,11 @@
             return new Promise(resolve => {
                 let img = new Image();
                 img.onload = () => {
-                    // Mặc định Canvas chuẩn là 1080x1080 hoặc tỷ lệ tương đương
-                    let canvasW = 800; 
-                    let canvasH = 800;
-                    
-                    let page = { id: Date.now() + Math.random(), title, width: canvasW, height: canvasH, layers: [] };
+                    let page = { id: Date.now() + Math.random(), title, width: img.naturalWidth || 800, height: img.naturalHeight || 800, layers: [] };
                     pagesData.push(page);
                     addAssetToUploadTab(url);
-                    
-                    // Tính toán thu nhỏ ảnh để FIT hoàn toàn vào khung 800x800
-                    let imgRatio = img.naturalWidth / img.naturalHeight;
-                    let layerW = canvasW * 0.8; // Trừ hao 20% margin
-                    let layerH = layerW / imgRatio;
-                    
-                    if (layerH > canvasH * 0.8) {
-                        layerH = canvasH * 0.8;
-                        layerW = layerH * imgRatio;
-                    }
-                    
-                    let startX = (canvasW - layerW) / 2;
-                    let startY = (canvasH - layerH) / 2;
-
-                    // Khởi tạo Layer ảnh
-                    addLayerToPage(pagesData.length - 1, `<img src="${url}">`, startX, startY, layerW, layerH);
+                    // Tạo layer đầu tiên
+                    addLayerToPage(pagesData.length - 1, `<img src="${url}">`, 0, 0, page.width, page.height);
                     resolve();
                 };
                 img.src = url;
@@ -444,11 +353,11 @@
             grid.appendChild(div);
         }
 
-        /* ================= RENDER CANVAS & VIEW MODES ================= */
+        /* ================= 3. RENDER CANVAS HỆ THỐNG ================= */
         function renderAllPages() {
             let area = document.getElementById("canvasArea");
             area.innerHTML = "";
-            if (pagesData.length === 0) return area.innerHTML = `<div style="color:#999; margin:auto; padding-top:50px;">Chưa có trang canvas nào.</div>`;
+            if (pagesData.length === 0) return area.innerHTML = `<div style="color:#999; margin:auto;">Chưa có trang canvas nào.</div>`;
 
             if (currentViewMode === 'horizontal') {
                 renderHorizontalMode(area);
@@ -461,10 +370,6 @@
         }
 
         function createPageDOM(page, idx) {
-            // Dùng Wrapper để zoom CSS mà không làm hỏng cấu trúc Grid
-            let wrapper = document.createElement("div");
-            wrapper.className = "page-wrapper";
-            
             let pEl = document.createElement("div");
             pEl.className = "page-container";
             pEl.onclick = () => activePageIndex = idx;
@@ -474,9 +379,7 @@
             `;
             let frame = pEl.querySelector(".canvas-frame");
             page.layers.forEach(layer => frame.appendChild(layer.dom));
-            
-            wrapper.appendChild(pEl);
-            return wrapper;
+            return pEl;
         }
 
         function renderHorizontalMode(area) {
@@ -490,20 +393,18 @@
                 let thumb = document.createElement("div");
                 thumb.className = `horiz-thumb-item ${idx === activePageIndex ? 'active' : ''}`;
                 thumb.onclick = () => { activePageIndex = idx; renderAllPages(); };
+                // Mirror layer đầu tiên làm thumbnail realtime
                 if (p.layers[0]) thumb.innerHTML = p.layers[0].content;
                 strip.appendChild(thumb);
             });
             area.appendChild(mainStage); area.appendChild(strip);
         }
 
-        /* ================= TƯƠNG TÁC LỚP LAYER ================= */
+        /* ================= 4. TƯƠNG TÁC LAYER (THU PHÓNG ĐIỂM NEO ĐỐI DIỆN) ================= */
         function addLayerToActivePage(content) {
             if (pagesData.length === 0) return;
             let page = pagesData[activePageIndex];
-            // Thêm layer với kích thước mặc định bằng 40% canvas
-            let defW = page.width * 0.4;
-            let defH = page.height * 0.4;
-            addLayerToPage(activePageIndex, content, (page.width-defW)/2, (page.height-defH)/2, defW, defH);
+            addLayerToPage(activePageIndex, content, 50, 50, page.width/2, page.height/2);
         }
 
         function addLayerToPage(pageIdx, content, x, y, w, h) {
@@ -513,12 +414,13 @@
             layerDom.style.left = `${x}px`; layerDom.style.top = `${y}px`;
             layerDom.style.width = `${w}px`; layerDom.style.height = `${h}px`;
             layerDom.innerHTML = `
-                <div class="layer-content">${content}</div>
+                <div class="layer-content" style="width:100%;height:100%;">${content}</div>
                 <div class="layer-handle tl" data-handle="tl"></div><div class="layer-handle tr" data-handle="tr"></div>
                 <div class="layer-handle bl" data-handle="bl"></div><div class="layer-handle br" data-handle="br"></div>
                 <div class="layer-mini-menu" style="display:none;">
                     <button onclick="copyLayer()"><i class="fas fa-copy"></i></button>
                     <button onclick="pasteLayer()"><i class="fas fa-paste"></i></button>
+                    <button onclick="cutLayer()"><i class="fas fa-cut"></i></button>
                     <button onclick="deleteLayer(this)"><i class="fas fa-trash"></i></button>
                 </div>
             `;
@@ -541,69 +443,42 @@
                 if (handle) startResize(e, dom, handle);
                 else startMove(e, dom);
             });
-            // Cảm ứng Mobile
-            dom.addEventListener("touchstart", (e) => {
-                if(e.touches.length === 1) {
-                    e.stopPropagation();
-                    selectLayer(dom);
-                    activePageIndex = pageIdx;
-                    let handle = e.target.getAttribute("data-handle");
-                    if (handle) startResize(e.touches[0], dom, handle, true);
-                    else startMove(e.touches[0], dom, true);
-                }
-            }, {passive: false});
         }
 
         function selectLayer(dom) {
             document.querySelectorAll(".canvas-layer").forEach(el => {
                 el.classList.remove("selected");
-                let menu = el.querySelector(".layer-mini-menu");
-                if(menu) menu.style.display = "none";
+                el.querySelector(".layer-mini-menu").style.display = "none";
             });
             dom.classList.add("selected");
             dom.querySelector(".layer-mini-menu").style.display = "flex";
             selectedLayer = dom;
         }
 
-        function startMove(e, dom, isTouch=false) {
-            // Do canvas bị zoom, quãng đường kéo chuột phải được chia cho hệ số zoom
-            let startX = e.clientX;
-            let startY = e.clientY;
-            let origLeft = dom.offsetLeft;
-            let origTop = dom.offsetTop;
-
+        /* --- Kéo di chuyển tùy ý ra ngoài canvas --- */
+        function startMove(e, dom) {
+            let startX = e.clientX - dom.offsetLeft;
+            let startY = e.clientY - dom.offsetTop;
             function onMove(ev) {
-                let clientX = isTouch ? ev.touches[0].clientX : ev.clientX;
-                let clientY = isTouch ? ev.touches[0].clientY : ev.clientY;
-                let dx = (clientX - startX) / currentZoom;
-                let dy = (clientY - startY) / currentZoom;
-                
-                dom.style.left = `${origLeft + dx}px`;
-                dom.style.top = `${origTop + dy}px`;
+                dom.style.left = `${ev.clientX - startX}px`;
+                dom.style.top = `${ev.clientY - startY}px`;
             }
-            function onUp() { 
-                window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
-                window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
-            }
-            window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
-            window.addEventListener(isTouch?"touchend":"mouseup", onUp);
+            function onUp() { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); }
+            window.addEventListener("mousemove", onMove); window.addEventListener("mouseup", onUp);
         }
 
-        function startResize(e, dom, handle, isTouch=false) {
+        /* --- THU PHÓNG VỚI ĐIỂM NEO ĐỐI DIỆN --- */
+        function startResize(e, dom, handle) {
             let startX = e.clientX, startY = e.clientY;
             let origX = dom.offsetLeft, origY = dom.offsetTop;
             let origW = dom.offsetWidth, origH = dom.offsetHeight;
+
+            // Xác định điểm neo đối diện
             let anchorX = (handle.includes("l")) ? origX + origW : origX;
             let anchorY = (handle.includes("t")) ? origY + origH : origY;
 
             function onMove(ev) {
-                let clientX = isTouch ? ev.touches[0].clientX : ev.clientX;
-                let clientY = isTouch ? ev.touches[0].clientY : ev.clientY;
-                
-                // Chia tỷ lệ bù trừ zoom
-                let dx = (clientX - startX) / currentZoom; 
-                let dy = (clientY - startY) / currentZoom;
-                
+                let dx = ev.clientX - startX, dy = ev.clientY - startY;
                 let newW, newH, newX, newY;
 
                 if (handle === 'br') { newW = origW + dx; newH = origH + dy; newX = origX; newY = origY; }
@@ -614,32 +489,24 @@
                 if (newW > 20) { dom.style.width = `${newW}px`; dom.style.left = `${newX}px`; }
                 if (newH > 20) { dom.style.height = `${newH}px`; dom.style.top = `${newY}px`; }
             }
-            function onUp() { 
-                window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
-                window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
-            }
-            window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
-            window.addEventListener(isTouch?"touchend":"mouseup", onUp);
+            function onUp() { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); }
+            window.addEventListener("mousemove", onMove); window.addEventListener("mouseup", onUp);
         }
 
+        /* ================= 5. MENU SAO CHÉP / DÁN / XÓA ================= */
         function copyLayer() { if (selectedLayer) layerClipboard = selectedLayer.querySelector(".layer-content").innerHTML; }
+        function cutLayer() { copyLayer(); deleteLayer(selectedLayer.querySelector("button")); }
         function pasteLayer() { if (layerClipboard) addLayerToActivePage(layerClipboard); }
-        function deleteLayer(btn) { btn.closest(".canvas-layer").remove(); }
-
-        /* ================= KIỂM SOÁT VIEW VÀ ZOOM ================= */
-        function openResizeModal() { 
-            let p = pagesData[activePageIndex];
-            if(p){
-                document.getElementById("resizeW").value = p.width;
-                document.getElementById("resizeH").value = p.height;
-            }
-            document.getElementById("resizeModal").style.display = "flex"; 
+        function deleteLayer(btn) {
+            let layerDom = btn.closest(".canvas-layer");
+            layerDom.remove();
         }
-        
+
+        /* ================= 6. RESIZE PAGE & VIEW MODES ================= */
+        function openResizeModal() { document.getElementById("resizeModal").style.display = "flex"; }
         function applyResize() {
             let w = parseInt(document.getElementById("resizeW").value);
             let h = parseInt(document.getElementById("resizeH").value);
-            if(!w || !h) return;
             let scope = document.querySelector('input[name="rScope"]:checked').value;
             if (scope === 'all') pagesData.forEach(p => { p.width = w; p.height = h; });
             else if (pagesData[activePageIndex]) { pagesData[activePageIndex].width = w; pagesData[activePageIndex].height = h; }
@@ -657,71 +524,41 @@
             renderAllPages();
         }
 
-        function setGridColumns(cols) { 
-            document.getElementById("canvasArea").style.setProperty('--grid-cols', cols); 
+        function setGridColumns(cols) { document.getElementById("canvasArea").style.setProperty('--grid-cols', cols); }
+
+        function switchMainTab(tab, btn) {
+            document.querySelectorAll(".sidebar-tabs .tab-btn").forEach(b => b.classList.remove("active"));
+            document.querySelectorAll(".right-sidebar > .tab-content").forEach(c => c.classList.remove("active"));
+            btn.classList.add("active"); document.getElementById(`tab-${tab}`).classList.add("active");
+        }
+        function switchSubTab(sub, btn) {
+            document.querySelectorAll(".sub-tabs .sub-tab-btn").forEach(b => b.classList.remove("active"));
+            document.querySelectorAll("#tab-resource .sub-content").forEach(c => c.classList.remove("active"));
+            btn.classList.add("active"); document.getElementById(`sub-${sub}`).classList.add("active");
         }
 
-        function manualZoom(delta) {
-            currentZoom = Math.max(0.1, Math.min(3, currentZoom + delta));
-            applyGlobalZoom();
-        }
-
-        function applyGlobalZoom() {
-            document.documentElement.style.setProperty('--zoom', currentZoom);
-            document.getElementById("zoomDisplay").innerText = Math.round(currentZoom * 100) + "%";
-        }
-
-        /* XỬ LÝ PINCH TO ZOOM NÂNG CAO (CHO CANVAS VÀ GRID) */
-        function initAdvancedPinchToZoom() {
-            let initialDist = null;
-            let initialZoom = 1;
-            let initialCols = 3;
-            let canvasArea = document.getElementById("canvasArea");
-
-            // Xử lý Touch pad / Mouse wheel kèm nút Ctrl
-            canvasArea.addEventListener('wheel', (e) => {
-                if(e.ctrlKey) {
-                    e.preventDefault();
-                    if(currentViewMode === 'grid') return; // Không zoom wheel trong grid
-                    let delta = e.deltaY > 0 ? -0.05 : 0.05;
-                    manualZoom(delta);
-                }
-            }, {passive: false});
-
-            // Xử lý 2 ngón tay Mobile
-            canvasArea.addEventListener('touchstart', e => {
-                if (e.touches.length === 2) {
-                    e.preventDefault(); // Chặn zoom trình duyệt
+        /* ================= 7. THAO TÁC PINCH TO ZOOM 2 NGÓN TAY ================= */
+        function initPinchToZoom() {
+            let initialDist = null, initialCols = 3;
+            window.addEventListener('touchstart', e => {
+                if (e.touches.length === 2 && currentViewMode === 'grid') {
                     initialDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
-                    initialZoom = currentZoom;
                     initialCols = parseInt(document.getElementById("gridColSlider").value);
                 }
-            }, {passive: false});
-
-            canvasArea.addEventListener('touchmove', e => {
-                if (initialDist && e.touches.length === 2) {
-                    e.preventDefault();
+            });
+            window.addEventListener('touchmove', e => {
+                if (initialDist && e.touches.length === 2 && currentViewMode === 'grid') {
                     let dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
-                    
-                    if(currentViewMode === 'grid') {
-                        // Pinch to zoom in Grid -> Giảm số cột = phóng to, Tăng số cột = thu nhỏ
-                        let diff = Math.round((initialDist - dist) / 60); 
-                        let cols = Math.min(6, Math.max(1, initialCols + diff));
-                        document.getElementById("gridColSlider").value = cols;
-                        setGridColumns(cols);
-                    } else {
-                        // Pinch to zoom Canvas -> Thay đổi CSS --zoom
-                        let zoomFactor = dist / initialDist;
-                        currentZoom = Math.max(0.1, Math.min(3, initialZoom * zoomFactor));
-                        applyGlobalZoom();
-                    }
+                    let diff = Math.round((initialDist - dist) / 50); // Thu nhỏ thì tăng số cột lưới
+                    let cols = Math.min(6, Math.max(1, initialCols + diff));
+                    document.getElementById("gridColSlider").value = cols;
+                    setGridColumns(cols);
                 }
-            }, {passive: false});
-
-            canvasArea.addEventListener('touchend', () => { initialDist = null; });
+            });
+            window.addEventListener('touchend', () => initialDist = null);
         }
 
-        /* ================= GỬI DATA VỀ APPS SCRIPT LƯU TRỮ ================= */
+        /* ================= 8. API LƯU TÀI NGUYÊN ================= */
         async function handleResourceUpload(input) {
             let file = input.files[0];
             if (!file) return;
@@ -737,24 +574,10 @@
         }
 
         async function saveCanvaHidden(type, code) {
-            if (!code.trim()) return alert("Vui lòng nhập mã SVG/HTML");
-            showLoader("Đang lưu vào Sheet Canva_hidden...");
-            try {
-                let response = await fetch(API_URL, { 
-                    method: 'POST', 
-                    body: JSON.stringify({ action: "SAVE_CANVA_HIDDEN", type: type, code: code }) 
-                });
-                let result = await response.json();
-                if(result.success) {
-                    document.getElementById(type === 'Shape' ? 'shapeSvgInput' : 'frameSvgInput').value = '';
-                    fetchResourceData(); // Tải lại danh sách từ Sheet
-                } else {
-                    alert("Có lỗi xảy ra khi lưu: " + result.error);
-                }
-            } catch(e) {
-                alert("Lỗi kết nối mạng!");
-            }
-            hideLoader(); 
+            if (!code) return alert("Vui lòng nhập mã SVG/HTML");
+            showLoader("Đang lưu vào Canva_hidden...");
+            await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: "SAVE_CANVA_HIDDEN", type, code }) });
+            hideLoader(); fetchResourceData();
         }
     </script>
 </body>
