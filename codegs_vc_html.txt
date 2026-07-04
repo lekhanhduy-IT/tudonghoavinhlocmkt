@@ -2,18 +2,71 @@ const SPREADSHEET_ID = "1JpGA6elt651ZIa3w3kQVyCVfbGzAcRjIScPQoZjNXt4";
 const POST_IMAGE_ARCHIVE_FOLDER_ID = "11ad-tiEWqSeJdm0kv_q-_b2x0qWD9b6b";
 
 function doGet(e) {
-  // Nếu có tham số ?action=get_admins, chỉ trả về danh sách email
-  if (e && e.parameter && e.parameter.action === 'get_admins') {
+  var action = (e && e.parameter) ? e.parameter.action : '';
+
+  // 1. Lấy danh sách admin
+  if (action === 'get_admins') {
     var props = PropertiesService.getScriptProperties();
     var adminStr = props.getProperty('SYS_ADMIN_EMAILS');
-    // Mặc định luôn có Master Admin nếu chưa ai thêm gì
     var admins = adminStr ? JSON.parse(adminStr) : ["admin@tudonghoavinhloc.com"]; 
     return ContentService.createTextOutput(JSON.stringify({ success: true, admins: admins })).setMimeType(ContentService.MimeType.JSON);
   }
 
-  // Nếu không, trả về toàn bộ dữ liệu bảng tính như bình thường
+  // 2. LẤY DANH SÁCH PROJECT (Các folder con trong Shared Drive)
+  if (action === 'get_projects') {
+    var parentId = e.parameter.parent || "11ad-tiEWqSeJdm0kv_q-_b2x0qWD9b6b";
+    return ContentService.createTextOutput(JSON.stringify(getDriveProjects_(parentId))).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // 3. LẤY DANH SÁCH ẢNH TRONG 1 PROJECT (Folder con)
+  if (action === 'get_images') {
+    var folderId = e.parameter.folderId;
+    return ContentService.createTextOutput(JSON.stringify(getFolderImages_(folderId))).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // Mặc định: Trả về dữ liệu Sheet
   var data = getFullSystemData();
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// --- HÀM QUÉ́T DANH SÁCH FOLDER CON ---
+function getDriveProjects_(parentId) {
+  try {
+    var parentFolder = DriveApp.getFolderById(parentId);
+    var subFolders = parentFolder.getFolders();
+    var folders = [];
+    while (subFolders.hasNext()) {
+      var f = subFolders.next();
+      folders.push({ id: f.getId(), name: f.getName() });
+    }
+    return { success: true, folders: folders };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
+}
+
+// --- HÀM QUÉT TOÀN BỘ FILE ẢNH TRONG FOLDER ---
+function getFolderImages_(folderId) {
+  try {
+    var folder = DriveApp.getFolderById(folderId);
+    var files = folder.getFiles();
+    var images = [];
+    while (files.hasNext()) {
+      var file = files.next();
+      var mime = file.getMimeType();
+      // Chỉ lấy các file có định dạng hình ảnh
+      if (mime.indexOf('image/') === 0) {
+        images.push({
+          id: file.getId(),
+          name: file.getName(),
+          mimeType: mime
+        });
+      }
+    }
+    return { success: true, images: images };
+  } catch (err) {
+    return { success: false, error: err.toString() };
+  }
 }
 
 function doPost(e) {

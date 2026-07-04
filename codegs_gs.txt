@@ -1,34 +1,7 @@
 const SPREADSHEET_ID = "1JpGA6elt651ZIa3w3kQVyCVfbGzAcRjIScPQoZjNXt4";
 const POST_IMAGE_ARCHIVE_FOLDER_ID = "11ad-tiEWqSeJdm0kv_q-_b2x0qWD9b6b";
 
-
 function doGet(e) {
-  // Thêm đoạn chặn xử lý này lên ĐẦU hàm doGet
-  if (e && e.parameter && e.parameter.action === 'get_canva_elements') {
-    try {
-      var folderId = "11ad-tiEWqSeJdm0kv_q-_b2x0qWD9b6b"; // Thư mục chứa Canva Elements của bạn
-      var folder = DriveApp.getFolderById(folderId);
-      var files = folder.getFiles();
-      var list = [];
-      
-      while (files.hasNext()) {
-        var file = files.next();
-        var mime = file.getMimeType();
-        // Chỉ lấy các tệp tin định dạng hình ảnh
-        if (mime.indexOf("image/") !== -1) {
-          list.push({
-            id: file.getId(),
-            name: file.getName(),
-            // Trả về link trực tiếp có quyền xem công khai công nghệ của Google
-            url: "https://drive.google.com/uc?id=" + file.getId()
-          });
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({ success: true, files: list })).setMimeType(ContentService.MimeType.JSON);
-    } catch(err) {
-      return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.toString() })).setMimeType(ContentService.MimeType.JSON);
-    }
-  }
   // Nếu có tham số ?action=get_admins, chỉ trả về danh sách email
   if (e && e.parameter && e.parameter.action === 'get_admins') {
     var props = PropertiesService.getScriptProperties();
@@ -56,7 +29,6 @@ function doPost(e) {
     else if (payload && payload.action === "UPLOAD_POST_IMAGES") {
       result = uploadPostImagesToSharedDrive(payload);
     }
-    
     else {
       result = { success: false, error: "Unsupported action" };
     }
@@ -351,7 +323,6 @@ function processActionQueue(batch) {
         configSheet.clear();
         configSheet.getRange("A1").setValue(JSON.stringify(action.attributes));
       }
-      
       
     });
 
