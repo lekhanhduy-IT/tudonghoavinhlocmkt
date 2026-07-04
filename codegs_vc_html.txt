@@ -58,25 +58,25 @@ function doPost(e) {
     }
     
     // Lấy toàn bộ ảnh trong 1 Project
+// Lấy toàn bộ ảnh trong 1 Project
     else if (payload.action === "CANVA_GET_PROJECT_IMAGES") {
       var folder = DriveApp.getFolderById(payload.folderId);
-      var files = folder.getFilesByType(MimeType.JPEG);
-      var filesPng = folder.getFilesByType(MimeType.PNG);
+      var files = folder.getFiles();
       var images = [];
       
-      function extractFiles(iterator) {
-        while(iterator.hasNext()){
-          var f = iterator.next();
+      while(files.hasNext()){
+        var f = files.next();
+        var mime = f.getMimeType();
+        // Quét mọi file có định dạng là image (jpg, png, webp, gif...)
+        if(mime.indexOf('image/') > -1) {
           images.push({
             id: f.getId(),
             url: "https://drive.google.com/uc?export=view&id=" + f.getId(),
-            width: 800, // Kích thước mặc định (canvas sẽ tự scale)
+            width: 800, 
             height: 800
           });
         }
       }
-      extractFiles(files); 
-      extractFiles(filesPng);
       return ContentService.createTextOutput(JSON.stringify({success: true, images: images})).setMimeType(ContentService.MimeType.JSON);
     }
     
