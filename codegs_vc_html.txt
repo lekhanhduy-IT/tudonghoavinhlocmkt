@@ -23,7 +23,25 @@ function doGet(e) {
     var folderId = e.parameter.folderId;
     return ContentService.createTextOutput(JSON.stringify(getFolderImages_(folderId))).setMimeType(ContentService.MimeType.JSON);
   }
-
+// LẤY TÀI NGUYÊN TỪ CANVA_HIDDEN VÀ SHARED DRIVE
+  if (action === 'get_canva_resources') {
+    var resFolderId = "1JOMYxGCnoj4nhVaV37EDwPuq4dKcUiCL?usp=sharing".match(/folders\/([a-zA-Z0-9_-]+)/)[1];
+    var images = getFolderImages_(resFolderId).images || [];
+    
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName("Canva_hidden");
+    var shapes = [], frames = [];
+    if (sheet) {
+      var vals = sheet.getDataRange().getValues();
+      for (var i = 1; i < vals.length; i++) {
+        if (vals[i][0] === "Shape") shapes.push({ code: vals[i][1] });
+        if (vals[i][0] === "Frame") frames.push({ code: vals[i][1] });
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true, images: images, shapes: shapes, frames: frames
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
   // Mặc định: Trả về dữ liệu Sheet
   var data = getFullSystemData();
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);

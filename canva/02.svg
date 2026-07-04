@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 360" width="1920" height="360" preserveAspectRatio="none">
+  <title>Footer wave 2 colors - Style 02</title>
+  <desc>Two sweeping footer waves using blue #01adee and red #db1010.</desc>
+  <rect width="1920" height="360" fill="none"/>
+  <path d="M0 115 C260 205 420 58 690 130 C950 200 1110 255 1395 170 C1630 100 1795 128 1920 85 L1920 360 L0 360 Z" fill="#01adee" opacity="0.95"/>
+  <path d="M0 205 C240 130 420 295 690 230 C930 172 1125 115 1390 225 C1610 318 1775 240 1920 265 L1920 360 L0 360 Z" fill="#db1010" opacity="0.95"/>
+</svg>

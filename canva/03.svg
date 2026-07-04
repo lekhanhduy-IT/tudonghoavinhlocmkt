@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 360" width="1920" height="360" preserveAspectRatio="none">
+  <title>Footer wave 2 colors - Style 03</title>
+  <desc>Modern diagonal two-layer footer wave using blue #01adee and red #db1010.</desc>
+  <rect width="1920" height="360" fill="none"/>
+  <path d="M0 170 C180 135 325 110 510 150 C775 208 960 75 1215 120 C1470 165 1605 260 1920 165 L1920 360 L0 360 Z" fill="#db1010" opacity="0.93"/>
+  <path d="M0 235 C215 275 350 180 555 215 C800 257 990 145 1210 205 C1455 272 1650 188 1920 230 L1920 360 L0 360 Z" fill="#01adee" opacity="0.97"/>
+  <path d="M0 300 C300 250 470 320 770 275 C1010 238 1185 285 1415 262 C1625 240 1770 245 1920 220 L1920 360 L0 360 Z" fill="#01adee" opacity="0.35"/>
+</svg>
