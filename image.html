@@ -347,7 +347,7 @@
 
             // CLICK RA NGOÀI ĐỂ BỎ CHỌN LAYER
             document.addEventListener("mousedown", (e) => {
-                // Nếu click vào thanh công cụ, sidebar hoặc bên trong layer thì bỏ qua
+                // Chỉ bỏ qua nếu click trúng layer, toolbar, menu phải hoặc bảng context
                 if(e.target.closest(".canvas-layer") || e.target.closest(".toolbar") || e.target.closest(".right-sidebar-container") || e.target.closest(".context-menu")) {
                     return;
                 }
@@ -389,8 +389,8 @@
             if(ctxMenuTargetPage === -1) return;
             let pageToCopy = pagesData[ctxMenuTargetPage];
             let newPage = JSON.parse(JSON.stringify(pageToCopy)); 
-            newPage.id = Date.now() + Math.random();
-            newPage.layers = pageToCopy.layers.map(l => ({ ...l, id: Date.now() + Math.random() }));
+            newPage.id = "p_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
+            newPage.layers = pageToCopy.layers.map(l => ({ ...l, id: "l_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5) }));
             pagesData.splice(ctxMenuTargetPage + 1, 0, newPage);
             
             hideContextMenu();
@@ -488,8 +488,9 @@
                 let json = await res.json();
                 if (json.success && json.images) {
                     for (let img of json.images) {
-                        let thumbUrl = `https://drive.google.com/thumbnail?id=${img.id}&sz=w1000`;
-                        await createPageFromImage(img.name, thumbUrl);
+                        // SỬ DỤNG LINK GỐC ĐỂ ĐẢM BẢO HOẠT ĐỘNG, BỌC KẼM GAI TRONG HÀM DƯỚI
+                        let viewUrl = `https://drive.google.com/uc?id=${img.id}&export=view`;
+                        await createPageFromImage(img.name, viewUrl);
                     }
                 }
                 renderAllPages();
@@ -509,14 +510,31 @@
 
         function createPageFromImage(title, url) {
             return new Promise(resolve => {
+                let canvasW = 800; 
+                let canvasH = 800;
+                
+                let page = { id: "p_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5), title, width: canvasW, height: canvasH, layers: [] };
+                pagesData.push(page);
+                addAssetToUploadTab(url);
+
                 let img = new Image();
+                let isResolved = false;
+                
+                // CỨU CÁNH: Nếu tải ảnh quá 4 giây hoặc lỗi CORS, ép tạo Layer hình vuông để không bị vỡ/treo
+                let timeout = setTimeout(() => {
+                    if(!isResolved) {
+                        isResolved = true;
+                        let layerW = canvasW * 0.8;
+                        let layerH = canvasH * 0.8;
+                        addLayerToPage(pagesData.length - 1, `<img src="${url}">`, layerW, layerH, (canvasW-layerW)/2, (canvasH-layerH)/2);
+                        resolve();
+                    }
+                }, 4000);
+
                 img.onload = () => {
-                    let canvasW = 800; 
-                    let canvasH = 800;
-                    
-                    let page = { id: Date.now() + Math.random(), title, width: canvasW, height: canvasH, layers: [] };
-                    pagesData.push(page);
-                    addAssetToUploadTab(url);
+                    if(isResolved) return;
+                    isResolved = true;
+                    clearTimeout(timeout);
                     
                     let imgRatio = img.naturalWidth / img.naturalHeight;
                     let layerW = canvasW * 0.8; 
@@ -533,7 +551,18 @@
                     addLayerToPage(pagesData.length - 1, `<img src="${url}">`, layerW, layerH, startX, startY);
                     resolve();
                 };
-                img.onerror = () => { console.error("Không thể tải ảnh: ", url); resolve(); };
+                
+                img.onerror = () => { 
+                    if(isResolved) return;
+                    isResolved = true;
+                    clearTimeout(timeout);
+                    // Dù lỗi CORS (Google chặn load bằng JS), DOM vẫn nạp thẻ <img src> được.
+                    let layerW = canvasW * 0.8;
+                    let layerH = canvasH * 0.8;
+                    addLayerToPage(pagesData.length - 1, `<img src="${url}">`, layerW, layerH, (canvasW-layerW)/2, (canvasH-layerH)/2);
+                    resolve(); 
+                };
+                
                 img.src = url;
             });
         }
@@ -748,7 +777,7 @@
 
         function addLayerToPage(pageIdx, content, w, h, x=0, y=0) {
             let page = pagesData[pageIdx];
-            let layerObj = { id: Date.now(), content, w, h, x, y, rot:0 };
+            let layerObj = { id: "l_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5), content, w, h, x, y, rot:0 };
             
             let layerDom = createLayerDOM(pageIdx, layerObj);
             layerObj.dom = layerDom;
@@ -839,6 +868,7 @@
                 let clientY = isTouch ? ev.touches[0].clientY : ev.clientY;
                 
                 let dx = (clientX - startX) / scaleFactor; 
+                // Fix chiều ngang, tính chiều dọc theo tỷ lệ để không méo
                 let newW, newH, newX, newY;
 
                 if (handle === 'br') { newW = origW + dx; newH = newW / ratio; newX = origX; newY = origY; }
