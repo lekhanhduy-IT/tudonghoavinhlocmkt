@@ -21,128 +21,22 @@ function doPost(e) {
     var payload = JSON.parse(e.postData.contents || "{}");
     var result;
 
-    // ==========================================
-    // 1. CHỨC NĂNG CŨ: ĐỒNG BỘ SHEET & LƯU ẢNH BÀI VIẾT
-    // ==========================================
-    
     // Payload dạng mảng là hàng đợi đồng bộ Sheet cũ.
     if (Array.isArray(payload)) {
       result = processActionQueue(payload);
-      return ContentService
-        .createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON);
     }
-    // Payload dành cho module Post (Lưu ảnh bài viết)
+    // Payload dạng object dành cho các API riêng.
     else if (payload && payload.action === "UPLOAD_POST_IMAGES") {
       result = uploadPostImagesToSharedDrive(payload);
-      return ContentService
-        .createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON);
     }
-
-    // ==========================================
-    // 2. CHỨC NĂNG MỚI: API CHO CANVA CLONE (IMAGE.HTML)
-    // ==========================================
-    
-    // Lấy danh sách Project (các thư mục con trong folder gốc)
-    else if (payload.action === "CANVA_GET_PROJECTS") {
-      var rootFolderId = "11ad-tiEWqSeJdm0kv_q-_b2x0qWD9b6b";
-      var folder = DriveApp.getFolderById(rootFolderId);
-      var subFolders = folder.getFolders();
-      var list = [];
-      while(subFolders.hasNext()){
-        var f = subFolders.next();
-        list.push({id: f.getId(), name: f.getName()});
-      }
-      return ContentService.createTextOutput(JSON.stringify({success: true, folders: list})).setMimeType(ContentService.MimeType.JSON);
-    }
-    
-    // Lấy toàn bộ ảnh trong 1 Project
-// Lấy toàn bộ ảnh trong 1 Project
-    else if (payload.action === "CANVA_GET_PROJECT_IMAGES") {
-      var folder = DriveApp.getFolderById(payload.folderId);
-      var files = folder.getFiles();
-      var images = [];
-      
-      while(files.hasNext()){
-        var f = files.next();
-        var mime = f.getMimeType();
-        // Quét mọi file có định dạng là image (jpg, png, webp, gif...)
-        if(mime.indexOf('image/') > -1) {
-          images.push({
-            id: f.getId(),
-            url: "https://drive.google.com/uc?export=view&id=" + f.getId(),
-            width: 800, 
-            height: 800
-          });
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({success: true, images: images})).setMimeType(ContentService.MimeType.JSON);
-    }
-    
-    // Lấy toàn bộ ảnh từ thư mục Tài nguyên Global
-    else if (payload.action === "CANVA_GET_GLOBAL_IMAGES") {
-      var globalFolderId = "1JOMYxGCnoj4nhVaV37EDwPuq4dKcUiCL";
-      var folder = DriveApp.getFolderById(globalFolderId);
-      var files = folder.getFiles();
-      var images = [];
-      while(files.hasNext()){
-        var f = files.next();
-        if(f.getMimeType().indexOf('image/') > -1) {
-          images.push({ url: "https://drive.google.com/uc?export=view&id=" + f.getId() });
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({success: true, images: images})).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // Upload ảnh từ máy tính (vào Project hiện tại HOẶC vào Tài nguyên Global)
-    else if (payload.action === "CANVA_UPLOAD_IMAGE" || payload.action === "CANVA_UPLOAD_GLOBAL_IMAGE") {
-      var targetFolderId = payload.action === "CANVA_UPLOAD_GLOBAL_IMAGE" ? "1JOMYxGCnoj4nhVaV37EDwPuq4dKcUiCL" : payload.folderId;
-      var folder = DriveApp.getFolderById(targetFolderId);
-      var blob = Utilities.newBlob(Utilities.base64Decode(payload.base64), payload.mime, payload.filename);
-      var file = folder.createFile(blob);
-      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      return ContentService.createTextOutput(JSON.stringify({success: true, url: "https://drive.google.com/uc?export=view&id=" + file.getId()})).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // Lưu mã SVG (Shape/Frame) lên Sheet
-    else if (payload.action === "CANVA_SAVE_SVG") {
-      var ss = SpreadsheetApp.openById("1JpGA6elt651ZIa3w3kQVyCVfbGzAcRjIScPQoZjNXt4");
-      var sheet = ss.getSheetByName("Canva_hidden");
-      if(!sheet) {
-        sheet = ss.insertSheet("Canva_hidden");
-        sheet.appendRow(["Type", "SVG Code"]);
-      }
-      sheet.appendRow([payload.type, payload.svg]);
-      return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // Lấy mã SVG (Shape/Frame) từ Sheet xuống giao diện
-    else if (payload.action === "CANVA_GET_SHEET_DATA") {
-      var ss = SpreadsheetApp.openById("1JpGA6elt651ZIa3w3kQVyCVfbGzAcRjIScPQoZjNXt4");
-      var sheet = ss.getSheetByName("Canva_hidden");
-      var data = [];
-      if(sheet) {
-        var rows = sheet.getDataRange().getValues();
-        for(var i=1; i<rows.length; i++) {
-          data.push({ type: rows[i][0], svg: rows[i][1] });
-        }
-      }
-      return ContentService.createTextOutput(JSON.stringify({success: true, data: data})).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // ==========================================
-    // 3. FALLBACK: NẾU ACTION KHÔNG HỢP LỆ
-    // ==========================================
     else {
       result = { success: false, error: "Unsupported action" };
-      return ContentService
-        .createTextOutput(JSON.stringify(result))
-        .setMimeType(ContentService.MimeType.JSON);
     }
 
+    return ContentService
+      .createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
   } catch(err) {
-    // Trả về lỗi định dạng JSON nếu code gặp sự cố
     return ContentService
       .createTextOutput(JSON.stringify({success: false, error: err.toString()}))
       .setMimeType(ContentService.MimeType.JSON);
