@@ -211,7 +211,6 @@ let viewMode = 'vertical'; // vertical, horizontal, grid
 // --- XỬ LÝ LỖI CORS ẢNH GOOGLE DRIVE ---
 function fixDriveUrl(url) {
     if(!url) return "";
-    // Đổi link uc?export=view thành thumbnail API để không bị trình duyệt block CORS
     let match = url.match(/id=([a-zA-Z0-9_-]+)/);
     if(match && match[1]) {
         return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w2000`;
@@ -251,35 +250,63 @@ async function fetchProjects() {
     }
 }
 
+// --- TẢI DỰ ÁN VÀ RENDER CANVAS CHUẨN TỶ LỆ ---
 async function loadProject(folderId) {
     if(!folderId) return;
     currentFolderId = folderId;
     showLoader(true);
     let res = await apiCall("CANVA_GET_PROJECT_IMAGES", { folderId: folderId });
-    showLoader(false);
     
     let scaler = document.getElementById("wsScaler");
     scaler.innerHTML = "";
     document.getElementById("selectionBox").style.display = "none";
-    scaler.appendChild(document.getElementById("selectionBox")); // Giữ lại box
+    scaler.appendChild(document.getElementById("selectionBox")); 
     
     document.getElementById("projectImagesGrid").innerHTML = "";
     document.getElementById("thumbStrip").innerHTML = "";
     activePage = null; activeLayer = null;
     
     if(res.success && res.images.length > 0) {
+        let loadedCount = 0;
+        
+        // Render trước lên Sidebar (không cần chờ tỷ lệ)
+        res.images.forEach(img => {
+            addToSidebarGrid("projectImagesGrid", fixDriveUrl(img.url), "image");
+        });
+
+        // Preload để lấy đúng kích thước thật của ảnh từ Drive rồi mới tạo Canvas Page
         res.images.forEach((img, index) => {
             let fixedUrl = fixDriveUrl(img.url);
-            addToSidebarGrid("projectImagesGrid", fixedUrl, "image");
-            createCanvasPage(fixedUrl, img.width, img.height, index + 1);
+            let tempImg = new Image();
+            tempImg.referrerPolicy = "no-referrer"; // Chống block CORS
+            
+            tempImg.onload = function() {
+                // Lấy kích thước thật của ảnh làm kích thước cho Page Canvas
+                createCanvasPage(fixedUrl, this.naturalWidth || 800, this.naturalHeight || 800, index + 1);
+                checkDone();
+            };
+            tempImg.onerror = function() {
+                // Fallback nếu thumbnail API lỗi, dùng thẳng link uc?export
+                createCanvasPage(img.url, 800, 800, index + 1);
+                checkDone();
+            };
+            tempImg.src = fixedUrl;
         });
-        // Select trang đầu tiên
-        let firstPage = scaler.querySelector('.cv-page-wrap');
-        if(firstPage) selectPage(firstPage.querySelector('.cv-page'));
+
+        function checkDone() {
+            loadedCount++;
+            if(loadedCount === res.images.length) {
+                showLoader(false);
+                // Chọn trang đầu tiên làm mặc định
+                let firstPage = scaler.querySelector('.cv-page-wrap');
+                if(firstPage) selectPage(firstPage.querySelector('.cv-page'));
+                updateViewModeUI();
+            }
+        }
     } else {
-        scaler.innerHTML += "<div style='margin-top:50px' id='emptyMsg'>Thư mục trống. Hãy tải ảnh lên.</div>";
+        showLoader(false);
+        scaler.innerHTML += "<div style='margin-top:50px' id='emptyMsg'>Thư mục trống hoặc không có file ảnh hợp lệ.</div>";
     }
-    updateViewModeUI();
 }
 
 async function fetchGlobalResources() {
@@ -372,10 +399,11 @@ function selectPage(page) {
     updateSelectionBox();
 }
 
+// --- THÊM LAYER CHUẨN XÁC VÀO PAGE ---
 function addLayerToPage(page, content, type, w = 200, h = 200, x = 50, y = 50) {
     let layer = document.createElement("div");
     layer.className = "cv-layer";
-    layer.id = "layer_" + Date.now();
+    layer.id = "layer_" + Date.now() + Math.random().toString(36).substr(2,5);
     layer.style.width = w + "px";
     layer.style.height = h + "px";
     layer.style.left = x + "px";
@@ -383,8 +411,12 @@ function addLayerToPage(page, content, type, w = 200, h = 200, x = 50, y = 50) {
     layer.style.transform = "rotate(0deg)";
     layer.dataset.angle = 0;
     
-    if(type === "image") layer.innerHTML = `<img src="${content}" draggable="false">`;
-    else if(type === "svg") layer.innerHTML = content;
+    // Gắn thẻ referrerpolicy="no-referrer" để ảnh Drive hiển thị được
+    if(type === "image") {
+        layer.innerHTML = `<img src="${content}" draggable="false" referrerpolicy="no-referrer">`;
+    } else if(type === "svg") {
+        layer.innerHTML = content;
+    }
 
     layer.addEventListener("mousedown", (e) => {
         e.stopPropagation();
