@@ -63,16 +63,17 @@
 
         /* STRIP THUMBNAIL CHO CHẾ ĐỘ NGANG */
         #horizStrip {
-            height: 140px; width: 100%; background: var(--white); border-top: 1px solid var(--gray-border);
+            height: 150px; width: 100%; background: var(--white); border-top: 1px solid var(--gray-border);
             display: none; gap: 15px; padding: 15px; overflow-x: auto; flex-shrink: 0; align-items: flex-start;
         }
         .horiz-thumb-wrapper { display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; }
         .horiz-thumb-item { 
             border: 2px solid var(--gray-border); border-radius: 6px; cursor: pointer; 
-            height: 80px; width: 80px; background: #fff; overflow: hidden; position: relative;
+            height: 90px; aspect-ratio: 1/1; position: relative; background: #fff; overflow: hidden;
             display: flex; justify-content: center; align-items: center;
         }
         .horiz-thumb-item.active { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(1,173,238,0.3); }
+        .thumb-canvas-inner { position: absolute; pointer-events: none; }
         .horiz-thumb-label { font-size: 11px; font-weight: bold; color: #555; }
 
         /* ================= PAGE CONTAINER CHUẨN ================= */
@@ -93,8 +94,9 @@
         /* ================= LAYER TƯƠNG TÁC ================= */
         .canvas-layer {
             position: absolute; cursor: move; box-sizing: border-box;
+            display: flex; justify-content: center; align-items: center;
         }
-        .layer-content { width: 100%; height: 100%; pointer-events: none; overflow: hidden; display: flex; }
+        .layer-content { width: 100%; height: 100%; pointer-events: none; display: flex; overflow: hidden; }
         .layer-content img, .layer-content svg { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
         
         /* Chỉ hiện viền và nút khi có class .selected */
@@ -320,7 +322,7 @@
             fetchResourceData();
             initAdvancedPinchToZoom();
 
-            // CLICK RA NGOÀI ĐỂ BỎ CHỌN LAYER
+            // CLICK RA NGOÀI ĐỂ BỎ CHỌN LAYER VÀ CONTEXT MENU
             document.getElementById("workspaceScroll").addEventListener("mousedown", (e) => {
                 if(!e.target.closest(".canvas-layer") && !e.target.closest(".context-menu")) {
                     deselectAllLayers();
@@ -461,7 +463,6 @@
                 let json = await res.json();
                 if (json.success && json.images) {
                     for (let img of json.images) {
-                        // CHUẨN XÁC: THUMBNAIL SPEED
                         let thumbUrl = `https://drive.google.com/thumbnail?id=${img.id}&sz=w1000`;
                         await createPageFromImage(img.name, thumbUrl);
                     }
@@ -572,14 +573,19 @@
         }
 
         function createPageDOM(page, idx) {
+            let wrapper = document.createElement("div");
+            wrapper.className = "page-wrapper";
+            wrapper.id = `wrapper_${page.id}`;
+            
             let pEl = document.createElement("div");
             pEl.className = "page-container";
             pEl.dataset.pageIndex = idx;
-            pEl.id = `page_${page.id}`;
             pEl.onclick = () => activePageIndex = idx;
             
+            let totalHeight = page.height + 30; // 30px cho toolbar
+            
             pEl.style.width = `${page.width}px`;
-            pEl.style.height = `${page.height + 30}px`; // 30px cho toolbar
+            pEl.style.height = `${totalHeight}px`;
 
             pEl.innerHTML = `
                 <div class="page-toolbar"><span>Trang ${idx+1}: ${page.title}</span><span>${page.width}x${page.height}</span></div>
@@ -593,10 +599,16 @@
                 frame.appendChild(lDom);
             });
             
-            return pEl;
+            wrapper.appendChild(pEl);
+            
+            // Ép wrapper mở không gian vật lý theo tỷ lệ zoom
+            wrapper.style.width = `${page.width}px`;
+            wrapper.style.height = `${totalHeight}px`;
+
+            return wrapper;
         }
 
-        /* STRIP THUMBNAIL CHUẨN XÁC, ĐỒNG BỘ REALTIME BẰNG HTML RAW */
+        /* STRIP THUMBNAIL (SỬ DỤNG DOM CLONE ĐỂ TRÁNH LỖI HTML TEXT) */
         function renderThumbnailsStrip() {
             let strip = document.getElementById("horizStrip");
             strip.innerHTML = "";
@@ -625,29 +637,33 @@
             syncAllThumbnails();
         }
 
+        /* ĐỒNG BỘ NỘI DUNG TỪ CANVAS LỚN XUỐNG THUMBNAIL THÔNG QUA DOM CLONE */
         function syncAllThumbnails() {
             if (currentViewMode !== 'horizontal') return;
             pagesData.forEach((p, idx) => {
                 let thumbInner = document.getElementById(`thumb_canvas_${idx}`);
-                if (!thumbInner) return;
+                let sourceFrame = document.getElementById(`frame_${p.id}`);
                 
-                // Thu nhỏ tỷ lệ khung 80px
-                let scale = 80 / p.width;
-                
-                // Dựng html tĩnh siêu nhẹ để đồng bộ realtime không dính event
-                let html = `<div style="width:${p.width}px; height:${p.height}px; background:#fff; position:relative; transform:scale(${scale}); transform-origin:top left;">`;
-                p.layers.forEach(l => {
-                    html += `<div style="position:absolute; left:${l.x}px; top:${l.y}px; width:${l.w}px; height:${l.h}px; transform:rotate(${l.rot||0}deg); overflow:hidden; display:flex;">
-                                ${l.content}
-                             </div>`;
-                });
-                html += `</div>`;
-                thumbInner.innerHTML = html;
-                
-                // Chỉnh ảnh fit
-                thumbInner.querySelectorAll('img, svg').forEach(el => {
-                    el.style.width = '100%'; el.style.height = '100%'; el.style.objectFit = 'cover';
-                });
+                if (thumbInner && sourceFrame) {
+                    thumbInner.innerHTML = ""; // Xóa nội dung cũ
+                    let clone = sourceFrame.cloneNode(true);
+                    
+                    // Xóa các elements thừa (nút resize, menu) khỏi bản clone
+                    clone.querySelectorAll('.layer-handle, .layer-mini-menu').forEach(el => el.remove());
+                    clone.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+                    
+                    // Tính tỷ lệ thu nhỏ vào khung 80x80px
+                    let scale = 80 / p.width;
+                    thumbInner.style.transform = `scale(${scale})`;
+                    thumbInner.style.transformOrigin = 'top left';
+                    thumbInner.style.width = `${p.width}px`;
+                    thumbInner.style.height = `${p.height}px`;
+                    
+                    // Bê toàn bộ ruột của bản Clone đổ vào thumbnail
+                    while (clone.firstChild) {
+                        thumbInner.appendChild(clone.firstChild);
+                    }
+                }
             });
         }
 
@@ -744,7 +760,7 @@
             let startY = e.clientY;
             let origX = dom.offsetLeft;
             let origY = dom.offsetTop;
-            // Vì container scale trực tiếp thông qua zoomContent
+            // ScaleFactor lúc này là currentZoom của vùng zoomContent
             let scaleFactor = currentZoom;
 
             function onMove(ev) {
@@ -843,7 +859,6 @@
             window.addEventListener(isTouch?"touchend":"mouseup", onUp);
         }
 
-
         /* LOGIC XOAY LAYER (ROTATION) */
         function startRotate(e, dom, layerObj, isTouch=false) {
             let rect = dom.getBoundingClientRect();
@@ -888,7 +903,7 @@
             syncAllThumbnails(); 
         }
 
-        /* ================= KIỂM SOÁT VIEW VÀ ZOOM ================= */
+        /* ================= KIỂM SOÁT VIEW VÀ ZOOM TOÀN CỤC ================= */
         function openResizeModal() { 
             let p = pagesData[activePageIndex];
             if(p){
@@ -947,8 +962,25 @@
         }
 
         function applyGlobalZoom() {
+            // ÁP DỤNG ZOOM CHO VÙNG CHỨA MÀ VẪN GIỮ NGUYÊN KHOẢNG CÁCH GAP
             document.getElementById("zoomContent").style.transform = `scale(${currentZoom})`;
             document.getElementById("zoomDisplay").innerText = Math.round(currentZoom * 100) + "%";
+            
+            // Xử lý giữ tỷ lệ cho vùng cuộn
+            let pWidth = pagesData[0]?.width || 800;
+            let pHeight = pagesData[0]?.height || 800;
+            
+            document.querySelectorAll('.page-wrapper').forEach((wrapper, idx) => {
+                // Điều chỉnh không gian vật lý của thẻ bọc bên ngoài
+                let h = pagesData[idx].height + 30;
+                let w = pagesData[idx].width;
+                wrapper.style.width = `${w}px`;
+                wrapper.style.height = `${h}px`;
+                
+                // Mấu chốt: Bù trừ không gian thừa do Transform Origin Top Center
+                wrapper.style.marginBottom = `${(h * currentZoom) - h}px`;
+                wrapper.style.marginRight = `${(w * currentZoom) - w}px`;
+            });
         }
 
         /* XỬ LÝ PINCH TO ZOOM NÂNG CAO */
