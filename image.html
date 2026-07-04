@@ -14,10 +14,10 @@
             --gray-light: #f4f6f8;
             --gray-border: #e0e0e0;
             --text-main: #333333;
-            --zoom: 1; /* Biến toàn cục để thu phóng Canvas */
+            --zoom: 1; 
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; user-select: none; }
-        body { background: var(--gray-light); color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        body { background: #e8ecef; color: var(--text-main); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
         /* THANH CÔNG CỤ TRÊN CÙNG */
         .toolbar {
@@ -46,7 +46,7 @@
         /* VÙNG CANVAS TRUNG TÂM */
         .canvas-area {
             flex: 1; height: 100%; overflow: auto; position: relative;
-            padding: 30px; display: flex; flex-direction: column; align-items: center; gap: 40px;
+            padding: 40px; display: flex; flex-direction: column; align-items: center; gap: 40px;
         }
 
         /* CHẾ ĐỘ HIỂN THỊ CANVAS */
@@ -54,15 +54,22 @@
         .canvas-area.view-grid {
             display: grid;
             grid-template-columns: repeat(var(--grid-cols, 3), 1fr);
-            gap: 20px; align-items: start; justify-content: center; padding: 20px;
+            gap: 30px; align-items: start; justify-content: start; padding: 30px; align-content: start;
         }
         .canvas-area.view-horizontal { display: flex; flex-direction: column; padding: 15px; gap: 15px; }
         
         .horiz-main-stage { flex: 1; width: 100%; display: flex; justify-content: center; align-items: center; overflow: auto; min-height: 300px; }
-        .horiz-thumbs-strip { height: 130px; width: 100%; background: var(--white); border-top: 1px solid var(--gray-border); display: flex; gap: 12px; padding: 10px; overflow-x: auto; flex-shrink: 0; }
-        .horiz-thumb-item { border: 2px solid var(--gray-border); border-radius: 6px; cursor: pointer; height: 100%; aspect-ratio: 1/1; overflow: hidden; position: relative; background:#fff;}
-        .horiz-thumb-item.active { border-color: var(--blue); }
-        .horiz-thumb-item img { width: 100%; height: 100%; object-fit: contain; }
+        .horiz-thumbs-strip { height: 160px; width: 100%; background: var(--white); border-top: 1px solid var(--gray-border); display: flex; gap: 15px; padding: 15px; overflow-x: auto; flex-shrink: 0; align-items: flex-start; }
+        
+        .horiz-thumb-wrapper { display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100%; }
+        .horiz-thumb-item { 
+            border: 2px solid var(--gray-border); border-radius: 6px; cursor: pointer; 
+            height: 100px; aspect-ratio: 1/1; position: relative; background: #fff; overflow: hidden;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .horiz-thumb-item.active { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(1,173,238,0.3); }
+        .thumb-canvas-inner { position: absolute; }
+        .horiz-thumb-label { font-size: 11px; font-weight: bold; color: #555; }
 
         /* KHUNG PAGE CANVAS CÓ THỂ ZOOM */
         .page-wrapper {
@@ -71,27 +78,27 @@
             transform: scale(var(--zoom));
         }
         .page-container {
-            background: var(--white); box-shadow: 0 8px 24px rgba(0,0,0,0.08); border-radius: 4px;
+            background: #ffffff; box-shadow: 0 8px 24px rgba(0,0,0,0.15); border-radius: 4px;
             position: relative; display: flex; flex-direction: column; overflow: hidden;
         }
         .page-toolbar {
             height: 32px; background: #2f3640; color: #fff; display: flex; align-items: center;
-            justify-content: space-between; padding: 0 10px; font-size: 11px;
+            justify-content: space-between; padding: 0 10px; font-size: 11px; flex-shrink: 0;
         }
         .canvas-frame {
-            position: relative; overflow: hidden; background: #e8ecef;
-            background-image: linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%);
-            background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            position: relative; overflow: hidden; background: #ffffff;
         }
 
         /* LAYER TRONG CANVAS */
         .canvas-layer {
             position: absolute; cursor: move; transform-origin: center center;
+            /* Đảm bảo Layer luôn bo sát nội dung bên trong */
+            display: flex; justify-content: center; align-items: center;
         }
-        .layer-content { width: 100%; height: 100%; pointer-events: none; }
-        .layer-content img, .layer-content svg { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .layer-content { width: 100%; height: 100%; pointer-events: none; display: flex; }
+        .layer-content img, .layer-content svg { width: 100%; height: 100%; object-fit: fill; display: block; pointer-events: none;}
         
-        .canvas-layer.selected { outline: 2px dashed var(--blue); }
+        .canvas-layer.selected { outline: 2px solid var(--blue); }
         .layer-handle {
             position: absolute; width: 12px; height: 12px; background: var(--white); border: 2px solid var(--blue);
             border-radius: 50%; z-index: 10; display: none;
@@ -101,10 +108,20 @@
         .layer-handle.tr { top: -6px; right: -6px; cursor: nesw-resize; }
         .layer-handle.bl { bottom: -6px; left: -6px; cursor: nesw-resize; }
         .layer-handle.br { bottom: -6px; right: -6px; cursor: nwse-resize; }
+        
+        /* NÚT XOAY LAYER */
+        .layer-handle.rot {
+            top: -30px; left: 50%; transform: translateX(-50%); cursor: grab;
+            width: 24px; height: 24px; border-radius: 50%; background: var(--white);
+            color: var(--text-main); display: none; align-items: center; justify-content: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2); border: 1px solid var(--gray-border);
+        }
+        .layer-handle.rot i { font-size: 12px; pointer-events: none; }
+        .canvas-layer.selected .layer-handle.rot { display: flex; }
 
         /* MINI POPUP MENU LAYER */
         .layer-mini-menu {
-            position: absolute; top: -38px; left: 50%; transform: translateX(-50%);
+            position: absolute; top: -45px; right: 0;
             background: #2f3640; border-radius: 6px; display: flex; gap: 4px; padding: 4px; z-index: 20;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2); white-space: nowrap;
         }
@@ -114,28 +131,26 @@
         }
         .layer-mini-menu button:hover { background: var(--blue); }
 
-        /* TÁI CẤU TRÚC RIGHT SIDEBAR: THANH MENU DỌC MỚI */
+        /* RIGHT SIDEBAR DỌC */
         .right-sidebar-container {
             display: flex; height: 100%; z-index: 50; flex-shrink: 0;
             border-left: 1px solid var(--gray-border); background: var(--white);
         }
-        
         .sidebar-panel {
             width: 300px; background: var(--white); display: flex; flex-direction: column;
-            transition: width 0.2s ease, padding 0.2s ease; overflow: hidden;
+            transition: width 0.2s ease; overflow: hidden;
         }
-        .sidebar-panel.collapsed { width: 0; padding: 0; border: none; opacity: 0; pointer-events: none;}
+        .sidebar-panel.collapsed { width: 0; border: none; opacity: 0; pointer-events: none;}
 
         .sidebar-icon-strip {
-            width: 60px; background: #f9f9f9; border-left: 1px solid var(--gray-border);
-            display: flex; flex-direction: column; align-items: center; padding-top: 10px; gap: 15px;
+            width: 65px; background: #f9f9f9; border-left: 1px solid var(--gray-border);
+            display: flex; flex-direction: column; align-items: center; padding-top: 15px; gap: 15px;
         }
-
         .icon-tab {
-            width: 45px; height: 45px; border-radius: 8px; display: flex; flex-direction: column;
+            width: 50px; height: 50px; border-radius: 8px; display: flex; flex-direction: column;
             align-items: center; justify-content: center; cursor: pointer; color: #666; font-size: 18px; transition: 0.2s;
         }
-        .icon-tab span { font-size: 9px; font-weight: bold; margin-top: 3px; }
+        .icon-tab span { font-size: 9px; font-weight: bold; margin-top: 3px; white-space: nowrap;}
         .icon-tab:hover, .icon-tab.active { background: #eef9fd; color: var(--blue); }
 
         .sidebar-panel-header {
@@ -154,9 +169,9 @@
         .sub-content { display: none; flex-direction: column; gap: 10px; }
         .sub-content.active { display: flex; }
 
-        /* GRID THUMBNAIL TRONG TAB */
         .asset-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-        .asset-item { border: 1px solid var(--gray-border); border-radius: 6px; padding: 6px; cursor: pointer; text-align: center; background: #fff; aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .asset-item { border: 1px solid var(--gray-border); border-radius: 6px; padding: 6px; cursor: pointer; background: #fff; aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        .asset-item img, .asset-item svg { width: 100%; height: 100%; object-fit: contain; }
         .asset-item:hover { border-color: var(--blue); box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
 
         /* MODAL & LOADER */
@@ -204,7 +219,7 @@
         </div>
     </div>
 
-    <div class="workspace">
+    <div class="workspace" id="mainWorkspace">
         <div class="canvas-area view-vertical" id="canvasArea">
             <div style="color: #999; margin: auto; padding-top: 50px;">Vui lòng chọn Project hoặc Tải ảnh lên để bắt đầu.</div>
         </div>
@@ -297,10 +312,30 @@
             fetchSubFolders();
             fetchResourceData();
             initAdvancedPinchToZoom();
+
+            // CLICK RA NGOÀI BỎ CHỌN LAYER
+            document.getElementById("mainWorkspace").addEventListener("mousedown", (e) => {
+                if(!e.target.closest(".canvas-layer")) deselectAllLayers();
+            });
+            document.getElementById("mainWorkspace").addEventListener("touchstart", (e) => {
+                if(!e.target.closest(".canvas-layer")) deselectAllLayers();
+            }, {passive: true});
+
+            // Lắng nghe sự thay đổi kích thước cửa sổ để vẽ lại Lưới
+            window.addEventListener('resize', updateGridScale);
         });
 
         function showLoader(text) { document.getElementById("loaderText").innerText = text; document.getElementById("loader").style.display = "flex"; }
         function hideLoader() { document.getElementById("loader").style.display = "none"; }
+
+        function deselectAllLayers() {
+            document.querySelectorAll(".canvas-layer").forEach(el => {
+                el.classList.remove("selected");
+                let menu = el.querySelector(".layer-mini-menu");
+                if(menu) menu.style.display = "none";
+            });
+            selectedLayer = null;
+        }
 
         /* ================= QUẢN LÝ MENU & SIDEBAR ================= */
         function toggleSidebarPanel(forceOpen) {
@@ -315,15 +350,10 @@
         }
 
         function switchMainTab(tabId, title, btn) {
-            // Đảm bảo panel đang mở
             toggleSidebarPanel(true);
             document.getElementById("panelTitle").innerText = title;
-
-            // Xóa active cũ
             document.querySelectorAll(".sidebar-icon-strip .icon-tab").forEach(b => b.classList.remove("active"));
             document.querySelectorAll(".sidebar-panel .tab-content").forEach(c => c.classList.remove("active"));
-            
-            // Set active mới
             btn.classList.add("active"); 
             document.getElementById(`tab-${tabId}`).classList.add("active");
         }
@@ -359,13 +389,12 @@
             } catch(e) {}
         }
 
-function renderAssetGrid(containerId, list, type) {
+        function renderAssetGrid(containerId, list, type) {
             let el = document.getElementById(containerId);
             el.innerHTML = "";
             (list || []).forEach(item => {
                 let div = document.createElement("div");
                 div.className = "asset-item";
-                // TRẢ LẠI LINK THUMBNAIL CHO TAB TÀI NGUYÊN
                 let content = type === 'img' ? `<img src="https://drive.google.com/thumbnail?id=${item.id}&sz=w1000">` : item.code;
                 div.innerHTML = content;
                 div.onclick = () => addLayerToActivePage(content);
@@ -373,17 +402,17 @@ function renderAssetGrid(containerId, list, type) {
             });
         }
 
-/* ================= LOAD HÌNH ẢNH & CANVAS ================= */
+        /* ================= LOAD HÌNH ẢNH & CANVAS ================= */
         async function loadProjectImages(folderId) {
             if (!folderId) return;
             showLoader("Đang nạp ảnh Project...");
             pagesData = [];
+            document.getElementById("uploadAssetGrid").innerHTML = "";
             try {
                 let res = await fetch(`${API_URL}?action=get_images&folderId=${folderId}`);
                 let json = await res.json();
                 if (json.success && json.images) {
                     for (let img of json.images) {
-                        // TRẢ LẠI LINK THUMBNAIL ĐỂ TRÁNH LỖI CORS CỦA GOOGLE
                         let thumbUrl = `https://drive.google.com/thumbnail?id=${img.id}&sz=w1000`;
                         await createPageFromImage(img.name, thumbUrl);
                     }
@@ -403,11 +432,10 @@ function renderAssetGrid(containerId, list, type) {
             });
         }
 
-function createPageFromImage(title, url) {
+        function createPageFromImage(title, url) {
             return new Promise(resolve => {
                 let img = new Image();
                 img.onload = () => {
-                    // Mặc định Canvas chuẩn là 1080x1080 hoặc tỷ lệ tương đương
                     let canvasW = 800; 
                     let canvasH = 800;
                     
@@ -415,9 +443,8 @@ function createPageFromImage(title, url) {
                     pagesData.push(page);
                     addAssetToUploadTab(url);
                     
-                    // Tính toán thu nhỏ ảnh để FIT hoàn toàn vào khung 800x800
                     let imgRatio = img.naturalWidth / img.naturalHeight;
-                    let layerW = canvasW * 0.8; // Trừ hao 20% margin
+                    let layerW = canvasW * 0.8; 
                     let layerH = layerW / imgRatio;
                     
                     if (layerH > canvasH * 0.8) {
@@ -428,17 +455,10 @@ function createPageFromImage(title, url) {
                     let startX = (canvasW - layerW) / 2;
                     let startY = (canvasH - layerH) / 2;
 
-                    // Khởi tạo Layer ảnh
                     addLayerToPage(pagesData.length - 1, `<img src="${url}">`, startX, startY, layerW, layerH);
                     resolve();
                 };
-                
-                // BỔ SUNG: Bắt lỗi nếu ảnh hỏng thì tự bỏ qua, không bị treo cả Project
-                img.onerror = () => {
-                    console.error("Không thể tải ảnh: ", url);
-                    resolve(); 
-                };
-                
+                img.onerror = () => { console.error("Không thể tải ảnh: ", url); resolve(); };
                 img.src = url;
             });
         }
@@ -456,10 +476,19 @@ function createPageFromImage(title, url) {
         function renderAllPages() {
             let area = document.getElementById("canvasArea");
             area.innerHTML = "";
-            if (pagesData.length === 0) return area.innerHTML = `<div style="color:#999; margin:auto; padding-top:50px;">Chưa có trang canvas nào.</div>`;
+            if (pagesData.length === 0) {
+                area.innerHTML = `<div style="color:#999; margin:auto; padding-top:50px;">Chưa có trang canvas nào.</div>`;
+                return;
+            }
 
             if (currentViewMode === 'horizontal') {
                 renderHorizontalMode(area);
+            } else if (currentViewMode === 'grid') {
+                pagesData.forEach((page, idx) => {
+                    let pEl = createPageDOM(page, idx);
+                    area.appendChild(pEl);
+                });
+                updateGridScale(); // Tự tính toán scale để nhét vừa cột
             } else {
                 pagesData.forEach((page, idx) => {
                     let pEl = createPageDOM(page, idx);
@@ -469,9 +498,13 @@ function createPageFromImage(title, url) {
         }
 
         function createPageDOM(page, idx) {
-            // Dùng Wrapper để zoom CSS mà không làm hỏng cấu trúc Grid
             let wrapper = document.createElement("div");
             wrapper.className = "page-wrapper";
+            wrapper.id = `wrapper_${page.id}`;
+            // Chỉ apply zoom bằng biến CSS khi ở chế độ cuộn dọc
+            if (currentViewMode === 'vertical') {
+                wrapper.style.transform = `scale(var(--zoom))`;
+            }
             
             let pEl = document.createElement("div");
             pEl.className = "page-container";
@@ -495,23 +528,85 @@ function createPageFromImage(title, url) {
             mainStage.appendChild(createPageDOM(activePage, activePageIndex));
 
             pagesData.forEach((p, idx) => {
+                let thumbWrap = document.createElement("div");
+                thumbWrap.className = "horiz-thumb-wrapper";
+                
                 let thumb = document.createElement("div");
                 thumb.className = `horiz-thumb-item ${idx === activePageIndex ? 'active' : ''}`;
                 thumb.onclick = () => { activePageIndex = idx; renderAllPages(); };
-                if (p.layers[0]) thumb.innerHTML = p.layers[0].content;
-                strip.appendChild(thumb);
+                
+                let thumbCanvas = document.createElement("div");
+                thumbCanvas.id = `thumb_canvas_${idx}`;
+                thumbCanvas.className = "thumb-canvas-inner";
+                thumb.appendChild(thumbCanvas);
+
+                let label = document.createElement("div");
+                label.className = "horiz-thumb-label";
+                label.innerText = `Trang ${idx + 1}`;
+
+                thumbWrap.appendChild(thumb);
+                thumbWrap.appendChild(label);
+                strip.appendChild(thumbWrap);
             });
-            area.appendChild(mainStage); area.appendChild(strip);
+            area.appendChild(mainStage); 
+            area.appendChild(strip);
+            
+            // Render bản xem trước vào thumbnail
+            setTimeout(() => { pagesData.forEach((p, i) => syncThumbnail(i)); }, 50);
+        }
+
+        /* HÀM ĐỒNG BỘ THUMBNAIL REALTIME */
+        function syncThumbnail(pageIdx) {
+            if (currentViewMode !== 'horizontal') return;
+            let thumbInner = document.getElementById(`thumb_canvas_${pageIdx}`);
+            let sourceFrame = document.getElementById(`frame_${pagesData[pageIdx].id}`);
+            let thumbItem = thumbInner?.parentElement;
+            
+            if(thumbInner && sourceFrame && thumbItem) {
+                thumbInner.innerHTML = sourceFrame.innerHTML;
+                thumbInner.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+                thumbInner.querySelectorAll('.layer-handle, .layer-mini-menu').forEach(el => el.remove());
+                
+                let scale = thumbItem.clientWidth / pagesData[pageIdx].width;
+                thumbInner.style.transform = `scale(${scale})`;
+                thumbInner.style.transformOrigin = 'top left';
+                thumbInner.style.width = `${pagesData[pageIdx].width}px`;
+                thumbInner.style.height = `${pagesData[pageIdx].height}px`;
+            }
+        }
+
+        /* TÍNH TOÁN SCALE CHO LƯỚI GRID ĐỂ KHÔNG BỊ TRÀN */
+        function updateGridScale() {
+            if(currentViewMode !== 'grid') return;
+            let area = document.getElementById("canvasArea");
+            let cols = parseInt(getComputedStyle(area).getPropertyValue('--grid-cols')) || 3;
+            let gap = 30;
+            let padding = 60; // 30px padding left + 30px right
+            
+            let availableWidth = area.clientWidth - padding - (gap * (cols - 1));
+            let cellWidth = availableWidth / cols;
+
+            pagesData.forEach(p => {
+                let wrapper = document.getElementById(`wrapper_${p.id}`);
+                if(wrapper) {
+                    let scale = cellWidth / p.width;
+                    wrapper.style.transform = `scale(${scale})`;
+                    wrapper.style.transformOrigin = "top left";
+                    // Thu gọn không gian dư thừa do scale
+                    wrapper.style.marginBottom = `-${p.height * (1 - scale)}px`;
+                    wrapper.style.marginRight = `-${p.width * (1 - scale)}px`;
+                }
+            });
         }
 
         /* ================= TƯƠNG TÁC LỚP LAYER ================= */
         function addLayerToActivePage(content) {
             if (pagesData.length === 0) return;
             let page = pagesData[activePageIndex];
-            // Thêm layer với kích thước mặc định bằng 40% canvas
             let defW = page.width * 0.4;
             let defH = page.height * 0.4;
             addLayerToPage(activePageIndex, content, (page.width-defW)/2, (page.height-defH)/2, defW, defH);
+            syncThumbnail(activePageIndex);
         }
 
         function addLayerToPage(pageIdx, content, x, y, w, h) {
@@ -520,10 +615,13 @@ function createPageFromImage(title, url) {
             layerDom.className = "canvas-layer";
             layerDom.style.left = `${x}px`; layerDom.style.top = `${y}px`;
             layerDom.style.width = `${w}px`; layerDom.style.height = `${h}px`;
+            layerDom.dataset.rotation = 0;
+            
             layerDom.innerHTML = `
                 <div class="layer-content">${content}</div>
                 <div class="layer-handle tl" data-handle="tl"></div><div class="layer-handle tr" data-handle="tr"></div>
                 <div class="layer-handle bl" data-handle="bl"></div><div class="layer-handle br" data-handle="br"></div>
+                <div class="layer-handle rot" data-handle="rot"><i class="fas fa-sync-alt"></i></div>
                 <div class="layer-mini-menu" style="display:none;">
                     <button onclick="copyLayer()"><i class="fas fa-copy"></i></button>
                     <button onclick="pasteLayer()"><i class="fas fa-paste"></i></button>
@@ -546,71 +644,75 @@ function createPageFromImage(title, url) {
                 activePageIndex = pageIdx;
 
                 let handle = e.target.getAttribute("data-handle");
-                if (handle) startResize(e, dom, handle);
+                if (handle === 'rot') startRotate(e, dom);
+                else if (handle) startResize(e, dom, handle);
                 else startMove(e, dom);
             });
-            // Cảm ứng Mobile
             dom.addEventListener("touchstart", (e) => {
                 if(e.touches.length === 1) {
                     e.stopPropagation();
                     selectLayer(dom);
                     activePageIndex = pageIdx;
                     let handle = e.target.getAttribute("data-handle");
-                    if (handle) startResize(e.touches[0], dom, handle, true);
+                    if (handle === 'rot') startRotate(e.touches[0], dom, true);
+                    else if (handle) startResize(e.touches[0], dom, handle, true);
                     else startMove(e.touches[0], dom, true);
                 }
             }, {passive: false});
         }
 
         function selectLayer(dom) {
-            document.querySelectorAll(".canvas-layer").forEach(el => {
-                el.classList.remove("selected");
-                let menu = el.querySelector(".layer-mini-menu");
-                if(menu) menu.style.display = "none";
-            });
+            deselectAllLayers();
             dom.classList.add("selected");
             dom.querySelector(".layer-mini-menu").style.display = "flex";
             selectedLayer = dom;
         }
 
+        /* LOGIC KÉO DI CHUYỂN */
         function startMove(e, dom, isTouch=false) {
-            // Do canvas bị zoom, quãng đường kéo chuột phải được chia cho hệ số zoom
             let startX = e.clientX;
             let startY = e.clientY;
             let origLeft = dom.offsetLeft;
             let origTop = dom.offsetTop;
+            
+            // Cần lấy scale hiện tại của Grid hoặc Vertical
+            let scaleFactor = currentViewMode === 'vertical' ? currentZoom : 
+                              (currentViewMode === 'grid' ? getGridScaleFactor(dom) : 1);
 
             function onMove(ev) {
                 let clientX = isTouch ? ev.touches[0].clientX : ev.clientX;
                 let clientY = isTouch ? ev.touches[0].clientY : ev.clientY;
-                let dx = (clientX - startX) / currentZoom;
-                let dy = (clientY - startY) / currentZoom;
-                
+                let dx = (clientX - startX) / scaleFactor;
+                let dy = (clientY - startY) / scaleFactor;
                 dom.style.left = `${origLeft + dx}px`;
                 dom.style.top = `${origTop + dy}px`;
             }
             function onUp() { 
                 window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
                 window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
+                syncThumbnail(activePageIndex);
             }
             window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
             window.addEventListener(isTouch?"touchend":"mouseup", onUp);
         }
 
+        /* LOGIC THAY ĐỔI KÍCH THƯỚC */
         function startResize(e, dom, handle, isTouch=false) {
             let startX = e.clientX, startY = e.clientY;
             let origX = dom.offsetLeft, origY = dom.offsetTop;
             let origW = dom.offsetWidth, origH = dom.offsetHeight;
             let anchorX = (handle.includes("l")) ? origX + origW : origX;
             let anchorY = (handle.includes("t")) ? origY + origH : origY;
+            
+            let scaleFactor = currentViewMode === 'vertical' ? currentZoom : 
+                              (currentViewMode === 'grid' ? getGridScaleFactor(dom) : 1);
 
             function onMove(ev) {
                 let clientX = isTouch ? ev.touches[0].clientX : ev.clientX;
                 let clientY = isTouch ? ev.touches[0].clientY : ev.clientY;
                 
-                // Chia tỷ lệ bù trừ zoom
-                let dx = (clientX - startX) / currentZoom; 
-                let dy = (clientY - startY) / currentZoom;
+                let dx = (clientX - startX) / scaleFactor; 
+                let dy = (clientY - startY) / scaleFactor;
                 
                 let newW, newH, newX, newY;
 
@@ -625,14 +727,52 @@ function createPageFromImage(title, url) {
             function onUp() { 
                 window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
                 window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
+                syncThumbnail(activePageIndex);
             }
             window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
             window.addEventListener(isTouch?"touchend":"mouseup", onUp);
         }
 
+        /* LOGIC XOAY LAYER (ROTATION) */
+        function startRotate(e, dom, isTouch=false) {
+            let rect = dom.getBoundingClientRect();
+            let centerX = rect.left + rect.width / 2;
+            let centerY = rect.top + rect.height / 2;
+
+            function onMove(ev) {
+                let clientX = isTouch ? ev.touches[0].clientX : ev.clientX;
+                let clientY = isTouch ? ev.touches[0].clientY : ev.clientY;
+                
+                let radians = Math.atan2(clientY - centerY, clientX - centerX);
+                let degrees = (radians * (180 / Math.PI)) + 90; // Cộng 90 vì handle nằm ở TOP
+                
+                dom.dataset.rotation = degrees;
+                dom.style.transform = `rotate(${degrees}deg)`;
+            }
+            function onUp() { 
+                window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
+                window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
+                syncThumbnail(activePageIndex);
+            }
+            window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
+            window.addEventListener(isTouch?"touchend":"mouseup", onUp);
+        }
+
+        function getGridScaleFactor(dom) {
+            let wrapper = dom.closest('.page-wrapper');
+            if(!wrapper) return 1;
+            // Bóc tách giá trị scale từ thuộc tính transform
+            let transform = wrapper.style.transform;
+            let match = transform.match(/scale\(([^)]+)\)/);
+            return match ? parseFloat(match[1]) : 1;
+        }
+
         function copyLayer() { if (selectedLayer) layerClipboard = selectedLayer.querySelector(".layer-content").innerHTML; }
         function pasteLayer() { if (layerClipboard) addLayerToActivePage(layerClipboard); }
-        function deleteLayer(btn) { btn.closest(".canvas-layer").remove(); }
+        function deleteLayer(btn) { 
+            btn.closest(".canvas-layer").remove(); 
+            syncThumbnail(activePageIndex); 
+        }
 
         /* ================= KIỂM SOÁT VIEW VÀ ZOOM ================= */
         function openResizeModal() { 
@@ -658,6 +798,15 @@ function createPageFromImage(title, url) {
         function setViewMode(mode) {
             currentViewMode = mode;
             let area = document.getElementById("canvasArea");
+            
+            // Xóa transform inline nếu rời khỏi Grid
+            if(mode !== 'grid') {
+                document.querySelectorAll(".page-wrapper").forEach(w => {
+                    w.style.transform = `scale(var(--zoom))`;
+                    w.style.margin = '0';
+                });
+            }
+
             area.className = `canvas-area view-${mode}`;
             document.querySelectorAll("#viewModeGroup .tool-btn").forEach(b => b.classList.remove("active"));
             document.querySelector(`#viewModeGroup button[onclick="setViewMode('${mode}')"]`).classList.add("active");
@@ -667,9 +816,11 @@ function createPageFromImage(title, url) {
 
         function setGridColumns(cols) { 
             document.getElementById("canvasArea").style.setProperty('--grid-cols', cols); 
+            updateGridScale();
         }
 
         function manualZoom(delta) {
+            if(currentViewMode === 'grid') return; // Lưới dùng zoom bằng chỉnh cột
             currentZoom = Math.max(0.1, Math.min(3, currentZoom + delta));
             applyGlobalZoom();
         }
@@ -686,20 +837,18 @@ function createPageFromImage(title, url) {
             let initialCols = 3;
             let canvasArea = document.getElementById("canvasArea");
 
-            // Xử lý Touch pad / Mouse wheel kèm nút Ctrl
             canvasArea.addEventListener('wheel', (e) => {
                 if(e.ctrlKey) {
                     e.preventDefault();
-                    if(currentViewMode === 'grid') return; // Không zoom wheel trong grid
+                    if(currentViewMode === 'grid') return;
                     let delta = e.deltaY > 0 ? -0.05 : 0.05;
                     manualZoom(delta);
                 }
             }, {passive: false});
 
-            // Xử lý 2 ngón tay Mobile
             canvasArea.addEventListener('touchstart', e => {
                 if (e.touches.length === 2) {
-                    e.preventDefault(); // Chặn zoom trình duyệt
+                    e.preventDefault();
                     initialDist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
                     initialZoom = currentZoom;
                     initialCols = parseInt(document.getElementById("gridColSlider").value);
@@ -712,13 +861,11 @@ function createPageFromImage(title, url) {
                     let dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
                     
                     if(currentViewMode === 'grid') {
-                        // Pinch to zoom in Grid -> Giảm số cột = phóng to, Tăng số cột = thu nhỏ
                         let diff = Math.round((initialDist - dist) / 60); 
                         let cols = Math.min(6, Math.max(1, initialCols + diff));
                         document.getElementById("gridColSlider").value = cols;
                         setGridColumns(cols);
                     } else {
-                        // Pinch to zoom Canvas -> Thay đổi CSS --zoom
                         let zoomFactor = dist / initialDist;
                         currentZoom = Math.max(0.1, Math.min(3, initialZoom * zoomFactor));
                         applyGlobalZoom();
@@ -729,7 +876,7 @@ function createPageFromImage(title, url) {
             canvasArea.addEventListener('touchend', () => { initialDist = null; });
         }
 
-        /* ================= GỬI DATA VỀ APPS SCRIPT LƯU TRỮ ================= */
+        /* ================= GỬI DATA VỀ APPS SCRIPT ================= */
         async function handleResourceUpload(input) {
             let file = input.files[0];
             if (!file) return;
@@ -755,7 +902,7 @@ function createPageFromImage(title, url) {
                 let result = await response.json();
                 if(result.success) {
                     document.getElementById(type === 'Shape' ? 'shapeSvgInput' : 'frameSvgInput').value = '';
-                    fetchResourceData(); // Tải lại danh sách từ Sheet
+                    fetchResourceData(); 
                 } else {
                     alert("Có lỗi xảy ra khi lưu: " + result.error);
                 }
