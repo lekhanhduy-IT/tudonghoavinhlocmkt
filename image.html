@@ -1030,7 +1030,7 @@ function startMove(e, dom, layerObj, isTouch=false) {
         window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
         window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
 
-        // --- LOGIC: DÙNG MẶT NẠ (MASK) ĐỂ ÉP ẢNH THEO HÌNH DÁNG FRAME ---
+        // --- LOGIC: HỖ TRỢ CẢ BORDER-RADIUS VÀ CLIP-PATH ---
         if (selectedLayers.length === 1) {
             let p = pagesData[activePageIndex];
             let draggedData = layerObj;
@@ -1049,16 +1049,15 @@ function startMove(e, dom, layerObj, isTouch=false) {
                         let rect = frameDom.getBoundingClientRect();
                         
                         if (dropX >= rect.left && dropX <= rect.right && dropY >= rect.top && dropY <= rect.bottom) {
-                            
                             saveState(); // Lưu Undo
 
-                            // Lấy chính xác độ bo góc (border-radius) của Frame
                             let frameInner = frameDom.querySelector('[data-is-frame="true"]');
-                            // Dùng getComputedStyle để đảm bảo lấy đúng hình dáng kể cả khi bạn thiết lập bằng class hay inline CSS
                             let frameStyle = window.getComputedStyle(frameInner);
+                            
+                            // Copy cả bo góc và đa giác
                             let frameRadius = frameStyle.borderRadius || '0px';
+                            let frameClipPath = frameInner.style.clipPath || frameStyle.clipPath || 'none';
 
-                            // 1. Khớp vị trí và kích thước ảnh vào frame
                             draggedData.x = targetLayer.x;
                             draggedData.y = targetLayer.y;
                             draggedData.w = targetLayer.w;
@@ -1069,22 +1068,19 @@ function startMove(e, dom, layerObj, isTouch=false) {
                             dom.style.width = `${draggedData.w}px`;
                             dom.style.height = `${draggedData.h}px`;
 
-                            // 2. TẠO LỚP VỎ MẶT NẠ ĐỂ ÉP KHUÔN ẢNH (Bất chấp ảnh bên trong là gì)
+                            // Bọc ảnh bằng mặt nạ hỗ trợ cả clip-path
                             draggedData.content = `
-                                <div style="width: 100%; height: 100%; border-radius: ${frameRadius}; overflow: hidden; display: flex; align-items: center; justify-content: center; pointer-events: none;">
+                                <div style="width: 100%; height: 100%; border-radius: ${frameRadius}; clip-path: ${frameClipPath}; -webkit-clip-path: ${frameClipPath}; overflow: hidden; display: flex; align-items: center; justify-content: center; pointer-events: none;">
                                     ${draggedData.content}
                                 </div>
                             `;
 
-                            // Cập nhật lại giao diện DOM ngay lập tức
                             let contentContainer = dom.querySelector('.layer-content');
                             if (contentContainer) contentContainer.innerHTML = draggedData.content;
 
-                            // 3. XÓA FRAME GỐC
                             frameDom.remove(); 
                             p.layers = p.layers.filter(l => l.id !== targetLayer.id); 
 
-                            // 4. Đồng bộ
                             syncAllThumbnails();
                             updateSelectionUI(); 
                             if(document.getElementById('layerPopup').style.display === 'flex') renderLayerPopupList();
