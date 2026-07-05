@@ -200,6 +200,22 @@
 .canvas-layer.multi-selected { outline: 1.5px dashed var(--blue); outline-offset: 0; }
 .canvas-layer.multi-selected .layer-handle { display: none !important; }
 .canvas-layer.multi-selected .layer-mini-menu { display: none !important; }
+/* ================= CSS CHO NHÓM NÚT CHẾ ĐỘ XEM ================= */
+#viewModeGroup .tool-btn {
+    border-radius: 0; /* Nút ở giữa không bo góc */
+}
+
+#viewModeGroup .tool-btn:not(:last-child) {
+    border-right: none; /* Bỏ viền phải của các nút đầu/giữa để tránh tạo viền đôi */
+}
+
+#viewModeGroup .tool-btn:first-child {
+    border-radius: 6px 0 0 6px; /* Bo 2 góc bên trái cho nút đầu tiên */
+}
+
+#viewModeGroup .tool-btn:last-child {
+    border-radius: 0 6px 6px 0; /* Bo 2 góc bên phải cho nút cuối cùng */
+}
     </style>
 </head>
 <body>
@@ -226,7 +242,7 @@
                 <button class="tool-btn" onclick="manualZoom(0.1)" title="Phóng to"><i class="fas fa-search-plus"></i></button>
             </div>
 
-            <div style="display: flex; border: 1px solid var(--gray-border); border-radius: 6px; overflow: hidden;" id="viewModeGroup">
+            <div style="display: flex;" id="viewModeGroup">
                 <button class="tool-btn active" onclick="setViewMode('vertical')" title="Cuộn Dọc"><i class="fas fa-list"></i></button>
                 <button class="tool-btn" onclick="setViewMode('horizontal')" title="Trượt Ngang"><i class="fas fa-columns"></i></button>
                 <button class="tool-btn" onclick="setViewMode('grid')" title="Lưới Tổng Quan"><i class="fas fa-th"></i></button>
