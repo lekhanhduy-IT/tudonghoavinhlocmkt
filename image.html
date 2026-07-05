@@ -898,6 +898,38 @@ function addLayerToPage(pageIdx, content, w, h, x=0, y=0, rot=0, isGroup=false, 
 }
 
         function makeLayerInteractive(dom, pageIdx, layerObj) {
+            // --- BỔ SUNG SỰ KIỆN CLICK ĐÚP Ở ĐÂY ---
+            dom.addEventListener("dblclick", (e) => {
+                if (layerObj.isFramed) {
+                    e.stopPropagation();
+                    saveState();
+                    
+                    let p = pagesData[pageIdx];
+                    
+                    // 1. Phục hồi lại cái Khung tàng hình nằm dưới
+                    addLayerToPage(pageIdx, layerObj.frameHtml, layerObj.frameW, layerObj.frameH, layerObj.x, layerObj.y, 0, false, null, null, true);
+
+                    // 2. Tháo lớp mặt nạ của ảnh hiện tại, trả về ảnh gốc
+                    layerObj.content = layerObj.rawContent;
+                    layerObj.isFramed = false; // Bỏ trạng thái khóa
+                    
+                    // Cập nhật giao diện: Đặt Opacity 50% để nhìn xuyên thấu khung
+                    let contentContainer = dom.querySelector('.layer-content');
+                    if (contentContainer) {
+                        contentContainer.innerHTML = layerObj.content;
+                        contentContainer.style.opacity = "0.6"; // Mờ đi để thấy viền khung bên dưới
+                    }
+
+                    // Mở rộng ảnh ra kích thước cũ để kéo thả
+                    layerObj.w = layerObj.w * 1.5; // Scale to ra một chút để dễ cầm
+                    layerObj.h = layerObj.h * 1.5;
+                    dom.style.width = `${layerObj.w}px`;
+                    dom.style.height = `${layerObj.h}px`;
+                    
+                    selectLayer(dom);
+                    syncAllThumbnails();
+                }
+            });
             dom.addEventListener("mousedown", (e) => {
                 e.stopPropagation();
                 // FIX: Truyền e.shiftKey để nhận diện chọn nhiều layer
