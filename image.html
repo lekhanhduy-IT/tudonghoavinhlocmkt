@@ -1153,11 +1153,10 @@ function startMove(e, dom, layerObj, isTouch=false) {
             let dropX = isTouch ? ev.changedTouches[0].clientX : ev.clientX;
             let dropY = isTouch ? ev.changedTouches[0].clientY : ev.clientY;
 
-            for (let i = 0; i < p.layers.length; i++) {
-                if (i === draggedIdx) continue; 
+            // ĐẢM BẢO CHỈ DUYỆT CÁC LAYER NẰM DƯỚI LAYER ĐANG KÉO (i < draggedIdx)
+            for (let i = draggedIdx - 1; i >= 0; i--) {
                 let targetLayer = p.layers[i];
 
-                // NHẬN DIỆN: Là Khung Trống (isRawFrame) HOẶC Là Khung đã có ảnh (isAlreadyFramed)
                 let isRawFrame = targetLayer && targetLayer.content.includes('data-is-frame="true"');
                 let isAlreadyFramed = targetLayer && targetLayer.isFramed === true;
 
@@ -1171,7 +1170,6 @@ function startMove(e, dom, layerObj, isTouch=false) {
 
                             let frameW, frameH, frameRadius, frameClipPath;
 
-                            // Trích xuất thông số tùy thuộc vào loại Khung
                             if (isRawFrame) {
                                 let frameInner = targetDom.querySelector('[data-is-frame="true"]');
                                 let frameStyle = window.getComputedStyle(frameInner);
@@ -1218,13 +1216,14 @@ function startMove(e, dom, layerObj, isTouch=false) {
                             `;
                             dom.querySelector('.layer-content').innerHTML = draggedData.content;
 
-                            // XÓA TARGET CŨ (Khung trống hoặc Khung chứa ảnh cũ)
                             targetDom.remove(); 
                             p.layers = p.layers.filter(l => l.id !== targetLayer.id); 
 
                             syncAllThumbnails();
                             updateSelectionUI(); 
                             if(document.getElementById('layerPopup').style.display === 'flex') renderLayerPopupList();
+                            
+                            // QUAN TRỌNG: Đã hít vào Frame rồi thì phải thoát vòng lặp ngay lập tức
                             break; 
                         }
                     }
