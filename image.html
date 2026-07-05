@@ -1024,10 +1024,59 @@ function startMove(e, dom, layerObj, isTouch=false) {
         if (selectedLayers.length > 1) updateSelectionUI(); 
         syncAllThumbnails();
     }
-    function onUp() { 
+    
+    function onUp(ev) { 
         window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
         window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
+
+        // --- LOGIC MỚI: DÙNG TỌA ĐỘ CHUỘT ĐỂ XÁC ĐỊNH VA CHẠM VỚI FRAME ---
+        if (selectedLayers.length === 1) {
+            let p = pagesData[activePageIndex];
+            let draggedData = layerObj;
+            let draggedIdx = p.layers.findIndex(l => l.id === draggedData.id);
+
+            // Lấy tọa độ chuột lúc nhả ra (hỗ trợ cả cảm ứng và chuột thường)
+            let dropX = isTouch ? ev.changedTouches[0].clientX : ev.clientX;
+            let dropY = isTouch ? ev.changedTouches[0].clientY : ev.clientY;
+
+            // Tìm toàn bộ các layer trên trang (không phân biệt trên hay dưới)
+            for (let i = 0; i < p.layers.length; i++) {
+                if (i === draggedIdx) continue; // Bỏ qua chính layer đang kéo
+                let targetLayer = p.layers[i];
+
+                // Nếu layer là một Frame
+                if (targetLayer && targetLayer.content.includes('data-is-frame="true"')) {
+                    
+                    // Lấy DOM của frame để đo kích thước thực tế trên màn hình
+                    let frameDom = document.getElementById(targetLayer.id);
+                    if (frameDom) {
+                        let rect = frameDom.getBoundingClientRect();
+                        
+                        // Kiểm tra xem mũi tên chuột có đang nằm lọt trong Frame không
+                        if (dropX >= rect.left && dropX <= rect.right &&
+                            dropY >= rect.top && dropY <= rect.bottom) {
+                            
+                            // Khớp kích thước ảnh vào frame
+                            draggedData.x = targetLayer.x;
+                            draggedData.y = targetLayer.y;
+                            draggedData.w = targetLayer.w;
+                            draggedData.h = targetLayer.h;
+
+                            dom.style.left = `${draggedData.x}px`;
+                            dom.style.top = `${draggedData.y}px`;
+                            dom.style.width = `${draggedData.w}px`;
+                            dom.style.height = `${draggedData.h}px`;
+
+                            saveState(); // Lưu lịch sử Undo
+                            syncAllThumbnails();
+                            break; // Hít vào Frame đầu tiên tìm thấy rồi dừng lại
+                        }
+                    }
+                }
+            }
+        }
     }
+    
     window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
     window.addEventListener(isTouch?"touchend":"mouseup", onUp);
 }
