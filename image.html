@@ -993,6 +993,7 @@ function selectLayer(dom, isShift = false) {
         /* LOGIC KÉO DI CHUYỂN */
 /* ================= ĐỒNG BỘ DI CHUYỂN VÀ THU PHÓNG (GROUP) ================= */
 /* ================= ĐỒNG BỘ DI CHUYỂN VÀ THU PHÓNG (GROUP) ================= */
+/* ================= ĐỒNG BỘ DI CHUYỂN VÀ THU PHÓNG (GROUP) ================= */
 function startMove(e, dom, layerObj, isTouch=false) {
     let startX = e.clientX;
     let startY = e.clientY;
@@ -1030,7 +1031,6 @@ function startMove(e, dom, layerObj, isTouch=false) {
         window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
         window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
 
-        // --- LOGIC: HỖ TRỢ CẢ BORDER-RADIUS VÀ CLIP-PATH ---
         if (selectedLayers.length === 1) {
             let p = pagesData[activePageIndex];
             let draggedData = layerObj;
@@ -1053,11 +1053,30 @@ function startMove(e, dom, layerObj, isTouch=false) {
 
                             let frameInner = frameDom.querySelector('[data-is-frame="true"]');
                             let frameStyle = window.getComputedStyle(frameInner);
-                            
-                            // Copy cả bo góc và đa giác
                             let frameRadius = frameStyle.borderRadius || '0px';
                             let frameClipPath = frameInner.style.clipPath || frameStyle.clipPath || 'none';
 
+                            // --- LƯU LẠI DỮ LIỆU GỐC ĐỂ CHỈNH SỬA SAU ---
+                            draggedData.isFramed = true;
+                            draggedData.rawContent = draggedData.content; // Ảnh chưa bị cắt
+                            draggedData.frameHtml = targetLayer.content; // Mã HTML của Khung
+                            draggedData.frameW = targetLayer.w;
+                            draggedData.frameH = targetLayer.h;
+                            
+                            // Đưa ảnh vào tâm khung
+                            draggedData.x = targetLayer.x - (draggedData.w - targetLayer.w)/2;
+                            draggedData.y = targetLayer.y - (draggedData.h - targetLayer.h)/2;
+
+                            // Bọc ảnh bằng mặt nạ
+                            draggedData.content = `
+                                <div style="width: ${targetLayer.w}px; height: ${targetLayer.h}px; border-radius: ${frameRadius}; clip-path: ${frameClipPath}; -webkit-clip-path: ${frameClipPath}; overflow: hidden; display: flex; align-items: center; justify-content: center; pointer-events: none;">
+                                    <div style="min-width: ${draggedData.w}px; min-height: ${draggedData.h}px; display:flex; align-items:center; justify-content:center;">
+                                        ${draggedData.rawContent}
+                                    </div>
+                                </div>
+                            `;
+
+                            // Ép lại kích thước layer bằng với Khung
                             draggedData.x = targetLayer.x;
                             draggedData.y = targetLayer.y;
                             draggedData.w = targetLayer.w;
@@ -1067,13 +1086,6 @@ function startMove(e, dom, layerObj, isTouch=false) {
                             dom.style.top = `${draggedData.y}px`;
                             dom.style.width = `${draggedData.w}px`;
                             dom.style.height = `${draggedData.h}px`;
-
-                            // Bọc ảnh bằng mặt nạ hỗ trợ cả clip-path
-                            draggedData.content = `
-                                <div style="width: 100%; height: 100%; border-radius: ${frameRadius}; clip-path: ${frameClipPath}; -webkit-clip-path: ${frameClipPath}; overflow: hidden; display: flex; align-items: center; justify-content: center; pointer-events: none;">
-                                    ${draggedData.content}
-                                </div>
-                            `;
 
                             let contentContainer = dom.querySelector('.layer-content');
                             if (contentContainer) contentContainer.innerHTML = draggedData.content;
