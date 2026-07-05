@@ -196,6 +196,10 @@
 .filter-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
 .filter-group label { font-size: 11px; font-weight: bold; color: #555; display: flex; justify-content: space-between; }
 .filter-group input[type="range"] { width: 100%; cursor: pointer; }
+/* GIAO DIỆN KHI CHỌN NHIỀU LAYER */
+.canvas-layer.multi-selected { outline: 1.5px dashed var(--blue); outline-offset: 0; }
+.canvas-layer.multi-selected .layer-handle { display: none !important; }
+.canvas-layer.multi-selected .layer-mini-menu { display: none !important; }
     </style>
 </head>
 <body>
@@ -451,10 +455,13 @@ document.addEventListener('keydown', (e) => {
         function showLoader(text) { document.getElementById("loaderText").innerText = text; document.getElementById("loader").style.display = "flex"; }
         function hideLoader() { document.getElementById("loader").style.display = "none"; }
 
-        function deselectAllLayers() {
-            document.querySelectorAll(".canvas-layer").forEach(el => el.classList.remove("selected"));
-            selectedLayer = null;
-        }
+function deselectAllLayers() {
+    document.querySelectorAll(".canvas-layer").forEach(el => {
+        el.classList.remove("selected", "multi-selected");
+    });
+    selectedLayers = [];
+    updateSelectionUI();
+}
 
         /* ================= MENU CHUỘT PHẢI ================= */
         function hideContextMenu() { document.getElementById("contextMenu").style.display = "none"; }
@@ -642,14 +649,13 @@ async function fetchResourceData() {
             applyLayoutScaling();
         }
 
-        function createPageDOM(page, idx) {
+function createPageDOM(page, idx) {
             let wrapper = document.createElement("div");
             wrapper.className = "page-wrapper";
             wrapper.id = `wrapper_${page.id}`;
             
-            // Lấy kích thước thật
             let w = page.width;
-            let totalH = page.height + 30; // 30px cho toolbar
+            let totalH = page.height + 30; 
             
             wrapper.style.width = `${w}px`;
             wrapper.style.height = `${totalH}px`;
@@ -661,12 +667,34 @@ async function fetchResourceData() {
             pEl.style.width = `${w}px`;
             pEl.style.height = `${totalH}px`;
 
+            // BỔ SUNG: Khung multi-select-box
             pEl.innerHTML = `
                 <div class="page-toolbar"><span>Trang ${idx+1}: ${page.title}</span><span>${page.width}x${page.height}</span></div>
-                <div class="canvas-frame" id="frame_${page.id}"></div>
+                <div class="canvas-frame" id="frame_${page.id}">
+                    <div class="multi-select-box" id="msb_${page.id}" style="display:none; position:absolute; border: 1.5px solid var(--blue); z-index: 9999; pointer-events: none; box-sizing: border-box;">
+                        <div class="layer-handle corner tl" data-ms-handle="tl" style="pointer-events: auto;"></div>
+                        <div class="layer-handle corner tr" data-ms-handle="tr" style="pointer-events: auto;"></div>
+                        <div class="layer-handle corner bl" data-ms-handle="bl" style="pointer-events: auto;"></div>
+                        <div class="layer-handle corner br" data-ms-handle="br" style="pointer-events: auto;"></div>
+                    </div>
+                </div>
             `;
             
             let frame = pEl.querySelector(".canvas-frame");
+            let msb = pEl.querySelector(".multi-select-box");
+            
+            // Gắn sự kiện thu phóng cho Khung bao
+            msb.addEventListener("mousedown", (e) => {
+                let handle = e.target.getAttribute("data-ms-handle");
+                if(handle) { e.stopPropagation(); startMSBResize(e, msb, handle, idx); }
+            });
+            msb.addEventListener("touchstart", (e) => {
+                let handle = e.target.getAttribute("data-ms-handle");
+                if(handle && e.touches.length === 1) {
+                    e.stopPropagation(); startMSBResize(e.touches[0], msb, handle, idx, true);
+                }
+            }, {passive: false});
+
             page.layers.forEach(layerObj => {
                 let lDom = createLayerDOM(idx, layerObj);
                 layerObj.dom = lDom;
@@ -855,39 +883,160 @@ function addLayerToPage(pageIdx, content, w, h, x=0, y=0, rot=0, isGroup=false, 
             }, {passive: false});
         }
 
-        function selectLayer(dom) {
-            deselectAllLayers();
-            dom.classList.add("selected");
-            selectedLayer = dom;
-        }
+/* ================= XỬ LÝ CHỌN NHIỀU LAYER CÙNG LÚC ================= */
+function updateSelectionUI() {
+    let p = pagesData[activePageIndex];
+    if(!p) return;
+    let msb = document.getElementById(`msb_${p.id}`);
+    if(!msb) return;
+
+    if (selectedLayers.length > 1) {
+        selectedLayers.forEach(dom => dom.classList.add("multi-selected")); 
+        
+        let minX = Math.min(...selectedLayers.map(d => parseFloat(d.style.left)));
+        let minY = Math.min(...selectedLayers.map(d => parseFloat(d.style.top)));
+        let maxX = Math.max(...selectedLayers.map(d => parseFloat(d.style.left) + parseFloat(d.style.width)));
+        let maxY = Math.max(...selectedLayers.map(d => parseFloat(d.style.top) + parseFloat(d.style.height)));
+        
+        msb.style.left = minX + "px";
+        msb.style.top = minY + "px";
+        msb.style.width = (maxX - minX) + "px";
+        msb.style.height = (maxY - minY) + "px";
+        msb.style.display = "block";
+    } else {
+        selectedLayers.forEach(dom => dom.classList.remove("multi-selected"));
+        msb.style.display = "none";
+    }
+}
+
+function selectLayer(dom, isShift = false) {
+    if (!isShift) {
+        document.querySelectorAll(".canvas-layer").forEach(el => {
+            el.classList.remove("selected", "multi-selected");
+        });
+        selectedLayers = [dom];
+    } else {
+        if (selectedLayers.includes(dom)) {
+            selectedLayers = selectedLayers.filter(l => l !== dom);
+            dom.classList.remove("selected", "multi-selected");
+        } else { selectedLayers.push(dom); }
+    }
+    
+    if (selectedLayers.length === 1) {
+        selectedLayers[0].classList.add("selected");
+        selectedLayers[0].classList.remove("multi-selected");
+    } else if (selectedLayers.length > 1) {
+        selectedLayers.forEach(el => {
+            el.classList.remove("selected");
+            el.classList.add("multi-selected");
+        });
+    }
+
+    loadLayerFilters(dom); 
+    if(document.getElementById('layerPopup').style.display === 'flex') renderLayerPopupList(); 
+    updateSelectionUI(); 
+}
 
         /* LOGIC KÉO DI CHUYỂN */
-        function startMove(e, dom, layerObj, isTouch=false) {
-            let startX = e.clientX;
-            let startY = e.clientY;
-            let origX = dom.offsetLeft;
-            let origY = dom.offsetTop;
-            let scaleFactor = currentZoom;
+/* ================= ĐỒNG BỘ DI CHUYỂN VÀ THU PHÓNG (GROUP) ================= */
+function startMove(e, dom, layerObj, isTouch=false) {
+    let startX = e.clientX;
+    let startY = e.clientY;
+    let scaleFactor = currentZoom;
+    
+    let origins = [];
+    if (selectedLayers.includes(dom) && selectedLayers.length > 1) {
+        selectedLayers.forEach(lDom => {
+            let p = pagesData[activePageIndex];
+            let lData = p.layers.find(l => l.id === lDom.id);
+            origins.push({ dom: lDom, data: lData, origX: lData.x, origY: lData.y });
+        });
+    } else {
+        origins.push({ dom: dom, data: layerObj, origX: layerObj.x, origY: layerObj.y });
+    }
 
-            function onMove(ev) {
-                let clientX = isTouch ? ev.touches[0].clientX : ev.clientX;
-                let clientY = isTouch ? ev.touches[0].clientY : ev.clientY;
-                let dx = (clientX - startX) / scaleFactor;
-                let dy = (clientY - startY) / scaleFactor;
+    function onMove(ev) {
+        let clientX = isTouch ? ev.touches[0].clientX : ev.clientX;
+        let clientY = isTouch ? ev.touches[0].clientY : ev.clientY;
+        let dx = (clientX - startX) / scaleFactor;
+        let dy = (clientY - startY) / scaleFactor;
+        
+        origins.forEach(item => {
+            item.data.x = item.origX + dx;
+            item.data.y = item.origY + dy;
+            item.dom.style.left = `${item.data.x}px`;
+            item.dom.style.top = `${item.data.y}px`;
+        });
+        
+        if (selectedLayers.length > 1) updateSelectionUI(); 
+        syncAllThumbnails();
+    }
+    function onUp() { 
+        window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
+        window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
+    }
+    window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
+    window.addEventListener(isTouch?"touchend":"mouseup", onUp);
+}
+
+function startMSBResize(e, msbDom, handle, pageIdx, isTouch=false) {
+    let startX = e.clientX, startY = e.clientY;
+    let origGroupX = msbDom.offsetLeft, origGroupY = msbDom.offsetTop;
+    let origGroupW = msbDom.offsetWidth, origGroupH = msbDom.offsetHeight;
+    let ratio = origGroupW / origGroupH;
+    
+    let anchorX = (handle.includes("l")) ? origGroupX + origGroupW : origGroupX;
+    let anchorY = (handle.includes("t")) ? origGroupY + origGroupH : origGroupY;
+    let scaleFactor = currentZoom;
+    let p = pagesData[pageIdx];
+    
+    // Lưu tọa độ ban đầu của tất cả layer con
+    let origins = selectedLayers.map(lDom => {
+        let lData = p.layers.find(l => l.id === lDom.id);
+        return { dom: lDom, data: lData, origX: lData.x, origY: lData.y, origW: lData.w, origH: lData.h };
+    });
+
+    function onMove(ev) {
+        let clientX = isTouch ? ev.touches[0].clientX : ev.clientX;
+        let clientY = isTouch ? ev.touches[0].clientY : ev.clientY;
+        
+        let dx = (clientX - startX) / scaleFactor; 
+        let newW, newH, newX, newY;
+
+        if (handle === 'br') { newW = origGroupW + dx; newH = newW / ratio; newX = origGroupX; newY = origGroupY; }
+        else if (handle === 'bl') { newW = origGroupW - dx; newH = newW / ratio; newX = anchorX - newW; newY = origGroupY; }
+        else if (handle === 'tr') { newW = origGroupW + dx; newH = newW / ratio; newX = origGroupX; newY = anchorY - newH; }
+        else if (handle === 'tl') { newW = origGroupW - dx; newH = newW / ratio; newX = anchorX - newW; newY = anchorY - newH; }
+
+        if (newW > 20 && newH > 20) { 
+            let scaleX = newW / origGroupW;
+            let scaleY = newH / origGroupH;
+            
+            origins.forEach(item => {
+                let nx = newX + (item.origX - origGroupX) * scaleX;
+                let ny = newY + (item.origY - origGroupY) * scaleY;
+                let nw = item.origW * scaleX;
+                let nh = item.origH * scaleY;
                 
-                layerObj.x = origX + dx;
-                layerObj.y = origY + dy;
-                dom.style.left = `${layerObj.x}px`;
-                dom.style.top = `${layerObj.y}px`;
-                syncAllThumbnails();
-            }
-            function onUp() { 
-                window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
-                window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
-            }
-            window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
-            window.addEventListener(isTouch?"touchend":"mouseup", onUp);
+                item.data.x = nx; item.data.y = ny;
+                item.data.w = nw; item.data.h = nh;
+                
+                item.dom.style.left = `${nx}px`; item.dom.style.top = `${ny}px`;
+                item.dom.style.width = `${nw}px`; item.dom.style.height = `${nh}px`;
+            });
+            
+            msbDom.style.left = `${newX}px`; msbDom.style.top = `${newY}px`;
+            msbDom.style.width = `${newW}px`; msbDom.style.height = `${newH}px`;
+            syncAllThumbnails();
         }
+    }
+    function onUp() { 
+        window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
+        window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
+    }
+    window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
+    window.addEventListener(isTouch?"touchend":"mouseup", onUp);
+}
 
         /* LOGIC THAY ĐỔI KÍCH THƯỚC (GIỮ TỶ LỆ KHI KÉO GÓC) */
         function startResize(e, dom, handle, layerObj, isTouch=false) {
@@ -1211,23 +1360,25 @@ function selectLayer(dom, isShift = false) {
 }
 
 function selectAllLayersAction() {
-            if (pagesData.length === 0) return;
-            selectedLayers = [];
-            document.querySelectorAll(".canvas-layer").forEach(el => el.classList.remove("selected"));
-            
-            let targetPages = currentViewMode === 'grid' ? pagesData : [pagesData[activePageIndex]];
-            
-            targetPages.forEach(p => {
-                p.layers.forEach(l => {
-                    let dom = document.getElementById(l.id);
-                    if(dom) {
-                        dom.classList.add("selected");
-                        selectedLayers.push(dom);
-                    }
-                });
-            });
-            renderLayerPopupList(); // Cập nhật lại UI Popup
-        }
+    if (pagesData.length === 0) return;
+    deselectAllLayers();
+    
+    let targetPages = currentViewMode === 'grid' ? pagesData : [pagesData[activePageIndex]];
+    targetPages.forEach(p => {
+        p.layers.forEach(l => {
+            let dom = document.getElementById(l.id);
+            if(dom) selectedLayers.push(dom);
+        });
+    });
+    
+    if (selectedLayers.length === 1) {
+        selectedLayers[0].classList.add("selected");
+    } else if (selectedLayers.length > 1) {
+        selectedLayers.forEach(el => el.classList.add("multi-selected"));
+    }
+    updateSelectionUI();
+    if(document.getElementById('layerPopup').style.display === 'flex') renderLayerPopupList(); 
+}
 
 // Chú ý: Hãy sửa lại sự kiện mousedown/touchstart trong hàm makeLayerInteractive 
 // để truyền `e.shiftKey` vào hàm selectLayer:
@@ -1235,10 +1386,12 @@ function selectAllLayersAction() {
 // Bằng: selectLayer(dom, e.shiftKey || false);
 
 /* ================= 3. THAY ĐỔI THỨ TỰ LAYER (Z-INDEX) ================= */
+/* ================= 3. THAY ĐỔI THỨ TỰ LAYER (Z-INDEX) ================= */
 function moveLayerOrder(direction) {
-    if (selectedLayers.length !== 1) return; // Tạm thời chỉ hỗ trợ đẩy 1 layer/lần
+    if (selectedLayers.length !== 1) return; 
     saveState();
-    let layerId = selectedLayers[0].id;
+    let layerDom = selectedLayers[0];
+    let layerId = layerDom.id;
     let page = pagesData[activePageIndex];
     let idx = page.layers.findIndex(l => l.id === layerId);
     
@@ -1246,12 +1399,25 @@ function moveLayerOrder(direction) {
         let temp = page.layers[idx];
         page.layers[idx] = page.layers[idx - 1];
         page.layers[idx - 1] = temp;
+        
+        // Đảo Node trong DOM trực tiếp
+        let prevDom = document.getElementById(page.layers[idx].id);
+        if (layerDom && prevDom) prevDom.parentNode.insertBefore(layerDom, prevDom);
+        
     } else if (direction === 1 && idx < page.layers.length - 1) { // Đẩy lên (Ctrl + ])
         let temp = page.layers[idx];
         page.layers[idx] = page.layers[idx + 1];
         page.layers[idx + 1] = temp;
+        
+        // Đảo Node trong DOM trực tiếp
+        let nextDom = document.getElementById(page.layers[idx].id);
+        if (layerDom && nextDom) nextDom.parentNode.insertBefore(nextDom, layerDom);
     }
-    renderAllPages(); // Cập nhật lại DOM dựa trên mảng đã re-order
+    
+    // Cập nhật Popup List mượt mà ngay lập tức
+    if (document.getElementById('layerPopup').style.display === 'flex') {
+        renderLayerPopupList();
+    }
 }
 
 /* ================= 4. POPUP LAYER (Alt + 1) ================= */
