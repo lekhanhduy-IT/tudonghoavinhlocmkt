@@ -175,6 +175,27 @@
         .loader-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.85); z-index: 1000; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 10px; font-weight: bold; color: var(--blue); }
         .spinner { width: 36px; height: 36px; border: 4px solid #f3f3f3; border-top: 4px solid var(--blue); border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* POPUP LAYER */
+.layer-popup {
+    position: absolute; top: 60px; right: 80px; width: 280px; background: #fff;
+    border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 1000;
+    display: none; flex-direction: column; border: 1px solid var(--gray-border);
+}
+.layer-popup-header {
+    padding: 12px 15px; border-bottom: 1px solid var(--gray-border);
+    font-weight: bold; display: flex; justify-content: space-between; align-items: center;
+}
+.layer-list { max-height: 300px; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 5px; }
+.layer-list-item {
+    padding: 8px; background: var(--gray-light); border: 1px solid transparent;
+    border-radius: 6px; display: flex; align-items: center; gap: 10px; cursor: pointer;
+}
+.layer-list-item.active { background: #eef9fd; border-color: var(--blue); }
+
+/* BỘ LỌC TEXTURE */
+.filter-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+.filter-group label { font-size: 11px; font-weight: bold; color: #555; display: flex; justify-content: space-between; }
+.filter-group input[type="range"] { width: 100%; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -234,6 +255,14 @@
 
         <div class="right-sidebar-container">
             <div class="sidebar-panel" id="sidebarPanel">
+                <div class="tab-content" id="tab-adjust">
+    <div style="font-size: 12px; font-weight: bold; margin-bottom: 10px;">Chỉnh sửa Texture</div>
+    <div class="filter-group"><label>Độ sáng <span id="val-bright">100%</span></label><input type="range" id="f-bright" min="0" max="200" value="100" oninput="applyFilters()"></div>
+    <div class="filter-group"><label>Tương phản <span id="val-contrast">100%</span></label><input type="range" id="f-contrast" min="0" max="200" value="100" oninput="applyFilters()"></div>
+    <div class="filter-group"><label>Bão hòa <span id="val-saturate">100%</span></label><input type="range" id="f-saturate" min="0" max="200" value="100" oninput="applyFilters()"></div>
+    <div class="filter-group"><label>Nhiệt độ (Hue) <span id="val-hue">0deg</span></label><input type="range" id="f-hue" min="-180" max="180" value="0" oninput="applyFilters()"></div>
+    <div class="filter-group"><label>Trong suốt (Opacity) <span id="val-opac">100%</span></label><input type="range" id="f-opac" min="0" max="100" value="100" oninput="applyFilters()"></div>
+</div>
                 <div class="sidebar-panel-header">
                     <span id="panelTitle">Tải lên</span>
                     <i class="fas fa-chevron-right close-panel-btn" onclick="toggleSidebarPanel(false)" title="Đóng panel"></i>
@@ -284,6 +313,9 @@
                 <div class="icon-tab" style="margin-bottom:15px;" onclick="toggleSidebarPanel(true)" id="btnOpenPanel" style="display:none;">
                     <i class="fas fa-chevron-left"></i>
                 </div>
+                <div class="icon-tab" onclick="switchMainTab('adjust', 'Tùy chỉnh', this)">
+                    <i class="fas fa-sliders-h"></i><span>Tùy chỉnh</span>
+                </div>
             </div>
         </div>
     </div>
@@ -305,23 +337,80 @@
             </div>
         </div>
     </div>
-
+<div class="layer-popup" id="layerPopup">
+    <div class="layer-popup-header">
+        <span>Layers (Alt + 1)</span>
+        <i class="fas fa-times" style="cursor:pointer" onclick="document.getElementById('layerPopup').style.display='none'"></i>
+    </div>
+    <div class="layer-list" id="popupLayerList"></div>
+</div>
     <script>
         const API_URL = "https://script.google.com/macros/s/AKfycbytCrAHTpFnykzOAwTkxbAR6tm32P9RZrS42EnUFh2WTWTQRtZr60Q27Lzrbhq_cuo/exec";
         
-        let pagesData = []; 
-        let activePageIndex = 0;
-        let selectedLayer = null;
-        let layerClipboard = null;
-        let currentViewMode = 'vertical';
-        let currentZoom = 1;
-        let ctxMenuTargetPage = -1;
+let pagesData = []; 
+let activePageIndex = 0;
+// THAY ĐỔI: Chuyển selectedLayer thành mảng để hỗ trợ Multi-select
+let selectedLayers = []; 
+let layerClipboard = null;
+let currentViewMode = 'vertical';
+let currentZoom = 1;
+let ctxMenuTargetPage = -1;
+
+// MỚI: Biến lưu trữ History
+let undoStack = [];
+let redoStack = [];
+
+// Hàm lưu trạng thái để Undo
+function saveState() {
+    // Lưu bản sao sâu (deep copy) của pagesData
+    // Lưu ý loại bỏ thuộc tính 'dom' vì không thể stringify DOM element
+    let cleanData = pagesData.map(p => ({
+        ...p,
+        layers: p.layers.map(l => {
+            let cl = {...l}; delete cl.dom; return cl;
+        })
+    }));
+    undoStack.push(JSON.stringify(cleanData));
+    if(undoStack.length > 30) undoStack.shift(); // Giới hạn 30 bước
+    redoStack = []; // Xóa redo khi có hành động mới
+}
 
         window.addEventListener("DOMContentLoaded", () => {
             fetchSubFolders();
             fetchResourceData();
             initAdvancedPinchToZoom();
+document.addEventListener('keydown', (e) => {
+    // Bỏ qua phím tắt nếu đang gõ text (input, textarea)
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
+    // 1. Undo: Ctrl + Z
+    if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault(); executeUndo();
+    }
+    // 2. Redo: Ctrl + Y HOẶC Ctrl + Shift + Z
+    if ((e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z')) {
+        e.preventDefault(); executeRedo();
+    }
+    // 3. Mở Popup Layer: Alt + 1
+    if (e.altKey && e.key === '1') {
+        e.preventDefault(); toggleLayerPopup();
+    }
+    // 4. Lên/Xuống Layer: Ctrl + [ và Ctrl + ]
+    if (e.ctrlKey && e.key === '[') {
+        e.preventDefault(); moveLayerOrder(-1);
+    }
+    if (e.ctrlKey && e.key === ']') {
+        e.preventDefault(); moveLayerOrder(1);
+    }
+    // 5. Chọn tất cả: Ctrl + A
+    if (e.ctrlKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault(); selectAllLayersAction();
+    }
+    // 6. Nhóm/Bỏ nhóm: Ctrl + G
+    if (e.ctrlKey && e.key.toLowerCase() === 'g') {
+        e.preventDefault(); toggleGroupLayers();
+    }
+});
             // CLICK RA NGOÀI ĐỂ BỎ CHỌN LAYER VÀ MENU
             document.getElementById("workspaceScroll").addEventListener("mousedown", (e) => {
                 if(!e.target.closest(".canvas-layer") && !e.target.closest(".context-menu")) {
@@ -1073,6 +1162,203 @@ async function handleResourceUpload(input) {
             }
             hideLoader(); 
         }
+        /* ================= 1. UNDO / REDO ================= */
+function executeUndo() {
+    if (undoStack.length === 0) return;
+    redoStack.push(JSON.stringify(pagesData.map(p => ({...p, layers: p.layers.map(l => {let cl = {...l}; delete cl.dom; return cl;})}))));
+    let prevState = JSON.parse(undoStack.pop());
+    pagesData = prevState;
+    selectedLayers = [];
+    renderAllPages();
+}
+
+function executeRedo() {
+    if (redoStack.length === 0) return;
+    undoStack.push(JSON.stringify(pagesData.map(p => ({...p, layers: p.layers.map(l => {let cl = {...l}; delete cl.dom; return cl;})}))));
+    let nextState = JSON.parse(redoStack.pop());
+    pagesData = nextState;
+    selectedLayers = [];
+    renderAllPages();
+}
+
+/* ================= 2. MULTI-SELECT & SELECT ALL ================= */
+// Viết lại hàm selectLayer cũ
+function selectLayer(dom, isShift = false) {
+    if (!isShift) {
+        document.querySelectorAll(".canvas-layer").forEach(el => el.classList.remove("selected"));
+        selectedLayers = [dom];
+    } else {
+        if (selectedLayers.includes(dom)) {
+            selectedLayers = selectedLayers.filter(l => l !== dom);
+            dom.classList.remove("selected");
+            return;
+        } else {
+            selectedLayers.push(dom);
+        }
+    }
+    dom.classList.add("selected");
+    loadLayerFilters(dom); // Load texture cho tab Tùy chỉnh
+    renderLayerPopupList(); // Cập nhật ui popup
+}
+
+function selectAllLayersAction() {
+    if (pagesData.length === 0) return;
+    selectedLayers = [];
+    document.querySelectorAll(".canvas-layer").forEach(el => el.classList.remove("selected"));
+    
+    let targetPages = currentViewMode === 'grid' ? pagesData : [pagesData[activePageIndex]];
+    
+    targetPages.forEach(p => {
+        p.layers.forEach(l => {
+            let dom = document.getElementById(l.id);
+            if(dom) {
+                dom.classList.add("selected");
+                selectedLayers.push(dom);
+            }
+        });
+    });
+}
+
+// Chú ý: Hãy sửa lại sự kiện mousedown/touchstart trong hàm makeLayerInteractive 
+// để truyền `e.shiftKey` vào hàm selectLayer:
+// Thay thế: selectLayer(dom);
+// Bằng: selectLayer(dom, e.shiftKey || false);
+
+/* ================= 3. THAY ĐỔI THỨ TỰ LAYER (Z-INDEX) ================= */
+function moveLayerOrder(direction) {
+    if (selectedLayers.length !== 1) return; // Tạm thời chỉ hỗ trợ đẩy 1 layer/lần
+    saveState();
+    let layerId = selectedLayers[0].id;
+    let page = pagesData[activePageIndex];
+    let idx = page.layers.findIndex(l => l.id === layerId);
+    
+    if (direction === -1 && idx > 0) { // Đẩy xuống (Ctrl + [)
+        let temp = page.layers[idx];
+        page.layers[idx] = page.layers[idx - 1];
+        page.layers[idx - 1] = temp;
+    } else if (direction === 1 && idx < page.layers.length - 1) { // Đẩy lên (Ctrl + ])
+        let temp = page.layers[idx];
+        page.layers[idx] = page.layers[idx + 1];
+        page.layers[idx + 1] = temp;
+    }
+    renderAllPages(); // Cập nhật lại DOM dựa trên mảng đã re-order
+}
+
+/* ================= 4. POPUP LAYER (Alt + 1) ================= */
+function toggleLayerPopup() {
+    let popup = document.getElementById('layerPopup');
+    popup.style.display = popup.style.display === 'flex' ? 'none' : 'flex';
+    if(popup.style.display === 'flex') renderLayerPopupList();
+}
+
+function renderLayerPopupList() {
+    let list = document.getElementById('popupLayerList');
+    list.innerHTML = '';
+    if (!pagesData[activePageIndex]) return;
+    
+    // Render đảo ngược để layer trên cùng nằm trên
+    let layersArr = [...pagesData[activePageIndex].layers].reverse();
+    
+    layersArr.forEach(l => {
+        let div = document.createElement('div');
+        let isSelected = selectedLayers.some(sl => sl.id === l.id);
+        div.className = `layer-list-item ${isSelected ? 'active' : ''}`;
+        div.innerHTML = `<i class="fas fa-layer-group"></i> <span>Layer (W:${Math.round(l.w)})</span>`;
+        div.onclick = (e) => {
+            let dom = document.getElementById(l.id);
+            if(dom) selectLayer(dom, e.shiftKey);
+        };
+        list.appendChild(div);
+    });
+}
+
+/* ================= 5. TÙY CHỈNH TEXTURE ================= */
+function loadLayerFilters(dom) {
+    if (selectedLayers.length !== 1) return; // Chỉ hiện info nếu chọn 1 layer
+    let p = pagesData[activePageIndex];
+    let lData = p.layers.find(l => l.id === dom.id);
+    if(!lData) return;
+    
+    let f = lData.filters || { bright: 100, contrast: 100, saturate: 100, hue: 0, opac: 100 };
+    
+    document.getElementById('f-bright').value = f.bright; document.getElementById('val-bright').innerText = f.bright + '%';
+    document.getElementById('f-contrast').value = f.contrast; document.getElementById('val-contrast').innerText = f.contrast + '%';
+    document.getElementById('f-saturate').value = f.saturate; document.getElementById('val-saturate').innerText = f.saturate + '%';
+    document.getElementById('f-hue').value = f.hue; document.getElementById('val-hue').innerText = f.hue + 'deg';
+    document.getElementById('f-opac').value = f.opac; document.getElementById('val-opac').innerText = f.opac + '%';
+}
+
+function applyFilters() {
+    if (selectedLayers.length !== 1) return;
+    saveState();
+    let dom = selectedLayers[0];
+    let p = pagesData[activePageIndex];
+    let lData = p.layers.find(l => l.id === dom.id);
+    
+    lData.filters = {
+        bright: document.getElementById('f-bright').value,
+        contrast: document.getElementById('f-contrast').value,
+        saturate: document.getElementById('f-saturate').value,
+        hue: document.getElementById('f-hue').value,
+        opac: document.getElementById('f-opac').value
+    };
+    
+    // Update labels
+    document.getElementById('val-bright').innerText = lData.filters.bright + '%';
+    // ... (tương tự cho các label khác)
+
+    // Áp dụng CSS Filter vào nội dung bên trong
+    let contentEl = dom.querySelector('.layer-content');
+    contentEl.style.filter = `brightness(${lData.filters.bright}%) contrast(${lData.filters.contrast}%) saturate(${lData.filters.saturate}%) hue-rotate(${lData.filters.hue}deg) opacity(${lData.filters.opac}%)`;
+}
+
+/* ================= 6. NHÓM (GROUP) LAYER ================= */
+function toggleGroupLayers() {
+    if (selectedLayers.length < 2) return; // Cần chọn ít nhất 2 layer
+    saveState();
+    
+    let page = pagesData[activePageIndex];
+    let groupLayersData = [];
+    
+    // Tính toán Bounding Box (Khuôn bao ngoài) của các layer được chọn
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    
+    selectedLayers.forEach(dom => {
+        let lData = page.layers.find(l => l.id === dom.id);
+        if(lData) {
+            groupLayersData.push(lData);
+            if(lData.x < minX) minX = lData.x;
+            if(lData.y < minY) minY = lData.y;
+            if(lData.x + lData.w > maxX) maxX = lData.x + lData.w;
+            if(lData.y + lData.h > maxY) maxY = lData.y + lData.h;
+        }
+    });
+    
+    let groupW = maxX - minX;
+    let groupH = maxY - minY;
+    
+    // Dựng lại nội dung HTML lồng nhau
+    let groupContent = `<div style="position:relative; width:100%; height:100%;">`;
+    groupLayersData.forEach(l => {
+        // Tọa độ bên trong Group bằng tọa độ gốc trừ đi tọa độ Group
+        let relX = l.x - minX;
+        let relY = l.y - minY;
+        groupContent += `<div style="position:absolute; left:${relX}px; top:${relY}px; width:${l.w}px; height:${l.h}px; transform:rotate(${l.rot||0}deg);">${l.content}</div>`;
+    });
+    groupContent += `</div>`;
+    
+    // Xóa các layer con khỏi page.layers
+    page.layers = page.layers.filter(l => !groupLayersData.some(gl => gl.id === l.id));
+    
+    // Thêm Layer Group vào
+    addLayerToPage(activePageIndex, groupContent, groupW, groupH, minX, minY);
+}
+
+// Nút Đồng Bộ Dummy
+function syncData() {
+    alert("Kích hoạt Đồng Bộ với Cloud/Sheet...");
+    // Gọi hàm POST Fetch API của bạn ở đây.
+}
     </script>
 </body>
 </html>
