@@ -967,7 +967,7 @@ function addLayerToPage(pageIdx, content, w, h, x=0, y=0, rot=0, isGroup=false, 
         saveState();
 
         layerObj.isEditingFrame = true;
-        layerObj.frameCanvasX = layerObj.x; // Lưu vị trí khung
+        layerObj.frameCanvasX = layerObj.x; 
         layerObj.frameCanvasY = layerObj.y;
 
         // Bơm layer phình to ra bằng kích thước thật của Ảnh
@@ -984,13 +984,14 @@ function addLayerToPage(pageIdx, content, w, h, x=0, y=0, rot=0, isGroup=false, 
         let frameRelX = layerObj.frameCanvasX - layerObj.x;
         let frameRelY = layerObj.frameCanvasY - layerObj.y;
 
-        // Render giao diện: Dưới mờ 50% - Trực diện 100% trong khung ảo
+        // --- CẬP NHẬT: XÓA NỀN FRAME VÀ LỚP PHỦ CHE CANVAS ---
+        // Render giao diện: Dưới mờ 50% (hiện ảnh tràn) - Trực diện 100% (trong khung)
         dom.querySelector('.layer-content').innerHTML = `
             <div style="position: relative; width: 100%; height: 100%;">
                 <div style="width: 100%; height: 100%; opacity: 0.5; display: flex; align-items: center; justify-content: center;">
                     ${layerObj.rawContent}
                 </div>
-                <div class="edit-frame-mask" style="position: absolute; left: ${frameRelX}px; top: ${frameRelY}px; width: ${layerObj.frameW}px; height: ${layerObj.frameH}px; clip-path: ${layerObj.frameClipPath}; border-radius: ${layerObj.frameRadius}; overflow: hidden; pointer-events: none; border: 2px dashed #01adee; box-sizing: border-box; box-shadow: 0 0 0 9999px rgba(255,255,255,0.4); z-index: 5;">
+                <div class="edit-frame-mask" style="position: absolute; left: ${frameRelX}px; top: ${frameRelY}px; width: ${layerObj.frameW}px; height: ${layerObj.frameH}px; clip-path: ${layerObj.frameClipPath}; border-radius: ${layerObj.frameRadius}; overflow: hidden; pointer-events: none; border: 2px dashed #01adee; box-sizing: border-box; z-index: 5;">
                     <div class="edit-frame-inner" style="position: absolute; left: ${-frameRelX}px; top: ${-frameRelY}px; width: ${layerObj.w}px; height: ${layerObj.h}px; display: flex; align-items: center; justify-content: center;">
                         ${layerObj.rawContent}
                     </div>
