@@ -816,7 +816,7 @@ function addLayerToActivePage(content) {
             addLayerToPage(activePageIndex, content, defW, defH, x, y, 0);
         }
 
-        function createLayerDOM(pageIdx, layerObj) {
+function createLayerDOM(pageIdx, layerObj) {
             let layerDom = document.createElement("div");
             layerDom.className = "canvas-layer";
             layerDom.id = layerObj.id;
@@ -826,8 +826,15 @@ function addLayerToActivePage(content) {
             layerDom.style.height = `${layerObj.h}px`;
             layerDom.style.transform = `rotate(${layerObj.rot||0}deg)`;
             
+            // BỔ SUNG: KHÔI PHỤC TEXTURE KHI RENDER LẠI (ĐỔI CHẾ ĐỘ XEM)
+            let filterStyle = "";
+            if (layerObj.filters) {
+                let f = layerObj.filters;
+                filterStyle = `filter: brightness(${f.bright}%) contrast(${f.contrast}%) saturate(${f.saturate}%) hue-rotate(${f.hue}deg) opacity(${f.opac}%);`;
+            }
+            
             layerDom.innerHTML = `
-                <div class="layer-content">${layerObj.content}</div>
+                <div class="layer-content" style="${filterStyle}">${layerObj.content}</div>
                 <div class="layer-handle corner tl" data-handle="tl"></div><div class="layer-handle corner tr" data-handle="tr"></div>
                 <div class="layer-handle corner bl" data-handle="bl"></div><div class="layer-handle corner br" data-handle="br"></div>
                 <div class="layer-handle edge tc" data-handle="tc"></div><div class="layer-handle edge bc" data-handle="bc"></div>
@@ -957,7 +964,7 @@ function selectLayer(dom, isShift = false) {
         });
     }
 
-    loadLayerFilters(dom); 
+    loadLayerFilters(); 
     if(document.getElementById('layerPopup').style.display === 'flex') renderLayerPopupList(); 
     updateSelectionUI(); 
 }
@@ -1403,6 +1410,8 @@ function selectAllLayersAction() {
     }
     updateSelectionUI();
     if(document.getElementById('layerPopup').style.display === 'flex') renderLayerPopupList(); 
+    // Cập nhật lại UI thông số Texture khi bấm Ctrl + A
+    loadLayerFilters();
 }
 
 // Chú ý: Hãy sửa lại sự kiện mousedown/touchstart trong hàm makeLayerInteractive 
@@ -1494,13 +1503,49 @@ function renderLayerPopupList() {
 }
 
 /* ================= 5. TÙY CHỈNH TEXTURE ================= */
-function loadLayerFilters(dom) {
-    if (selectedLayers.length !== 1) return; // Chỉ hiện info nếu chọn 1 layer
-    let p = pagesData[activePageIndex];
-    let lData = p.layers.find(l => l.id === dom.id);
-    if(!lData) return;
+/* ================= 5. TÙY CHỈNH TEXTURE ================= */
+function loadLayerFilters() {
+    if (selectedLayers.length === 0) return;
+
+    let f = null;
+
+    if (selectedLayers.length === 1) {
+        // Nếu chỉ chọn 1 layer -> Lấy trực tiếp filter của nó
+        let dom = selectedLayers[0];
+        let pIdx = dom.closest('.page-container').dataset.pageIndex;
+        let lData = pagesData[pIdx].layers.find(l => l.id === dom.id);
+        f = lData?.filters;
+    } else {
+        // THUẬT TOÁN MULTI-SELECT (CTRL+A):
+        // Kiểm tra xem toàn bộ layer đang chọn có cùng thông số hay không
+        let firstFilterStr = null;
+        let isUniform = true;
+
+        for (let dom of selectedLayers) {
+            let container = dom.closest('.page-container');
+            if (!container) continue;
+            let pIdx = container.dataset.pageIndex;
+            let lData = pagesData[pIdx].layers.find(l => l.id === dom.id);
+            if (!lData) continue;
+
+            let currFilterStr = lData.filters ? JSON.stringify(lData.filters) : JSON.stringify({ bright: 100, contrast: 100, saturate: 100, hue: 0, opac: 100 });
+            
+            if (!firstFilterStr) {
+                firstFilterStr = currFilterStr; // Lấy layer đầu tiên làm chuẩn
+            } else if (firstFilterStr !== currFilterStr) {
+                isUniform = false; // Phát hiện có sự khác biệt!
+                break;
+            }
+        }
+
+        // Nếu tất cả giống nhau y hệt, hiện thông số đó. Nếu lệch, null (trả về mặc định)
+        if (isUniform && firstFilterStr) {
+            f = JSON.parse(firstFilterStr);
+        }
+    }
     
-    let f = lData.filters || { bright: 100, contrast: 100, saturate: 100, hue: 0, opac: 100 };
+    // Nếu không có data (hoặc thông số đang lộn xộn do tùy chỉnh riêng rẽ) -> Về hiển thị mặc định
+    f = f || { bright: 100, contrast: 100, saturate: 100, hue: 0, opac: 100 };
     
     document.getElementById('f-bright').value = f.bright; document.getElementById('val-bright').innerText = f.bright + '%';
     document.getElementById('f-contrast').value = f.contrast; document.getElementById('val-contrast').innerText = f.contrast + '%';
@@ -1552,7 +1597,7 @@ function resetFilters() {
         }
     });
     // Load lại UI thanh trượt
-    loadLayerFilters(selectedLayers[0]);
+    loadLayerFilters();
 }
 
 /* ================= 6. NHÓM (GROUP) LAYER ================= */
