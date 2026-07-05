@@ -474,12 +474,73 @@ document.addEventListener('keydown', (e) => {
         function showLoader(text) { document.getElementById("loaderText").innerText = text; document.getElementById("loader").style.display = "flex"; }
         function hideLoader() { document.getElementById("loader").style.display = "none"; }
 
+/* ================= XỬ LÝ CLICK RA NGOÀI (BỎ CHỌN & CHỐT FRAME) ================= */
 function deselectAllLayers() {
     document.querySelectorAll(".canvas-layer").forEach(el => {
         el.classList.remove("selected", "multi-selected");
+        
+        // KIỂM TRA XEM CÓ LAYER NÀO ĐANG Ở CHẾ ĐỘ SỬA FRAME KHÔNG, NẾU CÓ THÌ CHỐT LẠI
+        let container = el.closest('.page-container');
+        if (container) {
+            let pIdx = container.dataset.pageIndex;
+            let lData = pagesData[pIdx].layers.find(l => l.id === el.id);
+            if (lData && lData.isEditingFrame) {
+                commitFrameEdit(el, lData);
+            }
+        }
     });
     selectedLayers = [];
     updateSelectionUI();
+}
+
+// Hàm 1: Gộp ảnh lại vào Frame khi click ra ngoài
+function commitFrameEdit(dom, layerObj) {
+    // Lưu lại vị trí/kích thước mới của Ảnh so với Khung
+    layerObj.imgX = layerObj.x - layerObj.frameCanvasX;
+    layerObj.imgY = layerObj.y - layerObj.frameCanvasY;
+    layerObj.imgW = layerObj.w;
+    layerObj.imgH = layerObj.h;
+
+    // Trả lại tọa độ Layer về chính cái Khung
+    layerObj.x = layerObj.frameCanvasX;
+    layerObj.y = layerObj.frameCanvasY;
+    layerObj.w = layerObj.frameW;
+    layerObj.h = layerObj.frameH;
+    layerObj.isEditingFrame = false;
+
+    dom.style.left = layerObj.x + 'px';
+    dom.style.top = layerObj.y + 'px';
+    dom.style.width = layerObj.w + 'px';
+    dom.style.height = layerObj.h + 'px';
+
+    // Đóng gói lại chuỗi HTML
+    layerObj.content = `
+        <div style="width: 100%; height: 100%; clip-path: ${layerObj.frameClipPath}; border-radius: ${layerObj.frameRadius}; overflow: hidden; position: relative;">
+            <div style="position: absolute; left: ${layerObj.imgX}px; top: ${layerObj.imgY}px; width: ${layerObj.imgW}px; height: ${layerObj.imgH}px; display: flex; align-items: center; justify-content: center;">
+                ${layerObj.rawContent}
+            </div>
+        </div>
+    `;
+    dom.querySelector('.layer-content').innerHTML = layerObj.content;
+    syncAllThumbnails();
+}
+
+// Hàm 2: Đồng bộ Khung ảo đứng im khi bạn kéo Ảnh mờ
+function updateFrameEditMask(dom, layerObj) {
+    if (!layerObj.isEditingFrame) return;
+    let frameRelX = layerObj.frameCanvasX - layerObj.x;
+    let frameRelY = layerObj.frameCanvasY - layerObj.y;
+    
+    let mask = dom.querySelector('.edit-frame-mask');
+    let inner = dom.querySelector('.edit-frame-inner');
+    if (mask && inner) {
+        mask.style.left = `${frameRelX}px`;
+        mask.style.top = `${frameRelY}px`;
+        inner.style.left = `${-frameRelX}px`;
+        inner.style.top = `${-frameRelY}px`;
+        inner.style.width = `${layerObj.w}px`;
+        inner.style.height = `${layerObj.h}px`;
+    }
 }
 
         /* ================= MENU CHUỘT PHẢI ================= */
@@ -899,37 +960,46 @@ function addLayerToPage(pageIdx, content, w, h, x=0, y=0, rot=0, isGroup=false, 
 
         function makeLayerInteractive(dom, pageIdx, layerObj) {
             // --- BỔ SUNG SỰ KIỆN CLICK ĐÚP Ở ĐÂY ---
-            dom.addEventListener("dblclick", (e) => {
-                if (layerObj.isFramed) {
-                    e.stopPropagation();
-                    saveState();
-                    
-                    let p = pagesData[pageIdx];
-                    
-                    // 1. Phục hồi lại cái Khung tàng hình nằm dưới
-                    addLayerToPage(pageIdx, layerObj.frameHtml, layerObj.frameW, layerObj.frameH, layerObj.x, layerObj.y, 0, false, null, null, true);
+ dom.addEventListener("dblclick", (e) => {
+    // KÍCH HOẠT CHẾ ĐỘ SỬA MẶT NẠ KÉP
+    if (layerObj.isFramed && !layerObj.isEditingFrame) {
+        e.stopPropagation();
+        saveState();
 
-                    // 2. Tháo lớp mặt nạ của ảnh hiện tại, trả về ảnh gốc
-                    layerObj.content = layerObj.rawContent;
-                    layerObj.isFramed = false; // Bỏ trạng thái khóa
-                    
-                    // Cập nhật giao diện: Đặt Opacity 50% để nhìn xuyên thấu khung
-                    let contentContainer = dom.querySelector('.layer-content');
-                    if (contentContainer) {
-                        contentContainer.innerHTML = layerObj.content;
-                        contentContainer.style.opacity = "0.6"; // Mờ đi để thấy viền khung bên dưới
-                    }
+        layerObj.isEditingFrame = true;
+        layerObj.frameCanvasX = layerObj.x; // Lưu vị trí khung
+        layerObj.frameCanvasY = layerObj.y;
 
-                    // Mở rộng ảnh ra kích thước cũ để kéo thả
-                    layerObj.w = layerObj.w * 1.5; // Scale to ra một chút để dễ cầm
-                    layerObj.h = layerObj.h * 1.5;
-                    dom.style.width = `${layerObj.w}px`;
-                    dom.style.height = `${layerObj.h}px`;
-                    
-                    selectLayer(dom);
-                    syncAllThumbnails();
-                }
-            });
+        // Bơm layer phình to ra bằng kích thước thật của Ảnh
+        layerObj.x = layerObj.frameCanvasX + layerObj.imgX;
+        layerObj.y = layerObj.frameCanvasY + layerObj.imgY;
+        layerObj.w = layerObj.imgW;
+        layerObj.h = layerObj.imgH;
+
+        dom.style.left = layerObj.x + 'px';
+        dom.style.top = layerObj.y + 'px';
+        dom.style.width = layerObj.w + 'px';
+        dom.style.height = layerObj.h + 'px';
+
+        let frameRelX = layerObj.frameCanvasX - layerObj.x;
+        let frameRelY = layerObj.frameCanvasY - layerObj.y;
+
+        // Render giao diện: Dưới mờ 50% - Trực diện 100% trong khung ảo
+        dom.querySelector('.layer-content').innerHTML = `
+            <div style="position: relative; width: 100%; height: 100%;">
+                <div style="width: 100%; height: 100%; opacity: 0.5; display: flex; align-items: center; justify-content: center;">
+                    ${layerObj.rawContent}
+                </div>
+                <div class="edit-frame-mask" style="position: absolute; left: ${frameRelX}px; top: ${frameRelY}px; width: ${layerObj.frameW}px; height: ${layerObj.frameH}px; clip-path: ${layerObj.frameClipPath}; border-radius: ${layerObj.frameRadius}; overflow: hidden; pointer-events: none; border: 2px dashed #01adee; box-sizing: border-box; box-shadow: 0 0 0 9999px rgba(255,255,255,0.4); z-index: 5;">
+                    <div class="edit-frame-inner" style="position: absolute; left: ${-frameRelX}px; top: ${-frameRelY}px; width: ${layerObj.w}px; height: ${layerObj.h}px; display: flex; align-items: center; justify-content: center;">
+                        ${layerObj.rawContent}
+                    </div>
+                </div>
+            </div>
+        `;
+        selectLayer(dom);
+    }
+});
             dom.addEventListener("mousedown", (e) => {
                 e.stopPropagation();
                 // FIX: Truyền e.shiftKey để nhận diện chọn nhiều layer
@@ -1026,6 +1096,7 @@ function selectLayer(dom, isShift = false) {
 /* ================= ĐỒNG BỘ DI CHUYỂN VÀ THU PHÓNG (GROUP) ================= */
 /* ================= ĐỒNG BỘ DI CHUYỂN VÀ THU PHÓNG (GROUP) ================= */
 /* ================= ĐỒNG BỘ DI CHUYỂN VÀ THU PHÓNG (GROUP) ================= */
+/* ================= ĐỒNG BỘ DI CHUYỂN & HÍT FRAME ================= */
 function startMove(e, dom, layerObj, isTouch=false) {
     let startX = e.clientX;
     let startY = e.clientY;
@@ -1053,21 +1124,23 @@ function startMove(e, dom, layerObj, isTouch=false) {
             item.data.y = item.origY + dy;
             item.dom.style.left = `${item.data.x}px`;
             item.dom.style.top = `${item.data.y}px`;
+            
+            // HOOK: Đồng bộ Khung tĩnh nếu đang Edit
+            updateFrameEditMask(item.dom, item.data);
         });
         
         if (selectedLayers.length > 1) updateSelectionUI(); 
-        syncAllThumbnails();
     }
     
     function onUp(ev) { 
         window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
         window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
+        syncAllThumbnails(); // Rút gọn gọi 1 lần khi nhả chuột
 
-        if (selectedLayers.length === 1) {
+        if (selectedLayers.length === 1 && !layerObj.isEditingFrame) {
             let p = pagesData[activePageIndex];
             let draggedData = layerObj;
             let draggedIdx = p.layers.findIndex(l => l.id === draggedData.id);
-
             let dropX = isTouch ? ev.changedTouches[0].clientX : ev.clientX;
             let dropY = isTouch ? ev.changedTouches[0].clientY : ev.clientY;
 
@@ -1085,30 +1158,22 @@ function startMove(e, dom, layerObj, isTouch=false) {
 
                             let frameInner = frameDom.querySelector('[data-is-frame="true"]');
                             let frameStyle = window.getComputedStyle(frameInner);
-                            let frameRadius = frameStyle.borderRadius || '0px';
-                            let frameClipPath = frameInner.style.clipPath || frameStyle.clipPath || 'none';
-
-                            // --- LƯU LẠI DỮ LIỆU GỐC ĐỂ CHỈNH SỬA SAU ---
+                            
                             draggedData.isFramed = true;
-                            draggedData.rawContent = draggedData.content; // Ảnh chưa bị cắt
-                            draggedData.frameHtml = targetLayer.content; // Mã HTML của Khung
+                            draggedData.rawContent = draggedData.content; 
                             draggedData.frameW = targetLayer.w;
                             draggedData.frameH = targetLayer.h;
-                            
-                            // Đưa ảnh vào tâm khung
-                            draggedData.x = targetLayer.x - (draggedData.w - targetLayer.w)/2;
-                            draggedData.y = targetLayer.y - (draggedData.h - targetLayer.h)/2;
+                            draggedData.frameRadius = frameStyle.borderRadius || '0px';
+                            draggedData.frameClipPath = frameInner.style.clipPath || frameStyle.clipPath || 'none';
 
-                            // Bọc ảnh bằng mặt nạ
-                            draggedData.content = `
-                                <div style="width: ${targetLayer.w}px; height: ${targetLayer.h}px; border-radius: ${frameRadius}; clip-path: ${frameClipPath}; -webkit-clip-path: ${frameClipPath}; overflow: hidden; display: flex; align-items: center; justify-content: center; pointer-events: none;">
-                                    <div style="min-width: ${draggedData.w}px; min-height: ${draggedData.h}px; display:flex; align-items:center; justify-content:center;">
-                                        ${draggedData.rawContent}
-                                    </div>
-                                </div>
-                            `;
+                            // Tự động scale ảnh để lấp đầy Khung (giống Canva)
+                            let scale = Math.max(targetLayer.w / draggedData.w, targetLayer.h / draggedData.h);
+                            draggedData.imgW = draggedData.w * scale;
+                            draggedData.imgH = draggedData.h * scale;
+                            draggedData.imgX = (targetLayer.w - draggedData.imgW) / 2;
+                            draggedData.imgY = (targetLayer.h - draggedData.imgH) / 2;
 
-                            // Ép lại kích thước layer bằng với Khung
+                            // Ép Layer bằng kích thước Khung
                             draggedData.x = targetLayer.x;
                             draggedData.y = targetLayer.y;
                             draggedData.w = targetLayer.w;
@@ -1119,8 +1184,15 @@ function startMove(e, dom, layerObj, isTouch=false) {
                             dom.style.width = `${draggedData.w}px`;
                             dom.style.height = `${draggedData.h}px`;
 
-                            let contentContainer = dom.querySelector('.layer-content');
-                            if (contentContainer) contentContainer.innerHTML = draggedData.content;
+                            // Đóng gói
+                            draggedData.content = `
+                                <div style="width: 100%; height: 100%; clip-path: ${draggedData.frameClipPath}; border-radius: ${draggedData.frameRadius}; overflow: hidden; position: relative;">
+                                    <div style="position: absolute; left: ${draggedData.imgX}px; top: ${draggedData.imgY}px; width: ${draggedData.imgW}px; height: ${draggedData.imgH}px; display: flex; align-items: center; justify-content: center;">
+                                        ${draggedData.rawContent}
+                                    </div>
+                                </div>
+                            `;
+                            dom.querySelector('.layer-content').innerHTML = draggedData.content;
 
                             frameDom.remove(); 
                             p.layers = p.layers.filter(l => l.id !== targetLayer.id); 
@@ -1128,7 +1200,6 @@ function startMove(e, dom, layerObj, isTouch=false) {
                             syncAllThumbnails();
                             updateSelectionUI(); 
                             if(document.getElementById('layerPopup').style.display === 'flex') renderLayerPopupList();
-                            
                             break; 
                         }
                     }
@@ -1136,7 +1207,6 @@ function startMove(e, dom, layerObj, isTouch=false) {
             }
         }
     }
-    
     window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
     window.addEventListener(isTouch?"touchend":"mouseup", onUp);
 }
@@ -1201,42 +1271,46 @@ function startMSBResize(e, msbDom, handle, pageIdx, isTouch=false) {
 }
 
         /* LOGIC THAY ĐỔI KÍCH THƯỚC (GIỮ TỶ LỆ KHI KÉO GÓC) */
-        function startResize(e, dom, handle, layerObj, isTouch=false) {
-            let startX = e.clientX, startY = e.clientY;
-            let origX = dom.offsetLeft, origY = dom.offsetTop;
-            let origW = dom.offsetWidth, origH = dom.offsetHeight;
-            let ratio = origW / origH;
+/* LOGIC THAY ĐỔI KÍCH THƯỚC (CÓ HOOK FRAME) */
+function startResize(e, dom, handle, layerObj, isTouch=false) {
+    let startX = e.clientX, startY = e.clientY;
+    let origX = dom.offsetLeft, origY = dom.offsetTop;
+    let origW = dom.offsetWidth, origH = dom.offsetHeight;
+    let ratio = origW / origH;
+    
+    let anchorX = (handle.includes("l")) ? origX + origW : origX;
+    let anchorY = (handle.includes("t")) ? origY + origH : origY;
+    let scaleFactor = currentZoom;
+
+    function onMove(ev) {
+        let clientX = isTouch ? ev.touches[0].clientX : ev.clientX;
+        let clientY = isTouch ? ev.touches[0].clientY : ev.clientY;
+        
+        let dx = (clientX - startX) / scaleFactor; 
+        let newW, newH, newX, newY;
+
+        if (handle === 'br') { newW = origW + dx; newH = newW / ratio; newX = origX; newY = origY; }
+        else if (handle === 'bl') { newW = origW - dx; newH = newW / ratio; newX = anchorX - newW; newY = origY; }
+        else if (handle === 'tr') { newW = origW + dx; newH = newW / ratio; newX = origX; newY = anchorY - newH; }
+        else if (handle === 'tl') { newW = origW - dx; newH = newW / ratio; newX = anchorX - newW; newY = anchorY - newH; }
+
+        if (newW > 20 && newH > 20) { 
+            layerObj.w = newW; layerObj.h = newH; layerObj.x = newX; layerObj.y = newY;
+            dom.style.width = `${newW}px`; dom.style.height = `${newH}px`;
+            dom.style.left = `${newX}px`; dom.style.top = `${newY}px`;
             
-            let anchorX = (handle.includes("l")) ? origX + origW : origX;
-            let anchorY = (handle.includes("t")) ? origY + origH : origY;
-            let scaleFactor = currentZoom;
-
-            function onMove(ev) {
-                let clientX = isTouch ? ev.touches[0].clientX : ev.clientX;
-                let clientY = isTouch ? ev.touches[0].clientY : ev.clientY;
-                
-                let dx = (clientX - startX) / scaleFactor; 
-                let newW, newH, newX, newY;
-
-                if (handle === 'br') { newW = origW + dx; newH = newW / ratio; newX = origX; newY = origY; }
-                else if (handle === 'bl') { newW = origW - dx; newH = newW / ratio; newX = anchorX - newW; newY = origY; }
-                else if (handle === 'tr') { newW = origW + dx; newH = newW / ratio; newX = origX; newY = anchorY - newH; }
-                else if (handle === 'tl') { newW = origW - dx; newH = newW / ratio; newX = anchorX - newW; newY = anchorY - newH; }
-
-                if (newW > 20 && newH > 20) { 
-                    layerObj.w = newW; layerObj.h = newH; layerObj.x = newX; layerObj.y = newY;
-                    dom.style.width = `${newW}px`; dom.style.height = `${newH}px`;
-                    dom.style.left = `${newX}px`; dom.style.top = `${newY}px`;
-                    syncAllThumbnails();
-                }
-            }
-            function onUp() { 
-                window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
-                window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
-            }
-            window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
-            window.addEventListener(isTouch?"touchend":"mouseup", onUp);
+            // HOOK: Đồng bộ Khung tĩnh nếu đang Edit
+            updateFrameEditMask(dom, layerObj);
         }
+    }
+    function onUp() { 
+        window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
+        window.removeEventListener(isTouch?"touchend":"mouseup", onUp);
+        syncAllThumbnails(); 
+    }
+    window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
+    window.addEventListener(isTouch?"touchend":"mouseup", onUp);
+}
 
         /* LOGIC CẮT XÉN (CROP QUA 4 CẠNH BÊN) */
         function startCrop(e, dom, handle, layerObj, isTouch=false) {
