@@ -382,13 +382,16 @@ function saveState() {
 document.addEventListener('keydown', (e) => {
     // Bỏ qua phím tắt nếu đang gõ text (input, textarea)
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    
+    // Hỗ trợ cả Ctrl (Windows) và Cmd (Mac)
+    const isCtrl = e.ctrlKey || e.metaKey;
 
     // 1. Undo: Ctrl + Z
-    if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'z') {
+    if (isCtrl && !e.shiftKey && e.key.toLowerCase() === 'z') {
         e.preventDefault(); executeUndo();
     }
     // 2. Redo: Ctrl + Y HOẶC Ctrl + Shift + Z
-    if ((e.ctrlKey && e.key.toLowerCase() === 'y') || (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'z')) {
+    if ((isCtrl && e.key.toLowerCase() === 'y') || (isCtrl && e.shiftKey && e.key.toLowerCase() === 'z')) {
         e.preventDefault(); executeRedo();
     }
     // 3. Mở Popup Layer: Alt + 1
@@ -396,19 +399,23 @@ document.addEventListener('keydown', (e) => {
         e.preventDefault(); toggleLayerPopup();
     }
     // 4. Lên/Xuống Layer: Ctrl + [ và Ctrl + ]
-    if (e.ctrlKey && e.key === '[') {
+    if (isCtrl && e.key === '[') {
         e.preventDefault(); moveLayerOrder(-1);
     }
-    if (e.ctrlKey && e.key === ']') {
+    if (isCtrl && e.key === ']') {
         e.preventDefault(); moveLayerOrder(1);
     }
     // 5. Chọn tất cả: Ctrl + A
-    if (e.ctrlKey && e.key.toLowerCase() === 'a') {
+    if (isCtrl && e.key.toLowerCase() === 'a') {
         e.preventDefault(); selectAllLayersAction();
     }
     // 6. Nhóm/Bỏ nhóm: Ctrl + G
-    if (e.ctrlKey && e.key.toLowerCase() === 'g') {
+    if (isCtrl && e.key.toLowerCase() === 'g') {
         e.preventDefault(); toggleGroupLayers();
+    }
+    // 7. Xóa Layer: Backspace hoặc Delete
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault(); deleteSelectedLayers();
     }
 });
             // CLICK RA NGOÀI ĐỂ BỎ CHỌN LAYER VÀ MENU
@@ -767,14 +774,15 @@ async function fetchResourceData() {
 
 
         /* ================= TƯƠNG TÁC LỚP LAYER ================= */
-        function addLayerToActivePage(content) {
+function addLayerToActivePage(content) {
             if (pagesData.length === 0) return;
             let page = pagesData[activePageIndex];
             let defW = page.width * 0.4;
             let defH = page.height * 0.4;
             let x = (page.width - defW) / 2;
             let y = (page.height - defH) / 2;
-            addLayerToPage(activePageIndex, content, defW, defH, x, y);
+            // Gọi hàm với rot=0
+            addLayerToPage(activePageIndex, content, defW, defH, x, y, 0);
         }
 
         function createLayerDOM(pageIdx, layerObj) {
@@ -805,9 +813,9 @@ async function fetchResourceData() {
             return layerDom;
         }
 
-        function addLayerToPage(pageIdx, content, w, h, x=0, y=0) {
+function addLayerToPage(pageIdx, content, w, h, x=0, y=0, rot=0, isGroup=false, groupItems=null) {
             let page = pagesData[pageIdx];
-            let layerObj = { id: "l_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5), content, w, h, x, y, rot:0 };
+            let layerObj = { id: "l_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5), content, w, h, x, y, rot, isGroup, groupItems };
             
             let layerDom = createLayerDOM(pageIdx, layerObj);
             layerObj.dom = layerDom;
@@ -823,7 +831,8 @@ async function fetchResourceData() {
         function makeLayerInteractive(dom, pageIdx, layerObj) {
             dom.addEventListener("mousedown", (e) => {
                 e.stopPropagation();
-                selectLayer(dom);
+                // FIX: Truyền e.shiftKey để nhận diện chọn nhiều layer
+                selectLayer(dom, e.shiftKey || false); 
                 activePageIndex = pageIdx;
 
                 let handle = e.target.getAttribute("data-handle");
@@ -835,7 +844,7 @@ async function fetchResourceData() {
             dom.addEventListener("touchstart", (e) => {
                 if(e.touches.length === 1) {
                     e.stopPropagation();
-                    selectLayer(dom);
+                    selectLayer(dom, e.shiftKey || false);
                     activePageIndex = pageIdx;
                     let handle = e.target.getAttribute("data-handle");
                     if (handle === 'rot') startRotate(e.touches[0], dom, layerObj, true);
@@ -1202,22 +1211,23 @@ function selectLayer(dom, isShift = false) {
 }
 
 function selectAllLayersAction() {
-    if (pagesData.length === 0) return;
-    selectedLayers = [];
-    document.querySelectorAll(".canvas-layer").forEach(el => el.classList.remove("selected"));
-    
-    let targetPages = currentViewMode === 'grid' ? pagesData : [pagesData[activePageIndex]];
-    
-    targetPages.forEach(p => {
-        p.layers.forEach(l => {
-            let dom = document.getElementById(l.id);
-            if(dom) {
-                dom.classList.add("selected");
-                selectedLayers.push(dom);
-            }
-        });
-    });
-}
+            if (pagesData.length === 0) return;
+            selectedLayers = [];
+            document.querySelectorAll(".canvas-layer").forEach(el => el.classList.remove("selected"));
+            
+            let targetPages = currentViewMode === 'grid' ? pagesData : [pagesData[activePageIndex]];
+            
+            targetPages.forEach(p => {
+                p.layers.forEach(l => {
+                    let dom = document.getElementById(l.id);
+                    if(dom) {
+                        dom.classList.add("selected");
+                        selectedLayers.push(dom);
+                    }
+                });
+            });
+            renderLayerPopupList(); // Cập nhật lại UI Popup
+        }
 
 // Chú ý: Hãy sửa lại sự kiện mousedown/touchstart trong hàm makeLayerInteractive 
 // để truyền `e.shiftKey` vào hàm selectLayer:
@@ -1333,47 +1343,105 @@ function applyFilters() {
 }
 
 /* ================= 6. NHÓM (GROUP) LAYER ================= */
-function toggleGroupLayers() {
-    if (selectedLayers.length < 2) return; // Cần chọn ít nhất 2 layer
+/* ================= XÓA LAYER (BACKSPACE) ================= */
+function deleteSelectedLayers() {
+    if (selectedLayers.length === 0) return;
     saveState();
-    
-    let page = pagesData[activePageIndex];
-    let groupLayersData = [];
-    
-    // Tính toán Bounding Box (Khuôn bao ngoài) của các layer được chọn
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    
     selectedLayers.forEach(dom => {
-        let lData = page.layers.find(l => l.id === dom.id);
-        if(lData) {
-            groupLayersData.push(lData);
-            if(lData.x < minX) minX = lData.x;
-            if(lData.y < minY) minY = lData.y;
-            if(lData.x + lData.w > maxX) maxX = lData.x + lData.w;
-            if(lData.y + lData.h > maxY) maxY = lData.y + lData.h;
-        }
+        let p = pagesData[activePageIndex];
+        p.layers = p.layers.filter(l => l.id !== dom.id);
+        dom.remove();
     });
-    
-    let groupW = maxX - minX;
-    let groupH = maxY - minY;
-    
-    // Dựng lại nội dung HTML lồng nhau
-    let groupContent = `<div style="position:relative; width:100%; height:100%;">`;
-    groupLayersData.forEach(l => {
-        // Tọa độ bên trong Group bằng tọa độ gốc trừ đi tọa độ Group
-        let relX = l.x - minX;
-        let relY = l.y - minY;
-        groupContent += `<div style="position:absolute; left:${relX}px; top:${relY}px; width:${l.w}px; height:${l.h}px; transform:rotate(${l.rot||0}deg);">${l.content}</div>`;
-    });
-    groupContent += `</div>`;
-    
-    // Xóa các layer con khỏi page.layers
-    page.layers = page.layers.filter(l => !groupLayersData.some(gl => gl.id === l.id));
-    
-    // Thêm Layer Group vào
-    addLayerToPage(activePageIndex, groupContent, groupW, groupH, minX, minY);
+    selectedLayers = [];
+    syncAllThumbnails();
+    renderLayerPopupList();
 }
 
+function deleteLayer(btn) { 
+    saveState();
+    let layerDom = btn.closest(".canvas-layer");
+    let p = pagesData[activePageIndex];
+    p.layers = p.layers.filter(l => l.id !== layerDom.id);
+    layerDom.remove(); 
+    selectedLayers = selectedLayers.filter(sl => sl.id !== layerDom.id);
+    syncAllThumbnails(); 
+    renderLayerPopupList();
+}
+
+/* ================= 6. NHÓM VÀ BỎ NHÓM (CTRL + G) ================= */
+function toggleGroupLayers() {
+    if (selectedLayers.length === 0) return;
+    saveState();
+    let page = pagesData[activePageIndex];
+
+    // TRƯỜNG HỢP 1: BỎ NHÓM (UNGROUP)
+    if (selectedLayers.length === 1) {
+        let dom = selectedLayers[0];
+        let lData = page.layers.find(l => l.id === dom.id);
+        
+        if (lData && lData.isGroup && lData.groupItems) {
+            let dx = lData.x;
+            let dy = lData.y;
+            
+            // Xả các layer con ra vị trí tuyệt đối mới
+            lData.groupItems.forEach(child => {
+                let newX = dx + child.relX;
+                let newY = dy + child.relY;
+                addLayerToPage(activePageIndex, child.content, child.w, child.h, newX, newY, child.rot);
+            });
+            
+            // Xóa Group đi
+            page.layers = page.layers.filter(l => l.id !== lData.id);
+            dom.remove();
+            selectedLayers = [];
+            syncAllThumbnails();
+            renderLayerPopupList();
+            return;
+        }
+    }
+
+    // TRƯỜNG HỢP 2: GOM NHÓM (GROUP)
+    if (selectedLayers.length > 1) {
+        let groupLayersData = [];
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        
+        selectedLayers.forEach(dom => {
+            let lData = page.layers.find(l => l.id === dom.id);
+            if(lData) {
+                groupLayersData.push(lData);
+                if(lData.x < minX) minX = lData.x;
+                if(lData.y < minY) minY = lData.y;
+                if(lData.x + lData.w > maxX) maxX = lData.x + lData.w;
+                if(lData.y + lData.h > maxY) maxY = lData.y + lData.h;
+            }
+        });
+        
+        let groupW = maxX - minX;
+        let groupH = maxY - minY;
+        let groupItems = []; // Lưu trữ Data con để sau này Ungroup
+        
+        let groupContent = `<div style="position:relative; width:100%; height:100%; pointer-events:none;">`;
+        groupLayersData.forEach(l => {
+            let relX = l.x - minX;
+            let relY = l.y - minY;
+            groupItems.push({ content: l.content, w: l.w, h: l.h, relX: relX, relY: relY, rot: l.rot || 0 });
+            groupContent += `<div style="position:absolute; left:${relX}px; top:${relY}px; width:${l.w}px; height:${l.h}px; transform:rotate(${l.rot||0}deg); display:flex; justify-content:center; align-items:center; overflow:hidden;">${l.content}</div>`;
+        });
+        groupContent += `</div>`;
+        
+        // Gỡ các layer lẻ khỏi DOM
+        groupLayersData.forEach(gl => {
+            let dom = document.getElementById(gl.id);
+            if (dom) dom.remove();
+        });
+        page.layers = page.layers.filter(l => !groupLayersData.some(gl => gl.id === l.id));
+        
+        // Thêm Layer Group vào trang (với cờ isGroup = true)
+        addLayerToPage(activePageIndex, groupContent, groupW, groupH, minX, minY, 0, true, groupItems);
+        syncAllThumbnails();
+        renderLayerPopupList();
+    }
+}
 // Nút Đồng Bộ Dummy
 function syncData() {
     alert("Kích hoạt Đồng Bộ với Cloud/Sheet...");
