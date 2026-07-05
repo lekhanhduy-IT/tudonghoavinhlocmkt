@@ -91,7 +91,7 @@ function doPost(e) {
   try {
     var payload = JSON.parse(e.postData.contents || "{}");
     var result;
-
+    
     // Payload dạng mảng là hàng đợi đồng bộ Sheet cũ.
     if (Array.isArray(payload)) {
       result = processActionQueue(payload);
@@ -100,6 +100,49 @@ function doPost(e) {
     else if (payload && payload.action === "UPLOAD_POST_IMAGES") {
       result = uploadPostImagesToSharedDrive(payload);
     }
+    
+    // ==========================================
+    // BỔ SUNG: XỬ LÝ LƯU SHAPE/FRAME VÀO SHEET
+    // ==========================================
+    else if (payload && payload.action === "SAVE_CANVA_HIDDEN") {
+      var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      var sheet = ss.getSheetByName("Canva_hidden");
+      
+      // Nếu chưa có tab Canva_hidden thì tự động tạo
+      if (!sheet) {
+        sheet = ss.insertSheet("Canva_hidden");
+        sheet.appendRow(["Type", "Code"]); // Header
+      }
+      
+      // Ghi Shape hoặc Frame xuống cuối trang tính
+      sheet.appendRow([payload.type, payload.code]);
+      result = { success: true };
+    }
+    
+    // ==========================================
+    // BỔ SUNG: XỬ LÝ TẢI ẢNH VÀO FOLDER TÀI NGUYÊN
+    // ==========================================
+    else if (payload && payload.action === "UPLOAD_RESOURCE_IMAGE") {
+      // ID folder Tài nguyên Canva như trong API GET của bạn
+      var resFolderId = "1JOMYxGCnoj4nhVaV37EDwPuq4dKcUiCL"; 
+      var folder = DriveApp.getFolderById(resFolderId);
+      
+      // Giải mã Base64
+      var splitBase = payload.base64.split(',');
+      var typeMatch = splitBase[0].match(/:(.*?);/);
+      var mimeType = typeMatch ? typeMatch[1] : 'image/png';
+      var byteString = Utilities.base64Decode(splitBase[1]);
+      
+      var blob = Utilities.newBlob(byteString, mimeType, payload.fileName || ("Asset_" + new Date().getTime()));
+      var newFile = folder.createFile(blob);
+      
+      // Mở quyền đọc link
+      try {
+        newFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+      } catch(err){}
+      
+      result = { success: true, fileId: newFile.getId() };
+    }
     else {
       result = { success: false, error: "Unsupported action" };
     }
@@ -107,6 +150,7 @@ function doPost(e) {
     return ContentService
       .createTextOutput(JSON.stringify(result))
       .setMimeType(ContentService.MimeType.JSON);
+      
   } catch(err) {
     return ContentService
       .createTextOutput(JSON.stringify({success: false, error: err.toString()}))

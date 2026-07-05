@@ -428,16 +428,19 @@
             } catch(e) {}
         }
 
-        async function fetchResourceData() {
+async function fetchResourceData() {
             try {
-                let res = await fetch(`${API_URL}?action=get_canva_resources`);
+                // Thêm tham số &t= để phá cache trình duyệt
+                let res = await fetch(`${API_URL}?action=get_canva_resources&t=${Date.now()}`);
                 let json = await res.json();
                 if (json.success) {
                     renderAssetGrid("resourceImgGrid", json.images, 'img');
                     renderAssetGrid("resourceShapeGrid", json.shapes, 'svg');
                     renderAssetGrid("resourceFrameGrid", json.frames, 'svg');
                 }
-            } catch(e) {}
+            } catch(e) {
+                console.error("Lỗi fetch resource:", e);
+            }
         }
 
         function renderAssetGrid(containerId, list, type) {
@@ -1012,16 +1015,40 @@
         }
 
         /* ================= GỬI DATA VỀ APPS SCRIPT ================= */
-        async function handleResourceUpload(input) {
+async function handleResourceUpload(input) {
             let file = input.files[0];
             if (!file) return;
             let reader = new FileReader();
             reader.onload = async (e) => {
                 showLoader("Đang tải ảnh lên Shared Drive...");
-                await fetch(API_URL, {
-                    method: 'POST', body: JSON.stringify({ action: "UPLOAD_RESOURCE_IMAGE", base64: e.target.result, fileName: file.name })
-                });
-                hideLoader(); fetchResourceData();
+                try {
+                    let response = await fetch(API_URL, {
+                        method: 'POST', body: JSON.stringify({ action: "UPLOAD_RESOURCE_IMAGE", base64: e.target.result, fileName: file.name })
+                    });
+                    let result = await response.json();
+                    
+                    // Nếu tải lên thành công, chèn trực tiếp ảnh mới vào đầu Grid
+                    if (result.success && result.fileId) {
+                        let grid = document.getElementById("resourceImgGrid");
+                        let div = document.createElement("div");
+                        div.className = "asset-item";
+                        let imgContent = `<img src="https://drive.google.com/thumbnail?id=${result.fileId}&sz=w1000">`;
+                        div.innerHTML = imgContent;
+                        
+                        // Thêm sự kiện click để đẩy vào Layer
+                        let layerContent = `<img src="https://drive.google.com/thumbnail?id=${result.fileId}&sz=w1000" style="width:100%; height:100%; object-fit:cover; pointer-events:none;">`;
+                        div.onclick = () => addLayerToActivePage(layerContent);
+                        
+                        // Chèn vào đầu danh sách
+                        grid.insertBefore(div, grid.firstChild);
+                    }
+                } catch(err) {
+                    alert("Lỗi tải ảnh!");
+                }
+                
+                hideLoader(); 
+                // Vẫn gọi lại hàm đồng bộ tổng để đảm bảo Sheet cũng được update (nếu cần)
+                fetchResourceData(); 
             };
             reader.readAsDataURL(file);
         }
