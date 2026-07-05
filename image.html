@@ -1245,6 +1245,7 @@ function moveLayerOrder(direction) {
 }
 
 /* ================= 4. POPUP LAYER (Alt + 1) ================= */
+/* ================= 4. POPUP LAYER (Alt + 1) ================= */
 function toggleLayerPopup() {
     let popup = document.getElementById('layerPopup');
     popup.style.display = popup.style.display === 'flex' ? 'none' : 'flex';
@@ -1259,11 +1260,30 @@ function renderLayerPopupList() {
     // Render đảo ngược để layer trên cùng nằm trên
     let layersArr = [...pagesData[activePageIndex].layers].reverse();
     
-    layersArr.forEach(l => {
+    layersArr.forEach((l, index) => {
         let div = document.createElement('div');
         let isSelected = selectedLayers.some(sl => sl.id === l.id);
         div.className = `layer-list-item ${isSelected ? 'active' : ''}`;
-        div.innerHTML = `<i class="fas fa-layer-group"></i> <span>Layer (W:${Math.round(l.w)})</span>`;
+        
+        // Tạo Thumbnail Box cho Layer
+        let thumbHTML = `
+            <div style="width: 32px; height: 32px; flex-shrink: 0; background: transparent; border: 1px solid var(--gray-border); border-radius: 4px; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative;">
+                <div style="width: 100%; height: 100%; pointer-events: none; display: flex; align-items: center; justify-content: center;">
+                    ${l.content}
+                </div>
+            </div>
+        `;
+
+        // Tên Layer
+        let layerName = `Layer ${layersArr.length - index}`;
+
+        div.innerHTML = `
+            ${thumbHTML}
+            <span style="font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                ${layerName}
+            </span>
+        `;
+        
         div.onclick = (e) => {
             let dom = document.getElementById(l.id);
             if(dom) selectLayer(dom, e.shiftKey);
