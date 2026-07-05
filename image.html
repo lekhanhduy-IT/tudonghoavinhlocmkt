@@ -404,13 +404,22 @@ function saveState() {
             initAdvancedPinchToZoom();
 document.addEventListener('keydown', (e) => {
     // Bỏ qua phím tắt nếu đang gõ text (input, textarea)
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.closest('[contenteditable="true"]')) return;
     
     // Hỗ trợ cả Ctrl (Windows) và Cmd (Mac)
     const isCtrl = e.ctrlKey || e.metaKey;
 
+    // --- BỔ SUNG PHÍM TẮT COPY & PASTE ---
+    if (isCtrl && e.key.toLowerCase() === 'c') {
+        e.preventDefault(); copyLayer();
+    }
+    if (isCtrl && e.key.toLowerCase() === 'v') {
+        e.preventDefault(); pasteLayer();
+    }
+
     // 1. Undo: Ctrl + Z
     if (isCtrl && !e.shiftKey && e.key.toLowerCase() === 'z') {
+//... (giữ nguyên các phím tắt cũ bên dưới)
         e.preventDefault(); executeUndo();
     }
     // 2. Redo: Ctrl + Y HOẶC Ctrl + Shift + Z
@@ -1097,7 +1106,7 @@ function selectLayer(dom, isShift = false) {
 /* ================= ĐỒNG BỘ DI CHUYỂN VÀ THU PHÓNG (GROUP) ================= */
 /* ================= ĐỒNG BỘ DI CHUYỂN VÀ THU PHÓNG (GROUP) ================= */
 /* ================= ĐỒNG BỘ DI CHUYỂN VÀ THU PHÓNG (GROUP) ================= */
-/* ================= ĐỒNG BỘ DI CHUYỂN & HÍT FRAME ================= */
+/* ================= ĐỒNG BỘ DI CHUYỂN & HÍT/THAY THẾ FRAME ================= */
 function startMove(e, dom, layerObj, isTouch=false) {
     let startX = e.clientX;
     let startY = e.clientY;
@@ -1126,7 +1135,6 @@ function startMove(e, dom, layerObj, isTouch=false) {
             item.dom.style.left = `${item.data.x}px`;
             item.dom.style.top = `${item.data.y}px`;
             
-            // HOOK: Đồng bộ Khung tĩnh nếu đang Edit
             updateFrameEditMask(item.dom, item.data);
         });
         
@@ -1136,7 +1144,7 @@ function startMove(e, dom, layerObj, isTouch=false) {
     function onUp(ev) { 
         window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
         window.removeEventListener(isTouch?"touchend":"mouseup", onUp); 
-        syncAllThumbnails(); // Rút gọn gọi 1 lần khi nhả chuột
+        syncAllThumbnails(); 
 
         if (selectedLayers.length === 1 && !layerObj.isEditingFrame) {
             let p = pagesData[activePageIndex];
@@ -1149,43 +1157,58 @@ function startMove(e, dom, layerObj, isTouch=false) {
                 if (i === draggedIdx) continue; 
                 let targetLayer = p.layers[i];
 
-                if (targetLayer && targetLayer.content.includes('data-is-frame="true"')) {
-                    let frameDom = document.getElementById(targetLayer.id);
-                    if (frameDom) {
-                        let rect = frameDom.getBoundingClientRect();
+                // NHẬN DIỆN: Là Khung Trống (isRawFrame) HOẶC Là Khung đã có ảnh (isAlreadyFramed)
+                let isRawFrame = targetLayer && targetLayer.content.includes('data-is-frame="true"');
+                let isAlreadyFramed = targetLayer && targetLayer.isFramed === true;
+
+                if (isRawFrame || isAlreadyFramed) {
+                    let targetDom = document.getElementById(targetLayer.id);
+                    if (targetDom) {
+                        let rect = targetDom.getBoundingClientRect();
                         
                         if (dropX >= rect.left && dropX <= rect.right && dropY >= rect.top && dropY <= rect.bottom) {
                             saveState(); // Lưu Undo
 
-                            let frameInner = frameDom.querySelector('[data-is-frame="true"]');
-                            let frameStyle = window.getComputedStyle(frameInner);
+                            let frameW, frameH, frameRadius, frameClipPath;
+
+                            // Trích xuất thông số tùy thuộc vào loại Khung
+                            if (isRawFrame) {
+                                let frameInner = targetDom.querySelector('[data-is-frame="true"]');
+                                let frameStyle = window.getComputedStyle(frameInner);
+                                frameW = targetLayer.w;
+                                frameH = targetLayer.h;
+                                frameRadius = frameStyle.borderRadius || '0px';
+                                frameClipPath = frameInner.style.clipPath || frameStyle.clipPath || 'none';
+                            } else {
+                                frameW = targetLayer.frameW;
+                                frameH = targetLayer.frameH;
+                                frameRadius = targetLayer.frameRadius;
+                                frameClipPath = targetLayer.frameClipPath;
+                            }
                             
                             draggedData.isFramed = true;
                             draggedData.rawContent = draggedData.content; 
-                            draggedData.frameW = targetLayer.w;
-                            draggedData.frameH = targetLayer.h;
-                            draggedData.frameRadius = frameStyle.borderRadius || '0px';
-                            draggedData.frameClipPath = frameInner.style.clipPath || frameStyle.clipPath || 'none';
+                            draggedData.frameW = frameW;
+                            draggedData.frameH = frameH;
+                            draggedData.frameRadius = frameRadius;
+                            draggedData.frameClipPath = frameClipPath;
 
-                            // Tự động scale ảnh để lấp đầy Khung (giống Canva)
-                            let scale = Math.max(targetLayer.w / draggedData.w, targetLayer.h / draggedData.h);
+                            let scale = Math.max(frameW / draggedData.w, frameH / draggedData.h);
                             draggedData.imgW = draggedData.w * scale;
                             draggedData.imgH = draggedData.h * scale;
-                            draggedData.imgX = (targetLayer.w - draggedData.imgW) / 2;
-                            draggedData.imgY = (targetLayer.h - draggedData.imgH) / 2;
+                            draggedData.imgX = (frameW - draggedData.imgW) / 2;
+                            draggedData.imgY = (frameH - draggedData.imgH) / 2;
 
-                            // Ép Layer bằng kích thước Khung
                             draggedData.x = targetLayer.x;
                             draggedData.y = targetLayer.y;
-                            draggedData.w = targetLayer.w;
-                            draggedData.h = targetLayer.h;
+                            draggedData.w = frameW;
+                            draggedData.h = frameH;
 
                             dom.style.left = `${draggedData.x}px`;
                             dom.style.top = `${draggedData.y}px`;
                             dom.style.width = `${draggedData.w}px`;
                             dom.style.height = `${draggedData.h}px`;
 
-                            // Đóng gói
                             draggedData.content = `
                                 <div style="width: 100%; height: 100%; clip-path: ${draggedData.frameClipPath}; border-radius: ${draggedData.frameRadius}; overflow: hidden; position: relative;">
                                     <div style="position: absolute; left: ${draggedData.imgX}px; top: ${draggedData.imgY}px; width: ${draggedData.imgW}px; height: ${draggedData.imgH}px; display: flex; align-items: center; justify-content: center;">
@@ -1195,7 +1218,8 @@ function startMove(e, dom, layerObj, isTouch=false) {
                             `;
                             dom.querySelector('.layer-content').innerHTML = draggedData.content;
 
-                            frameDom.remove(); 
+                            // XÓA TARGET CŨ (Khung trống hoặc Khung chứa ảnh cũ)
+                            targetDom.remove(); 
                             p.layers = p.layers.filter(l => l.id !== targetLayer.id); 
 
                             syncAllThumbnails();
@@ -1376,17 +1400,51 @@ function startResize(e, dom, handle, layerObj, isTouch=false) {
             window.addEventListener(isTouch?"touchend":"mouseup", onUp);
         }
 
-        function copyLayer() { 
-            if (selectedLayer) {
-                let obj = pagesData[activePageIndex].layers.find(l => l.id == selectedLayer.id);
-                if(obj) layerClipboard = JSON.parse(JSON.stringify(obj)); 
+/* ================= 7. COPY / PASTE LAYERS ================= */
+function copyLayer() { 
+    if (selectedLayers.length > 0) {
+        let p = pagesData[activePageIndex];
+        // Lưu toàn bộ mảng các layer đang chọn vào Clipboard
+        layerClipboard = selectedLayers.map(dom => {
+            let obj = p.layers.find(l => l.id === dom.id);
+            return JSON.parse(JSON.stringify(obj)); 
+        }).filter(obj => obj != null);
+    }
+}
+
+function pasteLayer() { 
+    if (layerClipboard && layerClipboard.length > 0) {
+        saveState();
+        deselectAllLayers(); // Bỏ chọn các layer cũ trước khi dán
+        
+        layerClipboard.forEach(clipObj => {
+            // Dán lệch đi 20px để dễ nhìn thấy layer mới
+            let newLayer = addLayerToPage(
+                activePageIndex, clipObj.content, clipObj.w, clipObj.h, 
+                clipObj.x + 20, clipObj.y + 20, clipObj.rot, clipObj.isGroup, clipObj.groupItems, clipObj.filters, true
+            );
+            
+            // Nếu layer copy là một Frame đã chứa ảnh, phải phục hồi các thuộc tính đặc biệt của nó
+            if (clipObj.isFramed) {
+                newLayer.isFramed = true;
+                newLayer.rawContent = clipObj.rawContent;
+                newLayer.frameW = clipObj.frameW;
+                newLayer.frameH = clipObj.frameH;
+                newLayer.frameRadius = clipObj.frameRadius;
+                newLayer.frameClipPath = clipObj.frameClipPath;
+                newLayer.imgX = clipObj.imgX;
+                newLayer.imgY = clipObj.imgY;
+                newLayer.imgW = clipObj.imgW;
+                newLayer.imgH = clipObj.imgH;
             }
-        }
-        function pasteLayer() { 
-            if (layerClipboard) {
-                addLayerToPage(activePageIndex, layerClipboard.content, layerClipboard.w, layerClipboard.h, layerClipboard.x + 20, layerClipboard.y + 20);
-            } 
-        }
+            selectedLayers.push(newLayer.dom);
+        });
+        
+        updateSelectionUI(); // Cập nhật khung chọn cho các layer vừa dán
+        syncAllThumbnails();
+        if(document.getElementById('layerPopup').style.display === 'flex') renderLayerPopupList();
+    } 
+}
         function deleteLayer(btn) { 
             let layerDom = btn.closest(".canvas-layer");
             let p = pagesData[activePageIndex];
