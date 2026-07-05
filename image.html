@@ -264,11 +264,11 @@
         <span>Chỉnh sửa Texture</span>
         <button class="tool-btn" style="padding: 3px 8px; font-size: 11px;" onclick="resetFilters()"><i class="fas fa-undo"></i> Reset</button>
     </div>
-    <div class="filter-group"><label>Độ sáng <span id="val-bright">100%</span></label><input type="range" id="f-bright" min="0" max="200" value="100" oninput="applyFilters()"></div>
-    <div class="filter-group"><label>Tương phản <span id="val-contrast">100%</span></label><input type="range" id="f-contrast" min="0" max="200" value="100" oninput="applyFilters()"></div>
-    <div class="filter-group"><label>Bão hòa <span id="val-saturate">100%</span></label><input type="range" id="f-saturate" min="0" max="200" value="100" oninput="applyFilters()"></div>
-    <div class="filter-group"><label>Nhiệt độ (Hue) <span id="val-hue">0deg</span></label><input type="range" id="f-hue" min="-180" max="180" value="0" oninput="applyFilters()"></div>
-    <div class="filter-group"><label>Trong suốt (Opacity) <span id="val-opac">100%</span></label><input type="range" id="f-opac" min="0" max="100" value="100" oninput="applyFilters()"></div>
+    <div class="filter-group"><label>Độ sáng <span id="val-bright">100%</span></label><input type="range" id="f-bright" min="0" max="200" value="100" oninput="applyFilters()" onchange="saveState()"></div>
+    <div class="filter-group"><label>Tương phản <span id="val-contrast">100%</span></label><input type="range" id="f-contrast" min="0" max="200" value="100" oninput="applyFilters()" onchange="saveState()"></div>
+    <div class="filter-group"><label>Bão hòa <span id="val-saturate">100%</span></label><input type="range" id="f-saturate" min="0" max="200" value="100" oninput="applyFilters()" onchange="saveState()"></div>
+    <div class="filter-group"><label>Nhiệt độ (Hue) <span id="val-hue">0deg</span></label><input type="range" id="f-hue" min="-180" max="180" value="0" oninput="applyFilters()" onchange="saveState()"></div>
+    <div class="filter-group"><label>Trong suốt (Opacity) <span id="val-opac">100%</span></label><input type="range" id="f-opac" min="0" max="100" value="100" oninput="applyFilters()" onchange="saveState()"></div>
 </div>
                 <div class="sidebar-panel-header">
                     <span id="panelTitle">Tải lên</span>
@@ -626,6 +626,7 @@ async function fetchResourceData() {
 
         /* ================= RENDER CANVAS VÀ TÍNH KÍCH THƯỚC CHUẨN XÁC ================= */
         function renderAllPages() {
+            deselectAllLayers();
             let zoomContent = document.getElementById("zoomContent");
             let horizStrip = document.getElementById("horizStrip");
             
@@ -738,26 +739,30 @@ function createPageDOM(page, idx) {
         }
 
         /* HÀM KẾT XUẤT THUMBNAIL TỪ DATA CHUẨN XÁC 100% VÀ KHÔNG BỊ TRẮNG */
+ /* HÀM KẾT XUẤT THUMBNAIL TỪ DATA CHUẨN XÁC 100% VÀ KHÔNG BỊ TRẮNG */
         function syncAllThumbnails() {
             if (currentViewMode !== 'horizontal') return;
             pagesData.forEach((p, idx) => {
                 let thumbInner = document.getElementById(`thumb_canvas_${idx}`);
                 if (!thumbInner) return;
                 
-                // Thu nhỏ tỷ lệ vào khung vuông 90px
                 let scaleW = 90 / p.width;
                 let scaleH = 90 / p.height;
                 let scale = Math.min(scaleW, scaleH);
                 
-                // Canh giữa ảnh trong thumbnail
                 let offsetX = (90 - (p.width * scale)) / 2;
                 let offsetY = (90 - (p.height * scale)) / 2;
                 
-                // Dựng HTML từ Data (tránh đụng tới DOM của Main Canvas)
                 let html = `<div style="position: absolute; top: ${offsetY}px; left: ${offsetX}px; width: ${p.width}px; height: ${p.height}px; transform: scale(${scale}); transform-origin: top left; background: #fff; overflow: hidden;">`;
                 p.layers.forEach(l => {
+                    // Tái tạo Filter cho Thumbnail
+                    let filterStyle = "";
+                    if (l.filters) {
+                        let f = l.filters;
+                        filterStyle = `filter: brightness(${f.bright}%) contrast(${f.contrast}%) saturate(${f.saturate}%) hue-rotate(${f.hue}deg) opacity(${f.opac}%);`;
+                    }
                     html += `<div style="position:absolute; left:${l.x}px; top:${l.y}px; width:${l.w}px; height:${l.h}px; transform:rotate(${l.rot||0}deg); display:flex; justify-content:center; align-items:center; overflow:hidden;">
-                                ${l.content}
+                                <div class="layer-content" style="width:100%; height:100%; ${filterStyle}">${l.content}</div>
                              </div>`;
                 });
                 html += `</div>`;
@@ -1505,19 +1510,17 @@ function renderLayerPopupList() {
 /* ================= 5. TÙY CHỈNH TEXTURE ================= */
 /* ================= 5. TÙY CHỈNH TEXTURE ================= */
 function loadLayerFilters() {
-    if (selectedLayers.length === 0) return;
-
-    let f = null;
-
+    let f = { bright: 100, contrast: 100, saturate: 100, hue: 0, opac: 100 }; // Mặc định luôn là 100%
+    
     if (selectedLayers.length === 1) {
-        // Nếu chỉ chọn 1 layer -> Lấy trực tiếp filter của nó
         let dom = selectedLayers[0];
-        let pIdx = dom.closest('.page-container').dataset.pageIndex;
-        let lData = pagesData[pIdx].layers.find(l => l.id === dom.id);
-        f = lData?.filters;
-    } else {
-        // THUẬT TOÁN MULTI-SELECT (CTRL+A):
-        // Kiểm tra xem toàn bộ layer đang chọn có cùng thông số hay không
+        let container = dom.closest('.page-container');
+        if (container) {
+            let pIdx = container.dataset.pageIndex;
+            let lData = pagesData[pIdx].layers.find(l => l.id === dom.id);
+            if(lData && lData.filters) f = lData.filters;
+        }
+    } else if (selectedLayers.length > 1) {
         let firstFilterStr = null;
         let isUniform = true;
 
@@ -1530,22 +1533,11 @@ function loadLayerFilters() {
 
             let currFilterStr = lData.filters ? JSON.stringify(lData.filters) : JSON.stringify({ bright: 100, contrast: 100, saturate: 100, hue: 0, opac: 100 });
             
-            if (!firstFilterStr) {
-                firstFilterStr = currFilterStr; // Lấy layer đầu tiên làm chuẩn
-            } else if (firstFilterStr !== currFilterStr) {
-                isUniform = false; // Phát hiện có sự khác biệt!
-                break;
-            }
+            if (!firstFilterStr) firstFilterStr = currFilterStr; 
+            else if (firstFilterStr !== currFilterStr) { isUniform = false; break; }
         }
-
-        // Nếu tất cả giống nhau y hệt, hiện thông số đó. Nếu lệch, null (trả về mặc định)
-        if (isUniform && firstFilterStr) {
-            f = JSON.parse(firstFilterStr);
-        }
+        if (isUniform && firstFilterStr) f = JSON.parse(firstFilterStr);
     }
-    
-    // Nếu không có data (hoặc thông số đang lộn xộn do tùy chỉnh riêng rẽ) -> Về hiển thị mặc định
-    f = f || { bright: 100, contrast: 100, saturate: 100, hue: 0, opac: 100 };
     
     document.getElementById('f-bright').value = f.bright; document.getElementById('val-bright').innerText = f.bright + '%';
     document.getElementById('f-contrast').value = f.contrast; document.getElementById('val-contrast').innerText = f.contrast + '%';
@@ -1554,10 +1546,9 @@ function loadLayerFilters() {
     document.getElementById('f-opac').value = f.opac; document.getElementById('val-opac').innerText = f.opac + '%';
 }
 
-/* ================= 5. TÙY CHỈNH TEXTURE & RESET ================= */
 function applyFilters() {
     if (selectedLayers.length === 0) return;
-    saveState();
+    // Bỏ saveState() ở đây để chống lag, chuyển sang gọi khi nhả chuột ở HTML
     
     let bright = document.getElementById('f-bright').value;
     let contrast = document.getElementById('f-contrast').value;
@@ -1565,9 +1556,10 @@ function applyFilters() {
     let hue = document.getElementById('f-hue').value;
     let opac = document.getElementById('f-opac').value;
     
-    // Áp dụng cho TẤT CẢ layer đang được chọn (Dù ở page nào)
     selectedLayers.forEach(dom => {
-        let pIdx = dom.closest('.page-container').dataset.pageIndex;
+        let container = dom.closest('.page-container');
+        if(!container) return; // Bảo vệ nếu DOM ảo
+        let pIdx = container.dataset.pageIndex;
         let lData = pagesData[pIdx].layers.find(l => l.id === dom.id);
         if (lData) {
             lData.filters = { bright, contrast, saturate, hue, opac };
@@ -1576,7 +1568,6 @@ function applyFilters() {
         }
     });
     
-    // Update labels UI
     document.getElementById('val-bright').innerText = bright + '%';
     document.getElementById('val-contrast').innerText = contrast + '%';
     document.getElementById('val-saturate').innerText = saturate + '%';
@@ -1588,7 +1579,9 @@ function resetFilters() {
     if (selectedLayers.length === 0) return;
     saveState();
     selectedLayers.forEach(dom => {
-        let pIdx = dom.closest('.page-container').dataset.pageIndex;
+        let container = dom.closest('.page-container');
+        if(!container) return;
+        let pIdx = container.dataset.pageIndex;
         let lData = pagesData[pIdx].layers.find(l => l.id === dom.id);
         if (lData) {
             lData.filters = { bright: 100, contrast: 100, saturate: 100, hue: 0, opac: 100 };
@@ -1596,8 +1589,8 @@ function resetFilters() {
             if (contentEl) contentEl.style.filter = "none";
         }
     });
-    // Load lại UI thanh trượt
     loadLayerFilters();
+    syncAllThumbnails(); // Kích hoạt render lại Thumbnail 
 }
 
 /* ================= 6. NHÓM (GROUP) LAYER ================= */
