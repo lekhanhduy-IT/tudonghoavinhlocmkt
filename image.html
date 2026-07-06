@@ -1294,7 +1294,7 @@ function startMSBResize(e, msbDom, handle, pageIdx, isTouch=false) {
 }
 
         /* LOGIC THAY ĐỔI KÍCH THƯỚC (GIỮ TỶ LỆ KHI KÉO GÓC) */
-/* LOGIC THAY ĐỔI KÍCH THƯỚC SCALE ĐỒNG DẠNG (GIỮ NGUYÊN TỶ LỆ CHỮ VÀ HÌNH) */
+/* LOGIC THAY ĐỔI KÍCH THƯỚC SCALE ĐỒNG DẠNG (FIX LỖI TRÀN LAYER) */
 function startResize(e, dom, handle, layerObj, isTouch=false) {
     let startX = e.clientX, startY = e.clientY;
     let origX = dom.offsetLeft, origY = dom.offsetTop;
@@ -1329,28 +1329,15 @@ function startResize(e, dom, handle, layerObj, isTouch=false) {
             dom.style.width = `${newW}px`; dom.style.height = `${newH}px`;
             dom.style.left = `${newX}px`; dom.style.top = `${newY}px`;
             
-            // 3. SCALE ĐỒNG DẠNG NỘI DUNG (Cứu tinh cho Text và SVG)
+            // 3. SCALE ĐỒNG DẠNG NỘI DUNG
             if (contentContainer) {
-                // Tính toán tỷ lệ phóng to/thu nhỏ so với kích thước gốc lúc mới kéo
-                let contentScale = newW / origW; 
-                
-                // Nếu layer đã bị scale trước đó, ta cần lấy scale hiện tại nhân thêm với scale mới
-                let currentScaleStr = contentContainer.style.transform.match(/scale\(([^)]+)\)/);
-                let currentScale = currentScaleStr ? parseFloat(currentScaleStr[1]) : 1;
-                
-                // Lưu ý quan trọng: Vì ta thay đổi cả width/height vật lý của DOM, 
-                // ta PHẢI giữ nguyên width/height vật lý của contentContainer bằng với origW/origH, 
-                // và CHỈ dùng transform: scale() để tạo ảo giác to nhỏ.
                 contentContainer.style.width = `${origW}px`;
                 contentContainer.style.height = `${origH}px`;
-                contentContainer.style.transformOrigin = 'top left'; // Fix neo góc
-                contentContainer.style.transform = `scale(${newW / origW})`;
                 
-                // Chỉnh lại vị trí của nội dung bên trong lớp vỏ (để scale mượt mà)
-                if (handle.includes('r')) contentContainer.style.transformOrigin = 'top left';
-                if (handle.includes('l')) contentContainer.style.transformOrigin = 'top right';
-                if (handle.includes('b')) contentContainer.style.transformOrigin = handle.includes('l') ? 'bottom right' : 'bottom left';
-                if (handle.includes('t')) contentContainer.style.transformOrigin = handle.includes('l') ? 'top right' : 'top left';
+                // MẤU CHỐT Ở ĐÂY: Khóa chết điểm neo ở góc trên trái (0,0 của lớp vỏ).
+                // Không thay đổi điểm neo theo hướng kéo nữa vì lớp vỏ ngoài (dom) đã lo phần vị trí!
+                contentContainer.style.transformOrigin = 'top left'; 
+                contentContainer.style.transform = `scale(${newW / origW})`;
             }
 
             // HOOK: Đồng bộ Khung tĩnh nếu đang Edit Mặt nạ
@@ -1362,12 +1349,11 @@ function startResize(e, dom, handle, layerObj, isTouch=false) {
         window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
         window.removeEventListener(isTouch?"touchend":"mouseup", onUp);
         
-        // CHỐT SCALE: Sau khi nhả chuột, ta tính toán lại kích thước thật để tránh lỗi chồng chéo Scale
+        // CHỐT SCALE: Tính toán lại kích thước thật
         if (contentContainer) {
             let scaleVal = parseFloat(contentContainer.style.transform.match(/scale\(([^)]+)\)/)?.[1] || 1);
             if (scaleVal !== 1) {
-                // Nếu nội dung là SVG, cố gắng ép lại width/height (Thường không cần vì viewBox sẽ lo việc này)
-                // Nhưng nếu là TEXT, ta phải tăng font-size vật lý
+                // Tăng font-size vật lý cho Text
                 let textElements = contentContainer.querySelectorAll('[contenteditable]');
                 textElements.forEach(txtEl => {
                     let currentFontSize = window.getComputedStyle(txtEl).fontSize;
