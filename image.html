@@ -1294,56 +1294,86 @@ function startMSBResize(e, msbDom, handle, pageIdx, isTouch=false) {
 }
 
         /* LOGIC THAY ĐỔI KÍCH THƯỚC (GIỮ TỶ LỆ KHI KÉO GÓC) */
-/* LOGIC THAY ĐỔI KÍCH THƯỚC SCALE ĐỒNG DẠNG (FIX LỖI TRÀN LAYER DO FLEXBOX) */
+/* LOGIC THAY ĐỔI KÍCH THƯỚC SCALE ĐỒNG DẠNG (FIX LAG VÀ LỖI XOAY LAYER) */
 function startResize(e, dom, handle, layerObj, isTouch=false) {
+    // 1. TÍNH TOÁN TỌA ĐỘ VÀ GÓC XOAY BAN ĐẦU
     let startX = e.clientX, startY = e.clientY;
     let origX = dom.offsetLeft, origY = dom.offsetTop;
     let origW = dom.offsetWidth, origH = dom.offsetHeight;
     let ratio = origW / origH;
     
-    let anchorX = (handle.includes("l")) ? origX + origW : origX;
-    let anchorY = (handle.includes("t")) ? origY + origH : origY;
     let scaleFactor = currentZoom;
-    
-    // Tìm thẻ nội dung để áp dụng Scale
     let contentContainer = dom.querySelector('.layer-content');
+
+    // Lấy góc xoay hiện tại (cần thiết để tính toán chính xác khi kéo góc)
+    let rot = layerObj.rot || 0; 
+    let rotRad = rot * (Math.PI / 180); // Chuyển đổi sang radian
+
+    // Tìm tâm của hình
+    let cx = origX + origW / 2;
+    let cy = origY + origH / 2;
 
     function onMove(ev) {
         let clientX = isTouch ? ev.touches[0].clientX : ev.clientX;
         let clientY = isTouch ? ev.touches[0].clientY : ev.clientY;
         
         let dx = (clientX - startX) / scaleFactor; 
-        let newW, newH, newX, newY;
+        let dy = (clientY - startY) / scaleFactor;
 
-        // Tính toán Kích thước & Tọa độ Khung (Vật lý)
-        if (handle === 'br') { newW = origW + dx; newH = newW / ratio; newX = origX; newY = origY; }
-        else if (handle === 'bl') { newW = origW - dx; newH = newW / ratio; newX = anchorX - newW; newY = origY; }
-        else if (handle === 'tr') { newW = origW + dx; newH = newW / ratio; newX = origX; newY = anchorY - newH; }
-        else if (handle === 'tl') { newW = origW - dx; newH = newW / ratio; newX = anchorX - newW; newY = anchorY - newH; }
+        // BẢO BỐI 1: KHỬ GÓC XOAY ĐỂ TÍNH TOÁN NHƯ KHI HÌNH CHƯA XOAY
+        // Khi bạn kéo chuột trên màn hình, con chuột chạy theo trục XY của màn hình.
+        // Ta cần xoay véc-tơ di chuyển chuột (dx, dy) ngược lại một góc bằng đúng góc hình đang xoay
+        // để biết thực chất so với cái hình, con chuột đã đi được bao xa.
+        let localDx = dx * Math.cos(-rotRad) - dy * Math.sin(-rotRad);
+        let localDy = dx * Math.sin(-rotRad) + dy * Math.cos(-rotRad);
+
+        let newW = origW, newH = origH, newX = origX, newY = origY;
+
+        // Áp dụng tính toán trên hệ tọa độ ảo (đã khử xoay)
+        if (handle === 'br') { newW = origW + localDx; newH = newW / ratio; }
+        else if (handle === 'bl') { newW = origW - localDx; newH = newW / ratio; }
+        else if (handle === 'tr') { newW = origW + localDx; newH = newW / ratio; }
+        else if (handle === 'tl') { newW = origW - localDx; newH = newW / ratio; }
 
         if (newW > 20 && newH > 20) { 
-            // 1. Cập nhật Dữ liệu
-            layerObj.w = newW; layerObj.h = newH; layerObj.x = newX; layerObj.y = newY;
+            // BẢO BỐI 2: TÍNH TÂM MỚI ĐỂ VỊ TRÍ KHÔNG BỊ CHẠY
+            // Dù kéo góc nào, ta chỉ quan tâm nó cách tâm bao nhiêu
+            let dw = newW - origW;
+            let dh = newH - origH;
             
-            // 2. Cập nhật Khung Bao (Vật lý để con trỏ chuột hít đúng)
+            // Xác định độ dời của tâm (local)
+            let dcx = 0, dcy = 0;
+            if (handle === 'br') { dcx = dw/2; dcy = dh/2; }
+            if (handle === 'bl') { dcx = -dw/2; dcy = dh/2; }
+            if (handle === 'tr') { dcx = dw/2; dcy = -dh/2; }
+            if (handle === 'tl') { dcx = -dw/2; dcy = -dh/2; }
+            
+            // Xoay độ dời tâm đó trở lại hệ tọa độ thực
+            let realDcx = dcx * Math.cos(rotRad) - dcy * Math.sin(rotRad);
+            let realDcy = dcx * Math.sin(rotRad) + dcy * Math.cos(rotRad);
+
+            // Tâm mới = Tâm cũ + Độ dời
+            let newCx = cx + realDcx;
+            let newCy = cy + realDcy;
+            
+            // Từ tâm mới, lùi lại nửa chiều dài/rộng để ra tọa độ top-left
+            newX = newCx - newW / 2;
+            newY = newCy - newH / 2;
+
+            // --- ÁP DỤNG THAY ĐỔI VÀO GIAO DIỆN ---
+            layerObj.w = newW; layerObj.h = newH; layerObj.x = newX; layerObj.y = newY;
             dom.style.width = `${newW}px`; dom.style.height = `${newH}px`;
             dom.style.left = `${newX}px`; dom.style.top = `${newY}px`;
             
-            // 3. SCALE ĐỒNG DẠNG NỘI DUNG (FIX LỆCH TÂM)
             if (contentContainer) {
-                // Mấu chốt 1: Ép Absolute để vô hiệu hóa Flexbox căn giữa của thẻ cha
                 contentContainer.style.position = 'absolute';
                 contentContainer.style.top = '0px';
                 contentContainer.style.left = '0px';
-                
-                // Mấu chốt 2: Khóa kích thước vật lý gốc và thu phóng ảo
                 contentContainer.style.width = `${origW}px`;
                 contentContainer.style.height = `${origH}px`;
                 contentContainer.style.transformOrigin = 'top left'; 
                 contentContainer.style.transform = `scale(${newW / origW})`;
             }
-
-            // HOOK: Đồng bộ Khung tĩnh nếu đang Edit Mặt nạ
             updateFrameEditMask(dom, layerObj);
         }
     }
@@ -1356,32 +1386,36 @@ function startResize(e, dom, handle, layerObj, isTouch=false) {
         if (contentContainer) {
             let scaleVal = parseFloat(contentContainer.style.transform.match(/scale\(([^)]+)\)/)?.[1] || 1);
             
-            if (scaleVal !== 1) {
-                // Tăng/giảm font-size vật lý cho Text
+            // TỐI ƯU HÓA CHỐNG LAG: Chỉ thực hiện ghi đè nếu scale đủ lớn hoặc nhỏ (tránh việc click nhẹ cũng bị tính lại)
+            if (Math.abs(scaleVal - 1) > 0.001) { 
                 let textElements = contentContainer.querySelectorAll('[contenteditable]');
                 textElements.forEach(txtEl => {
                     let currentFontSize = window.getComputedStyle(txtEl).fontSize;
                     let newFontSize = parseFloat(currentFontSize) * scaleVal;
                     txtEl.style.fontSize = `${newFontSize}px`;
                 });
-            }
-            
-            // RESET TOÀN BỘ CSS LẠI TRẠNG THÁI MẶC ĐỊNH SẠCH SẼ
-            contentContainer.style.position = '';
-            contentContainer.style.top = '';
-            contentContainer.style.left = '';
-            contentContainer.style.transform = 'none';
-            contentContainer.style.width = '100%';
-            contentContainer.style.height = '100%';
-            
-            // Chỉ ghi đè HTML vào dữ liệu gốc nếu thực sự có thay đổi Scale
-            if (scaleVal !== 1) {
+                
+                contentContainer.style.position = '';
+                contentContainer.style.top = '';
+                contentContainer.style.left = '';
+                contentContainer.style.transform = 'none';
+                contentContainer.style.width = '100%';
+                contentContainer.style.height = '100%';
+                
                 layerObj.content = contentContainer.innerHTML;
+            } else {
+                 // Nếu không scale, vẫn phải dọn dẹp sạch sẽ CSS đã cấy vào
+                contentContainer.style.position = '';
+                contentContainer.style.top = '';
+                contentContainer.style.left = '';
+                contentContainer.style.transform = 'none';
+                contentContainer.style.width = '100%';
+                contentContainer.style.height = '100%';
             }
         }
-        
         syncAllThumbnails(); 
     }
+    
     window.addEventListener(isTouch?"touchmove":"mousemove", onMove, {passive:false}); 
     window.addEventListener(isTouch?"touchend":"mouseup", onUp);
 }
