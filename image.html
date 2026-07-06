@@ -403,8 +403,8 @@ function saveState() {
             fetchResourceData();
             initAdvancedPinchToZoom();
 document.addEventListener('keydown', (e) => {
-    // Bỏ qua phím tắt nếu đang gõ text (input, textarea)
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.closest('[contenteditable="true"]')) return;
+    // CẬP NHẬT MỚI: Dùng thuộc tính e.target.isContentEditable để nhận diện chính xác trạng thái đang sửa text
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
     
     // Hỗ trợ cả Ctrl (Windows) và Cmd (Mac)
     const isCtrl = e.ctrlKey || e.metaKey;
@@ -419,7 +419,6 @@ document.addEventListener('keydown', (e) => {
 
     // 1. Undo: Ctrl + Z
     if (isCtrl && !e.shiftKey && e.key.toLowerCase() === 'z') {
-//... (giữ nguyên các phím tắt cũ bên dưới)
         e.preventDefault(); executeUndo();
     }
     // 2. Redo: Ctrl + Y HOẶC Ctrl + Shift + Z
