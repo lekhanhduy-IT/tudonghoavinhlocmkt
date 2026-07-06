@@ -1294,7 +1294,7 @@ function startMSBResize(e, msbDom, handle, pageIdx, isTouch=false) {
 }
 
         /* LOGIC THAY ĐỔI KÍCH THƯỚC (GIỮ TỶ LỆ KHI KÉO GÓC) */
-/* LOGIC THAY ĐỔI KÍCH THƯỚC SCALE ĐỒNG DẠNG (FIX LỖI TRÀN LAYER) */
+/* LOGIC THAY ĐỔI KÍCH THƯỚC SCALE ĐỒNG DẠNG (FIX LỖI TRÀN LAYER DO FLEXBOX) */
 function startResize(e, dom, handle, layerObj, isTouch=false) {
     let startX = e.clientX, startY = e.clientY;
     let origX = dom.offsetLeft, origY = dom.offsetTop;
@@ -1329,13 +1329,16 @@ function startResize(e, dom, handle, layerObj, isTouch=false) {
             dom.style.width = `${newW}px`; dom.style.height = `${newH}px`;
             dom.style.left = `${newX}px`; dom.style.top = `${newY}px`;
             
-            // 3. SCALE ĐỒNG DẠNG NỘI DUNG
+            // 3. SCALE ĐỒNG DẠNG NỘI DUNG (FIX LỆCH TÂM)
             if (contentContainer) {
+                // Mấu chốt 1: Ép Absolute để vô hiệu hóa Flexbox căn giữa của thẻ cha
+                contentContainer.style.position = 'absolute';
+                contentContainer.style.top = '0px';
+                contentContainer.style.left = '0px';
+                
+                // Mấu chốt 2: Khóa kích thước vật lý gốc và thu phóng ảo
                 contentContainer.style.width = `${origW}px`;
                 contentContainer.style.height = `${origH}px`;
-                
-                // MẤU CHỐT Ở ĐÂY: Khóa chết điểm neo ở góc trên trái (0,0 của lớp vỏ).
-                // Không thay đổi điểm neo theo hướng kéo nữa vì lớp vỏ ngoài (dom) đã lo phần vị trí!
                 contentContainer.style.transformOrigin = 'top left'; 
                 contentContainer.style.transform = `scale(${newW / origW})`;
             }
@@ -1349,24 +1352,30 @@ function startResize(e, dom, handle, layerObj, isTouch=false) {
         window.removeEventListener(isTouch?"touchmove":"mousemove", onMove); 
         window.removeEventListener(isTouch?"touchend":"mouseup", onUp);
         
-        // CHỐT SCALE: Tính toán lại kích thước thật
+        // CHỐT SCALE: Tính toán lại kích thước thật sau khi nhả chuột
         if (contentContainer) {
             let scaleVal = parseFloat(contentContainer.style.transform.match(/scale\(([^)]+)\)/)?.[1] || 1);
+            
             if (scaleVal !== 1) {
-                // Tăng font-size vật lý cho Text
+                // Tăng/giảm font-size vật lý cho Text
                 let textElements = contentContainer.querySelectorAll('[contenteditable]');
                 textElements.forEach(txtEl => {
                     let currentFontSize = window.getComputedStyle(txtEl).fontSize;
                     let newFontSize = parseFloat(currentFontSize) * scaleVal;
                     txtEl.style.fontSize = `${newFontSize}px`;
                 });
-                
-                // Reset lại Scale ảo, áp dụng vào kích thước thật
-                contentContainer.style.transform = 'none';
-                contentContainer.style.width = '100%';
-                contentContainer.style.height = '100%';
-                
-                // Cập nhật lại HTML vào data gốc để lưu
+            }
+            
+            // RESET TOÀN BỘ CSS LẠI TRẠNG THÁI MẶC ĐỊNH SẠCH SẼ
+            contentContainer.style.position = '';
+            contentContainer.style.top = '';
+            contentContainer.style.left = '';
+            contentContainer.style.transform = 'none';
+            contentContainer.style.width = '100%';
+            contentContainer.style.height = '100%';
+            
+            // Chỉ ghi đè HTML vào dữ liệu gốc nếu thực sự có thay đổi Scale
+            if (scaleVal !== 1) {
                 layerObj.content = contentContainer.innerHTML;
             }
         }
